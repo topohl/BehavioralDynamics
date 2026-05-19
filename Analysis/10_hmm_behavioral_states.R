@@ -231,4 +231,6 @@ p_occ <- occupancy_tbl %>%
 
 save_plot_svg_pdf(p_occ, file.path(output_dir, "figures", "hmm_state_occupancy"), width = 180, height = 120)
 
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
+
 message("HMM behavioral-state analysis complete.")
