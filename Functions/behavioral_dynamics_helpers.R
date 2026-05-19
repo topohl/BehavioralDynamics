@@ -72,6 +72,151 @@ analysis_output_dirs <- function(output_dir) {
   dirs
 }
 
+classify_output_figure <- function(path) {
+  rel <- tolower(gsub("\\\\", "/", path))
+  nm <- basename(rel)
+  if (grepl("\\.html?$", rel) || grepl("interactive|plotly", rel)) return("interactive")
+  if (grepl("qc|quality|chip|dropout|batch|system|robust|sensitivity|duration|diagnostic", rel)) return("qc")
+  if (grepl("explor|umap|phate|nonlinear|attractor|energy|recurrence|landscape|nextgen", rel)) return("exploratory")
+  if (grepl("publication|overview|dashboard|fig|primary|main|heatmap|effect_size|model_ladder|prediction", rel) ||
+      grepl("^fig|^fig[0-9]|dashboard", nm)) {
+    return("publication_panels")
+  }
+  "supplementary"
+}
+
+harmonize_analysis_outputs <- function(output_dir,
+                                       copy_figures = TRUE,
+                                       remove_empty_dirs = FALSE) {
+  dirs <- analysis_output_dirs(output_dir)
+  figure_root <- dirs$figure_root
+  if (!dir.exists(figure_root)) {
+    return(invisible(tibble()))
+  }
+
+  figure_ext <- "\\.(svg|pdf|png|jpg|jpeg|tif|tiff|html)$"
+  figure_files <- list.files(figure_root, pattern = figure_ext, recursive = TRUE, full.names = TRUE, ignore.case = TRUE)
+  if (length(figure_files) == 0) {
+    inventory <- tibble(
+      file = character(),
+      relative_path = character(),
+      figure_class = character(),
+      harmonized_path = character(),
+      file_size_bytes = numeric(),
+      modified_time = as.POSIXct(character())
+    )
+  } else {
+    canonical_dirs <- normalizePath(
+      file.path(figure_root, c("publication_panels", "qc", "supplementary", "exploratory", "interactive")),
+      winslash = "/", mustWork = FALSE
+    )
+    figure_files_norm <- normalizePath(figure_files, winslash = "/", mustWork = FALSE)
+    class_vec <- vapply(figure_files, classify_output_figure, character(1))
+    target_dirs <- file.path(figure_root, class_vec)
+    target_files <- file.path(target_dirs, basename(figure_files))
+
+    is_already_canonical <- vapply(dirname(figure_files_norm), function(d) {
+      any(startsWith(d, canonical_dirs))
+    }, logical(1))
+    should_copy <- copy_figures & !is_already_canonical & normalizePath(target_files, winslash = "/", mustWork = FALSE) != figure_files_norm
+
+    if (any(should_copy)) {
+      purrr::walk(unique(target_dirs[should_copy]), ensure_dir)
+      purrr::walk2(figure_files[should_copy], target_files[should_copy], function(src, dst) {
+        if (!file.exists(dst)) {
+          file.copy(src, dst, overwrite = FALSE, copy.date = TRUE)
+        }
+      })
+    }
+
+    info <- file.info(figure_files)
+    inventory <- tibble(
+      file = basename(figure_files),
+      relative_path = gsub(paste0("^", gsub("\\\\", "/", normalizePath(output_dir, winslash = "/", mustWork = FALSE)), "/?"), "", figure_files_norm),
+      figure_class = class_vec,
+      harmonized_path = gsub(paste0("^", gsub("\\\\", "/", normalizePath(output_dir, winslash = "/", mustWork = FALSE)), "/?"), "", normalizePath(target_files, winslash = "/", mustWork = FALSE)),
+      file_size_bytes = as.numeric(info$size),
+      modified_time = as.POSIXct(info$mtime)
+    ) %>%
+      arrange(figure_class, file)
+  }
+
+  ensure_dir(file.path(output_dir, "tables"))
+  readr::write_csv(inventory, file.path(output_dir, "tables", "output_figure_inventory.csv"))
+
+  folder_summary <- inventory %>%
+    count(figure_class, name = "n_figures") %>%
+    right_join(
+      tibble(figure_class = c("publication_panels", "qc", "supplementary", "exploratory", "interactive")),
+      by = "figure_class"
+    ) %>%
+    mutate(
+      n_figures = tidyr::replace_na(n_figures, 0L),
+      folder = file.path("figures", figure_class),
+      status = if_else(n_figures > 0, "contains_figures", "empty_no_matching_outputs_this_run")
+    ) %>%
+    arrange(match(figure_class, c("publication_panels", "qc", "supplementary", "exploratory", "interactive")))
+  readr::write_csv(folder_summary, file.path(output_dir, "tables", "output_folder_summary.csv"))
+
+  purrr::pwalk(folder_summary, function(figure_class, n_figures, folder, status) {
+    readme <- file.path(output_dir, folder, "README.txt")
+    ensure_dir(dirname(readme))
+    if (!file.exists(readme) || n_figures == 0) {
+      writeLines(c(
+        paste0("Folder: ", folder),
+        paste0("Status: ", status),
+        "This folder is part of the standardized MMMSociability output layout.",
+        "Figures may also exist at their original legacy paths for backward compatibility.",
+        "See tables/output_figure_inventory.csv and tables/output_folder_summary.csv for the harmonized index."
+      ), readme)
+    }
+  })
+
+  if (isTRUE(remove_empty_dirs)) {
+    empty_dirs <- folder_summary %>%
+      filter(n_figures == 0) %>%
+      pull(folder) %>%
+      file.path(output_dir, .)
+    purrr::walk(empty_dirs, function(d) {
+      files <- list.files(d, all.files = TRUE, no.. = TRUE)
+      if (length(setdiff(files, "README.txt")) == 0) unlink(d, recursive = TRUE)
+    })
+  }
+
+  invisible(inventory)
+}
+
+mirror_plot_to_standard_folder <- function(filename_base) {
+  figure_root_pattern <- "/figures/"
+  normalized_base <- normalizePath(filename_base, winslash = "/", mustWork = FALSE)
+  if (!grepl(figure_root_pattern, normalized_base, fixed = TRUE)) return(invisible(filename_base))
+
+  output_dir <- sub("/figures/.*$", "", normalized_base)
+  figure_root <- file.path(output_dir, "figures")
+  class <- classify_output_figure(normalized_base)
+  target_dir <- file.path(figure_root, class)
+  ensure_dir(target_dir)
+
+  source_files <- paste0(filename_base, c(".svg", ".pdf", ".png"))
+  source_files <- source_files[file.exists(source_files)]
+  if (length(source_files) == 0) return(invisible(filename_base))
+
+  source_norm <- normalizePath(source_files, winslash = "/", mustWork = FALSE)
+  target_files <- file.path(target_dir, basename(source_files))
+  target_norm <- normalizePath(target_files, winslash = "/", mustWork = FALSE)
+  should_copy <- source_norm != target_norm
+
+  if (any(should_copy)) {
+    purrr::walk2(source_files[should_copy], target_files[should_copy], function(src, dst) {
+      if (!file.exists(dst)) {
+        file.copy(src, dst, overwrite = FALSE, copy.date = TRUE)
+      }
+    })
+  }
+
+  invisible(filename_base)
+}
+
 write_output_manifest <- function(output_dir,
                                   script_name,
                                   analysis_name,
@@ -384,6 +529,7 @@ save_plot_svg_pdf <- function(plot, filename_base, width = 85, height = 65, unit
   pdf_device <- if (isTRUE(capabilities("cairo"))) grDevices::cairo_pdf else "pdf"
   ggplot2::ggsave(paste0(filename_base, ".pdf"), plot, width = width, height = height, units = units, device = pdf_device)
   ggplot2::ggsave(paste0(filename_base, ".png"), plot, width = width, height = height, units = units, dpi = dpi)
+  mirror_plot_to_standard_folder(filename_base)
   invisible(filename_base)
 }
 
