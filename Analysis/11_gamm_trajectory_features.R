@@ -33,7 +33,7 @@ source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/duration_norma
 # USER INPUT
 # ------------------------------------------------
 
-bin_level <- "30min_based"
+bin_level <- "10min_based"
 input_file <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
 output_dir <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/gamm_features", bin_level)
 
@@ -191,5 +191,7 @@ trajectory_interpretation_guide <- tibble(
 
 write_table(trajectory_robustness_summary, file.path(output_dir, "tables", "gamm_trajectory_robustness_summary.csv"))
 write_table(trajectory_interpretation_guide, file.path(output_dir, "tables", "gamm_trajectory_interpretation_guide.csv"))
+
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
 message("GAMM trajectory-feature extraction complete.")
