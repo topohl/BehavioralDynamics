@@ -62,6 +62,29 @@ primary_bin_level <- "5min_based"
 sensitivity_bin_levels <- c("10sec_based", "5min_based", "10min_based", "30min_based")
 optional_import_bin_levels <- unique(c(sensitivity_bin_levels, "1min_based"))
 
+# Systems integration is intentionally multi-scale. The primary bin controls
+# the raw dashboard backbone; specialized domains can prefer biologically
+# appropriate upstream bin sizes when available.
+domain_bin_preference <- function(domain = "general") {
+  domain <- safe_name(domain)
+  preferred <- switch(
+    domain,
+    hmm = c("10min_based", "5min_based", "30min_based", "1min_based", "10sec_based"),
+    latent_state = c("10min_based", "5min_based", "30min_based", "1min_based", "10sec_based"),
+    rest = c("10min_based", "30min_based", "5min_based", "1min_based", "10sec_based"),
+    sleep_like_inactivity = c("10min_based", "30min_based", "5min_based", "1min_based", "10sec_based"),
+    temporal_flexibility = c("10sec_based", "1min_based", "5min_based", "10min_based", "30min_based"),
+    general = c(primary_bin_level, optional_import_bin_levels),
+    social_reorganization = c("5min_based", "10min_based", "1min_based", "30min_based", "10sec_based"),
+    adaptive_recovery = c("5min_based", "10min_based", "30min_based", "1min_based", "10sec_based"),
+    phase_organization = c("10min_based", "30min_based", "5min_based", "1min_based", "10sec_based"),
+    nonlinear_systems = c("5min_based", "10min_based", "1min_based", "30min_based", "10sec_based"),
+    early_prediction = c(primary_bin_level, "10min_based", "1min_based", "30min_based", "10sec_based"),
+    c(primary_bin_level, optional_import_bin_levels)
+  )
+  unique(c(preferred, primary_bin_level, optional_import_bin_levels))
+}
+
 # Main output root.
 output_dir <- file.path(project_root, "analysis_ready/12_systems_neuroscience_summary", primary_bin_level)
 
@@ -89,6 +112,11 @@ n_prediction_bootstrap <- 1000
 # Useful columns could include RNP_module, Mito_module, Translation_module, etc.
 proteomics_module_file <- NULL
 preprocessed_position_dir <- file.path(project_root, "MMMSociability/preprocessed_data")
+
+# Chip-loss/dropout checks are retained as QC annotations by default because
+# animals without usable chips should already be removed during preprocessing.
+# Set to "exclude_flagged_epochs" for a stricter sensitivity analysis.
+chip_loss_qc_mode <- "annotate_only"
 
 # If TRUE, limits some plots to features that are easier to explain in a paper.
 publication_focus_only <- TRUE
@@ -164,6 +192,7 @@ if (TRUE) {
     pdf_device <- if (isTRUE(capabilities("cairo"))) grDevices::cairo_pdf else "pdf"
     ggplot2::ggsave(paste0(filename_base, ".pdf"), plot, width = width, height = height, units = units, device = pdf_device)
     ggplot2::ggsave(paste0(filename_base, ".png"), plot, width = width, height = height, units = units, dpi = 600)
+    if (exists("mirror_plot_to_standard_folder")) mirror_plot_to_standard_folder(filename_base)
     invisible(filename_base)
   }
 }
@@ -552,6 +581,33 @@ paths <- tibble(
 
 write_table(paths %>% mutate(Exists = file.exists(Path)), file.path(output_dir, "tables/input_path_registry.csv"))
 
+domain_bin_preference_audit <- tibble(
+  Domain = c(
+    "raw_dashboard_backbone", "temporal_flexibility", "latent_state", "hmm",
+    "social_reorganization", "adaptive_recovery", "sleep_like_inactivity",
+    "phase_organization", "nonlinear_systems", "early_prediction"
+  )
+) %>%
+  mutate(
+    PreferredBinOrder = map(Domain, domain_bin_preference),
+    PreferredBinOrderText = map_chr(PreferredBinOrder, ~ paste(.x, collapse = ";")),
+    PrimaryBinLevel = primary_bin_level,
+    Interpretation = case_when(
+      Domain == "raw_dashboard_backbone" ~ "Primary raw feature matrix and first-active trajectory backbone.",
+      Domain == "temporal_flexibility" ~ "Short-timescale volatility/flexibility is allowed to prefer fine bins.",
+      Domain %in% c("latent_state", "hmm") ~ "Latent-state occupancy/dwell/transition summaries can prefer intermediate bins for state stability.",
+      Domain == "social_reorganization" ~ "Social organization should avoid over-fragmenting contacts at very fine bins when coarser outputs exist.",
+      Domain == "adaptive_recovery" ~ "Recovery kinetics prefer interpretable trajectory bins before very fine bins.",
+      Domain == "sleep_like_inactivity" ~ "Rest-like architecture prefers intermediate/coarser bins before fine bins.",
+      Domain == "phase_organization" ~ "Active/inactive phase architecture prefers bins that preserve phase boundaries and rest structure.",
+      Domain == "nonlinear_systems" ~ "Nonlinear summaries use the available upstream scale while preserving BinLevel labels.",
+      Domain == "early_prediction" ~ "Prospective prediction starts from the primary dashboard scale, then falls back to available upstream outputs.",
+      TRUE ~ "General systems integration preference."
+    )
+  ) %>%
+  select(-PreferredBinOrder)
+write_table(domain_bin_preference_audit, file.path(output_dir, "tables/systems_domain_bin_preference_audit.csv"))
+
 # ------------------------------------------------
 # LOAD BASE MULTISCALE METRICS
 # ------------------------------------------------
@@ -628,11 +684,18 @@ qc_chip_loss_flags <- if (nrow(raw_position_qc) > 0) {
       CageChange = if (!is.na(raw_cage_col)) as.character(.data[[raw_cage_col]]) else NA_character_,
       Phase = if (!is.na(raw_phase_col)) as.character(.data[[raw_phase_col]]) else NA_character_
     ) %>%
+    mutate(
+      PhaseClass = case_when(
+        str_detect(str_to_lower(Phase), "active|dark|night") ~ "Active",
+        str_detect(str_to_lower(Phase), "inactive|light|day") ~ "Inactive",
+        TRUE ~ Phase
+      )
+    ) %>%
     filter(!is.na(AnimalNum), !is.na(Time)) %>%
     arrange(AnimalNum, Time)
 
   raw_epoch <- raw_norm %>%
-    group_by(AnimalNum, Batch, System, CageChange, Phase) %>%
+    group_by(AnimalNum, Batch, System, CageChange, Phase, PhaseClass) %>%
     arrange(Time, .by_group = TRUE) %>%
     summarise(
       first_time = min(Time, na.rm = TRUE),
@@ -672,14 +735,25 @@ qc_chip_loss_flags <- if (nrow(raw_position_qc) > 0) {
       near_zero_proximity_after_normal = is.finite(baseline_proximity) & baseline_proximity > 0.02 & proximity_epoch_mean <= pmax(0.005, 0.15 * baseline_proximity),
       long_flatline_immobile = n_positions <= 1 & position_switch_rate <= 0.01 & movement_epoch_mean <= 0.05,
       expected_observed_mismatch = raw_observed_fraction < 0.70,
-      suspected_epoch = sudden_sustained_loss |
-        long_flatline_immobile |
-        (expected_observed_mismatch & (near_zero_movement_after_normal | near_zero_proximity_after_normal)),
+      is_inactive_phase = PhaseClass == "Inactive",
+      hard_dropout_signature = raw_observed_fraction < 0.10 |
+        (raw_observed_fraction < 0.25 & is.finite(longest_gap_hours) & longest_gap_hours >= 4),
+      active_behavioral_collapse = !is_inactive_phase & (
+        sudden_sustained_loss |
+          long_flatline_immobile |
+          (expected_observed_mismatch & (near_zero_movement_after_normal | near_zero_proximity_after_normal))
+      ),
+      inactive_low_motion_review = is_inactive_phase &
+        !hard_dropout_signature &
+        (long_flatline_immobile | near_zero_movement_after_normal | near_zero_proximity_after_normal),
+      suspected_epoch = hard_dropout_signature | active_behavioral_collapse,
       first_suspected_dropout_time = if (any(suspected_epoch %in% TRUE)) min(first_time[suspected_epoch %in% TRUE], na.rm = TRUE) else as.POSIXct(NA),
       last_valid_time = if_else(!is.na(first_suspected_dropout_time), first_suspected_dropout_time, last_time),
       qc_epoch_class = case_when(
         raw_observed_fraction < 0.10 | observed_bins_base < 4 ~ "insufficient_data",
-        suspected_epoch & first_time >= first_suspected_dropout_time ~ "exclude_after_dropout",
+        hard_dropout_signature & first_time >= first_suspected_dropout_time ~ "exclude_after_dropout",
+        inactive_low_motion_review ~ "inactive_low_motion_review",
+        suspected_epoch & first_time >= first_suspected_dropout_time & !is_inactive_phase ~ "exclude_after_dropout",
         suspected_epoch ~ "suspected_chip_loss",
         raw_observed_fraction < 0.50 ~ "partial_epoch_usable",
         TRUE ~ "usable"
@@ -688,6 +762,7 @@ qc_chip_loss_flags <- if (nrow(raw_position_qc) > 0) {
       proximity_after_dropout = if_else(!is.na(first_suspected_dropout_time) & first_time >= first_suspected_dropout_time, proximity_epoch_mean, NA_real_),
       recommended_action = case_when(
         qc_epoch_class == "exclude_after_dropout" ~ "exclude post-dropout epoch; keep earlier valid epochs",
+        qc_epoch_class == "inactive_low_motion_review" ~ "inactive-phase low-motion/low-switching epoch; review as rest-like behavior, not automatic chip-loss exclusion",
         qc_epoch_class == "suspected_chip_loss" ~ "manual review; retain only if raw trace is biologically plausible",
         qc_epoch_class == "insufficient_data" ~ "exclude epoch from primary analyses",
         qc_epoch_class == "partial_epoch_usable" ~ "use with duration/missingness sensitivity",
@@ -696,20 +771,22 @@ qc_chip_loss_flags <- if (nrow(raw_position_qc) > 0) {
     ) %>%
     ungroup() %>%
     transmute(
-      AnimalNum, Group, Sex, Batch, System, CageChange, Phase,
+      AnimalNum, Group, Sex, Batch, System, CageChange, Phase, PhaseClass,
       first_suspected_dropout_time, last_valid_time,
       observed_fraction = raw_observed_fraction,
+      longest_gap_hours, n_positions, position_switch_rate,
       movement_after_dropout, proximity_after_dropout,
       recommended_action,
       qc_epoch_class,
       sudden_sustained_loss, near_zero_movement_after_normal,
       near_zero_proximity_after_normal, long_flatline_immobile,
-      expected_observed_mismatch
+      expected_observed_mismatch, hard_dropout_signature,
+      active_behavioral_collapse, inactive_low_motion_review
     )
 } else {
   tibble(
     AnimalNum = character(), Group = character(), Sex = character(), Batch = character(), System = character(),
-    CageChange = character(), Phase = character(), first_suspected_dropout_time = as.POSIXct(character()),
+    CageChange = character(), Phase = character(), PhaseClass = character(), first_suspected_dropout_time = as.POSIXct(character()),
     last_valid_time = as.POSIXct(character()), observed_fraction = numeric(),
     movement_after_dropout = numeric(), proximity_after_dropout = numeric(),
     recommended_action = character(), qc_epoch_class = character()
@@ -724,32 +801,51 @@ chip_loss_epoch_classes <- qc_chip_loss_flags %>%
 if (nrow(chip_loss_epoch_classes) > 0) {
   base <- base %>%
     left_join(chip_loss_epoch_classes, by = c("AnimalNum", "CageChange", "Phase")) %>%
-    mutate(qc_epoch_class = coalesce(qc_epoch_class, "usable")) %>%
-    filter(!qc_epoch_class %in% c("exclude_after_dropout", "insufficient_data"))
+    mutate(qc_epoch_class = coalesce(qc_epoch_class, "usable"))
+
+  if (identical(chip_loss_qc_mode, "exclude_flagged_epochs")) {
+    base <- base %>%
+      filter(!qc_epoch_class %in% c("exclude_after_dropout", "insufficient_data"))
+  }
 }
 
 if (nrow(qc_chip_loss_flags) > 0) {
   chip_timeline <- qc_chip_loss_flags %>%
-    mutate(Epoch = paste(CageChange, Phase, sep = " | "), AnimalNum = factor(AnimalNum))
+    mutate(
+      qc_epoch_class = factor(
+        qc_epoch_class,
+        levels = c("usable", "inactive_low_motion_review", "partial_epoch_usable", "suspected_chip_loss", "exclude_after_dropout", "insufficient_data")
+      ),
+      Epoch = paste(CageChange, Phase, sep = " | "),
+      AnimalNum = factor(AnimalNum)
+    )
   p_chip_timeline <- chip_timeline %>%
     ggplot(aes(Epoch, AnimalNum, fill = qc_epoch_class)) +
     geom_tile(colour = "white", linewidth = 0.12) +
     scale_fill_manual(values = c(
-      usable = "#5aa469", partial_epoch_usable = "#d9b44a", suspected_chip_loss = "#d95f02",
+      usable = "#5aa469", inactive_low_motion_review = "#74add1",
+      partial_epoch_usable = "#d9b44a", suspected_chip_loss = "#d95f02",
       exclude_after_dropout = "#b2182b", insufficient_data = "#777777"
     ), drop = FALSE) +
-    labs(title = "RFID chip-loss/dropout QC timeline", x = NULL, y = "Animal", fill = "QC class") +
+    labs(
+      title = "RFID chip-loss/dropout QC timeline",
+      subtitle = "Inactive low-motion epochs are review annotations, not automatic exclusions",
+      x = NULL,
+      y = "Animal",
+      fill = "QC class"
+    ) +
     make_nature_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "right")
   save_plot_svg_pdf(p_chip_timeline, file.path(output_dir, "figures/qc/Fig_chip_loss_dropout_timeline"), width = 175, height = 120)
 
   p_chip_diag <- qc_chip_loss_flags %>%
-    mutate(qc_epoch_class = factor(qc_epoch_class, levels = c("usable", "partial_epoch_usable", "suspected_chip_loss", "exclude_after_dropout", "insufficient_data"))) %>%
+    mutate(qc_epoch_class = factor(qc_epoch_class, levels = c("usable", "inactive_low_motion_review", "partial_epoch_usable", "suspected_chip_loss", "exclude_after_dropout", "insufficient_data"))) %>%
     ggplot(aes(movement_after_dropout, proximity_after_dropout, colour = qc_epoch_class)) +
     geom_point(alpha = 0.75, size = 1.7) +
     facet_grid(Sex ~ Group, scales = "free") +
     scale_colour_manual(values = c(
-      usable = "#5aa469", partial_epoch_usable = "#d9b44a", suspected_chip_loss = "#d95f02",
+      usable = "#5aa469", inactive_low_motion_review = "#74add1",
+      partial_epoch_usable = "#d9b44a", suspected_chip_loss = "#d95f02",
       exclude_after_dropout = "#b2182b", insufficient_data = "#777777"
     ), drop = FALSE) +
     labs(title = "Movement/proximity diagnostics after suspected dropout", x = "Movement after dropout", y = "Proximity after dropout", colour = "QC class") +
@@ -844,24 +940,35 @@ if (nrow(first_active) > 0) {
     group_by(Group, Sex, local_hour) %>%
     summarise(
       mean_movement = mean(Movement, na.rm = TRUE),
-      movement_ci_low = mean_ci(Movement)["low"],
-      movement_ci_high = mean_ci(Movement)["high"],
+      movement_ci_low = unname(mean_ci(Movement)["low"]),
+      movement_ci_high = unname(mean_ci(Movement)["high"]),
       mean_entropy = mean(Entropy, na.rm = TRUE),
-      entropy_ci_low = mean_ci(Entropy)["low"],
-      entropy_ci_high = mean_ci(Entropy)["high"],
+      entropy_ci_low = unname(mean_ci(Entropy)["low"]),
+      entropy_ci_high = unname(mean_ci(Entropy)["high"]),
       .groups = "drop"
-    )
+    ) %>%
+    ungroup() %>%
+    mutate(
+      Group = factor(as.character(Group), levels = group_levels),
+      Sex = factor(as.character(Sex), levels = sex_levels),
+      across(
+        c(local_hour, mean_movement, movement_ci_low, movement_ci_high, mean_entropy, entropy_ci_low, entropy_ci_high),
+        ~ as.numeric(.x)
+      )
+    ) %>%
+    filter(is.finite(local_hour)) %>%
+    arrange(Sex, Group, local_hour)
 
   p_first_active_movement <- ggplot(first_active_plot_tbl, aes(local_hour, Movement, group = AnimalNum, colour = Group)) +
     geom_line(alpha = 0.16, linewidth = 0.18) +
     geom_ribbon(
       data = first_active_summary_tbl,
-      aes(x = local_hour, ymin = movement_ci_low, ymax = movement_ci_high, y = mean_movement, fill = Group, group = Group),
+      aes(x = local_hour, ymin = movement_ci_low, ymax = movement_ci_high, fill = Group),
       inherit.aes = FALSE,
       alpha = 0.16,
       colour = NA
     ) +
-    geom_line(data = first_active_summary_tbl, aes(y = mean_movement, group = Group), linewidth = 0.55) +
+    geom_line(data = first_active_summary_tbl, aes(x = local_hour, y = mean_movement, colour = Group, group = Group), inherit.aes = FALSE, linewidth = 0.55) +
     geom_vline(xintercept = 12, linetype = "dashed", linewidth = 0.2, colour = "grey45") +
     facet_grid(Sex ~ Group) +
     scale_colour_manual(values = group_colors, drop = FALSE) +
@@ -875,12 +982,12 @@ if (nrow(first_active) > 0) {
     geom_line(alpha = 0.16, linewidth = 0.18) +
     geom_ribbon(
       data = first_active_summary_tbl,
-      aes(x = local_hour, ymin = entropy_ci_low, ymax = entropy_ci_high, y = mean_entropy, fill = Group, group = Group),
+      aes(x = local_hour, ymin = entropy_ci_low, ymax = entropy_ci_high, fill = Group),
       inherit.aes = FALSE,
       alpha = 0.16,
       colour = NA
     ) +
-    geom_line(data = first_active_summary_tbl, aes(y = mean_entropy, group = Group), linewidth = 0.55) +
+    geom_line(data = first_active_summary_tbl, aes(x = local_hour, y = mean_entropy, colour = Group, group = Group), inherit.aes = FALSE, linewidth = 0.55) +
     geom_vline(xintercept = 12, linetype = "dashed", linewidth = 0.2, colour = "grey45") +
     facet_grid(Sex ~ Group) +
     scale_colour_manual(values = group_colors, drop = FALSE) +
@@ -1191,27 +1298,27 @@ optional_files <- tibble(
   ),
   path = c(
     first_existing_path(c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", optional_import_bin_levels, "tables/temporal_instability_metrics_per_animal_all_metrics.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", optional_import_bin_levels, "tables/burstiness_instability_features.csv")
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", domain_bin_preference("temporal_flexibility"), "tables/temporal_instability_metrics_per_animal_all_metrics.csv"),
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", domain_bin_preference("temporal_flexibility"), "tables/burstiness_instability_features.csv")
     )),
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", optional_import_bin_levels, "tables/state_diversity_metrics.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", optional_import_bin_levels, "tables/state_switching_metrics.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_diversity_metrics.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_switching_metrics.csv")),
     first_existing_path(c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", optional_import_bin_levels, "tables/early_behavior_features_wide.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", optional_import_bin_levels, "tables/early_behavior_features.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", optional_import_bin_levels, "tables/early_behavior_features_wide.csv")
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", domain_bin_preference("early_prediction"), "tables/early_behavior_features_wide.csv"),
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", domain_bin_preference("early_prediction"), "tables/early_behavior_features.csv"),
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", domain_bin_preference("early_prediction"), "tables/early_behavior_features_wide.csv")
     )),
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", optional_import_bin_levels, "tables/animal_level_social_dynamics.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", optional_import_bin_levels, "tables/dyadic_node_summary.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", optional_import_bin_levels, "derived_data/animal_level_nonlinear_feature_matrix.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", optional_import_bin_levels, "tables/adaptation_kinetics_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", optional_import_bin_levels, "tables/distance_to_control_trajectories.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", optional_import_bin_levels, "tables/sleep_like_inactivity_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", optional_import_bin_levels, "tables/phase_contrast_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", optional_import_bin_levels, "tables/phase_timing_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", optional_import_bin_levels, "tables/phase_fragmentation_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", optional_import_bin_levels, "tables/phase_recovery_kinetics.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", optional_import_bin_levels, "tables/phase_predictability_features.csv"))
+    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables/animal_level_social_dynamics.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables/dyadic_node_summary.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", domain_bin_preference("nonlinear_systems"), "derived_data/animal_level_nonlinear_feature_matrix.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", domain_bin_preference("adaptive_recovery"), "tables/adaptation_kinetics_features.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", domain_bin_preference("adaptive_recovery"), "tables/distance_to_control_trajectories.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", domain_bin_preference("sleep_like_inactivity"), "tables/sleep_like_inactivity_features.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_contrast_features.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_timing_features.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_fragmentation_features.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_recovery_kinetics.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_predictability_features.csv"))
   )
 )
 
@@ -1292,9 +1399,9 @@ chip_loss_animal_summary <- qc_chip_loss_flags %>%
   group_by(AnimalNum) %>%
   summarise(
     qc__chip_loss__animal__any_suspected_chip_loss__indicator__all = as.numeric(any(qc_epoch_class %in% c("suspected_chip_loss", "exclude_after_dropout"), na.rm = TRUE)),
-    qc__chip_loss__animal__any_excluded_post_dropout__indicator__all = as.numeric(any(qc_epoch_class == "exclude_after_dropout", na.rm = TRUE)),
+    qc__chip_loss__animal__any_post_dropout_flag__indicator__all = as.numeric(any(qc_epoch_class == "exclude_after_dropout", na.rm = TRUE)),
     qc__chip_loss__animal__min_observed_fraction__value__all = min(observed_fraction, na.rm = TRUE),
-    qc__chip_loss__animal__n_affected_epochs__count__all = sum(qc_epoch_class %in% c("partial_epoch_usable", "suspected_chip_loss", "exclude_after_dropout", "insufficient_data"), na.rm = TRUE),
+    qc__chip_loss__animal__n_affected_epochs__count__all = sum(qc_epoch_class %in% c("inactive_low_motion_review", "partial_epoch_usable", "suspected_chip_loss", "exclude_after_dropout", "insufficient_data"), na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(across(where(is.numeric), ~ ifelse(is.infinite(.x) | is.nan(.x), NA_real_, .x)))
@@ -1311,9 +1418,17 @@ if (nrow(chip_loss_animal_summary) > 0) {
 chip_loss_feature_audit <- tibble(
   qc_source = "raw/preprocessed animal-position files",
   n_animals_with_any_suspected_chip_loss = if (nrow(chip_loss_animal_summary) > 0) sum(chip_loss_animal_summary$qc__chip_loss__animal__any_suspected_chip_loss__indicator__all %in% 1, na.rm = TRUE) else 0L,
-  n_animals_with_post_dropout_exclusion = if (nrow(chip_loss_animal_summary) > 0) sum(chip_loss_animal_summary$qc__chip_loss__animal__any_excluded_post_dropout__indicator__all %in% 1, na.rm = TRUE) else 0L,
+  n_animals_with_post_dropout_flag = if (nrow(chip_loss_animal_summary) > 0) sum(chip_loss_animal_summary$qc__chip_loss__animal__any_post_dropout_flag__indicator__all %in% 1, na.rm = TRUE) else 0L,
   n_epochs_flagged = if (nrow(qc_chip_loss_flags) > 0) sum(!qc_chip_loss_flags$qc_epoch_class %in% "usable", na.rm = TRUE) else 0L,
-  downstream_use = "post-dropout/insufficient epochs are removed before feature construction; animal-level QC indicators are retained as QC-only features"
+  n_inactive_low_motion_review_epochs = if (nrow(qc_chip_loss_flags) > 0) sum(qc_chip_loss_flags$qc_epoch_class == "inactive_low_motion_review", na.rm = TRUE) else 0L,
+  n_hard_dropout_signature_epochs = if (nrow(qc_chip_loss_flags) > 0 && "hard_dropout_signature" %in% names(qc_chip_loss_flags)) sum(qc_chip_loss_flags$hard_dropout_signature %in% TRUE, na.rm = TRUE) else 0L,
+  chip_loss_qc_mode = chip_loss_qc_mode,
+  downstream_use = if (identical(chip_loss_qc_mode, "exclude_flagged_epochs")) {
+    "post-dropout/insufficient epochs are removed before feature construction; animal-level QC indicators are retained as QC-only features"
+  } else {
+    "chip-loss/dropout classes are retained as QC annotations only; no epochs are removed at this integration stage because chip-level exclusions are expected upstream"
+  },
+  inactive_phase_rule = "Inactive-phase low movement, low proximity, or position flatline is annotated as inactive_low_motion_review unless accompanied by hard data-loss signatures; this avoids treating rest-like inactive behavior as chip dropout."
 )
 write_table(chip_loss_feature_audit, file.path(output_dir, "tables/qc/chip_loss_downstream_feature_audit.csv"))
 
@@ -1771,26 +1886,26 @@ integration_audit_registry <- tibble(
   ),
   expected_outputs = I(list(
     file.path(project_root, "analysis_ready/03_derived_metrics", primary_bin_level, "all_behavior_metrics.csv"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", primary_bin_level, "tables/temporal_instability_metrics_per_animal_all_metrics.csv"),
+    file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", domain_bin_preference("temporal_flexibility"), "tables/temporal_instability_metrics_per_animal_all_metrics.csv"),
     c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", c("1min_based", optional_import_bin_levels), "tables/state_diversity_metrics.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", c("1min_based", optional_import_bin_levels), "tables/state_switching_metrics.csv")
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_diversity_metrics.csv"),
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_switching_metrics.csv")
     ),
     c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", optional_import_bin_levels, "tables/early_behavior_features.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", optional_import_bin_levels, "tables/early_behavior_features_wide.csv")
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", domain_bin_preference("early_prediction"), "tables/early_behavior_features.csv"),
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", domain_bin_preference("early_prediction"), "tables/early_behavior_features_wide.csv")
     ),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", primary_bin_level, "tables/animal_level_social_dynamics.csv"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", optional_import_bin_levels, "tables/hmm_state_occupancy.csv"),
+    file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables/animal_level_social_dynamics.csv"),
+    file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", domain_bin_preference("hmm"), "tables/hmm_state_occupancy.csv"),
     c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", optional_import_bin_levels, "tables/combined_gamm_features.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_features", optional_import_bin_levels, "tables/combined_gamm_features.csv")
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", domain_bin_preference("adaptive_recovery"), "tables/combined_gamm_features.csv"),
+      file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_features", domain_bin_preference("adaptive_recovery"), "tables/combined_gamm_features.csv")
     ),
-    file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", primary_bin_level, "derived_data/animal_level_nonlinear_feature_matrix.csv"),
-    file.path(project_root, "analysis_ready/14_nextgen_behavioral_phenotyping", primary_bin_level, "tables/nextgen_behavioral_phenotype_matrix.csv"),
-    file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", primary_bin_level, "tables/adaptation_kinetics_features.csv"),
-    file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", primary_bin_level, "tables/sleep_like_inactivity_features.csv"),
-    file.path(project_root, "analysis_ready/17_ethological_phase_organization", primary_bin_level, "tables/phase_contrast_features.csv"),
+    file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", domain_bin_preference("nonlinear_systems"), "derived_data/animal_level_nonlinear_feature_matrix.csv"),
+    file.path(project_root, "analysis_ready/14_nextgen_behavioral_phenotyping", domain_bin_preference("nonlinear_systems"), "tables/nextgen_behavioral_phenotype_matrix.csv"),
+    file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", domain_bin_preference("adaptive_recovery"), "tables/adaptation_kinetics_features.csv"),
+    file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", domain_bin_preference("sleep_like_inactivity"), "tables/sleep_like_inactivity_features.csv"),
+    file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_contrast_features.csv"),
     c(
       proteomics_module_file,
       file.path(project_root, "analysis_ready/12_behavior_proteomics_integration", "tables/behavior_proteomics_merged.csv")
@@ -2953,7 +3068,20 @@ if (nrow(network_long) > 0) {
 # MODERN INTERPRETABILITY VISUALS: HMM FLOW, SOCIAL MAPS, TRAJECTORY ADAPTATION
 # ------------------------------------------------
 
-hmm_dir <- file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", primary_bin_level, "tables")
+hmm_candidate_bin_levels <- domain_bin_preference("hmm")
+hmm_candidate_dirs <- file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", hmm_candidate_bin_levels, "tables")
+hmm_dir <- hmm_candidate_dirs[file.exists(file.path(hmm_candidate_dirs, "hmm_state_occupancy.csv"))][1]
+if (is.na(hmm_dir)) hmm_dir <- file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", primary_bin_level, "tables")
+hmm_bin_level_used <- basename(dirname(hmm_dir))
+hmm_path_audit <- tibble(
+  requested_primary_bin_level = primary_bin_level,
+  available_candidate_bin_level = hmm_candidate_bin_levels,
+  candidate_dir = hmm_candidate_dirs,
+  occupancy_file_exists = file.exists(file.path(hmm_candidate_dirs, "hmm_state_occupancy.csv")),
+  used_for_hmm_visuals = hmm_candidate_dirs == hmm_dir
+)
+write_table(hmm_path_audit, file.path(output_dir, "tables/systems_hmm_path_audit.csv"))
+
 hmm_state_summary <- read_any_table(file.path(hmm_dir, "hmm_state_summary.csv"))
 hmm_transition_prob <- read_any_table(file.path(hmm_dir, "hmm_transition_probabilities.csv"))
 hmm_dwell <- read_any_table(file.path(hmm_dir, "hmm_state_dwell_times.csv"))
@@ -3047,7 +3175,7 @@ if (!is.null(hmm_transition_prob) && nrow(hmm_transition_prob) > 0) {
       ggplot(aes(axis1 = FromLabel, axis2 = ToLabel, y = mean_probability, fill = Group)) +
       ggalluvial::geom_alluvium(width = 0.18, alpha = 0.72) +
       ggalluvial::geom_stratum(width = 0.18, colour = "grey35", linewidth = 0.18, fill = "grey96") +
-      ggplot2::geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 1.65, lineheight = 0.78) +
+      ggalluvial::stat_stratum(geom = "text", aes(label = after_stat(stratum)), size = 1.65, lineheight = 0.78) +
       facet_grid(Sex ~ Group) +
       scale_fill_manual(values = group_colors, drop = FALSE) +
       scale_x_discrete(limits = c("From", "To"), expand = c(0.08, 0.08)) +
@@ -3310,6 +3438,452 @@ build_prediction_ladder <- function(outcome_to_plot, animal_filter = NULL, analy
 
   list(scores = score_tbl, predictions = pred_tbl, coefficients = coef_tbl, performance = perf_tbl)
 }
+
+# ------------------------------------------------
+# SIS SYSTEMS-NEUROSCIENCE INTERPRETATION LAYER
+# ------------------------------------------------
+
+# This layer is intentionally biological rather than feature-maximal. It uses
+# upstream modules as the primary source of domain evidence and treats the first
+# active phase after the first regrouping as a systems-level adaptation window.
+
+sis_analysis_class_from_feature <- function(module, source, feature) {
+  key <- str_to_lower(paste(module, source, feature))
+  case_when(
+    str_detect(key, "dynamic_network|social_network|dyadic|centrality|modularity|clustering|partner|neighbor|contact") ~ "network-derived",
+    str_detect(key, "hmm|latent_state|state_occupancy|dwell|transition") ~ "latent-state",
+    str_detect(key, "nonlinear|nextgen|complexity|recurrence|attractor|energy_landscape|early_warning|manifold|mse|entropy") &
+      str_detect(key, "nextgen|nonlinear|recurrence|attractor|energy|mse|sample|permutation") ~ "nonlinear",
+    str_detect(key, "trajectory|gamm|recovery|stabilization|half_life|decay|slope|auc|kinetics") ~ "dynamical systems",
+    str_detect(key, "rmssd|acf1|burst|switch|transition|dwell|fragmentation|persistence|predictability") ~ "temporal",
+    TRUE ~ "linear descriptive"
+  )
+}
+
+sis_systems_domain_from_feature <- function(fd) {
+  key <- str_to_lower(paste(fd$Source, fd$Module, fd$Domain, fd$Metric, fd$Statistic, fd$Context, fd$feature))
+  case_when(
+    str_detect(key, "movement") & str_detect(key, "first_active_12h|early|auc|peak|slope|dynamic_range|burst|accel|decel") ~ "Psychomotor activation",
+    str_detect(key, "adaptation_kinetics|recovery|stabilization|half_life|time_to_peak|decay|rebound|overshoot|area_above|efficiency|early_to_late") ~ "Adaptive recovery",
+    str_detect(key, "rmssd|acf1|burst|switch|transition_entropy|switching|predictability|dwell|persistence|complexity|temporal") ~ "Temporal flexibility / rigidity",
+    str_detect(key, "dynamic_network|social_network|dyadic|nearest|neighbor|partner|modularity|clustering|social_entropy|social_switch|proximity|affiliative") ~ "Social reorganization",
+    str_detect(key, "sleep_like|inactivity|micro_arousal|rest|quiescence|fragmentation|active_inactive_transition|circadian_intrusion") ~ "Active-phase rest fragmentation",
+    str_detect(key, "phase_organization|phase|active_inactive|onset|phase_transition|boundary|entrainment|anticipatory") ~ "Ethological phase organization",
+    str_detect(key, "10sec_based|1min_based|5min_based|30min_based|2h|multiscale|mse|scale") &
+      str_detect(key, "entropy|rmssd|acf1|burst|predictability|transition|persistence|complexity") ~ "Multiscale temporal organization",
+    str_detect(key, "hmm|latent_state|state_occupancy|dwell|transition|state_switch") ~ "Behavioral-state stability",
+    str_detect(key, "nonlinear|nextgen|recurrence|attractor|energy_landscape|early_warning|manifold") ~ "Nonlinear systems organization",
+    TRUE ~ "Other systems feature"
+  )
+}
+
+sis_score_direction <- function(feature, domain) {
+  key <- str_to_lower(paste(feature, domain))
+  case_when(
+    str_detect(key, "rigidity|acf1|self_transition|persistence|stereotyp|mean_dwell|max_dwell|fragmentation|micro_arousal|circadian_intrusion|instability|flickering") ~ -1,
+    str_detect(key, "withdrawal") ~ -1,
+    TRUE ~ 1
+  )
+}
+
+sis_make_domain_score <- function(dat, fd, domain_name, score_name, feature_cap = 12) {
+  score_features <- fd %>%
+    filter(
+      SISSystemsDomain == domain_name,
+      feature %in% names(dat),
+      feature %in% duration_robust_features,
+      n_finite >= 4,
+      missing_fraction <= 0.50
+    ) %>%
+    arrange(ReviewerRisk, missing_fraction, desc(n_finite)) %>%
+    slice_head(n = feature_cap) %>%
+    mutate(direction = sis_score_direction(feature, domain_name))
+  if (nrow(score_features) == 0) {
+    return(dat %>% select(AnimalNum) %>% mutate("{score_name}" := NA_real_))
+  }
+  mat <- map2(score_features$feature, score_features$direction, function(fc, direction) {
+    safe_scale(safe_numeric(dat[[fc]])) * direction
+  }) %>%
+    do.call(cbind, .)
+  tibble(AnimalNum = dat$AnimalNum, "{score_name}" := rowMeans(mat, na.rm = TRUE)) %>%
+    mutate("{score_name}" := ifelse(is.nan(.data[[score_name]]), NA_real_, .data[[score_name]]))
+}
+
+systems_linear_vs_nonlinear_feature_audit <- feature_qc %>%
+  mutate(
+    AnalysisClass = sis_analysis_class_from_feature(Module, Source, feature),
+    SISSystemsDomain = sis_systems_domain_from_feature(pick(everything())),
+    PrimarySISInterpretation = case_when(
+      SISSystemsDomain == "Psychomotor activation" ~ "Initial arousal/exploratory activation after social perturbation; not assumed to mean resilience.",
+      SISSystemsDomain == "Adaptive recovery" ~ "Capacity to stabilize behavioral organization after perturbation.",
+      SISSystemsDomain == "Temporal flexibility / rigidity" ~ "Flexible versus rigid temporal organization of spontaneous behavior.",
+      SISSystemsDomain == "Social reorganization" ~ "Re-establishment of affiliative/social spacing organization after regrouping.",
+      SISSystemsDomain == "Active-phase rest fragmentation" ~ "Rest fragmentation and instability of behavioral-state regulation during active phase.",
+      SISSystemsDomain == "Ethological phase organization" ~ "Organization of spontaneous behavior across active/inactive phase boundaries.",
+      SISSystemsDomain == "Multiscale temporal organization" ~ "Hierarchical temporal organization across bin sizes.",
+      TRUE ~ AllowedInterpretation
+    )
+  ) %>%
+  select(
+    feature, SourceScript, Source, Module, AnalysisClass, SISSystemsDomain,
+    Metric, Statistic, Context, BinLevel, n_animals, n_finite, missing_fraction,
+    DurationSensitive, ReviewerRisk, EvidenceTier, PrimarySISInterpretation
+  )
+write_table(systems_linear_vs_nonlinear_feature_audit, file.path(output_dir, "tables/systems_linear_vs_nonlinear_feature_audit.csv"))
+
+sis_dependency_audit <- tibble(
+  RequiredScript = c(
+    "03_build_multiscale_behavior_metrics.R", "06_burstiness_temporal_instability.R",
+    "07_behavioral_state_space.R", "08b_early_prediction_model_ladder.R",
+    "09_dynamic_social_networks.R", "10_hmm_behavioral_states.R",
+    "11_gamm_trajectory_features.R", "13_nonlinear_systems_dynamics.R",
+    "14_nextgen_behavioral_phenotyping.R", "15_behavioral_adaptation_kinetics.R",
+    "16_sleep_like_inactivity_metrics.R", "17_ethological_phase_organization.R"
+  ),
+  BiologicalDomain = c(
+    "Core spontaneous behavior", "Temporal flexibility / rigidity", "Behavioral-state stability",
+    "Prospective early prediction", "Social reorganization", "Behavioral-state stability",
+    "Adaptive trajectory shape", "Nonlinear systems organization", "Nonlinear systems organization",
+    "Adaptive recovery", "Active-phase rest fragmentation", "Ethological phase organization"
+  ),
+  ExpectedPath = c(
+    base_file,
+    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", domain_bin_preference("temporal_flexibility"), "tables")),
+    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables")),
+    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", domain_bin_preference("early_prediction"), "tables")),
+    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables")),
+    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", domain_bin_preference("hmm"), "tables")),
+    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", domain_bin_preference("adaptive_recovery"), "tables")),
+    first_existing_path(file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", domain_bin_preference("nonlinear_systems"))),
+    first_existing_path(file.path(project_root, "analysis_ready/14_nextgen_behavioral_phenotyping", domain_bin_preference("nonlinear_systems"), "tables")),
+    first_existing_path(file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", domain_bin_preference("adaptive_recovery"), "tables/adaptation_kinetics_features.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", domain_bin_preference("sleep_like_inactivity"), "tables/sleep_like_inactivity_features.csv")),
+    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables"))
+  )
+) %>%
+  mutate(
+    Available = file.exists(ExpectedPath) | dir.exists(ExpectedPath),
+    AuditStatus = if_else(Available, "available", "missing_upstream_output"),
+    Action = if_else(Available, "harmonized_into_systems_layer", "placeholder_domain_retained_and_warning_documented")
+  )
+write_table(sis_dependency_audit, file.path(output_dir, "tables/systems_upstream_dependency_audit.csv"))
+
+sis_domain_feature_inventory <- systems_linear_vs_nonlinear_feature_audit %>%
+  filter(SISSystemsDomain != "Other systems feature") %>%
+  group_by(SISSystemsDomain, AnalysisClass, SourceScript, Source, Module) %>%
+  summarise(
+    n_features = n(),
+    n_usable = sum(n_finite >= 4 & missing_fraction <= 0.50 & !DurationSensitive, na.rm = TRUE),
+    example_features = paste(head(feature, 5), collapse = "; "),
+    .groups = "drop"
+  )
+write_table(sis_domain_feature_inventory, file.path(output_dir, "tables/systems_sis_domain_feature_inventory.csv"))
+
+sis_scoring_fd <- systems_linear_vs_nonlinear_feature_audit %>%
+  left_join(feature_dictionary %>% select(feature, AllowedInterpretation), by = "feature")
+
+sis_domain_score_specs <- tibble(
+  Domain = c(
+    "Psychomotor activation", "Adaptive recovery", "Temporal flexibility / rigidity",
+    "Social reorganization", "Active-phase rest fragmentation", "Ethological phase organization",
+    "Multiscale temporal organization", "Behavioral-state stability", "Nonlinear systems organization"
+  ),
+  ScoreColumn = paste0("sis_systems_score__", safe_name(Domain))
+)
+
+sis_score_parts <- map2(
+  sis_domain_score_specs$Domain,
+  sis_domain_score_specs$ScoreColumn,
+  ~ sis_make_domain_score(systems_features, sis_scoring_fd, .x, .y)
+)
+
+sis_systems_domain_scores_wide <- reduce(sis_score_parts, left_join, by = "AnimalNum") %>%
+  left_join(systems_features %>% select(AnimalNum, Group, Sex, any_of(endpoint_cols)), by = "AnimalNum") %>%
+  relocate(AnimalNum, Group, Sex)
+
+systems_features <- systems_features %>%
+  left_join(sis_systems_domain_scores_wide %>% select(AnimalNum, starts_with("sis_systems_score__")), by = "AnimalNum")
+
+sis_score_dictionary <- sis_domain_score_specs %>%
+  rename(SISDomain = Domain) %>%
+  transmute(
+    feature = ScoreColumn,
+    Feature = ScoreColumn,
+    Source = "systems",
+    SourceScript = "12_systems_neuroscience_summary.R",
+    Domain = "sis_systems_domains",
+    BiologicalDomain = SISDomain,
+    Module = "Predictive systems integration",
+    Metric = safe_name(SISDomain),
+    Statistic = "sex_standardized_domain_score",
+    Context = prospective_prediction_context,
+    Scale = primary_bin_level,
+    BinLevel = primary_bin_level,
+    MathematicalDefinition = "Direction-aware mean of standardized upstream features assigned to a biologically grounded SIS systems domain.",
+    TimeWindow = paste0("First active phase after first cage change/regrouping: ", first_cage_change),
+    EvidenceTier = if_else(SISDomain %in% c("Psychomotor activation", "Adaptive recovery", "Temporal flexibility / rigidity", "Social reorganization"), "Tier 1", "Tier 2"),
+    ClaimType = "predictive",
+    AllowedInterpretation = paste0(SISDomain, " during early systems-level adaptation after social perturbation."),
+    ReviewerRisk = "medium",
+    DurationSensitive = FALSE,
+    StableForMainText = TRUE,
+    RawDurationSensitive = FALSE,
+    DurationUse = "duration_robust_or_normalized",
+    Interpretation = AllowedInterpretation,
+    FeatureUseClass = "primary",
+    PrimaryFeatureLabel = SISDomain,
+    BiologicalClaim = AllowedInterpretation,
+    LeakageClass = "safe_for_prediction"
+  )
+
+feature_dictionary <- feature_dictionary %>%
+  filter(!feature %in% sis_score_dictionary$feature) %>%
+  bind_rows(sis_score_dictionary)
+
+write_table(systems_features, file.path(output_dir, "tables/systems_animal_feature_matrix.csv"))
+write_table(feature_dictionary, file.path(output_dir, "tables/systems_feature_dictionary.csv"))
+
+systems_early_active_domain_scores <- sis_systems_domain_scores_wide %>%
+  pivot_longer(starts_with("sis_systems_score__"), names_to = "ScoreColumn", values_to = "DomainScore") %>%
+  left_join(sis_domain_score_specs, by = "ScoreColumn") %>%
+  mutate(
+    AdaptationWindow = paste0("first_active_12h_after_", first_cage_change),
+    BiologicalFrame = case_when(
+      Domain == "Psychomotor activation" ~ "arousal/exploratory activation without resilience directionality",
+      Domain == "Adaptive recovery" ~ "stabilization kinetics after perturbation",
+      Domain == "Temporal flexibility / rigidity" ~ "temporal flexibility versus stereotyped persistence or fragmentation",
+      Domain == "Social reorganization" ~ "affiliative structure and social-spacing reorganization",
+      Domain == "Active-phase rest fragmentation" ~ "active-phase rest/circadian intrusion and fragmentation",
+      Domain == "Ethological phase organization" ~ "active/inactive phase-transition organization",
+      Domain == "Multiscale temporal organization" ~ "cross-scale preservation of spontaneous behavioral organization",
+      Domain == "Behavioral-state stability" ~ "latent-state regulation and transition stability",
+      Domain == "Nonlinear systems organization" ~ "nonlinear/dynamical organization of adaptation",
+      TRUE ~ "systems-level adaptation"
+    )
+  ) %>%
+  filter(is.finite(DomainScore) | !is.na(Domain))
+write_table(systems_early_active_domain_scores, file.path(output_dir, "tables/systems_early_active_domain_scores.csv"))
+
+extract_sis_metric_table <- function(domain_name, output_name) {
+  feats <- sis_scoring_fd %>%
+    filter(SISSystemsDomain == domain_name, feature %in% names(systems_features)) %>%
+    arrange(SourceScript, Module, Metric, Statistic)
+  if (nrow(feats) == 0) {
+    out <- tibble(
+      AnimalNum = systems_features$AnimalNum,
+      Group = systems_features$Group,
+      Sex = systems_features$Sex,
+      Metric = NA_character_,
+      FeatureValue = NA_real_,
+      SourceScript = NA_character_,
+      SISSystemsDomain = domain_name,
+      MissingReason = "No harmonized upstream features matched this biological domain."
+    )
+  } else {
+    out <- systems_features %>%
+      select(AnimalNum, Group, Sex, all_of(feats$feature)) %>%
+      pivot_longer(all_of(feats$feature), names_to = "feature", values_to = "FeatureValue") %>%
+      left_join(feats %>% select(feature, SourceScript, Source, Module, Metric, Statistic, Context, BinLevel, SISSystemsDomain, AnalysisClass), by = "feature") %>%
+      mutate(MissingReason = NA_character_)
+  }
+  write_table(out, file.path(output_dir, "tables", output_name))
+  out
+}
+
+systems_early_active_recovery_kinetics <- extract_sis_metric_table("Adaptive recovery", "systems_early_active_recovery_kinetics.csv")
+systems_social_reorganization_metrics <- extract_sis_metric_table("Social reorganization", "systems_social_reorganization_metrics.csv")
+systems_rest_fragmentation_metrics <- extract_sis_metric_table("Active-phase rest fragmentation", "systems_rest_fragmentation_metrics.csv")
+systems_ethological_phase_organization <- extract_sis_metric_table("Ethological phase organization", "systems_ethological_phase_organization.csv")
+systems_multiscale_temporal_organization <- extract_sis_metric_table("Multiscale temporal organization", "systems_multiscale_temporal_organization.csv")
+
+first_cage_change_index <- parse_cage_change_index(first_cage_change)
+baseline_cage_change_index <- suppressWarnings(max(base$CageChangeIndex[base$CageChangeIndex < first_cage_change_index], na.rm = TRUE))
+baseline_source_label <- if (is.finite(baseline_cage_change_index)) "previous_cage_change_active_phase" else "no_pre_regrouping_epoch_available"
+
+early_baseline_relative_reorganization <- {
+  early_summary <- first_active %>%
+    group_by(AnimalNum, Group, Sex) %>%
+    summarise(
+      early_movement = mean(Movement, na.rm = TRUE),
+      early_entropy = mean(Entropy, na.rm = TRUE),
+      early_proximity = mean(Proximity, na.rm = TRUE),
+      early_movement_rmssd = if (sum(is.finite(Movement)) >= 3) sqrt(mean(diff(Movement[is.finite(Movement)])^2, na.rm = TRUE)) else NA_real_,
+      early_entropy_rmssd = if (sum(is.finite(Entropy)) >= 3) sqrt(mean(diff(Entropy[is.finite(Entropy)])^2, na.rm = TRUE)) else NA_real_,
+      .groups = "drop"
+    )
+  baseline_summary <- if (is.finite(baseline_cage_change_index)) {
+    base %>%
+      filter(CageChangeIndex == baseline_cage_change_index, PhaseClass == "Active") %>%
+      group_by(AnimalNum) %>%
+      summarise(
+        baseline_movement = mean(Movement, na.rm = TRUE),
+        baseline_entropy = mean(Entropy, na.rm = TRUE),
+        baseline_proximity = mean(Proximity, na.rm = TRUE),
+        baseline_movement_rmssd = if (sum(is.finite(Movement)) >= 3) sqrt(mean(diff(Movement[is.finite(Movement)])^2, na.rm = TRUE)) else NA_real_,
+        baseline_entropy_rmssd = if (sum(is.finite(Entropy)) >= 3) sqrt(mean(diff(Entropy[is.finite(Entropy)])^2, na.rm = TRUE)) else NA_real_,
+        .groups = "drop"
+      )
+  } else {
+    tibble(
+      AnimalNum = early_summary$AnimalNum,
+      baseline_movement = NA_real_,
+      baseline_entropy = NA_real_,
+      baseline_proximity = NA_real_,
+      baseline_movement_rmssd = NA_real_,
+      baseline_entropy_rmssd = NA_real_
+    )
+  }
+  early_summary %>%
+    left_join(baseline_summary, by = "AnimalNum") %>%
+    mutate(
+      baseline_source = baseline_source_label,
+      delta_movement = early_movement - baseline_movement,
+      delta_entropy = early_entropy - baseline_entropy,
+      delta_proximity = early_proximity - baseline_proximity,
+      delta_rmssd = rowMeans(cbind(early_movement_rmssd - baseline_movement_rmssd, early_entropy_rmssd - baseline_entropy_rmssd), na.rm = TRUE),
+      baseline_available = is.finite(baseline_movement) | is.finite(baseline_entropy) | is.finite(baseline_proximity)
+    )
+}
+write_table(early_baseline_relative_reorganization, file.path(output_dir, "tables/systems_early_active_baseline_relative_reorganization.csv"))
+
+sis_domain_prediction_ladder <- function(outcome_name = primary_outcome) {
+  if (!outcome_name %in% names(sis_systems_domain_scores_wide)) return(list(performance = tibble(), predictions = tibble()))
+  pred_dat <- sis_systems_domain_scores_wide %>%
+    select(AnimalNum, Group, Sex, outcome = all_of(outcome_name), starts_with("sis_systems_score__")) %>%
+    filter(is.finite(outcome))
+  score_cols <- names(pred_dat)[str_detect(names(pred_dat), "^sis_systems_score__")]
+  if (nrow(pred_dat) < 8 || length(score_cols) == 0) return(list(performance = tibble(), predictions = tibble()))
+  col_for <- function(domain) sis_domain_score_specs$ScoreColumn[match(domain, sis_domain_score_specs$Domain)]
+  ladder <- tibble(
+    ModelOrder = 1:6,
+    Model = c(
+      "1 magnitude-only",
+      "2 temporal adaptation",
+      "3 nonlinear trajectory",
+      "4 dynamical flexibility",
+      "5 latent-state organization",
+      "6 integrated systems model"
+    ),
+    Predictors = list(
+      intersect(col_for("Psychomotor activation"), score_cols),
+      intersect(col_for(c("Psychomotor activation", "Adaptive recovery", "Temporal flexibility / rigidity")), score_cols),
+      intersect(col_for(c("Psychomotor activation", "Adaptive recovery", "Nonlinear systems organization")), score_cols),
+      intersect(col_for(c("Psychomotor activation", "Adaptive recovery", "Temporal flexibility / rigidity", "Multiscale temporal organization")), score_cols),
+      intersect(col_for(c("Psychomotor activation", "Adaptive recovery", "Temporal flexibility / rigidity", "Behavioral-state stability")), score_cols),
+      score_cols
+    )
+  ) %>%
+    mutate(Predictors = map(Predictors, ~ .x[!is.na(.x)])) %>%
+    filter(map_int(Predictors, length) > 0)
+  fits <- pmap(ladder, function(ModelOrder, Model, Predictors) loo_lm_module_predict(pred_dat, Predictors, Model))
+  perf <- map2_dfr(fits, seq_len(nrow(ladder)), function(fit, idx) {
+    prediction_performance_tbl(fit$predictions, length(ladder$Predictors[[idx]]), seed = 400 + idx) %>%
+      mutate(ModelOrder = ladder$ModelOrder[idx], Model = ladder$Model[idx], Predictors = paste(ladder$Predictors[[idx]], collapse = " + "))
+  }) %>%
+    arrange(ModelOrder) %>%
+    mutate(
+      outcome = outcome_name,
+      delta_cv_r2_vs_previous = cv_r2 - lag(cv_r2),
+      delta_cv_r2_vs_magnitude = cv_r2 - cv_r2[ModelOrder == 1][1],
+      BiologicalInterpretation = "Incremental prospective value of systems-level early adaptation domains beyond psychomotor activation."
+    )
+  preds <- map_dfr(fits, "predictions") %>% mutate(outcome = outcome_name)
+  list(performance = perf, predictions = preds)
+}
+
+sis_incremental_ladder <- sis_domain_prediction_ladder(primary_outcome)
+write_table(sis_incremental_ladder$performance, file.path(output_dir, "tables/systems_incremental_prediction_model_ladder.csv"))
+write_table(sis_incremental_ladder$predictions, file.path(output_dir, "tables/systems_incremental_prediction_loo_predictions.csv"))
+
+plot_domain_summary <- function(domain_filter, title, subtitle, filename, width = 150, height = 95) {
+  plot_tbl <- systems_early_active_domain_scores %>%
+    filter(Domain %in% domain_filter, is.finite(DomainScore)) %>%
+    group_by(Domain, Sex, Group) %>%
+    summarise(mean = mean(DomainScore, na.rm = TRUE), low = unname(mean_ci(DomainScore)["low"]), high = unname(mean_ci(DomainScore)["high"]), .groups = "drop") %>%
+    mutate(across(c(mean, low, high), as.numeric))
+  p <- if (nrow(plot_tbl) > 0) {
+    ggplot(plot_tbl, aes(Group, mean, ymin = low, ymax = high, colour = Group)) +
+      geom_hline(yintercept = 0, linewidth = 0.2, colour = "grey70") +
+      geom_pointrange(linewidth = 0.35, fatten = 1.8) +
+      facet_grid(Sex ~ Domain, scales = "free_y") +
+      scale_colour_manual(values = group_colors, drop = FALSE) +
+      labs(title = title, subtitle = subtitle, x = NULL, y = "Sex-standardized domain score") +
+      make_nature_theme(base_size = 6) +
+      theme(legend.position = "none", axis.text.x = element_text(angle = 30, hjust = 1))
+  } else {
+    ggplot() + annotate("text", x = 0, y = 0, label = paste(title, "unavailable"), size = 3) + theme_void()
+  }
+  save_plot_svg_pdf(p, file.path(output_dir, "figures/publication_panels", filename), width = width, height = height)
+  p
+}
+
+p_early_active_adaptation_architecture <- plot_domain_summary(
+  c("Psychomotor activation", "Adaptive recovery", "Temporal flexibility / rigidity", "Social reorganization", "Behavioral-state stability"),
+  "Early active adaptation architecture",
+  "First active phase after first social perturbation as systems-level reorganization, not locomotion alone",
+  "Fig_early_active_adaptation_architecture",
+  width = 190,
+  height = 105
+)
+
+p_temporal_flexibility_vs_rigidity <- plot_domain_summary(
+  c("Temporal flexibility / rigidity", "Behavioral-state stability", "Multiscale temporal organization"),
+  "Temporal flexibility versus rigidity",
+  "Flexible temporal organization, state persistence and cross-scale structure",
+  "Fig_temporal_flexibility_vs_rigidity"
+)
+
+p_social_reorganization_dynamics <- plot_domain_summary(
+  c("Social reorganization"),
+  "Social reorganization dynamics",
+  "Network and proximity-derived re-establishment of social organization after regrouping",
+  "Fig_social_reorganization_dynamics",
+  width = 125,
+  height = 85
+)
+
+p_multiscale_behavioral_organization <- plot_domain_summary(
+  c("Multiscale temporal organization", "Nonlinear systems organization"),
+  "Multiscale behavioral organization",
+  "Hierarchical and nonlinear organization of spontaneous behavior across temporal scales",
+  "Fig_multiscale_behavioral_organization"
+)
+
+p_rest_fragmentation_and_circadian_structure <- plot_domain_summary(
+  c("Active-phase rest fragmentation", "Ethological phase organization"),
+  "Rest fragmentation and circadian structure",
+  "Active-phase rest instability and active/inactive transition organization",
+  "Fig_rest_fragmentation_and_circadian_structure"
+)
+
+p_ethological_phase_transition_structure <- plot_domain_summary(
+  c("Ethological phase organization"),
+  "Ethological phase-transition structure",
+  "SIS effects on active/inactive phase organization and boundary stability",
+  "Fig_ethological_phase_transition_structure",
+  width = 125,
+  height = 85
+)
+
+p_linear_vs_nonlinear_model_ladder <- if (nrow(sis_incremental_ladder$performance) > 0) {
+  ggplot(sis_incremental_ladder$performance, aes(factor(ModelOrder), cv_r2, group = 1)) +
+    geom_hline(yintercept = 0, linewidth = 0.2, colour = "grey70") +
+    geom_line(linewidth = 0.35, colour = "#3d3b6e") +
+    geom_point(size = 1.8, colour = "#e63947") +
+    geom_text(aes(label = paste0("Delta=", formatC(delta_cv_r2_vs_magnitude, format = "f", digits = 2))), vjust = -0.8, size = 2) +
+    scale_x_discrete(labels = sis_incremental_ladder$performance$Model) +
+    labs(
+      title = "Linear versus nonlinear model ladder",
+      subtitle = "Incremental cross-validated prediction of later stress burden beyond magnitude-only early behavior",
+      x = NULL,
+      y = "LOOCV R2"
+    ) +
+    make_nature_theme(base_size = 6) +
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+} else {
+  ggplot() + annotate("text", x = 0, y = 0, label = "Prediction ladder unavailable", size = 3) + theme_void()
+}
+save_plot_svg_pdf(p_linear_vs_nonlinear_model_ladder, file.path(output_dir, "figures/publication_panels/Fig_linear_vs_nonlinear_model_ladder"), width = 165, height = 92)
 
 # Module-score coupling uses module aggregates rather than hundreds of individual features.
 module_score_matrix <- {
@@ -4527,6 +5101,9 @@ extract_lmm_stats <- function(dat, response, model_label, include_cage_change = 
 sis_domain_interpretation <- tibble(
   Domain = c(
     "Early adaptation / prediction",
+    "Early active spatial flexibility",
+    "Early social engagement",
+    "Early social withdrawal",
     "Active-phase adaptation/exploration",
     "Repeated adaptation / recovery dynamics",
     "Inactive-phase rest/circadian regulation",
@@ -4538,6 +5115,9 @@ sis_domain_interpretation <- tibble(
   ),
   BiologicalInterpretation = c(
     "Initial active-phase response to the first social regrouping; candidate vulnerability/resilience signal.",
+    "Early spatial diversity and low behavioral inertia during the first active phase after regrouping.",
+    "Early proximity-based social co-location during the first active phase after regrouping.",
+    "Early high movement with low proximity, interpreted as active social distancing or withdrawal.",
     "Active-phase exploration, psychomotor engagement, social investigation and novelty adaptation.",
     "Habituation, sensitization or recovery across repeated post-regrouping active phases.",
     "Inactive-phase recovery, rest-like consolidation and circadian-context stability.",
@@ -4549,6 +5129,9 @@ sis_domain_interpretation <- tibble(
   ),
   PrimaryRawContributors = c(
     "Movement, entropy, proximity, RMSSD and ACF1 during first 12 h active phase after first regrouping.",
+    "Entropy mean/RMSSD and movement/entropy ACF1 during first 12 h active phase after first regrouping.",
+    "Proximity mean and proximity RMSSD during first 12 h active phase after first regrouping.",
+    "Movement mean minus proximity mean during first 12 h active phase after first regrouping.",
     "Active-phase movement, entropy, proximity and low persistence during post-regrouping windows.",
     "Cage-change trajectories, early-window slopes, volatility decay and distance-to-control summaries.",
     "Inactive-phase inactivity fraction, bout duration, fragmentation, movement stability and active/inactive contrasts.",
@@ -4558,9 +5141,12 @@ sis_domain_interpretation <- tibble(
     "RMSSD, burstiness, inactivity fragmentation and state-switching metrics.",
     "Movement mean and movement trajectory summaries."
   ),
-  Directness = c("indirect/prospective association", "direct RFID behavioral summary", "direct longitudinal behavioral summary", "indirect rest-like RFID summary", "indirect spatial-organization summary", "indirect social-spatial proxy", "model-derived latent construct", "direct temporal-structure summary", "direct locomotor summary"),
+  Directness = c("indirect/prospective association", "direct RFID behavioral summary", "indirect social-spatial proxy", "indirect social-spatial proxy", "direct RFID behavioral summary", "direct longitudinal behavioral summary", "indirect rest-like RFID summary", "indirect spatial-organization summary", "indirect social-spatial proxy", "model-derived latent construct", "direct temporal-structure summary", "direct locomotor summary"),
   Caveat = c(
     "Associative unless externally validated; RES/SUS labels are CombZ-derived.",
+    "High entropy may reflect adaptive exploration or disorganized scanning depending on context.",
+    "Proximity is not direct sociability and can reflect cage geometry, crowding or displacement.",
+    "Withdrawal score can be locomotion-driven and should be read alongside psychomotor activation.",
     "Active phase should not be pooled with inactive phase without biological justification.",
     "Trajectory differences do not prove recovery mechanisms.",
     "Sleep-like/rest-like inactivity is not EEG-confirmed sleep.",
@@ -4573,17 +5159,31 @@ sis_domain_interpretation <- tibble(
 )
 write_table(sis_domain_interpretation, file.path(output_dir, "tables/systems_sis_domain_interpretation_guide.csv"))
 
-sleep_features_epoch <- read_any_table(file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", primary_bin_level, "tables/sleep_like_inactivity_features.csv"))
+sleep_candidate_bin_levels <- domain_bin_preference("sleep_like_inactivity")
+sleep_candidate_files <- file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", sleep_candidate_bin_levels, "tables/sleep_like_inactivity_features.csv")
+sleep_features_epoch_path <- first_existing_path(sleep_candidate_files)
+sleep_features_epoch_bin_level <- if (!is.na(sleep_features_epoch_path)) basename(dirname(dirname(sleep_features_epoch_path))) else NA_character_
+sleep_features_epoch_audit <- tibble(
+  requested_primary_bin_level = primary_bin_level,
+  available_candidate_bin_level = sleep_candidate_bin_levels,
+  candidate_file = sleep_candidate_files,
+  file_exists = file.exists(sleep_candidate_files),
+  used_for_rest_architecture_visuals = sleep_candidate_files == sleep_features_epoch_path
+)
+write_table(sleep_features_epoch_audit, file.path(output_dir, "tables/systems_sleep_like_path_audit.csv"))
+
+sleep_features_epoch <- read_any_table(if (!is.na(sleep_features_epoch_path)) sleep_features_epoch_path else NULL)
 if (!is.null(sleep_features_epoch) && nrow(sleep_features_epoch) > 0) {
   sleep_features_epoch <- sleep_features_epoch %>%
     standardize_id_columns() %>%
     mutate(
+      BinLevel = if ("BinLevel" %in% names(.)) as.character(BinLevel) else sleep_features_epoch_bin_level,
       CageChange = as.character(CageChange),
       PhaseClass = if ("PhaseClass" %in% names(.)) as.character(PhaseClass) else as.character(Phase),
       CageChangeIndex = if ("CageChangeIndex" %in% names(.)) safe_numeric(CageChangeIndex) else parse_cage_change_index(CageChange)
     ) %>%
     select(
-      AnimalNum, CageChange, CageChangeIndex, PhaseClass,
+      AnimalNum, BinLevel, CageChange, CageChangeIndex, PhaseClass,
       any_of(c(
         "inactivity_fraction", "zero_like_inactivity_fraction", "mean_inactivity_bout_min",
         "median_inactivity_bout_min", "max_inactivity_bout_min", "inactivity_fragmentation",
@@ -4847,9 +5447,13 @@ first_active_domain_scores <- sis_first_active_score_base %>%
     `Behavioral volatility / fragmentation` = score_mean(pick(everything()), c("Movement_rmssd_z", "Entropy_rmssd_z", "Proximity_rmssd_z")),
     `Active-phase adaptation/exploration` = score_mean(pick(everything()), c("Movement_mean_z", "Entropy_mean_z", "Proximity_mean_z")) -
       score_mean(pick(everything()), c("Movement_acf1_z", "Entropy_acf1_z")),
+    `Early active spatial flexibility` = score_mean(pick(everything()), c("Entropy_mean_z", "Entropy_rmssd_z")) -
+      score_mean(pick(everything()), c("Movement_acf1_z", "Entropy_acf1_z")),
+    `Early social engagement` = Proximity_mean_z - coalesce(Proximity_rmssd_z, 0),
+    `Early social withdrawal` = Movement_mean_z - Proximity_mean_z,
     `Early adaptation / prediction` = `Active-phase adaptation/exploration`
   ) %>%
-  select(AnimalNum, Group, Sex, any_of(c("Psychomotor activation", "Behavioral flexibility / predictability", "Social spatial organization", "Behavioral volatility / fragmentation", "Active-phase adaptation/exploration", "Early adaptation / prediction"))) %>%
+  select(AnimalNum, Group, Sex, any_of(c("Psychomotor activation", "Behavioral flexibility / predictability", "Social spatial organization", "Behavioral volatility / fragmentation", "Active-phase adaptation/exploration", "Early active spatial flexibility", "Early social engagement", "Early social withdrawal", "Early adaptation / prediction"))) %>%
   pivot_longer(-c(AnimalNum, Group, Sex), names_to = "Domain", values_to = "EarlyDomainScore") %>%
   filter(is.finite(EarlyDomainScore)) %>%
   left_join(sis_domain_interpretation, by = "Domain") %>%
@@ -4921,12 +5525,25 @@ plot_domain_trajectory <- function(domain_name, phase = "Active", title, subtitl
   if (nrow(plot_tbl) == 0) return(ggplot() + annotate("text", x = 0, y = 0, label = paste(title, "unavailable"), size = 3) + theme_void())
   summary_tbl <- plot_tbl %>%
     group_by(Group, Sex, CageChangeIndex) %>%
-    summarise(mean = mean(DomainScore, na.rm = TRUE), ci_low = mean_ci(DomainScore)["low"], ci_high = mean_ci(DomainScore)["high"], .groups = "drop")
+    summarise(
+      mean = mean(DomainScore, na.rm = TRUE),
+      ci_low = unname(mean_ci(DomainScore)["low"]),
+      ci_high = unname(mean_ci(DomainScore)["high"]),
+      .groups = "drop"
+    ) %>%
+    ungroup() %>%
+    mutate(
+      Group = factor(as.character(Group), levels = group_levels),
+      Sex = factor(as.character(Sex), levels = sex_levels),
+      across(c(CageChangeIndex, mean, ci_low, ci_high), ~ as.numeric(.x))
+    ) %>%
+    filter(is.finite(CageChangeIndex)) %>%
+    arrange(Sex, Group, CageChangeIndex)
   ggplot(plot_tbl, aes(CageChangeIndex, DomainScore, group = AnimalNum, colour = Group)) +
     geom_line(alpha = 0.16, linewidth = 0.18) +
-    geom_ribbon(data = summary_tbl, aes(y = mean, ymin = ci_low, ymax = ci_high, fill = Group, group = Group), inherit.aes = FALSE, alpha = 0.16, colour = NA) +
-    geom_line(data = summary_tbl, aes(y = mean, group = Group), linewidth = 0.58) +
-    geom_point(data = summary_tbl, aes(y = mean, group = Group), size = 1.1) +
+    geom_ribbon(data = summary_tbl, aes(x = CageChangeIndex, ymin = ci_low, ymax = ci_high, fill = Group), inherit.aes = FALSE, alpha = 0.16, colour = NA) +
+    geom_line(data = summary_tbl, aes(x = CageChangeIndex, y = mean, colour = Group, group = Group), inherit.aes = FALSE, linewidth = 0.58) +
+    geom_point(data = summary_tbl, aes(x = CageChangeIndex, y = mean, colour = Group, group = Group), inherit.aes = FALSE, size = 1.1) +
     facet_wrap(~ Sex, nrow = 1) +
     scale_colour_manual(values = group_colors, drop = FALSE) +
     scale_fill_manual(values = group_colors, drop = FALSE) +
@@ -5053,6 +5670,64 @@ p_sis_rest <- plot_domain_trajectory(
   "Rest-like organization score"
 )
 
+sis_rest_plot_tbl <- sis_domain_scores %>%
+  filter(Domain == "Inactive-phase rest/circadian regulation", PhaseClass == "Inactive", is.finite(DomainScore))
+
+p_sis_rest_sleep_scores <- if (exists("sleep_score_features") && nrow(sleep_score_features) > 0 && any(is.finite(sleep_score_features$Score))) {
+  sleep_score_features %>%
+    filter(is.finite(Score)) %>%
+    mutate(ScoreLabel = factor(ScoreLabel, levels = rev(unique(ScoreLabel)))) %>%
+    ggplot(aes(Group, Score, colour = Group, fill = Group)) +
+    geom_boxplot(width = 0.55, outlier.shape = NA, alpha = 0.24, linewidth = 0.25) +
+    geom_point(position = position_jitter(width = 0.10, height = 0), size = 1.05, alpha = 0.78, stroke = 0.18) +
+    facet_grid(ScoreLabel ~ Sex, scales = "free_y") +
+    scale_colour_manual(values = group_colors, drop = FALSE) +
+    scale_fill_manual(values = group_colors, drop = FALSE) +
+    labs(
+      title = "F. Sleep-like/rest-like inactivity architecture",
+      subtitle = "RFID-derived inactivity and fragmentation scores; not EEG-confirmed sleep",
+      x = NULL,
+      y = "Composite z-score"
+    ) +
+    make_nature_theme(base_size = 5.5) +
+    theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none")
+} else {
+  NULL
+}
+
+p_sis_rest_systems_scores <- if (exists("systems_early_active_domain_scores") && nrow(systems_early_active_domain_scores) > 0) {
+  rest_domain_tbl <- systems_early_active_domain_scores %>%
+    filter(Domain %in% c("Active-phase rest fragmentation", "Ethological phase organization"), is.finite(DomainScore))
+  if (nrow(rest_domain_tbl) > 0) {
+    rest_domain_tbl %>%
+      group_by(Domain, Sex, Group) %>%
+      summarise(
+        mean = mean(DomainScore, na.rm = TRUE),
+        low = unname(mean_ci(DomainScore)["low"]),
+        high = unname(mean_ci(DomainScore)["high"]),
+        .groups = "drop"
+      ) %>%
+      mutate(across(c(mean, low, high), as.numeric)) %>%
+      ggplot(aes(Group, mean, ymin = low, ymax = high, colour = Group)) +
+      geom_hline(yintercept = 0, linewidth = 0.2, colour = "grey70") +
+      geom_pointrange(linewidth = 0.35, fatten = 1.7) +
+      facet_grid(Sex ~ Domain, scales = "free_y") +
+      scale_colour_manual(values = group_colors, drop = FALSE) +
+      labs(
+        title = "F. Sleep-like/rest-like inactivity architecture",
+        subtitle = "Systems-domain rest fragmentation and phase-organization scores",
+        x = NULL,
+        y = "Domain score"
+      ) +
+      make_nature_theme(base_size = 5.5) +
+      theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none")
+  } else {
+    NULL
+  }
+} else {
+  NULL
+}
+
 p_sis_state <- if (!is.null(hmm_occupancy) && nrow(hmm_occupancy) > 0) {
   hmm_occupancy %>%
     standardize_id_columns() %>%
@@ -5074,9 +5749,15 @@ p_sis_state <- if (!is.null(hmm_occupancy) && nrow(hmm_occupancy) > 0) {
     facet_grid(PhaseClass + Sex ~ SemanticState, scales = "free_y") +
     scale_colour_manual(values = group_colors, drop = FALSE) +
     scale_fill_manual(values = group_colors, drop = FALSE) +
-    labs(title = "F. Behavioral state architecture", subtitle = "HMM state occupancy by phase", x = NULL, y = "Mean occupancy") +
+    labs(title = "F. Behavioral state architecture", subtitle = paste0("HMM state occupancy by phase; ", hmm_bin_level_used), x = NULL, y = "Mean occupancy") +
     make_nature_theme(base_size = 5.5) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none")
+} else if (nrow(sis_rest_plot_tbl) > 0) {
+  p_sis_rest
+} else if (inherits(p_sis_rest_sleep_scores, "ggplot")) {
+  p_sis_rest_sleep_scores
+} else if (inherits(p_sis_rest_systems_scores, "ggplot")) {
+  p_sis_rest_systems_scores
 } else {
   p_sis_rest
 }
@@ -5642,6 +6323,8 @@ stats_reporting_guide <- tibble(
 )
 
 write_table(stats_reporting_guide, file.path(output_dir, "tables/systems_stats_reporting_guide.csv"))
+
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
 message("Integrated systems neuroscience summary complete.")
 message("Output: ", output_dir)
