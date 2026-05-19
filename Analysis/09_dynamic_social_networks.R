@@ -35,7 +35,7 @@ source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/duration_norma
 # USER INPUT
 # ------------------------------------------------
 
-bin_level <- "5min_based"
+bin_level <- "10sec_based"
 input_file <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
 output_dir <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/social_networks", bin_level)
 
@@ -233,7 +233,94 @@ make_all_pairwise_brackets <- function(data, contrast_tbl, outcomes, facet_cols,
     d <- data %>% filter(Outcome == outcome)
     make_pairwise_brackets(d, contrast_tbl, outcome = outcome, facet_cols = facet_cols, value_col = value_col) %>%
       mutate(Outcome = outcome)
-  })
+  }) %>%
+    distinct(across(any_of(c(facet_cols, "Outcome", "contrast", "x_start", "x_end"))), .keep_all = TRUE)
+}
+
+make_plot_pairwise_brackets <- function(data,
+                                        outcomes,
+                                        facet_cols,
+                                        value_col = "Value",
+                                        p_threshold = 0.05,
+                                        include_trends = FALSE) {
+  threshold <- if (include_trends) 0.10 else p_threshold
+  plot_dat <- data %>%
+    filter(Outcome %in% outcomes, is.finite(.data[[value_col]]), !is.na(Group)) %>%
+    mutate(Group = factor(as.character(Group), levels = group_levels))
+  if (nrow(plot_dat) == 0) {
+    out <- tibble(
+      Outcome = character(), contrast = character(), x_start = numeric(), x_end = numeric(),
+      y = numeric(), y_tip = numeric(), label = character(), ReportingP = numeric(),
+      ReportingSignificance = character()
+    )
+    for (nm in facet_cols) out[[nm]] <- plot_dat[[nm]][0]
+    return(out)
+  }
+
+  y_tbl <- plot_dat %>%
+    group_by(across(all_of(facet_cols))) %>%
+    summarise(
+      y_max = max(.data[[value_col]], na.rm = TRUE),
+      y_min = min(.data[[value_col]], na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      y_range = if_else(is.finite(y_max - y_min) & y_max > y_min, y_max - y_min, abs(y_max)),
+      y_step = if_else(is.finite(y_range) & y_range > 0, 0.18 * y_range, 0.1),
+      y_tip_size = 0.035 * y_step
+    )
+
+  contrast_tbl <- plot_dat %>%
+    group_by(across(all_of(facet_cols))) %>%
+    group_modify(~ {
+      d <- .x
+      map_dfr(pairwise_contrasts, function(contrast_name) {
+        parts <- str_split_fixed(contrast_name, "-", 2)
+        comp <- parts[1, 1]
+        ref <- parts[1, 2]
+        x <- d[[value_col]][as.character(d$Group) == ref]
+        y <- d[[value_col]][as.character(d$Group) == comp]
+        n_ref <- sum(is.finite(x))
+        n_comp <- sum(is.finite(y))
+        if (n_ref < 2 || n_comp < 2) {
+          return(tibble(
+            contrast = contrast_name, group_ref = ref, group_comp = comp,
+            n_ref = n_ref, n_comp = n_comp, ReportingP = NA_real_,
+            ReportingSignificance = NA_character_
+          ))
+        }
+        p_val <- tryCatch(t.test(y, x)$p.value, error = function(e) NA_real_)
+        tibble(
+          contrast = contrast_name,
+          group_ref = ref,
+          group_comp = comp,
+          n_ref = n_ref,
+          n_comp = n_comp,
+          ReportingP = p_val,
+          ReportingSignificance = format_p_label(p_val)
+        )
+      })
+    }) %>%
+    ungroup() %>%
+    filter(!is.na(ReportingP), ReportingP < threshold) %>%
+    group_by(across(all_of(facet_cols))) %>%
+    arrange(ReportingP, .by_group = TRUE) %>%
+    mutate(
+      bracket_rank = row_number(),
+      x_start = match(group_ref, group_levels),
+      x_end = match(group_comp, group_levels),
+      label = format_p_label(ReportingP)
+    ) %>%
+    ungroup() %>%
+    filter(is.finite(x_start), is.finite(x_end)) %>%
+    left_join(y_tbl, by = facet_cols) %>%
+    mutate(
+      y = y_max + bracket_rank * y_step,
+      y_tip = y - y_tip_size
+    ) %>%
+    select(any_of(facet_cols), contrast, x_start, x_end, y, y_tip, label, ReportingP, ReportingSignificance)
+
+  contrast_tbl
 }
 
 add_pairwise_brackets <- function(plot, bracket_tbl, text_size = 1.6) {
@@ -458,16 +545,19 @@ animal_social_long <- animal_social %>%
     )
   )
 
-animal_brackets <- make_all_pairwise_brackets(
-  animal_social_long,
-  animal_stats$contrasts,
-  outcomes = animal_social_outcomes,
-  facet_cols = c("Sex", "Phase", "Outcome"),
+animal_plot_outcomes <- c("contact_fraction", "contact_switch_rate", "active_isolation", "passive_isolation", "social_engagement")
+animal_plot_data <- animal_social_long %>%
+  filter(Outcome %in% animal_plot_outcomes)
+
+animal_brackets <- make_plot_pairwise_brackets(
+  animal_plot_data,
+  outcomes = animal_plot_outcomes,
+  facet_cols = c("Sex", "Phase", "OutcomeLabel"),
   value_col = "Value"
 )
+write_table(animal_brackets, file.path(output_dir, "tables", "animal_level_social_plot_stat_brackets.csv"))
 
-p_social <- animal_social_long %>%
-  filter(Outcome %in% c("contact_fraction", "contact_switch_rate", "active_isolation", "passive_isolation", "social_engagement")) %>%
+p_social <- animal_plot_data %>%
   ggplot(aes(Group, Value, fill = Group)) +
   geom_violin(alpha = 0.55, linewidth = 0.25, trim = FALSE, colour = "grey25") +
   geom_jitter(width = 0.08, size = 0.75, alpha = 0.70, shape = 21, colour = "grey20", stroke = 0.12, show.legend = FALSE) +
@@ -483,7 +573,7 @@ p_social <- animal_social_long %>%
 
 p_social <- add_pairwise_brackets(
   p_social,
-  animal_brackets %>% filter(Outcome %in% c("contact_fraction", "contact_switch_rate", "active_isolation", "passive_isolation", "social_engagement")),
+  animal_brackets,
   text_size = 1.45
 )
 
@@ -936,16 +1026,17 @@ if (!is.null(dyad_file) && file.exists(dyad_file)) {
           )
         )
 
-      graph_brackets <- make_all_pairwise_brackets(
-        graph_long,
-        graph_stats$contrasts,
-        outcomes = graph_outcomes,
-        facet_cols = c("Sex", "Phase", "Outcome"),
+      graph_plot_outcomes <- c("mean_density", "density_rmssd", "mean_clustering", "mean_modularity", "fragmentation_index")
+      graph_plot_data <- graph_long %>% filter(Outcome %in% graph_plot_outcomes)
+      graph_brackets <- make_plot_pairwise_brackets(
+        graph_plot_data,
+        outcomes = graph_plot_outcomes,
+        facet_cols = c("Sex", "Phase", "OutcomeLabel"),
         value_col = "Value"
       )
+      write_table(graph_brackets, file.path(output_dir, "tables", "dyadic_graph_plot_stat_brackets.csv"))
 
-      p_graph <- graph_long %>%
-        filter(Outcome %in% c("mean_density", "density_rmssd", "mean_clustering", "mean_modularity", "fragmentation_index")) %>%
+      p_graph <- graph_plot_data %>%
         ggplot(aes(Group, Value, fill = Group)) +
         geom_violin(alpha = 0.55, linewidth = 0.25, trim = FALSE, colour = "grey25") +
         geom_jitter(width = 0.08, size = 0.75, alpha = 0.70, shape = 21, colour = "grey20", stroke = 0.12, show.legend = FALSE) +
@@ -961,7 +1052,7 @@ if (!is.null(dyad_file) && file.exists(dyad_file)) {
 
       p_graph <- add_pairwise_brackets(
         p_graph,
-        graph_brackets %>% filter(Outcome %in% c("mean_density", "density_rmssd", "mean_clustering", "mean_modularity", "fragmentation_index")),
+        graph_brackets,
         text_size = 1.45
       )
 
@@ -983,16 +1074,17 @@ if (!is.null(dyad_file) && file.exists(dyad_file)) {
           )
         )
 
-      node_brackets <- make_all_pairwise_brackets(
-        node_long,
-        node_stats$contrasts,
-        outcomes = node_outcomes,
-        facet_cols = c("Sex", "Phase", "Outcome"),
+      node_plot_outcomes <- c("mean_degree", "mean_strength", "mean_betweenness", "degree_rmssd", "strength_rmssd")
+      node_plot_data <- node_long %>% filter(Outcome %in% node_plot_outcomes)
+      node_brackets <- make_plot_pairwise_brackets(
+        node_plot_data,
+        outcomes = node_plot_outcomes,
+        facet_cols = c("Sex", "Phase", "OutcomeLabel"),
         value_col = "Value"
       )
+      write_table(node_brackets, file.path(output_dir, "tables", "dyadic_node_plot_stat_brackets.csv"))
 
-      p_node <- node_long %>%
-        filter(Outcome %in% c("mean_degree", "mean_strength", "mean_betweenness", "degree_rmssd", "strength_rmssd")) %>%
+      p_node <- node_plot_data %>%
         ggplot(aes(Group, Value, fill = Group)) +
         geom_violin(alpha = 0.55, linewidth = 0.25, trim = FALSE, colour = "grey25") +
         geom_jitter(width = 0.08, size = 0.75, alpha = 0.70, shape = 21, colour = "grey20", stroke = 0.12, show.legend = FALSE) +
@@ -1003,7 +1095,7 @@ if (!is.null(dyad_file) && file.exists(dyad_file)) {
 
       p_node <- add_pairwise_brackets(
         p_node,
-        node_brackets %>% filter(Outcome %in% c("mean_degree", "mean_strength", "mean_betweenness", "degree_rmssd", "strength_rmssd")),
+        node_brackets,
         text_size = 1.45
       )
 
@@ -1099,15 +1191,17 @@ if (!is.null(dyad_file) && file.exists(dyad_file)) {
           OutcomeLabel = recode(Outcome, top_partner_share = "Top partner share", partner_entropy = "Partner entropy", partner_evenness = "Partner evenness", mean_contact_bin_fraction = "Contact fraction")
         )
 
-      preference_brackets <- make_all_pairwise_brackets(
-        preference_long,
-        preference_stats$contrasts,
+      preference_plot_outcomes <- c("top_partner_share", "partner_entropy", "partner_evenness", "mean_contact_bin_fraction")
+      preference_plot_data <- preference_long %>% filter(Outcome %in% preference_plot_outcomes)
+      preference_brackets <- make_plot_pairwise_brackets(
+        preference_plot_data,
         outcomes = c("top_partner_share", "partner_entropy", "partner_evenness", "mean_contact_bin_fraction"),
-        facet_cols = c("Sex", "Phase", "Outcome"),
+        facet_cols = c("Sex", "Phase", "OutcomeLabel"),
         value_col = "Value"
       )
+      write_table(preference_brackets, file.path(output_dir, "tables", "dyadic_partner_preference_plot_stat_brackets.csv"))
 
-      p_preference <- preference_long %>%
+      p_preference <- preference_plot_data %>%
         ggplot(aes(Group, Value, fill = Group)) +
         geom_violin(alpha = 0.55, linewidth = 0.25, trim = FALSE, colour = "grey25") +
         geom_jitter(width = 0.08, size = 0.75, alpha = 0.70, shape = 21, colour = "grey20", stroke = 0.12, show.legend = FALSE) +
@@ -1164,5 +1258,7 @@ social_reorganization_interpretation_guide <- tibble(
 )
 
 write_table(social_reorganization_interpretation_guide, file.path(output_dir, "tables", "social_reorganization_interpretation_guide.csv"))
+
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
 message("Dynamic social network analysis complete. Animal-level and available dyadic network reports written.")
