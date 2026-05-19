@@ -52,7 +52,7 @@ output_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavi
 # The aggregation bin determines the temporal resolution of the dyadic table.
 # 1800 sec = 30 min, matching the current main analysis scale.
 # Use 600, 300, 60, or 10 for 10 min, 5 min, 1 min, or 10 sec analyses.
-bin_size_sec <- 1800
+bin_size_sec <- 600
 
 # A dyad is considered direct contact when both animals occupy the same RFID
 # PositionID. Adjacent contact is computed separately using the 2 x 4 cage grid.
@@ -480,6 +480,8 @@ write_table(
   network_ready_tbl,
   file.path(output_dir, "tables", "dyadic_network_ready.csv")
 )
+
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
 message("Dyadic RFID contact extraction complete.")
 message("Network-ready dyad file: ", file.path(output_dir, "tables", "dyadic_network_ready.csv"))
