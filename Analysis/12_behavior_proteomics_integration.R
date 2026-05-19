@@ -1648,6 +1648,7 @@ for (proteomics_file in proteomics_files) {
   }
 
   message("Behavior-proteomics integration complete for: ", proteomics_label)
+  if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 }
 
 message("All behavior-proteomics integrations complete.")
