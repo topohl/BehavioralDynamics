@@ -168,7 +168,23 @@ make_formula <- function(outcome = "outcome", predictors) {
   if (length(predictors) == 0) as.formula(paste0(outcome, " ~ 1")) else as.formula(paste(outcome, "~", paste(predictors, collapse = " + ")))
 }
 
+sanitize_model_predictors <- function(predictors, dat, outcome = "outcome") {
+  predictors <- unique(as.character(predictors))
+  predictors <- predictors[!is.na(predictors) & predictors != ""]
+  known_endpoint_cols <- if (exists("endpoint_cols")) endpoint_cols else character(0)
+  leakage_cols <- unique(c(
+    outcome,
+    "outcome", "observed", "predicted", "residual", "abs_residual",
+    outcome_col,
+    known_endpoint_cols
+  ))
+  predictors <- setdiff(predictors, leakage_cols)
+  predictors <- predictors[predictors %in% names(dat)]
+  predictors
+}
+
 loo_lm_predict <- function(dat, predictors, model_name) {
+  predictors <- sanitize_model_predictors(predictors, dat, outcome = "outcome")
   pred <- rep(NA_real_, nrow(dat))
   coef_rows <- list()
 
@@ -238,7 +254,8 @@ partial_r_from_lm <- function(dat, feature, covariates, outcome = "outcome") {
   needed <- needed[needed %in% names(dat)]
   d <- dat %>% select(all_of(needed)) %>% drop_na()
   if (nrow(d) < 6 || !feature %in% names(d)) return(NA_real_)
-  covariates <- covariates[covariates %in% names(d)]
+  covariates <- sanitize_model_predictors(covariates, d, outcome = outcome)
+  covariates <- setdiff(covariates, feature)
   if (length(covariates) == 0) return(safe_cor(d[[feature]], d[[outcome]], "pearson"))
   ry <- residuals(lm(make_formula(outcome, covariates), data = d))
   rx <- residuals(lm(make_formula(feature, covariates), data = d))
@@ -498,7 +515,18 @@ model_specs <- list(
   "Full behavior compact" = c(candidate_covars, "Movement_mean", "Movement_rmssd", "Movement_acf1", "Entropy_mean", "Entropy_rmssd", "Entropy_acf1", "Proximity_mean", "Proximity_rmssd", "Proximity_acf1")
 )
 
-model_specs <- map(model_specs, ~.x[.x %in% names(model_dat)])
+model_specs <- map(model_specs, sanitize_model_predictors, dat = model_dat, outcome = "outcome")
+
+model_predictor_audit <- imap_dfr(model_specs, function(predictors, model_name) {
+  known_endpoint_cols <- if (exists("endpoint_cols")) endpoint_cols else character(0)
+  tibble(
+    Model = model_name,
+    Predictors = paste(predictors, collapse = " + "),
+    n_predictors = length(predictors),
+    contains_outcome_like_predictor = any(predictors %in% unique(c("outcome", outcome_col, known_endpoint_cols)))
+  )
+})
+write_table(model_predictor_audit, file.path(output_dir, "tables", "model_ladder_predictor_audit.csv"))
 
 numeric_predictors <- unique(unlist(model_specs))
 numeric_predictors <- numeric_predictors[numeric_predictors %in% names(model_dat) & sapply(model_dat[numeric_predictors], is.numeric)]
@@ -642,6 +670,7 @@ make_grouped_folds <- function(dat, k = 5, repeats = 100, group_col = "AnimalNum
 }
 
 kfold_lm_predict <- function(dat, predictors, model_name, fold_map) {
+  predictors <- sanitize_model_predictors(predictors, dat, outcome = "outcome")
   pred_rows <- vector("list", nrow(fold_map))
   for (i in seq_len(nrow(fold_map))) {
     held_out_id <- fold_map$AnimalNum[i]
@@ -704,12 +733,14 @@ behavior_only_specs <- list(
   "Behavior-only: primary family" = behavior_predictors,
   "Behavior-only: compact dynamics" = compact_behavior_predictors
 ) %>%
-  map(~.x[.x %in% names(model_dat)])
+  map(sanitize_model_predictors, dat = model_dat, outcome = "outcome")
 
 behavior_group_specs <- map(behavior_only_specs, ~unique(c(.x, candidate_covars))) %>%
+  map(sanitize_model_predictors, dat = model_dat, outcome = "outcome") %>%
   set_names(str_replace(names(behavior_only_specs), "Behavior-only", "Behavior + group/sex"))
 
 cv_specs <- c(behavior_only_specs, behavior_group_specs)
+cv_specs <- map(cv_specs, sanitize_model_predictors, dat = model_dat, outcome = "outcome")
 cv_predictors <- unique(unlist(cv_specs))
 cv_predictors <- cv_predictors[cv_predictors %in% names(model_dat) & sapply(model_dat[cv_predictors], is.numeric)]
 cv_model_dat <- impute_numeric(model_dat, cv_predictors)
@@ -855,5 +886,7 @@ results_summary <- tibble(
 )
 
 write_table(results_summary, file.path(output_dir, "tables", "results_summary_text.csv"))
+
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
 message("Early prediction model ladder complete. Tables and publication figures written to: ", output_dir)
