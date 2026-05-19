@@ -9171,6 +9171,7 @@ if (RUN_ANALYSES) {
     compress = "xz"
   )
 
+  if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(analyses_dir)
   cat(sprintf("\n=== Analyses complete. Results saved to: %s ===\n", analyses_dir))
 }
 
