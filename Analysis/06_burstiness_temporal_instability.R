@@ -1686,4 +1686,6 @@ save_plot_svg_pdf(
   height = 160
 )
 
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
+
 message("Temporal instability analysis complete. Primary readout: Movement. Secondary exploratory readouts: Entropy and Proximity.")
