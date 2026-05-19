@@ -33,7 +33,7 @@ source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/duration_norma
 # USER INPUT
 # ------------------------------------------------
 
-bin_level <- "1min_based"
+bin_level <- "5min_based"
 input_file <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
 output_dir <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/state_space", bin_level)
 n_states <- 4
@@ -774,5 +774,7 @@ p_transition <- ggplot(transition_plot_tbl, aes(NextStateLabel, StateLabel, fill
   )
 
 save_plot_svg_pdf(p_transition, file.path(output_dir, "figures", "state_transition_probability_heatmap"), width = 190, height = 140)
+
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
 message("Behavioral state-space analysis complete. State occupancy, diversity, switching, PCA, and effect-size outputs written.")
