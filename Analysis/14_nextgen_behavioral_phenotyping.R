@@ -1260,4 +1260,6 @@ manifest <- tibble(
 write_table(manifest, file.path(output_dir, "analysis_manifest.csv"))
 write_professional_table(manifest, "nextgen_behavioral_phenotyping_analysis_manifest.csv", stats_dir)
 
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
+
 message("Next-generation behavioral phenotyping complete: ", output_dir)
