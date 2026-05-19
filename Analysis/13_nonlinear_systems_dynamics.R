@@ -792,4 +792,6 @@ if (all(c("Diffusion1", "Diffusion2") %in% names(embed))) {
 summary_tbl <- tibble(Item = c("Input", "Bin level", "Animals", "Usable features", "Early window", "States", "Outcome"), Value = c(input_file, bin_level, n_distinct(behav$AnimalNum), length(usable_features), paste0(early_window_hours, " h"), n_behavioral_states, ifelse(is.na(outcome_to_use), "none", outcome_to_use)))
 write_professional_table(summary_tbl, "nonlinear_systems_analysis_summary.csv")
 
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
+
 message("Nonlinear systems dynamics analysis complete: ", output_dir)
