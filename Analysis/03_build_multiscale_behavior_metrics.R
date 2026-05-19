@@ -873,5 +873,7 @@ if (nrow(bad_bin_qc) > 0) {
   )
 }
 
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_root)
+
 message("Multiscale behavior metric export complete.")
 message("Primary downstream file pattern: ", file.path(output_root, "<scale>_based", "all_behavior_metrics.csv"))
