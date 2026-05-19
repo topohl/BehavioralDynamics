@@ -32,7 +32,7 @@ source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/behavioral_dyn
 # USER INPUT
 # ------------------------------------------------
 
-bin_level <- "5min_based"
+bin_level <- "1min_based"
 input_file <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
 output_dir <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/early_prediction", bin_level)
 
@@ -857,5 +857,7 @@ p_feature_scatter <- feature_scatter_tbl %>%
   make_publication_theme(base_size = 6)
 
 save_plot_svg_pdf(p_feature_scatter, file.path(output_dir, "figures", "top_feature_endpoint_scatterplots"), width = 160, height = 110)
+
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
 message("Early prediction analysis complete. Feature QC, associations, prediction diagnostics, and publication figures written.")
