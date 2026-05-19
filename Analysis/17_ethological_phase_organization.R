@@ -224,4 +224,6 @@ if (nrow(plot_tbl) > 0) {
   save_plot_svg_pdf(p, file.path(output_dir, "figures/publication_panels/Fig17_phase_contrast_overview"), width = 150, height = 90)
 }
 
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
+
 message("Ethological phase organization complete: ", output_dir)
