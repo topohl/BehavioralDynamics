@@ -37,7 +37,7 @@ if (is.na(duration_helper_path)) stop("Could not find duration_normalization_hel
 source(helper_path)
 source(duration_helper_path)
 
-bin_level <- "5min_based"
+bin_level <- "10min_based"
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 input_file <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
 output_dir <- file.path(base_dir, "analysis_ready/16_sleep_like_inactivity_metrics", bin_level)
@@ -187,5 +187,7 @@ if (nrow(plot_tbl) > 0) {
     theme(legend.position = "none")
   save_plot_svg_pdf(p, file.path(output_dir, "figures/publication_panels/Fig16_quiescence_fragmentation"), width = 120, height = 90)
 }
+
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
 message("Sleep-like inactivity metrics complete: ", output_dir)
