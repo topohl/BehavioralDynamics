@@ -630,8 +630,8 @@ base <- base %>%
     CageChange = if (!is.na(cage_col)) as.character(.data[[cage_col]]) else "All",
     CageChangeIndex = parse_cage_change_index(CageChange),
     PhaseClass = case_when(
-      str_detect(str_to_lower(Phase), "active|dark|night") ~ "Active",
-      str_detect(str_to_lower(Phase), "inactive|light|day") ~ "Inactive",
+      str_detect(str_to_lower(Phase), "\\binactive\\b|\\blight\\b|\\bday\\b") ~ "Inactive",
+      str_detect(str_to_lower(Phase), "\\bactive\\b|\\bdark\\b|\\bnight\\b") ~ "Active",
       TRUE ~ Phase
     ),
     TimeIndex = .data[[time_col]],
@@ -686,8 +686,8 @@ qc_chip_loss_flags <- if (nrow(raw_position_qc) > 0) {
     ) %>%
     mutate(
       PhaseClass = case_when(
-        str_detect(str_to_lower(Phase), "active|dark|night") ~ "Active",
-        str_detect(str_to_lower(Phase), "inactive|light|day") ~ "Inactive",
+        str_detect(str_to_lower(Phase), "\\binactive\\b|\\blight\\b|\\bday\\b") ~ "Inactive",
+        str_detect(str_to_lower(Phase), "\\bactive\\b|\\bdark\\b|\\bnight\\b") ~ "Active",
         TRUE ~ Phase
       )
     ) %>%
@@ -912,7 +912,7 @@ early_window_bins <- case_when(
 first_active <- base %>%
   filter(
     as.character(CageChange) == first_cage_change,
-    PhaseClass == "Active" | str_detect(str_to_lower(Phase), "active|dark|night")
+    PhaseClass == "Active" | str_detect(str_to_lower(Phase), "\\bactive\\b|\\bdark\\b|\\bnight\\b")
   ) %>%
   group_by(AnimalNum, Phase) %>%
   arrange(TimeIndex, .by_group = TRUE) %>%
@@ -5268,8 +5268,8 @@ hmm_epoch_scores <- if (!is.null(hmm_occupancy) && nrow(hmm_occupancy) > 0) {
     standardize_id_columns() %>%
     mutate(
       PhaseClass = case_when(
-        str_detect(str_to_lower(as.character(Phase)), "inactive|light|day") ~ "Inactive",
-        str_detect(str_to_lower(as.character(Phase)), "active|dark|night") ~ "Active",
+        str_detect(str_to_lower(as.character(Phase)), "\\binactive\\b|\\blight\\b|\\bday\\b") ~ "Inactive",
+        str_detect(str_to_lower(as.character(Phase)), "\\bactive\\b|\\bdark\\b|\\bnight\\b") ~ "Active",
         TRUE ~ as.character(Phase)
       ),
       CageChange = as.character(CageChange),
@@ -5733,8 +5733,8 @@ p_sis_state <- if (!is.null(hmm_occupancy) && nrow(hmm_occupancy) > 0) {
     standardize_id_columns() %>%
     mutate(
       PhaseClass = case_when(
-        str_detect(str_to_lower(as.character(Phase)), "inactive|light|day") ~ "Inactive",
-        str_detect(str_to_lower(as.character(Phase)), "active|dark|night") ~ "Active",
+        str_detect(str_to_lower(as.character(Phase)), "\\binactive\\b|\\blight\\b|\\bday\\b") ~ "Inactive",
+        str_detect(str_to_lower(as.character(Phase)), "\\bactive\\b|\\bdark\\b|\\bnight\\b") ~ "Active",
         TRUE ~ as.character(Phase)
       ),
       State = as.character(State),
