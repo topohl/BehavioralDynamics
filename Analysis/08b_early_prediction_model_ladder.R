@@ -9,12 +9,13 @@
 #   organization features.
 #
 # Biological use case:
-#   P25 first cage change, first 12 h active phase, 5-min bins.
+#   P25 first cage change, first 12 h active phase, bin size set below.
 #   Primary features: Movement_mean and Entropy_acf1.
 #
 # Main question:
-#   Does early entropy persistence explain later CombZ beyond movement,
-#   group labels, sex, and batch/cage-change covariates?
+#   Does early entropy persistence refine prediction of later CombZ beyond
+#   movement, while keeping CON/RES/SUS grouping descriptive unless explicitly
+#   used as an adjustment/sensitivity term?
 #
 # Input expectation:
 #   Run Analysis/03_build_multiscale_behavior_metrics.R first.
@@ -40,7 +41,7 @@ source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/duration_norma
 # USER INPUT
 # ------------------------------------------------
 
-bin_level <- "5min_based"
+bin_level <- "10min_based"
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 input_file <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
 output_dir <- file.path(base_dir, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", bin_level)
@@ -55,7 +56,7 @@ outcome_col <- "CombZ"
 early_phase_pattern <- "active|dark|night"
 first_cage_change_only <- TRUE
 early_window_hours <- 12
-bin_size_min <- 5
+bin_size_min <- 10
 max_early_bins_per_animal <- early_window_hours * 60 / bin_size_min
 
 # Optional column overrides. Leave NULL for automatic detection by helper functions.
@@ -81,6 +82,7 @@ group_colors <- c(
   "All" = "grey55"
 )
 group_levels <- c("CON", "RES", "SUS")
+group_shape_values <- c("CON" = 21, "RES" = 22, "SUS" = 24, "All" = 21)
 
 # ------------------------------------------------
 # SMALL HELPERS
@@ -88,6 +90,12 @@ group_levels <- c("CON", "RES", "SUS")
 
 ensure_dir_safe <- function(path) {
   if (!dir.exists(path)) dir.create(path, recursive = TRUE, showWarnings = FALSE)
+}
+
+write_text_file <- function(lines, path) {
+  ensure_dir_safe(dirname(path))
+  writeLines(lines, con = path)
+  invisible(path)
 }
 
 safe_scale <- function(x) {
@@ -120,6 +128,47 @@ make_publication_theme <- function(base_size = 7) {
       plot.title = element_text(face = "bold", hjust = 0, size = base_size + 1),
       plot.subtitle = element_text(hjust = 0, size = base_size)
     )
+}
+
+feature_display_labels <- c(
+  "Movement_mean" = "Movement",
+  "Entropy_acf1" = "Entropy persistence",
+  "Movement_x_EntropyACF1" = "Movement x entropy"
+)
+
+model_display_labels <- c(
+  "Mean only" = "Mean only",
+  "Sex + Group" = "Sex + group",
+  "Movement only" = "Movement",
+  "Entropy ACF1 only" = "Entropy persistence",
+  "Movement + Entropy ACF1" = "Movement + entropy",
+  "Movement x Entropy ACF1" = "Movement x entropy",
+  "Full behavior compact" = "Compact behavior"
+)
+
+classify_model_reporting_use <- function(model_name) {
+  case_when(
+    model_name == "Mean only" ~ "Reference baseline",
+    model_name %in% c("Sex + Group") ~ "Descriptive group/sex adjustment",
+    model_name %in% c(
+      "Movement only",
+      "Entropy ACF1 only",
+      "Movement + Entropy ACF1",
+      "Movement x Entropy ACF1",
+      "Full behavior compact"
+    ) ~ "Behavior plus sex/group adjustment",
+    TRUE ~ "Sensitivity"
+  )
+}
+
+wilcox_effect_r <- function(x, y) {
+  x <- x[is.finite(x)]
+  y <- y[is.finite(y)]
+  if (length(x) < 2 || length(y) < 2) return(NA_real_)
+  wt <- suppressWarnings(try(stats::wilcox.test(y, x, exact = FALSE), silent = TRUE))
+  if (inherits(wt, "try-error")) return(NA_real_)
+  z <- stats::qnorm(wt$p.value / 2, lower.tail = FALSE) * sign(median(y, na.rm = TRUE) - median(x, na.rm = TRUE))
+  z / sqrt(length(x) + length(y))
 }
 
 get_first_cage_change <- function(x) {
@@ -287,6 +336,12 @@ behav <- standardize_behavior_columns(
 
 ensure_dir_safe(output_dir)
 ensure_dir_safe(file.path(output_dir, "tables"))
+ensure_dir_safe(file.path(output_dir, "tables", "documentation"))
+ensure_dir_safe(file.path(output_dir, "tables", "design"))
+ensure_dir_safe(file.path(output_dir, "tables", "features"))
+ensure_dir_safe(file.path(output_dir, "tables", "models"))
+ensure_dir_safe(file.path(output_dir, "tables", "statistics"))
+ensure_dir_safe(file.path(output_dir, "tables", "sensitivity"))
 ensure_dir_safe(file.path(output_dir, "figures"))
 ensure_dir_safe(file.path(output_dir, "figures", "publication"))
 output_dirs <- analysis_output_dirs(output_dir)
@@ -300,13 +355,43 @@ write_output_manifest(
     "tables/model_ladder_repeated_grouped_kfold_performance.csv",
     "tables/prediction_interpretation_constraints.csv",
     "tables/model_ladder_incremental_summary.csv",
-    "tables/primary_movement_entropyacf1_associations.csv"
+    "tables/primary_movement_entropyacf1_associations.csv",
+    "tables/primary_feature_group_summary.csv",
+    "tables/primary_feature_group_contrasts_descriptive.csv",
+    "tables/documentation/readout_dictionary.csv",
+    "tables/documentation/model_specification_dictionary.csv",
+    "tables/documentation/output_table_catalog.csv"
   ),
   primary_figures = c(
     "figures/publication/model_ladder_cv_r2.svg",
+    "figures/publication/behavior_only_repeated_cv_ladder.svg",
     "figures/publication/primary_movement_entropyacf1_vs_combz.svg"
   ),
   notes = c("Main prediction claim should use the ladder performance plus duration-sensitivity companion table.")
+)
+
+write_text_file(
+  c(
+    "08b early prediction model ladder",
+    "",
+    "Purpose:",
+    "This analysis tests whether early first-active-phase behavioral features predict later CombZ.",
+    "",
+    "Recommended reading order:",
+    "1. tables/documentation/analysis_readme.txt",
+    "2. tables/documentation/model_specification_dictionary.csv",
+    "3. tables/documentation/readout_dictionary.csv",
+    "4. tables/model_ladder_repeated_grouped_kfold_performance.csv",
+    "5. tables/model_ladder_performance.csv",
+    "6. figures/publication/behavior_only_repeated_cv_ladder.svg",
+    "7. figures/publication/primary_movement_entropyacf1_vs_combz.svg",
+    "",
+    "Interpretation:",
+    "Behavior-only repeated grouped CV is the primary prospective evidence.",
+    "CON/RES/SUS group labels are shown for interpretation and descriptive summaries.",
+    "Models containing Group should be treated as descriptive adjustment/sensitivity analyses."
+  ),
+  file.path(output_dir, "tables", "documentation", "analysis_readme.txt")
 )
 
 epoch_duration_qc <- write_epoch_duration_qc(behav, output_dir, metric_source = "08b_early_prediction_model_ladder", bin_size_sec = infer_bin_size_sec(behav))
@@ -338,7 +423,9 @@ early_dat <- early_dat %>%
   mutate(BinLevel = bin_level, ProximityInput = proximity_col)
 
 write_table(early_dat, file.path(output_dir, "tables", "early_window_rows_used.csv"))
+write_table(early_dat, file.path(output_dir, "tables", "design", "early_window_rows_used.csv"))
 write_table(filter_short_duration_epochs(early_dat, epoch_duration_qc), file.path(output_dir, "tables", "early_window_rows_used_excluding_short_duration.csv"))
+write_table(filter_short_duration_epochs(early_dat, epoch_duration_qc), file.path(output_dir, "tables", "design", "early_window_rows_used_excluding_short_duration.csv"))
 
 window_design_tbl <- early_dat %>%
   group_by(AnimalNum, Group, Sex, Phase) %>%
@@ -357,6 +444,7 @@ window_design_tbl <- early_dat %>%
   )
 
 write_table(window_design_tbl, file.path(output_dir, "tables", "early_window_design_by_animal.csv"))
+write_table(window_design_tbl, file.path(output_dir, "tables", "design", "early_window_design_by_animal.csv"))
 
 # ------------------------------------------------
 # FEATURE EXTRACTION
@@ -400,6 +488,98 @@ feature_wide <- feature_long %>%
 write_table(feature_long, file.path(output_dir, "tables", "early_behavior_features_long.csv"))
 write_table(feature_wide, file.path(output_dir, "tables", "early_behavior_features_wide.csv"))
 write_table(feature_wide %>% filter(!contains_short_duration_epoch %in% TRUE), file.path(output_dir, "tables", "early_behavior_features_wide_excluding_short_duration.csv"))
+write_table(feature_long, file.path(output_dir, "tables", "features", "early_behavior_features_long.csv"))
+write_table(feature_wide, file.path(output_dir, "tables", "features", "early_behavior_features_wide.csv"))
+write_table(feature_wide %>% filter(!contains_short_duration_epoch %in% TRUE), file.path(output_dir, "tables", "features", "early_behavior_features_wide_excluding_short_duration.csv"))
+
+readout_dictionary <- tibble(
+  readout = c(
+    "Movement_mean",
+    "Movement_rmssd",
+    "Movement_acf1",
+    "Entropy_mean",
+    "Entropy_rmssd",
+    "Entropy_acf1",
+    "Proximity_mean",
+    "Proximity_rmssd",
+    "Proximity_acf1",
+    "Movement_x_EntropyACF1",
+    "outcome",
+    "Group",
+    "Sex",
+    "early_observation_hours",
+    "contains_short_duration_epoch"
+  ),
+  display_label = c(
+    "Mean movement",
+    "Movement RMSSD",
+    "Movement ACF1",
+    "Mean entropy",
+    "Entropy RMSSD",
+    "Entropy persistence",
+    "Mean proximity",
+    "Proximity RMSSD",
+    "Proximity ACF1",
+    "Movement x entropy persistence",
+    outcome_col,
+    "CON/RES/SUS group",
+    "Sex",
+    "Observed early-window hours",
+    "Short-duration epoch flag"
+  ),
+  domain = c(
+    "Psychomotor magnitude",
+    "Psychomotor dynamics",
+    "Psychomotor temporal persistence",
+    "Spatial organization",
+    "Spatial organization dynamics",
+    "Temporal organization",
+    "Social organization",
+    "Social dynamics",
+    "Social temporal persistence",
+    "Interaction term",
+    "Endpoint",
+    "Endpoint-derived/descriptive grouping",
+    "Covariate",
+    "Duration/QC",
+    "Duration/QC"
+  ),
+  definition = c(
+    "Animal-level mean movement in the early window.",
+    "Root mean squared successive difference of movement across early-window bins.",
+    "Lag-1 autocorrelation of movement across early-window bins.",
+    "Animal-level mean position entropy in the early window.",
+    "Root mean squared successive difference of entropy across early-window bins.",
+    "Lag-1 autocorrelation of entropy; higher values indicate stronger persistence of spatial organization across bins.",
+    "Animal-level mean selected proximity input in the early window.",
+    "Root mean squared successive difference of proximity across early-window bins.",
+    "Lag-1 autocorrelation of proximity across early-window bins.",
+    "Product of z-scored Movement_mean and z-scored Entropy_acf1.",
+    "Later stress burden endpoint used as the prediction target.",
+    "Displayed for biological interpretation; not required for behavior-only prediction claims.",
+    "Sex covariate used in adjusted/sensitivity models.",
+    "Approximate duration contributing to the early-window feature estimates.",
+    "TRUE when an animal includes a short-duration epoch flagged by duration QC."
+  ),
+  manuscript_role = c(
+    "Primary baseline feature",
+    "Compact behavior feature",
+    "Compact behavior feature",
+    "Compact behavior feature",
+    "Compact behavior feature",
+    "Primary temporal organization feature",
+    "Compact behavior feature",
+    "Compact behavior feature",
+    "Compact behavior feature",
+    "Exploratory interaction",
+    "Prediction target",
+    "Descriptive grouping and plotting",
+    "Adjustment/sensitivity covariate",
+    "QC/sensitivity",
+    "QC/sensitivity"
+  )
+)
+write_table(readout_dictionary, file.path(output_dir, "tables", "documentation", "readout_dictionary.csv"))
 
 # ------------------------------------------------
 # ENDPOINT HANDLING
@@ -440,6 +620,7 @@ model_dat <- feature_wide %>%
 if (nrow(model_dat) < 8) stop("Fewer than 8 animals with endpoint data. Model ladder not reliable.")
 
 write_table(model_dat, file.path(output_dir, "tables", "model_ladder_input.csv"))
+write_table(model_dat, file.path(output_dir, "tables", "models", "model_ladder_input.csv"))
 
 # ------------------------------------------------
 # PRIMARY FEATURE ASSOCIATIONS
@@ -477,6 +658,80 @@ primary_assoc <- map_dfr(primary_features, function(fc) {
   arrange(spearman_p_bh)
 
 write_table(primary_assoc, file.path(output_dir, "tables", "primary_movement_entropyacf1_associations.csv"))
+write_table(primary_assoc, file.path(output_dir, "tables", "statistics", "primary_movement_entropyacf1_associations.csv"))
+
+primary_group_summary <- model_dat %>%
+  select(AnimalNum, Group, Sex, outcome, all_of(primary_features)) %>%
+  pivot_longer(cols = all_of(primary_features), names_to = "feature", values_to = "value") %>%
+  group_by(feature, Group) %>%
+  summarise(
+    n_animals = n_distinct(AnimalNum[is.finite(value)]),
+    mean = mean(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    sem = sd / sqrt(n_animals),
+    median = median(value, na.rm = TRUE),
+    q25 = quantile(value, 0.25, na.rm = TRUE, names = FALSE),
+    q75 = quantile(value, 0.75, na.rm = TRUE, names = FALSE),
+    mean_outcome = mean(outcome, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    feature_label = recode(feature, !!!feature_display_labels),
+    Group = factor(as.character(Group), levels = group_levels),
+    ReportingRole = "Descriptive CON/RES/SUS distribution; group labels are not needed for the primary behavior-only prediction claim"
+  ) %>%
+  arrange(feature, Group)
+
+primary_group_contrasts <- model_dat %>%
+  select(AnimalNum, Group, all_of(primary_features)) %>%
+  pivot_longer(cols = all_of(primary_features), names_to = "feature", values_to = "value") %>%
+  filter(is.finite(value), !is.na(Group), as.character(Group) %in% group_levels) %>%
+  group_by(feature) %>%
+  group_modify(~{
+    pairs <- list(c("CON", "RES"), c("CON", "SUS"), c("RES", "SUS"))
+    map_dfr(pairs, function(pair) {
+      x <- .x$value[as.character(.x$Group) == pair[1]]
+      y <- .x$value[as.character(.x$Group) == pair[2]]
+      if (length(x) < 2 || length(y) < 2) {
+        return(tibble(
+          contrast = paste0(pair[2], "-", pair[1]),
+          n_ref = length(x),
+          n_comp = length(y),
+          median_ref = median(x, na.rm = TRUE),
+          median_comp = median(y, na.rm = TRUE),
+          median_difference = NA_real_,
+          wilcox_p = NA_real_,
+          effect_r = NA_real_,
+          status = "skipped_low_n"
+        ))
+      }
+      wt <- suppressWarnings(wilcox.test(y, x, exact = FALSE))
+      tibble(
+        contrast = paste0(pair[2], "-", pair[1]),
+        n_ref = length(x),
+        n_comp = length(y),
+        median_ref = median(x, na.rm = TRUE),
+        median_comp = median(y, na.rm = TRUE),
+        median_difference = median(y, na.rm = TRUE) - median(x, na.rm = TRUE),
+        wilcox_p = wt$p.value,
+        effect_r = wilcox_effect_r(x, y),
+        status = "tested"
+      )
+    })
+  }) %>%
+  ungroup() %>%
+  group_by(feature) %>%
+  mutate(
+    wilcox_p_bh_within_feature = p.adjust(wilcox_p, method = "BH"),
+    feature_label = recode(feature, !!!feature_display_labels),
+    ReportingRole = "Descriptive group contrast; use as visualization/statistical context, not as independent prospective prediction"
+  ) %>%
+  ungroup()
+
+write_table(primary_group_summary, file.path(output_dir, "tables", "primary_feature_group_summary.csv"))
+write_table(primary_group_contrasts, file.path(output_dir, "tables", "primary_feature_group_contrasts_descriptive.csv"))
+write_table(primary_group_summary, file.path(output_dir, "tables", "statistics", "primary_feature_group_summary.csv"))
+write_table(primary_group_contrasts, file.path(output_dir, "tables", "statistics", "primary_feature_group_contrasts_descriptive.csv"))
 
 # Sex-specific associations, because the biological effect appears female-specific.
 sex_specific_assoc <- model_dat %>%
@@ -497,6 +752,7 @@ sex_specific_assoc <- model_dat %>%
   mutate(BinLevel = bin_level, Outcome = outcome_col)
 
 write_table(sex_specific_assoc, file.path(output_dir, "tables", "sex_specific_primary_associations.csv"))
+write_table(sex_specific_assoc, file.path(output_dir, "tables", "statistics", "sex_specific_primary_associations.csv"))
 
 # ------------------------------------------------
 # MODEL LADDER: EXPLICIT INCREMENTAL PREDICTION
@@ -521,12 +777,25 @@ model_predictor_audit <- imap_dfr(model_specs, function(predictors, model_name) 
   known_endpoint_cols <- if (exists("endpoint_cols")) endpoint_cols else character(0)
   tibble(
     Model = model_name,
+    DisplayModel = recode(model_name, !!!model_display_labels),
     Predictors = paste(predictors, collapse = " + "),
     n_predictors = length(predictors),
+    ModelType = classify_model_reporting_use(model_name),
+    UsesGroup = "Group" %in% predictors,
+    UsesSex = "Sex" %in% predictors,
+    UsesBehavior = any(str_detect(predictors, "Movement|Entropy|Proximity")),
+    PrimaryInterpretation = case_when(
+      model_name == "Mean only" ~ "Reference baseline only.",
+      model_name == "Sex + Group" ~ "Descriptive endpoint-group/sex adjustment; not a prospective behavior model.",
+      "Group" %in% predictors ~ "Adjusted/sensitivity model. Do not headline as behavior-only evidence because Group may reflect later phenotype.",
+      TRUE ~ "Behavioral predictor set."
+    ),
     contains_outcome_like_predictor = any(predictors %in% unique(c("outcome", outcome_col, known_endpoint_cols)))
   )
 })
 write_table(model_predictor_audit, file.path(output_dir, "tables", "model_ladder_predictor_audit.csv"))
+write_table(model_predictor_audit, file.path(output_dir, "tables", "documentation", "model_specification_dictionary.csv"))
+write_table(model_predictor_audit, file.path(output_dir, "tables", "models", "model_ladder_predictor_audit.csv"))
 
 numeric_predictors <- unique(unlist(model_specs))
 numeric_predictors <- numeric_predictors[numeric_predictors %in% names(model_dat) & sapply(model_dat[numeric_predictors], is.numeric)]
@@ -546,7 +815,16 @@ ladder_performance <- ladder_predictions %>%
       permutation_prediction_p(pdat$observed, pdat$predicted, n_prediction_permutations, seed = 123)
     }),
     BinLevel = bin_level,
-    Outcome = outcome_col
+    Outcome = outcome_col,
+    ReportingUse = classify_model_reporting_use(Model),
+    DisplayModel = recode(Model, !!!model_display_labels),
+    UsesGroupOrSex = str_detect(Model, "Sex|Group") | Model %in% c(
+      "Movement only",
+      "Entropy ACF1 only",
+      "Movement + Entropy ACF1",
+      "Movement x Entropy ACF1",
+      "Full behavior compact"
+    )
   ) %>%
   arrange(desc(cv_r2_vs_mean), rmse)
 
@@ -653,6 +931,13 @@ write_table(incremental_summary, file.path(output_dir, "tables", "model_ladder_i
 write_table(ladder_predictions_duration_sensitivity, file.path(output_dir, "tables", "model_ladder_loo_predictions_duration_sensitivity.csv"))
 write_table(ladder_coefficients_duration_sensitivity, file.path(output_dir, "tables", "model_ladder_loo_coefficients_duration_sensitivity.csv"))
 write_table(ladder_performance_duration_sensitivity, file.path(output_dir, "tables", "model_ladder_performance_duration_sensitivity.csv"))
+write_table(ladder_predictions, file.path(output_dir, "tables", "models", "model_ladder_loo_predictions.csv"))
+write_table(ladder_coefficients, file.path(output_dir, "tables", "models", "model_ladder_loo_coefficients.csv"))
+write_table(ladder_performance, file.path(output_dir, "tables", "models", "model_ladder_performance.csv"))
+write_table(incremental_summary, file.path(output_dir, "tables", "models", "model_ladder_incremental_summary.csv"))
+write_table(ladder_predictions_duration_sensitivity, file.path(output_dir, "tables", "sensitivity", "model_ladder_loo_predictions_duration_sensitivity.csv"))
+write_table(ladder_coefficients_duration_sensitivity, file.path(output_dir, "tables", "sensitivity", "model_ladder_loo_coefficients_duration_sensitivity.csv"))
+write_table(ladder_performance_duration_sensitivity, file.path(output_dir, "tables", "sensitivity", "model_ladder_performance_duration_sensitivity.csv"))
 
 # ------------------------------------------------
 # GROUPED K-FOLD COMPANION: BEHAVIOR-ONLY PRIMARY CLAIM
@@ -741,6 +1026,28 @@ behavior_group_specs <- map(behavior_only_specs, ~unique(c(.x, candidate_covars)
 
 cv_specs <- c(behavior_only_specs, behavior_group_specs)
 cv_specs <- map(cv_specs, sanitize_model_predictors, dat = model_dat, outcome = "outcome")
+
+behavior_cv_model_dictionary <- imap_dfr(cv_specs, function(predictors, model_name) {
+  tibble(
+    Model = model_name,
+    Predictors = paste(predictors, collapse = " + "),
+    n_predictors = length(predictors),
+    ModelFamily = if_else(str_detect(model_name, "^Behavior-only"), "Behavior only", "Behavior + sex/group"),
+    CVScheme = "Repeated grouped 5-fold CV; animal is the held-out unit",
+    ManuscriptUse = if_else(
+      str_detect(model_name, "^Behavior-only"),
+      "Primary prospective behavior-only evidence",
+      "Sensitivity/descriptive adjustment"
+    ),
+    InterpretationGuardrail = if_else(
+      str_detect(model_name, "^Behavior-only"),
+      "May support early behavior predicting later stress burden.",
+      "Do not use as the central prospective claim if Group reflects later stress phenotype."
+    )
+  )
+})
+write_table(behavior_cv_model_dictionary, file.path(output_dir, "tables", "documentation", "behavior_cv_model_dictionary.csv"))
+
 cv_predictors <- unique(unlist(cv_specs))
 cv_predictors <- cv_predictors[cv_predictors %in% names(model_dat) & sapply(model_dat[cv_predictors], is.numeric)]
 cv_model_dat <- impute_numeric(model_dat, cv_predictors)
@@ -764,7 +1071,11 @@ repeated_cv_performance_all <- bind_rows(repeated_cv_performance, repeated_cv_no
     delta_mean_cv_r2_vs_full = mean_cv_r2 - full_mean_cv_r2
   ) %>%
   ungroup() %>%
-  select(-full_mean_cv_r2)
+  select(-full_mean_cv_r2) %>%
+  mutate(
+    ReportingUse = if_else(str_detect(Model, "^Behavior-only"), "Primary prospective behavior-only evidence", "Sensitivity: descriptive sex/group adjustment"),
+    ModelFamily = if_else(str_detect(Model, "^Behavior-only"), "Behavior only", "Behavior + sex/group")
+  )
 
 prediction_interpretation_constraints <- tibble(
   Constraint = c(
@@ -799,6 +1110,9 @@ prediction_interpretation_constraints <- tibble(
 write_table(repeated_cv_predictions, file.path(output_dir, "tables", "model_ladder_repeated_grouped_kfold_predictions.csv"))
 write_table(repeated_cv_performance_all, file.path(output_dir, "tables", "model_ladder_repeated_grouped_kfold_performance.csv"))
 write_table(prediction_interpretation_constraints, file.path(output_dir, "tables", "prediction_interpretation_constraints.csv"))
+write_table(repeated_cv_predictions, file.path(output_dir, "tables", "models", "model_ladder_repeated_grouped_kfold_predictions.csv"))
+write_table(repeated_cv_performance_all, file.path(output_dir, "tables", "models", "model_ladder_repeated_grouped_kfold_performance.csv"))
+write_table(prediction_interpretation_constraints, file.path(output_dir, "tables", "documentation", "prediction_interpretation_constraints.csv"))
 
 # ------------------------------------------------
 # FIGURES
@@ -807,59 +1121,102 @@ write_table(prediction_interpretation_constraints, file.path(output_dir, "tables
 p_primary <- model_dat %>%
   select(AnimalNum, Group, Sex, outcome, all_of(primary_features)) %>%
   pivot_longer(cols = all_of(primary_features), names_to = "Feature", values_to = "Value") %>%
-  ggplot(aes(Value, outcome, colour = Group, fill = Group)) +
-  geom_point(size = 1.7, alpha = 0.85) +
-  geom_smooth(method = "lm", se = TRUE, linewidth = 0.45, alpha = 0.12, colour = "grey20") +
+  mutate(
+    Feature = factor(recode(Feature, !!!feature_display_labels), levels = unname(feature_display_labels[primary_features])),
+    Group = factor(as.character(Group), levels = group_levels)
+  ) %>%
+  ggplot(aes(Value, outcome)) +
+  geom_smooth(method = "lm", se = TRUE, linewidth = 0.38, alpha = 0.10, colour = "grey25", fill = "grey70") +
+  geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.65, stroke = 0.25, alpha = 0.9) +
   facet_grid(Sex ~ Feature, scales = "free_x") +
   labs(
-    title = "Early movement and entropy persistence predict later stress burden",
-    subtitle = paste0("First ", early_window_hours, " h active phase after first cage change; ", bin_level),
+    title = "Early behavioral organization aligns with later stress burden",
+    subtitle = paste0("CON/RES/SUS are shown for interpretation; fits use animal-level early features from the first ", early_window_hours, " h active phase"),
     x = "Early feature value",
     y = outcome_col
   ) +
   scale_colour_manual(values = group_colors, drop = FALSE) +
   scale_fill_manual(values = group_colors, drop = FALSE) +
-  make_publication_theme(base_size = 6)
+  scale_shape_manual(values = group_shape_values, drop = FALSE) +
+  make_publication_theme(base_size = 6) +
+  theme(legend.box.spacing = unit(0.5, "mm"))
 
-save_plot_svg_pdf(p_primary, file.path(output_dir, "figures", "publication", "primary_movement_entropyacf1_vs_combz"), width = 170, height = 105)
+save_plot_svg_pdf(p_primary, file.path(output_dir, "figures", "publication", "primary_movement_entropyacf1_vs_combz"), width = 183, height = 102)
 
 p_ladder <- ladder_performance %>%
-  mutate(Model = factor(Model, levels = rev(Model[order(cv_r2_vs_mean)]))) %>%
-  ggplot(aes(cv_r2_vs_mean, Model)) +
+  mutate(
+    DisplayModel = factor(DisplayModel, levels = rev(DisplayModel[order(cv_r2_vs_mean)])),
+    ReportingUse = factor(ReportingUse, levels = c("Reference baseline", "Behavior plus sex/group adjustment", "Descriptive group/sex adjustment", "Sensitivity"))
+  ) %>%
+  ggplot(aes(cv_r2_vs_mean, DisplayModel, fill = ReportingUse)) +
   geom_vline(xintercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey55") +
-  geom_col(width = 0.65, fill = "grey70", colour = "grey20", linewidth = 0.2) +
+  geom_col(width = 0.62, colour = "grey20", linewidth = 0.18) +
   labs(
-    title = "Incremental predictive value of early behavioral dynamics",
-    subtitle = "Leave-one-animal-out linear model ladder",
-    x = "Cross-validated R2 versus mean-only baseline",
+    title = "Adjusted prediction ladder",
+    subtitle = "Leave-one-animal-out linear models; group-adjusted models are sensitivity/context analyses",
+    x = "Cross-validated R2 vs mean-only baseline",
     y = NULL
   ) +
+  scale_fill_manual(values = c(
+    "Reference baseline" = "grey82",
+    "Behavior plus sex/group adjustment" = "#7A8F6A",
+    "Descriptive group/sex adjustment" = "#B8B1A5",
+    "Sensitivity" = "grey65"
+  ), drop = FALSE) +
   make_publication_theme(base_size = 7) +
   theme(panel.grid.major.y = element_blank())
 
-save_plot_svg_pdf(p_ladder, file.path(output_dir, "figures", "publication", "model_ladder_cv_r2"), width = 130, height = 80)
+save_plot_svg_pdf(p_ladder, file.path(output_dir, "figures", "publication", "model_ladder_cv_r2"), width = 89, height = 82)
+
+p_behavior_cv <- repeated_cv_performance_all %>%
+  filter(DurationAnalysisSet == "full") %>%
+  mutate(
+    Model = str_replace(Model, "^Behavior-only: ", ""),
+    Model = str_replace(Model, "^Behavior \\+ group/sex: ", ""),
+    Model = str_to_sentence(Model),
+    Model = factor(Model, levels = rev(unique(Model[order(mean_cv_r2)]))),
+    ModelFamily = factor(ModelFamily, levels = c("Behavior only", "Behavior + sex/group"))
+  ) %>%
+  ggplot(aes(mean_cv_r2, Model, colour = ModelFamily)) +
+  geom_vline(xintercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey55") +
+  geom_errorbarh(aes(xmin = cv_r2_ci_low, xmax = cv_r2_ci_high), height = 0, linewidth = 0.35, alpha = 0.75) +
+  geom_point(size = 1.8) +
+  facet_grid(. ~ ModelFamily, scales = "free_y", space = "free_y") +
+  labs(
+    title = "Behavior-only prediction is the primary prospective test",
+    subtitle = "Repeated grouped 5-fold cross-validation; points show mean, bars show 95% repeat interval",
+    x = "Mean cross-validated R2 vs mean-only baseline",
+    y = NULL
+  ) +
+  scale_colour_manual(values = c("Behavior only" = "#2F4858", "Behavior + sex/group" = "#8A817C"), drop = FALSE) +
+  make_publication_theme(base_size = 7) +
+  theme(panel.grid.major.y = element_blank(), legend.position = "none")
+
+save_plot_svg_pdf(p_behavior_cv, file.path(output_dir, "figures", "publication", "behavior_only_repeated_cv_ladder"), width = 183, height = 82)
 
 best_model <- ladder_performance %>% slice_max(cv_r2_vs_mean, n = 1, with_ties = FALSE) %>% pull(Model)
 best_pred <- ladder_predictions %>% filter(Model == best_model)
 best_perf <- ladder_performance %>% filter(Model == best_model)
 
 p_pred <- best_pred %>%
-  ggplot(aes(observed, predicted, colour = Group, fill = Group)) +
+  mutate(Group = factor(as.character(Group), levels = group_levels)) %>%
+  ggplot(aes(observed, predicted)) +
   geom_abline(slope = 1, intercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey45") +
-  geom_point(size = 1.8, alpha = 0.85) +
-  geom_smooth(method = "lm", se = TRUE, linewidth = 0.5, alpha = 0.12, colour = "grey20") +
+  geom_smooth(method = "lm", se = TRUE, linewidth = 0.45, alpha = 0.10, colour = "grey20", fill = "grey70") +
+  geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.8, stroke = 0.25, alpha = 0.88) +
   facet_grid(. ~ Sex) +
   labs(
-    title = paste0("Best early prediction model: ", best_model),
+    title = paste0("Observed vs predicted stress burden: ", recode(best_model, !!!model_display_labels)),
     subtitle = paste0("LOO r=", round(best_perf$pearson_r, 2), ", CV R2=", round(best_perf$cv_r2_vs_mean, 2), ", ", format_p(best_perf$prediction_permutation_p)),
     x = paste0("Observed ", outcome_col),
     y = paste0("Predicted ", outcome_col)
   ) +
   scale_colour_manual(values = group_colors, drop = FALSE) +
   scale_fill_manual(values = group_colors, drop = FALSE) +
+  scale_shape_manual(values = group_shape_values, drop = FALSE) +
   make_publication_theme(base_size = 7)
 
-save_plot_svg_pdf(p_pred, file.path(output_dir, "figures", "publication", "best_model_observed_vs_predicted"), width = 120, height = 80)
+save_plot_svg_pdf(p_pred, file.path(output_dir, "figures", "publication", "best_model_observed_vs_predicted"), width = 89, height = 78)
 
 # ------------------------------------------------
 # TEXT SUMMARY FOR RESULTS WRITING
@@ -886,6 +1243,59 @@ results_summary <- tibble(
 )
 
 write_table(results_summary, file.path(output_dir, "tables", "results_summary_text.csv"))
+write_table(results_summary, file.path(output_dir, "tables", "documentation", "results_summary_text.csv"))
+
+output_table_catalog <- tibble(
+  file = c(
+    "tables/documentation/analysis_readme.txt",
+    "tables/documentation/readout_dictionary.csv",
+    "tables/documentation/model_specification_dictionary.csv",
+    "tables/documentation/behavior_cv_model_dictionary.csv",
+    "tables/design/early_window_design_by_animal.csv",
+    "tables/features/early_behavior_features_wide.csv",
+    "tables/statistics/primary_movement_entropyacf1_associations.csv",
+    "tables/statistics/primary_feature_group_summary.csv",
+    "tables/models/model_ladder_performance.csv",
+    "tables/models/model_ladder_repeated_grouped_kfold_performance.csv",
+    "tables/sensitivity/model_ladder_performance_duration_sensitivity.csv",
+    "tables/documentation/results_summary_text.csv"
+  ),
+  category = c(
+    "documentation", "documentation", "documentation", "documentation",
+    "design", "features", "statistics", "statistics", "models", "models",
+    "sensitivity", "documentation"
+  ),
+  contains = c(
+    "Plain-text guide to the analysis folder and recommended reading order.",
+    "Definitions and manuscript roles for generated readouts.",
+    "LOO model ladder predictors, model type, and interpretation guardrails.",
+    "Repeated grouped CV model definitions and manuscript-use labels.",
+    "Animal-level early-window bin counts, timing, phase, and duration.",
+    "Animal-level early-window feature matrix used for prediction.",
+    "Primary feature-to-outcome correlations with bootstrap CIs and FDR correction.",
+    "Descriptive CON/RES/SUS distribution of primary early features.",
+    "Leave-one-animal-out model performance table.",
+    "Repeated grouped CV performance; primary prospective behavior-only evidence.",
+    "Duration robustness table comparing full data with short-duration exclusions.",
+    "Short manuscript-ready text snippets generated from the current run."
+  ),
+  manuscript_use = c(
+    "Start here",
+    "Methods/readout definitions",
+    "Methods/model specification",
+    "Methods/model specification",
+    "Methods/QC",
+    "Methods/source data",
+    "Main or supplement",
+    "Descriptive group context",
+    "Supplement/model comparison",
+    "Main model-performance result",
+    "Robustness/supplement",
+    "Drafting aid"
+  )
+)
+write_table(output_table_catalog, file.path(output_dir, "tables", "documentation", "output_table_catalog.csv"))
+write_table(output_table_catalog, file.path(output_dir, "tables", "output_table_catalog.csv"))
 
 if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
