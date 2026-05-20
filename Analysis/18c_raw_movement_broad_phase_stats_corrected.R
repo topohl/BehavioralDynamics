@@ -26,6 +26,7 @@ suppressPackageStartupMessages({
   library(purrr)
   library(tibble)
   library(stringr)
+  library(ggsignif)
 })
 
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
@@ -34,7 +35,7 @@ bin_level_priority <- c("10min_based", "5min_based", "30min_based", "1min_based"
 input_candidates <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level_priority, "all_behavior_metrics.csv")
 analysis_name <- "18c_raw_movement_broad_phase_stats_corrected"
 min_bins_per_animal <- 2
-show_raw_p_in_labels <- FALSE
+export_global_family_corrections <- FALSE
 
 helper_candidates <- c(
   file.path(repo_root, "Functions", "behavioral_dynamics_helpers.R"),
@@ -120,8 +121,10 @@ pairwise_wilcox_stats <- function(dat, value_col = "mean_movement") {
   })
 }
 
+contrast_levels <- c("RES - CON", "SUS - CON", "SUS - RES")
+
 make_theme <- function(base_size = 7) {
-  theme_classic(base_size = base_size, base_family = "Arial") +
+  theme_classic(base_size = base_size, base_family = "sans") +
     theme(
       axis.line = element_line(linewidth = 0.28, colour = "black"),
       axis.ticks = element_line(linewidth = 0.24, colour = "black"),
@@ -184,6 +187,7 @@ behav <- raw_dat %>%
     Movement = suppressWarnings(as.numeric(.data[[movement_col]]))
   ) %>%
   mutate(
+    PhaseNorm = str_to_lower(str_trim(PhaseRaw)),
     Group = case_when(
       Group %in% c("CON", "Control", "CTRL") ~ "CON",
       Group %in% c("RES", "Resilient") ~ "RES",
@@ -191,8 +195,10 @@ behav <- raw_dat %>%
       TRUE ~ Group
     ),
     PhaseClass = case_when(
-      str_detect(str_to_lower(PhaseRaw), "active|dark|night") ~ "Active",
-      str_detect(str_to_lower(PhaseRaw), "inactive|light|day") ~ "Inactive",
+      PhaseNorm %in% c("inactive", "light", "day") ~ "Inactive",
+      PhaseNorm %in% c("active", "dark", "night") ~ "Active",
+      str_detect(PhaseNorm, "\\binactive\\b|\\blight\\b|\\bday\\b") ~ "Inactive",
+      str_detect(PhaseNorm, "\\bactive\\b|\\bdark\\b|\\bnight\\b") ~ "Active",
       TRUE ~ PhaseRaw
     ),
     CageChangeIndex = suppressWarnings(as.integer(str_extract(CageChangeRaw, "\\d+"))),
@@ -229,7 +235,26 @@ cc_phase_endpoint <- behav %>%
   summarise(n_bins = n(), mean_movement = safe_mean(Movement), .groups = "drop") %>%
   mutate(ScopeType = "cage_change_by_phase", Endpoint = paste(CageChange, PhaseClass, sep = "_"))
 
-movement_endpoints <- bind_rows(overall_endpoint, phase_endpoint, cc_phase_endpoint) %>%
+movement_endpoints_pre_filter <- bind_rows(overall_endpoint, phase_endpoint, cc_phase_endpoint) %>%
+  mutate(
+    Endpoint = as.character(Endpoint),
+    PhaseClass = as.character(PhaseClass),
+    CageChange = as.character(CageChange)
+  )
+
+phase_filter_qc <- movement_endpoints_pre_filter %>%
+  filter(ScopeType == "overall_by_phase") %>%
+  group_by(Sex, PhaseClass) %>%
+  summarise(
+    n_animals_pre_filter = n_distinct(AnimalNum),
+    n_rows_pre_filter = n(),
+    n_animals_post_filter = n_distinct(AnimalNum[n_bins >= min_bins_per_animal]),
+    n_rows_post_filter = sum(n_bins >= min_bins_per_animal),
+    .groups = "drop"
+  )
+readr::write_csv(phase_filter_qc, file.path(dirs$tables, "raw_movement_phase_filter_qc.csv"))
+
+movement_endpoints <- movement_endpoints_pre_filter %>%
   filter(n_bins >= min_bins_per_animal) %>%
   mutate(
     Endpoint = as.character(Endpoint),
@@ -237,6 +262,19 @@ movement_endpoints <- bind_rows(overall_endpoint, phase_endpoint, cc_phase_endpo
     CageChange = as.character(CageChange)
   )
 readr::write_csv(movement_endpoints, file.path(dirs$tables, "raw_movement_animal_level_endpoints.csv"))
+
+inactive_post <- phase_filter_qc %>%
+  filter(PhaseClass == "Inactive") %>%
+  summarise(total = sum(n_rows_post_filter, na.rm = TRUE)) %>%
+  pull(total)
+
+if (length(inactive_post) == 0 || !is.finite(inactive_post) || inactive_post == 0) {
+  warning(
+    "No Inactive rows remain after applying min_bins_per_animal = ", min_bins_per_animal,
+    " in overall_by_phase endpoints. See tables/raw_movement_phase_filter_qc.csv",
+    call. = FALSE
+  )
+}
 
 group_summary <- movement_endpoints %>%
   group_by(ScopeType, Endpoint, Sex, Group, CageChange, CageChangeIndex, PhaseClass) %>%
@@ -264,34 +302,76 @@ pairwise_stats <- movement_endpoints %>%
     p_bh_panel = p.adjust(p_raw, method = "BH")
   ) %>%
   ungroup() %>%
-  group_by(ScopeType, Sex) %>%
   mutate(
-    p_holm_family_scope_sex = p.adjust(p_raw, method = "holm"),
-    p_bh_family_scope_sex = p.adjust(p_raw, method = "BH")
-  ) %>%
-  ungroup() %>%
-  mutate(
-    stars_panel = sig_stars(p_holm_panel),
-    stars_family = sig_stars(p_holm_family_scope_sex)
+    contrast = factor(contrast, levels = contrast_levels),
+    stars_panel = sig_stars(p_holm_panel)
   )
+
+if (isTRUE(export_global_family_corrections)) {
+  pairwise_stats <- pairwise_stats %>%
+    group_by(ScopeType, Sex) %>%
+    mutate(
+      p_holm_family_scope_sex = p.adjust(p_raw, method = "holm"),
+      p_bh_family_scope_sex = p.adjust(p_raw, method = "BH")
+    ) %>%
+    ungroup() %>%
+    mutate(stars_family = sig_stars(p_holm_family_scope_sex))
+}
+
 readr::write_csv(pairwise_stats, file.path(dirs$stats, "raw_movement_pairwise_wilcox_stats_corrected.csv"))
+
+panel_label_stats <- pairwise_stats %>%
+  transmute(
+    ScopeType, Endpoint, Sex, CageChange, CageChangeIndex, PhaseClass,
+    contrast, p_label_panel_holm = p_holm_panel, stars_panel,
+    p_raw, p_bh_panel
+  )
+readr::write_csv(panel_label_stats, file.path(dirs$stats, "raw_movement_pairwise_panel_label_values.csv"))
+
+if (isTRUE(export_global_family_corrections)) {
+  global_correction_stats <- pairwise_stats %>%
+    transmute(
+      ScopeType, Endpoint, Sex, CageChange, CageChangeIndex, PhaseClass,
+      contrast, p_raw,
+      p_holm_family_scope_sex, p_bh_family_scope_sex,
+      stars_family
+    )
+  readr::write_csv(global_correction_stats, file.path(dirs$stats, "raw_movement_pairwise_global_corrections_supplement.csv"))
+}
 
 lm_stats <- movement_endpoints %>%
   group_by(ScopeType, Endpoint, Sex, CageChange, CageChangeIndex, PhaseClass) %>%
   group_modify(~ {
-    dd <- .x %>% filter(is.finite(mean_movement), !is.na(Group))
-    if (n_distinct(dd$Group) < 2 || nrow(dd) < 4) return(tibble(test = "one_way_lm_log1p_movement", p_raw = NA_real_))
-    fit <- lm(log1p(mean_movement) ~ Group, data = dd)
-    a <- anova(fit)
-    tibble(test = "one_way_lm_log1p_movement", p_raw = a$`Pr(>F)`[1])
+    dd <- .x %>%
+      filter(is.finite(mean_movement), !is.na(Group)) %>%
+      mutate(Group = droplevels(factor(Group, levels = mmm_group_levels)))
+
+    if (nrow(dd) < 4 || nlevels(dd$Group) < 2) {
+      return(tibble(test = "one_way_lm_log1p_movement", p_raw = NA_real_))
+    }
+
+    out <- tryCatch({
+      fit <- lm(log1p(mean_movement) ~ Group, data = dd)
+      a <- anova(fit)
+      tibble(test = "one_way_lm_log1p_movement", p_raw = a$`Pr(>F)`[1])
+    }, error = function(e) {
+      tibble(test = "one_way_lm_log1p_movement", p_raw = NA_real_)
+    })
+
+    out
   }) %>%
   ungroup() %>%
   group_by(ScopeType, Endpoint, Sex, CageChange, CageChangeIndex, PhaseClass) %>%
   mutate(p_holm_panel = p.adjust(p_raw, method = "holm")) %>%
-  ungroup() %>%
-  group_by(ScopeType, Sex) %>%
-  mutate(p_holm_family_scope_sex = p.adjust(p_raw, method = "holm")) %>%
   ungroup()
+
+if (isTRUE(export_global_family_corrections)) {
+  lm_stats <- lm_stats %>%
+    group_by(ScopeType, Sex) %>%
+    mutate(p_holm_family_scope_sex = p.adjust(p_raw, method = "holm")) %>%
+    ungroup()
+}
+
 readr::write_csv(lm_stats, file.path(dirs$stats, "raw_movement_one_way_lm_stats_corrected.csv"))
 
 # Optional repeated-measures model across all cage-change x phase epochs, sex-specific.
@@ -304,13 +384,34 @@ if (requireNamespace("lmerTest", quietly = TRUE)) {
     ) %>%
     group_by(Sex) %>%
     group_modify(~ {
-      dd <- .x %>% filter(is.finite(mean_movement), !is.na(Group), !is.na(PhaseClass), !is.na(CageChangeIndexF))
-      if (n_distinct(dd$Group) < 2 || n_distinct(dd$AnimalNum) < 4) return(tibble(term = NA_character_, p.value = NA_real_))
-      fit <- lmerTest::lmer(log1p(mean_movement) ~ Group * PhaseClass * CageChangeIndexF + (1 | AnimalNum), data = dd)
-      as.data.frame(anova(fit)) %>%
-        rownames_to_column("term") %>%
-        as_tibble() %>%
-        select(term, everything())
+      dd <- .x %>%
+        filter(is.finite(mean_movement), !is.na(Group), !is.na(PhaseClass), !is.na(CageChangeIndexF)) %>%
+        mutate(
+          Group = droplevels(Group),
+          PhaseClass = droplevels(PhaseClass),
+          CageChangeIndexF = droplevels(CageChangeIndexF)
+        )
+
+      if (
+        n_distinct(dd$AnimalNum) < 4 ||
+          nlevels(dd$Group) < 2 ||
+          nlevels(dd$PhaseClass) < 2 ||
+          nlevels(dd$CageChangeIndexF) < 2
+      ) {
+        return(tibble(term = NA_character_, p.value = NA_real_))
+      }
+
+      out <- tryCatch({
+        fit <- lmerTest::lmer(log1p(mean_movement) ~ Group * PhaseClass * CageChangeIndexF + (1 | AnimalNum), data = dd)
+        as.data.frame(anova(fit)) %>%
+          rownames_to_column("term") %>%
+          as_tibble() %>%
+          select(term, everything())
+      }, error = function(e) {
+        tibble(term = NA_character_, p.value = NA_real_)
+      })
+
+      out
     }) %>%
     ungroup()
   readr::write_csv(repeated_lmm_stats, file.path(dirs$stats, "raw_movement_repeated_lmm_cagechange_phase_by_sex.csv"))
@@ -321,10 +422,12 @@ hits_panel <- pairwise_stats %>%
   arrange(p_holm_panel)
 readr::write_csv(hits_panel, file.path(dirs$stats, "raw_movement_hits_panel_holm_padj_lt_0p10.csv"))
 
-hits_family <- pairwise_stats %>%
-  filter(!is.na(p_holm_family_scope_sex), p_holm_family_scope_sex < 0.10) %>%
-  arrange(p_holm_family_scope_sex)
-readr::write_csv(hits_family, file.path(dirs$stats, "raw_movement_hits_family_holm_padj_lt_0p10.csv"))
+if (isTRUE(export_global_family_corrections)) {
+  hits_family <- pairwise_stats %>%
+    filter(!is.na(p_holm_family_scope_sex), p_holm_family_scope_sex < 0.10) %>%
+    arrange(p_holm_family_scope_sex)
+  readr::write_csv(hits_family, file.path(dirs$stats, "raw_movement_hits_family_holm_padj_lt_0p10.csv"))
+}
 
 # ------------------------------------------------
 # FIGURES
@@ -335,28 +438,86 @@ overall_phase_plot <- movement_endpoints %>%
   filter(ScopeType %in% c("overall_all_phases", "overall_by_phase")) %>%
   mutate(Endpoint = factor(Endpoint, levels = c("Overall", "Active", "Inactive")))
 
-overall_labels <- pairwise_stats %>%
-  filter(ScopeType %in% c("overall_all_phases", "overall_by_phase")) %>%
-  mutate(
-    Endpoint = factor(Endpoint, levels = c("Overall", "Active", "Inactive")),
-    p_for_label = if (show_raw_p_in_labels) p_raw else p_holm_panel,
-    label_piece = paste0(contrast, ": p", ifelse(show_raw_p_in_labels, "", "Holm"), "=", format_p(p_for_label))
+overall_panel_counts <- overall_phase_plot %>%
+  count(Sex, Endpoint, name = "n_animals")
+readr::write_csv(overall_panel_counts, file.path(dirs$tables, "raw_movement_overall_active_inactive_panel_counts.csv"))
+
+overall_y_range <- overall_phase_plot %>%
+  group_by(Sex, Endpoint) %>%
+  summarise(
+    y_max = max(mean_movement, na.rm = TRUE),
+    y_min = min(mean_movement, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+overall_sig_bars <- pairwise_stats %>%
+  filter(
+    ScopeType %in% c("overall_all_phases", "overall_by_phase"),
+    !is.na(p_holm_panel),
+    p_holm_panel < 0.05
   ) %>%
+  mutate(
+    Endpoint = factor(as.character(Endpoint), levels = c("Overall", "Active", "Inactive")),
+    Sex_key = as.character(Sex)
+  ) %>%
+  left_join(
+    overall_y_range %>% mutate(
+      Endpoint = factor(as.character(Endpoint), levels = c("Overall", "Active", "Inactive")),
+      Sex_key = as.character(Sex)
+    ) %>% select(Sex_key, Endpoint, y_max, y_min),
+    by = c("Sex_key", "Endpoint")
+  ) %>%
+  select(-Sex_key) %>%
+  distinct(Sex, Endpoint, contrast, .keep_all = TRUE) %>%
+  mutate(
+    contrast = factor(contrast, levels = contrast_levels),
+    xmin = case_when(
+      contrast == "RES - CON" ~ 1,
+      contrast == "SUS - CON" ~ 1,
+      contrast == "SUS - RES" ~ 2
+    ),
+    xmax = case_when(
+      contrast == "RES - CON" ~ 2,
+      contrast == "SUS - CON" ~ 3,
+      contrast == "SUS - RES" ~ 3
+    ),
+    annotation = paste0("p=", format_p(p_holm_panel), sig_stars(p_holm_panel))
+  ) %>%
+  arrange(Sex, Endpoint, xmin, xmax) %>%
   group_by(Sex, Endpoint) %>%
-  summarise(stats_label = paste(label_piece, collapse = "\n"), .groups = "drop")
+  mutate(
+    bar_idx = row_number(),
+    y_range = pmax(y_max - y_min, abs(y_max) * 0.1, 0.01),
+    y_position = y_max + bar_idx * 0.22 * y_range
+  ) %>%
+  ungroup()
 
-overall_y <- overall_phase_plot %>%
-  group_by(Sex, Endpoint) %>%
-  summarise(y = max(mean_movement, na.rm = TRUE), .groups = "drop") %>%
-  mutate(x = 0.72, y = y + 0.15 * abs(y))
-
-overall_annot <- overall_labels %>% left_join(overall_y, by = c("Sex", "Endpoint"))
+overall_blank <- if (nrow(overall_sig_bars) > 0) {
+  overall_sig_bars %>%
+    group_by(Sex, Endpoint) %>%
+    summarise(y_blank = max(y_position, na.rm = TRUE) * 1.10, .groups = "drop") %>%
+    mutate(Group = factor("CON", levels = mmm_group_levels))
+} else {
+  overall_phase_plot %>%
+    group_by(Sex, Endpoint) %>%
+    summarise(y_blank = max(mean_movement, na.rm = TRUE) * 1.05, .groups = "drop") %>%
+    mutate(Group = factor("CON", levels = mmm_group_levels))
+}
 
 p_overall <- ggplot(overall_phase_plot, aes(Group, mean_movement, colour = Group, fill = Group)) +
-  geom_boxplot(width = 0.24, outlier.shape = NA, alpha = 0.55, linewidth = 0.25) +
-  geom_jitter(width = 0.06, size = 0.9, alpha = 0.75) +
-  geom_text(data = overall_annot, aes(x = x, y = y, label = stats_label), inherit.aes = FALSE, hjust = 0, vjust = 1, size = 1.85, colour = "black", lineheight = 0.90) +
-  facet_grid(Sex ~ Endpoint, scales = "free_y") +
+  #geom_boxplot(width = 0.24, outlier.shape = NA, alpha = 0.55, linewidth = 0.25) +
+  geom_jitter(width = 0.06, size = 1.5, alpha = 0.6, shape = 16) +
+  geom_blank(data = overall_blank, aes(y = y_blank), inherit.aes = FALSE) +
+  geom_signif(
+    data = overall_sig_bars,
+    aes(xmin = xmin, xmax = xmax, y_position = y_position, annotations = annotation),
+    manual = TRUE,
+    inherit.aes = FALSE,
+    tip_length = 0.02,
+    textsize = 2.0,
+    vjust = 0.4
+  ) +
+  facet_grid(Sex ~ Endpoint, scales = "free_y", drop = FALSE) +
   scale_colour_manual(values = mmm_group_colors, drop = FALSE) +
   scale_fill_manual(values = mmm_group_colors, drop = FALSE) +
   labs(
@@ -369,7 +530,7 @@ p_overall <- ggplot(overall_phase_plot, aes(Group, mean_movement, colour = Group
   make_theme(base_size = 7) +
   theme(legend.position = "none")
 
-save_plot(p_overall, file.path(dirs$figure_publication, "Fig18c_overall_active_inactive_mean_movement_corrected_stats"), width = 180, height = 108)
+save_plot(p_overall, file.path(dirs$figure_publication, "Fig18c_overall_active_inactive_mean_movement_corrected_stats"), width = 60, height = 60)
 
 # 2) Cage-change x phase plot: show only panel-Holm hits to avoid label clutter.
 cc_plot <- group_summary %>% filter(ScopeType == "cage_change_by_phase")
@@ -392,7 +553,7 @@ p_cc <- ggplot(cc_plot, aes(CageChange, mean_movement, colour = Group, group = G
   geom_point(size = 1.4, position = position_dodge(width = 0.20)) +
   geom_errorbar(aes(ymin = ci95_low, ymax = ci95_high), width = 0.12, linewidth = 0.25, position = position_dodge(width = 0.20)) +
   geom_text(data = cc_annot, aes(x = CageChange, y = y, label = stats_label), inherit.aes = FALSE, size = 1.8, colour = "black", lineheight = 0.9, vjust = 0) +
-  facet_grid(Sex ~ PhaseClass, scales = "free_y") +
+  facet_grid(Sex ~ PhaseClass, scales = "free_y", drop = FALSE) +
   scale_colour_manual(values = mmm_group_colors, drop = FALSE) +
   labs(
     title = "Raw movement by cage change and phase",
@@ -431,4 +592,8 @@ message("Corrected broad raw movement phase statistics complete: ", output_dir)
 message("Selected input: ", input_file)
 message("Selected bin level: ", bin_level)
 message("Panel-Holm hits p < 0.10: ", nrow(hits_panel))
-message("Family-Holm hits p < 0.10: ", nrow(hits_family))
+if (isTRUE(export_global_family_corrections)) {
+  message("Family-Holm hits p < 0.10: ", nrow(hits_family))
+} else {
+  message("Global family-wise correction: disabled (panel-wise Holm only).")
+}
