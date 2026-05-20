@@ -44,6 +44,8 @@ suppressPackageStartupMessages({
   library(ggplot2)
 })
 
+source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/behavioral_dynamics_helpers.R")
+
 # Optional packages. The script runs without them.
 has_glmnet <- requireNamespace("glmnet", quietly = TRUE)
 has_randomForest <- requireNamespace("randomForest", quietly = TRUE)
@@ -95,6 +97,27 @@ primary_outcome_label <- "CombZ"
 use_group_as_predictor <- FALSE
 use_sex_as_covariate <- TRUE
 
+group_levels <- c("CON", "RES", "SUS")
+group_colors <- mmm_group_colors
+group_shape_values <- c("CON" = 21, "RES" = 22, "SUS" = 24, "All" = 21)
+domain_labels <- c(
+  "psychomotor_trajectory" = "Psychomotor",
+  "temporal_organization" = "Temporal organization",
+  "social_organization" = "Social organization",
+  "rest_circadian" = "Rest/circadian",
+  "state_nonlinear" = "State dynamics",
+  "other" = "Other"
+)
+domain_colors <- c(
+  "Reference" = "grey70",
+  "Psychomotor" = "#2F4858",
+  "Temporal organization" = "#7A8F6A",
+  "Social organization" = "#A65E2E",
+  "Rest/circadian" = "#6D597A",
+  "State dynamics" = "#4D908E",
+  "Other" = "grey65"
+)
+
 # Feature selection limits. Keep these strict for reviewer safety.
 max_features_per_domain <- 3
 max_total_features_in_systems_model <- 12
@@ -122,6 +145,12 @@ write_tbl <- function(x, path) {
   ensure_dir(dirname(path))
   readr::write_csv(x, path, na = "")
   invisible(x)
+}
+
+write_text_file <- function(lines, path) {
+  ensure_dir(dirname(path))
+  writeLines(lines, con = path)
+  invisible(path)
 }
 
 safe_scale <- function(x) {
@@ -209,13 +238,105 @@ classify_feature_domain <- function(feature_names) {
   )
 }
 
+pretty_systems_feature <- function(x) {
+  x %>%
+    str_replace("^.*__", "") %>%
+    str_replace_all("_", " ") %>%
+    str_replace("\\bacf1\\b", "ACF1") %>%
+    str_replace("\\brmssd\\b", "RMSSD") %>%
+    str_replace("\\bcv\\b", "CV") %>%
+    str_squish() %>%
+    str_to_sentence()
+}
+
+classify_model_domain_step <- function(model_name) {
+  case_when(
+    model_name == "Mean only" ~ "Reference",
+    model_name == "Raw movement only" ~ "Psychomotor",
+    model_name == "08b compact behavior" ~ "Temporal organization",
+    model_name == "Psychomotor trajectory" ~ "Psychomotor",
+    model_name == "Psychomotor + temporal" ~ "Temporal organization",
+    model_name == "Psychomotor + temporal + social" ~ "Social organization",
+    model_name == "Add rest/circadian" ~ "Rest/circadian",
+    model_name == "Full systems compact" ~ "State dynamics",
+    TRUE ~ "Other"
+  )
+}
+
+model_display_labels <- c(
+  "Mean only" = "Mean only",
+  "Raw movement only" = "Movement",
+  "08b compact behavior" = "08b compact behavior",
+  "Psychomotor trajectory" = "Psychomotor",
+  "Psychomotor + temporal" = "Psychomotor + temporal",
+  "Psychomotor + temporal + social" = "Add social",
+  "Add rest/circadian" = "Add rest/circadian",
+  "Full systems compact" = "Full systems"
+)
+
 # ------------------------------------------------
 # LOAD 08b PRIMARY TABLE
 # ------------------------------------------------
 
 ensure_dir(file.path(output_dir, "tables"))
+ensure_dir(file.path(output_dir, "tables", "documentation"))
+ensure_dir(file.path(output_dir, "tables", "input_audit"))
+ensure_dir(file.path(output_dir, "tables", "features"))
+ensure_dir(file.path(output_dir, "tables", "models"))
+ensure_dir(file.path(output_dir, "tables", "sensitivity"))
 ensure_dir(file.path(output_dir, "figures"))
 ensure_dir(file.path(output_dir, "figures/publication"))
+analysis_output_dirs(output_dir)
+write_output_manifest(
+  output_dir,
+  script_name = "08c_systems_feature_prediction_ladder.R",
+  analysis_name = "systems feature prediction ladder",
+  primary_tables = c(
+    "tables/documentation/analysis_readme.txt",
+    "tables/documentation/systems_readout_dictionary.csv",
+    "tables/documentation/model_specification_dictionary.csv",
+    "tables/documentation/output_table_catalog.csv",
+    "tables/systems_ladder_performance.csv",
+    "tables/systems_ladder_incremental_summary.csv",
+    "tables/selected_features_by_domain.csv",
+    "tables/systems_feature_audit.csv",
+    "tables/interpretation_constraints.csv"
+  ),
+  primary_figures = c(
+    "figures/publication/systems_ladder_cv_r2.svg",
+    "figures/publication/predicted_vs_actual_combz_key_models.svg",
+    "figures/publication/selected_systems_features_correlations.svg"
+  ),
+  notes = c(
+    "Use 08c as a systems-extension analysis. Use 08b as the conservative primary analysis.",
+    "Group labels are retained for plotting and interpretation but are excluded from primary predictors unless use_group_as_predictor is manually set TRUE."
+  )
+)
+
+write_text_file(
+  c(
+    "08c systems feature prediction ladder",
+    "",
+    "Purpose:",
+    "This analysis extends 08b by asking whether biologically grouped systems-level behavioral domains improve prediction beyond raw movement and compact early behavior.",
+    "",
+    "Recommended reading order:",
+    "1. tables/documentation/analysis_readme.txt",
+    "2. tables/documentation/model_specification_dictionary.csv",
+    "3. tables/documentation/systems_readout_dictionary.csv",
+    "4. tables/features/selected_features_by_domain.csv",
+    "5. tables/models/systems_ladder_performance.csv",
+    "6. tables/models/systems_ladder_incremental_summary.csv",
+    "7. figures/publication/systems_ladder_cv_r2.svg",
+    "",
+    "Interpretation:",
+    "08c is a systems-extension and feature-domain analysis, not a replacement for 08b.",
+    "Raw movement is the baseline anchor.",
+    "The model ladder asks whether temporal, social, rest/circadian, and state-dynamics domains refine prediction beyond movement.",
+    "CON/RES/SUS labels are shown for interpretation only by default."
+  ),
+  file.path(output_dir, "tables", "documentation", "analysis_readme.txt")
+)
 
 if (!file.exists(input_08b)) {
   stop(
@@ -233,7 +354,28 @@ base_dat <- base_dat %>%
     AnimalNum = as.character(AnimalNum),
     Group = if ("Group" %in% names(.)) as.character(Group) else NA_character_,
     Sex = if ("Sex" %in% names(.)) as.character(Sex) else NA_character_
+  ) %>%
+  mutate(
+    Group = factor(Group, levels = unique(c(group_levels, sort(unique(as.character(Group)))))),
+    Sex = factor(Sex)
   )
+
+group_endpoint_summary <- base_dat %>%
+  filter(!is.na(Group), is.finite(.data[[outcome_col]])) %>%
+  group_by(Group, Sex) %>%
+  summarise(
+    n_animals = n_distinct(AnimalNum),
+    mean_outcome = mean(.data[[outcome_col]], na.rm = TRUE),
+    sd_outcome = sd(.data[[outcome_col]], na.rm = TRUE),
+    median_outcome = median(.data[[outcome_col]], na.rm = TRUE),
+    q25_outcome = quantile(.data[[outcome_col]], 0.25, na.rm = TRUE, names = FALSE),
+    q75_outcome = quantile(.data[[outcome_col]], 0.75, na.rm = TRUE, names = FALSE),
+    .groups = "drop"
+  ) %>%
+  mutate(ReportingRole = "CON/RES/SUS endpoint distribution for figure interpretation; not used as a primary predictor by default")
+
+write_tbl(group_endpoint_summary, file.path(output_dir, "tables/group_endpoint_summary_for_interpretation.csv"))
+write_tbl(group_endpoint_summary, file.path(output_dir, "tables/input_audit/group_endpoint_summary_for_interpretation.csv"))
 
 # ------------------------------------------------
 # OPTIONAL SYSTEMS FEATURE DISCOVERY
@@ -317,6 +459,7 @@ feature_source_audit <- tibble(
   })
 )
 write_tbl(feature_source_audit, file.path(output_dir, "tables/feature_source_audit.csv"))
+write_tbl(feature_source_audit, file.path(output_dir, "tables/input_audit/feature_source_audit.csv"))
 
 # Merge base 08b features and additional systems features.
 model_dat_raw <- base_dat %>%
@@ -328,6 +471,7 @@ leakage_cols <- setdiff(leakage_cols, c(outcome_col, "Group"))
 model_dat_raw <- model_dat_raw %>% select(-any_of(leakage_cols))
 
 write_tbl(model_dat_raw, file.path(output_dir, "tables/systems_model_input_raw.csv"))
+write_tbl(model_dat_raw, file.path(output_dir, "tables/input_audit/systems_model_input_raw.csv"))
 
 # ------------------------------------------------
 # FEATURE AUDIT AND DOMAIN SELECTION
@@ -341,6 +485,8 @@ all_numeric <- all_numeric[!is_leakage_name(all_numeric)]
 feature_audit <- tibble(feature = all_numeric) %>%
   mutate(
     domain = classify_feature_domain(feature),
+    domain_label = recode(domain, !!!domain_labels),
+    feature_label = pretty_systems_feature(feature),
     nonmissing_fraction = map_dbl(feature, ~mean(is.finite(model_dat_raw[[.x]]))),
     sd = map_dbl(feature, ~sd(model_dat_raw[[.x]], na.rm = TRUE)),
     abs_cor_with_outcome = map_dbl(feature, ~abs(safe_cor(model_dat_raw[[.x]], model_dat_raw[[outcome_col]], "spearman"))),
@@ -350,6 +496,7 @@ feature_audit <- tibble(feature = all_numeric) %>%
   arrange(domain, desc(abs_cor_with_outcome))
 
 write_tbl(feature_audit, file.path(output_dir, "tables/systems_feature_audit.csv"))
+write_tbl(feature_audit, file.path(output_dir, "tables/features/systems_feature_audit.csv"))
 
 select_uncorrelated_features <- function(dat, candidates, max_features = 3, max_abs_cor = 0.85) {
   selected <- character(0)
@@ -382,9 +529,39 @@ selected_by_domain <- feature_audit %>%
   mutate(n_selected = map_int(selected_features, length))
 
 write_tbl(
-  selected_by_domain %>% mutate(selected_features = map_chr(selected_features, ~paste(.x, collapse = "; "))),
+  selected_by_domain %>%
+    mutate(
+      domain_label = recode(domain, !!!domain_labels),
+      selected_features_raw = map_chr(selected_features, ~paste(.x, collapse = "; ")),
+      selected_features = map_chr(selected_features, ~paste(pretty_systems_feature(.x), collapse = "; "))
+    ),
   file.path(output_dir, "tables/selected_features_by_domain.csv")
 )
+
+selected_features_by_domain_documented <- selected_by_domain %>%
+  mutate(
+    domain_label = recode(domain, !!!domain_labels),
+    selected_features_raw = map_chr(selected_features, ~paste(.x, collapse = "; ")),
+    selected_features = map_chr(selected_features, ~paste(pretty_systems_feature(.x), collapse = "; ")),
+    selection_rule = paste0(
+      "Eligible numeric AnimalNum-level features; nonmissing fraction >= ",
+      min_nonmissing_fraction,
+      "; nonzero SD; endpoint/leakage names excluded; within-domain abs correlation < ",
+      max_pairwise_abs_cor,
+      "; max ",
+      max_features_per_domain,
+      " features per domain."
+    ),
+    manuscript_role = case_when(
+      domain == "psychomotor_trajectory" ~ "Baseline psychomotor/trajectory domain",
+      domain == "temporal_organization" ~ "Core behavioral organization extension beyond movement",
+      domain == "social_organization" ~ "Social organization extension",
+      domain == "rest_circadian" ~ "Rest/circadian extension",
+      domain == "state_nonlinear" ~ "Exploratory state/nonlinear extension",
+      TRUE ~ "Context only"
+    )
+  )
+write_tbl(selected_features_by_domain_documented, file.path(output_dir, "tables/features/selected_features_by_domain.csv"))
 
 features_by_domain <- setNames(selected_by_domain$selected_features, selected_by_domain$domain)
 get_domain <- function(domain) if (domain %in% names(features_by_domain)) features_by_domain[[domain]] else character(0)
@@ -413,6 +590,35 @@ if (length(systems_features) > max_total_features_in_systems_model) {
   systems_features <- ordered_features[seq_len(max_total_features_in_systems_model)]
 }
 
+systems_readout_dictionary <- feature_audit %>%
+  transmute(
+    feature,
+    feature_label,
+    domain,
+    domain_label,
+    nonmissing_fraction,
+    signed_cor_with_outcome,
+    abs_cor_with_outcome,
+    eligible,
+    selected_for_systems_model = feature %in% systems_features,
+    definition = case_when(
+      str_detect(str_to_lower(feature), "movement|distance|velocity|activity|locomotor") ~ "Psychomotor or trajectory feature aggregated to animal level.",
+      str_detect(str_to_lower(feature), "entropy|rmssd|acf|cv|fano|burst|instability|regularity|predictability") ~ "Temporal organization or variability feature aggregated to animal level.",
+      str_detect(str_to_lower(feature), "proximity|contact|social|network|degree|clustering|edge|partner") ~ "Social organization feature aggregated to animal level.",
+      str_detect(str_to_lower(feature), "inactive|inactivity|sleep|rest|bout|circadian|light|dark|phase|day|night") ~ "Rest/circadian or phase-architecture feature aggregated to animal level.",
+      str_detect(str_to_lower(feature), "hmm|state|transition|lyapunov|recurrence|dfa|nonlinear") ~ "State-space or nonlinear dynamics feature aggregated to animal level.",
+      TRUE ~ "Candidate animal-level numeric feature."
+    ),
+    manuscript_role = case_when(
+      selected_for_systems_model ~ "Selected model readout",
+      eligible ~ "Eligible candidate not selected after domain and correlation limits",
+      TRUE ~ "Audited but not eligible"
+    )
+  ) %>%
+  arrange(domain, desc(selected_for_systems_model), desc(abs_cor_with_outcome))
+write_tbl(systems_readout_dictionary, file.path(output_dir, "tables/documentation/systems_readout_dictionary.csv"))
+write_tbl(systems_readout_dictionary, file.path(output_dir, "tables/features/systems_readout_dictionary.csv"))
+
 covariates <- character(0)
 if (use_sex_as_covariate && "Sex" %in% names(model_dat_raw) && n_distinct(na.omit(model_dat_raw$Sex)) >= 2) covariates <- c(covariates, "Sex")
 if (use_group_as_predictor && "Group" %in% names(model_dat_raw) && n_distinct(na.omit(model_dat_raw$Group)) >= 2) covariates <- c(covariates, "Group")
@@ -433,13 +639,31 @@ model_specs <- map(model_specs, ~unique(.x[.x %in% names(model_dat_raw)]))
 model_predictor_audit <- imap_dfr(model_specs, function(preds, model_name) {
   tibble(
     Model = model_name,
+    DisplayModel = recode(model_name, !!!model_display_labels),
+    DomainStep = classify_model_domain_step(model_name),
     n_predictors = length(preds),
     Predictors = paste(preds, collapse = " + "),
     uses_group_as_predictor = "Group" %in% preds,
-    uses_sex_as_covariate = "Sex" %in% preds
+    uses_sex_as_covariate = "Sex" %in% preds,
+    uses_behavior_features = any(str_detect(preds, "Movement|Entropy|Proximity|__")),
+    MethodPlanned = if_else(use_elastic_net_if_available && has_glmnet && length(preds) > 0, "LOAO elastic net", "LOAO linear model"),
+    ManuscriptUse = case_when(
+      model_name == "Mean only" ~ "Reference baseline",
+      model_name == "Raw movement only" ~ "Baseline biological signal",
+      model_name == "08b compact behavior" ~ "Bridge to conservative 08b analysis",
+      model_name == "Full systems compact" ~ "Systems-extension model",
+      TRUE ~ "Domain-ladder context"
+    ),
+    InterpretationGuardrail = case_when(
+      "Group" %in% preds ~ "Contains Group; interpret only as descriptive/sensitivity if group derives from later phenotype.",
+      model_name == "Full systems compact" ~ "Use as systems extension; avoid replacing the 08b primary claim.",
+      TRUE ~ "Compare against raw movement and mean-only baselines."
+    )
   )
 })
 write_tbl(model_predictor_audit, file.path(output_dir, "tables/model_predictor_audit.csv"))
+write_tbl(model_predictor_audit, file.path(output_dir, "tables/documentation/model_specification_dictionary.csv"))
+write_tbl(model_predictor_audit, file.path(output_dir, "tables/models/model_predictor_audit.csv"))
 
 # ------------------------------------------------
 # MODEL FITTING
@@ -614,12 +838,24 @@ main_performance <- main_predictions %>%
   mutate(
     Outcome = primary_outcome_label,
     BinLevel = bin_level,
-    AnalysisUse = "primary_conservative_or_regularized"
+    AnalysisUse = "systems_extension_regularized_or_linear",
+    DomainStep = classify_model_domain_step(Model),
+    DisplayModel = recode(Model, !!!model_display_labels),
+    UsesGroupAsPredictor = use_group_as_predictor,
+    ReportingRole = case_when(
+      Model == "Raw movement only" ~ "Baseline biological signal",
+      Model == "08b compact behavior" ~ "Bridge to conservative 08b analysis",
+      Model == "Full systems compact" ~ "Systems-level extension",
+      TRUE ~ "Domain-ladder context"
+    )
   )
 
 write_tbl(main_predictions, file.path(output_dir, "tables/systems_ladder_loo_predictions.csv"))
 write_tbl(main_coefficients, file.path(output_dir, "tables/systems_ladder_coefficients.csv"))
 write_tbl(main_performance, file.path(output_dir, "tables/systems_ladder_performance.csv"))
+write_tbl(main_predictions, file.path(output_dir, "tables/models/systems_ladder_loo_predictions.csv"))
+write_tbl(main_coefficients, file.path(output_dir, "tables/models/systems_ladder_coefficients.csv"))
+write_tbl(main_performance, file.path(output_dir, "tables/models/systems_ladder_performance.csv"))
 
 # Optional nonlinear sensitivity.
 if (isTRUE(run_nonlinear_sensitivity) && has_randomForest) {
@@ -639,6 +875,8 @@ if (isTRUE(run_nonlinear_sensitivity) && has_randomForest) {
     )
   write_tbl(rf_predictions, file.path(output_dir, "tables/nonlinear_sensitivity_loo_predictions.csv"))
   write_tbl(rf_performance, file.path(output_dir, "tables/nonlinear_sensitivity_performance.csv"))
+  write_tbl(rf_predictions, file.path(output_dir, "tables/sensitivity/nonlinear_sensitivity_loo_predictions.csv"))
+  write_tbl(rf_performance, file.path(output_dir, "tables/sensitivity/nonlinear_sensitivity_performance.csv"))
 }
 
 # ------------------------------------------------
@@ -659,81 +897,102 @@ incremental_summary <- main_performance %>%
       delta_rmse_vs_raw_movement < 0 & delta_cv_r2_vs_raw_movement > 0 ~ "Improves prediction beyond raw movement",
       delta_rmse_vs_raw_movement >= 0 ~ "Does not improve beyond raw movement",
       TRUE ~ "Uncertain"
+    ),
+    ManuscriptMessage = case_when(
+      Model == "08b compact behavior" & Interpretation == "Improves prediction beyond raw movement" ~ "Temporal organization strengthens prediction beyond gross movement.",
+      Model == "Full systems compact" & Interpretation == "Improves prediction beyond raw movement" ~ "Broader systems features refine, but do not replace, the movement baseline.",
+      Model == "Raw movement only" ~ "Use as the anchor for all systems comparisons.",
+      TRUE ~ "Report cautiously as domain-ladder context."
     )
   )
 
 write_tbl(incremental_summary, file.path(output_dir, "tables/systems_ladder_incremental_summary.csv"))
+write_tbl(incremental_summary, file.path(output_dir, "tables/models/systems_ladder_incremental_summary.csv"))
 
 # ------------------------------------------------
 # PLOTS
 # ------------------------------------------------
 
-theme_pub <- theme_classic(base_size = 7) +
+theme_pub <- make_nature_theme(base_size = 7) +
   theme(
     legend.position = "top",
-    axis.line = element_line(linewidth = 0.25),
-    axis.ticks = element_line(linewidth = 0.25),
-    plot.title = element_text(face = "bold", hjust = 0),
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold")
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(linewidth = 0.13, colour = "grey92")
   )
 
 perf_plot <- main_performance %>%
-  mutate(Model = factor(Model, levels = rev(main_performance$Model))) %>%
-  ggplot(aes(x = cv_r2_vs_mean, y = Model)) +
-  geom_vline(xintercept = 0, linewidth = 0.25, linetype = "dashed") +
-  geom_point(size = 1.8) +
+  mutate(
+    DisplayModel = factor(DisplayModel, levels = rev(DisplayModel[order(cv_r2_vs_mean)])),
+    DomainStep = factor(DomainStep, levels = names(domain_colors))
+  ) %>%
+  ggplot(aes(x = cv_r2_vs_mean, y = DisplayModel, colour = DomainStep)) +
+  geom_vline(xintercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey55") +
+  geom_segment(aes(x = 0, xend = cv_r2_vs_mean, yend = DisplayModel), linewidth = 0.35, alpha = 0.65) +
+  geom_point(size = 1.9) +
   labs(
     title = "Systems feature prediction ladder",
-    subtitle = "Leave-one-animal-out prediction of later CombZ from early first-active-phase behavior",
-    x = "Cross-validated R² vs mean-only baseline",
+    subtitle = "Early first-active-phase behavior; CON/RES/SUS labels are held out of primary predictors",
+    x = "Cross-validated R2 vs mean-only baseline",
     y = NULL
   ) +
+  scale_colour_manual(values = domain_colors, drop = FALSE) +
+  xlab("Cross-validated R2 vs mean-only baseline") +
   theme_pub
 
-ggsave(file.path(output_dir, "figures/publication/systems_ladder_cv_r2.svg"), perf_plot, width = 95, height = 70, units = "mm")
-ggsave(file.path(output_dir, "figures/systems_ladder_cv_r2.png"), perf_plot, width = 95, height = 70, units = "mm", dpi = 300)
+save_plot_svg_pdf(perf_plot, file.path(output_dir, "figures/publication/systems_ladder_cv_r2"), width = 89, height = 82)
 
 best_model <- main_performance %>% filter(Model != "Mean only") %>% arrange(desc(cv_r2_vs_mean), rmse) %>% slice(1) %>% pull(Model)
 plot_models <- unique(c("Raw movement only", "08b compact behavior", "Full systems compact", best_model))
 plot_pred <- main_predictions %>% filter(Model %in% plot_models)
 
 pred_plot <- plot_pred %>%
+  mutate(
+    Model = factor(recode(Model, !!!model_display_labels), levels = model_display_labels[plot_models]),
+    Group = factor(as.character(Group), levels = group_levels)
+  ) %>%
   ggplot(aes(x = observed, y = predicted)) +
-  geom_abline(slope = 1, intercept = 0, linewidth = 0.25, linetype = "dashed") +
-  geom_point(aes(shape = Sex), size = 1.8, alpha = 0.85) +
+  geom_abline(slope = 1, intercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey45") +
+  geom_smooth(method = "lm", se = TRUE, linewidth = 0.38, alpha = 0.10, colour = "grey25", fill = "grey70") +
+  geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.75, stroke = 0.25, alpha = 0.88) +
   facet_wrap(~Model, scales = "free") +
   labs(
     title = "Predicted versus actual stress burden",
-    subtitle = "Predictions use early first-active-phase behavior only",
+    subtitle = "Colors show CON/RES/SUS grouping for interpretation only",
     x = paste0("Actual ", primary_outcome_label),
     y = paste0("Predicted ", primary_outcome_label)
   ) +
+  scale_colour_manual(values = group_colors, drop = FALSE) +
+  scale_fill_manual(values = group_colors, drop = FALSE) +
+  scale_shape_manual(values = group_shape_values, drop = FALSE) +
   theme_pub
 
-ggsave(file.path(output_dir, "figures/publication/predicted_vs_actual_combz_key_models.svg"), pred_plot, width = 160, height = 90, units = "mm")
-ggsave(file.path(output_dir, "figures/predicted_vs_actual_combz_key_models.png"), pred_plot, width = 160, height = 90, units = "mm", dpi = 300)
+save_plot_svg_pdf(pred_plot, file.path(output_dir, "figures/publication/predicted_vs_actual_combz_key_models"), width = 183, height = 92)
 
 selected_feature_plot_tbl <- feature_audit %>%
   filter(feature %in% systems_features) %>%
-  mutate(feature_short = str_trunc(feature, 55), domain = factor(domain))
+  mutate(
+    feature_short = str_trunc(feature_label, 42),
+    domain_label = factor(domain_label, levels = names(domain_colors))
+  )
 
 if (nrow(selected_feature_plot_tbl) > 0) {
   feat_plot <- selected_feature_plot_tbl %>%
-    ggplot(aes(x = signed_cor_with_outcome, y = reorder(feature_short, signed_cor_with_outcome))) +
-    geom_vline(xintercept = 0, linewidth = 0.25) +
+    ggplot(aes(x = signed_cor_with_outcome, y = reorder(feature_short, signed_cor_with_outcome), colour = domain_label)) +
+    geom_vline(xintercept = 0, linewidth = 0.25, colour = "grey55") +
+    geom_segment(aes(x = 0, xend = signed_cor_with_outcome, yend = reorder(feature_short, signed_cor_with_outcome)), linewidth = 0.3, alpha = 0.55) +
     geom_point(size = 1.6) +
-    facet_grid(domain ~ ., scales = "free_y", space = "free_y") +
+    facet_grid(domain_label ~ ., scales = "free_y", space = "free_y") +
     labs(
       title = "Selected systems features",
-      subtitle = "Spearman association with later CombZ before multivariable modeling",
+      subtitle = "Univariable Spearman association with later CombZ before multivariable modeling",
       x = "Spearman rho with later CombZ",
       y = NULL
     ) +
-    theme_pub
+    scale_colour_manual(values = domain_colors, drop = FALSE) +
+    theme_pub +
+    theme(legend.position = "none")
 
-  ggsave(file.path(output_dir, "figures/publication/selected_systems_features_correlations.svg"), feat_plot, width = 150, height = 110, units = "mm")
-  ggsave(file.path(output_dir, "figures/selected_systems_features_correlations.png"), feat_plot, width = 150, height = 110, units = "mm", dpi = 300)
+  save_plot_svg_pdf(feat_plot, file.path(output_dir, "figures/publication/selected_systems_features_correlations"), width = 183, height = 112)
 }
 
 # ------------------------------------------------
@@ -759,6 +1018,58 @@ constraints <- tibble(
   )
 )
 write_tbl(constraints, file.path(output_dir, "tables/interpretation_constraints.csv"))
+write_tbl(constraints, file.path(output_dir, "tables/documentation/interpretation_constraints.csv"))
+
+output_table_catalog <- tibble(
+  file = c(
+    "tables/documentation/analysis_readme.txt",
+    "tables/documentation/model_specification_dictionary.csv",
+    "tables/documentation/systems_readout_dictionary.csv",
+    "tables/input_audit/feature_source_audit.csv",
+    "tables/input_audit/systems_model_input_raw.csv",
+    "tables/features/systems_feature_audit.csv",
+    "tables/features/selected_features_by_domain.csv",
+    "tables/models/systems_ladder_performance.csv",
+    "tables/models/systems_ladder_incremental_summary.csv",
+    "tables/models/systems_ladder_loo_predictions.csv",
+    "tables/documentation/interpretation_constraints.csv"
+  ),
+  category = c(
+    "documentation", "documentation", "documentation",
+    "input_audit", "input_audit", "features", "features",
+    "models", "models", "models", "documentation"
+  ),
+  contains = c(
+    "Plain-text guide to the analysis folder and recommended reading order.",
+    "Model ladder predictor sets, methods, intended manuscript use, and guardrails.",
+    "Feature/readout definitions, domain labels, eligibility, and selected-model flags.",
+    "All candidate source files and whether each was loaded as an animal-level feature table.",
+    "Merged animal-level modeling matrix before final predictor selection.",
+    "All candidate features with domain classification, missingness, SD, and outcome association.",
+    "Selected feature list by domain with selection rules.",
+    "LOAO model performance for the systems ladder.",
+    "Incremental comparison against mean-only and raw-movement baselines.",
+    "Animal-level observed and predicted values for each systems model.",
+    "Reviewer-safe language and interpretation constraints."
+  ),
+  manuscript_use = c(
+    "Start here",
+    "Methods/model specification",
+    "Methods/readout definitions",
+    "Methods/input audit",
+    "Methods/source data",
+    "Supplement/feature audit",
+    "Main or supplement/domain selection",
+    "Systems-extension result",
+    "Systems-extension result",
+    "Supplement/model diagnostics",
+    "Methods/limitations"
+  )
+)
+write_tbl(output_table_catalog, file.path(output_dir, "tables/documentation/output_table_catalog.csv"))
+write_tbl(output_table_catalog, file.path(output_dir, "tables/output_table_catalog.csv"))
+
+if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
 message("08c systems feature prediction ladder complete.")
 message("Output directory: ", output_dir)
