@@ -1,4 +1,5 @@
-[d4a56cd962e5b9bb48d3f3dca25af851d7b1c8d0e033782b39445c37bbd3534e.tiff](https://github.com/user-attachments/files/28163588/d4a56cd962e5b9bb48d3f3dca25af851d7b1c8d0e033782b39445c37bbd3534e.tiff)
+![Logo](https://github.com/user-attachments/files/28163686/d4a56cd962e5b9bb48d3f3dca25af851d7b1c8d0e033782b39445c37bbd3534e.tiff)
+
 # MMMSociability
 
 Multiscale behavioral analysis pipeline for automated homecage RFID tracking data in mouse social behavior and social instability stress experiments.
