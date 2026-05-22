@@ -58,7 +58,9 @@ analysis_output_dirs <- function(output_dir) {
     root = output_dir,
     tables = file.path(output_dir, "tables"),
     stats = file.path(output_dir, "stats_tables"),
-    qc = file.path(output_dir, "qc"),
+    manifest = file.path(output_dir, "manifest"),
+    logs = file.path(output_dir, "logs"),
+    qc = file.path(output_dir, "figures", "qc"),
     table_qc = file.path(output_dir, "tables", "qc"),
     table_sensitivity = file.path(output_dir, "tables", "duration_sensitivity"),
     figure_root = file.path(output_dir, "figures"),
@@ -220,11 +222,41 @@ mirror_plot_to_standard_folder <- function(filename_base) {
 write_output_manifest <- function(output_dir,
                                   script_name,
                                   analysis_name,
+                                  input_files = character(),
+                                  output_directory = output_dir,
+                                  bin_level = NA_character_,
+                                  key_parameters = list(),
                                   primary_tables = character(),
                                   primary_figures = character(),
                                   notes = character()) {
   analysis_output_dirs(output_dir)
-  manifest <- tibble(
+  caller_env <- parent.frame()
+  if (length(input_files) == 0) {
+    input_names <- c("input_file", "input_files", "INPUT_FILES", "input_candidates", "input_08b", "endpoint_file", "proteomics_module_file")
+    input_files <- unlist(lapply(input_names, function(nm) {
+      if (exists(nm, envir = caller_env, inherits = FALSE)) get(nm, envir = caller_env) else character()
+    }), use.names = FALSE)
+    input_files <- unique(as.character(input_files[!is.na(input_files) & nzchar(input_files)]))
+  }
+  if (is.na(bin_level) && exists("bin_level", envir = caller_env, inherits = FALSE)) {
+    bin_level <- get("bin_level", envir = caller_env)
+  }
+  if (is.na(bin_level) && exists("primary_bin_level", envir = caller_env, inherits = FALSE)) {
+    bin_level <- get("primary_bin_level", envir = caller_env)
+  }
+  if (length(key_parameters) == 0) {
+    key_names <- c(
+      "bin_size_sec", "bin_size_min", "primary_bin_level", "early_window_hours",
+      "first_cage_change_only", "outcome_col", "primary_outcome", "n_prediction_permutations",
+      "n_prediction_bootstrap", "n_bootstrap", "min_n_per_group", "min_bins_per_animal",
+      "proximity_col", "primary_metrics", "use_group_as_predictor", "use_sex_as_covariate"
+    )
+    key_parameters <- lapply(key_names[key_names %in% ls(envir = caller_env, all.names = TRUE)], function(nm) {
+      get(nm, envir = caller_env)
+    })
+    names(key_parameters) <- key_names[key_names %in% ls(envir = caller_env, all.names = TRUE)]
+  }
+  manifest_outputs <- tibble(
     script = script_name,
     analysis = analysis_name,
     output_type = c(rep("table", length(primary_tables)), rep("figure", length(primary_figures)), rep("note", length(notes))),
@@ -235,8 +267,33 @@ write_output_manifest <- function(output_dir,
       rep("interpretation_note", length(notes))
     )
   )
-  readr::write_csv(manifest, file.path(output_dir, "output_manifest.csv"))
-  invisible(manifest)
+
+  key_parameters_chr <- if (length(key_parameters) == 0) {
+    NA_character_
+  } else {
+    paste(
+      vapply(names(key_parameters), function(nm) {
+        val <- key_parameters[[nm]]
+        paste0(nm, "=", paste(as.character(val), collapse = "|"))
+      }, character(1)),
+      collapse = "; "
+    )
+  }
+
+  manifest_run <- tibble(
+    script = script_name,
+    analysis = analysis_name,
+    input_files = paste(input_files, collapse = "; "),
+    output_directory = output_directory,
+    bin_level = as.character(bin_level %||% NA_character_),
+    key_parameters = key_parameters_chr,
+    timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")
+  )
+
+  readr::write_csv(manifest_outputs, file.path(output_dir, "manifest", "output_manifest.csv"))
+  readr::write_csv(manifest_outputs, file.path(output_dir, "output_manifest.csv"))
+  readr::write_csv(manifest_run, file.path(output_dir, "manifest", "input_output_manifest.csv"))
+  invisible(manifest_run)
 }
 
 first_existing_col <- function(dat, candidates, required = TRUE, label = "column") {
