@@ -1,8 +1,8 @@
-# MMMSociability Manuscript Analysis Strategy
+# BehavioralDynamics Manuscript Analysis Strategy
 
 ## Purpose of This Document
 
-This document defines the manuscript-facing scientific logic of the active MMMSociability analysis pipeline.
+This document defines the manuscript-facing scientific logic of the active BehavioralDynamics analysis pipeline.
 
 The goal is to:
 
