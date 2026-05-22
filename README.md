@@ -11,9 +11,9 @@ Institutional context: Max Delbrück Center for Molecular Medicine (MDC), Berlin
 
 ## Overview
 
-`MMMSociability` contains an R-based analysis workflow for longitudinal homecage behavioral tracking data. The repository was developed for RFID/position-based analysis of mouse social behavior, with a particular focus on social instability stress (SIS), cage-change aligned dynamics, early behavioral predictors, and systems-level behavioral phenotyping.
+`BehavioralDynamics` contains an R-based analysis workflow for longitudinal homecage behavioral tracking data. The repository was developed for RFID/position-based analysis of mouse social behavior, with a particular focus on social instability stress (SIS), cage-change aligned dynamics, early behavioral predictors, and systems-level behavioral phenotyping.
 
-The pipeline is designed to move from raw or preprocessed RFID position data to manuscript-facing behavioral metrics, statistics, prediction models, QC summaries, and publication-style figures.
+The pipeline is designed to move from raw or preprocessed RFID position data to manuscript-facing behavioral metrics, statistics, prediction models, and QC-Summaries.
 
 Core analytical themes include:
 
@@ -362,7 +362,7 @@ If this code is used in a manuscript, cite the associated publication or preprin
 Suggested repository citation format:
 
 ```text
-Pohl T. MMMSociability: multiscale behavioral analysis of automated homecage RFID tracking data. GitHub repository: https://github.com/topohl/MMMSociability
+Pohl T. BehavioralDynamics: multiscale behavioral analysis of automated homecage RFID tracking data. GitHub repository: https://github.com/topohl/MMMSociability
 ```
 
 ---
