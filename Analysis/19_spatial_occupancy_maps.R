@@ -3,50 +3,59 @@
 # MMMSociability
 # ================================================================
 # Goal:
-#   Quantify where animals are detected across the 8 RFID reader positions
-#   during the SIS protocol, with explicit cage-change, phase, sex, group,
-#   cage, and batch handling.
+#   Build reader-position occupancy maps from the PRIOR position-level RFID
+#   dataset, not from all_behavior_metrics.csv.
+#
+# Why this script reads the prior dataset:
+#   all_behavior_metrics.csv is already collapsed to Movement, Entropy,
+#   Proximity, DominantPosition, and n_positions_visited. It no longer contains
+#   the full PositionID-by-bin distribution needed for true occupancy maps.
+#
+# Intended raw input:
+#   *_AnimalPos_preprocessed.csv files with at least:
+#     DateTime, AnimalID, System, PositionID
+#   Filename carries metadata, for example:
+#     E9_SIS_B1_CC2_AnimalPos_preprocessed.csv
+#     -> Batch = B1, CageChange = CC2
+#
+# Metadata logic mirrors 01_build_multiscale_behavior_metrics.R:
+#   - Sex is inferred from Batch: B1/B2/B5 = Male; B3/B4/B6 = Female
+#   - Group is inferred from sus_animals.csv and con_animals.csv
+#   - Remaining listed animals are assigned RES if ASSIGN_UNLISTED_AS_RES = TRUE
 #
 # Important interpretation:
-#   These are discrete RFID reader-occupancy maps, not continuous x/y tracking
-#   or true spatial density estimates. POSITION_MAP is a schematic reader map.
-#
-# Intended input:
-#   Prefer a main-pipeline output from analysis_ready/03_derived_metrics or
-#   analysis_ready/02_clean_data created after cleaning / multiscale behavior
-#   preparation, but before reader PositionID information has been collapsed
-#   away. Do not use legacy AnjaIntern, DLCAnalyzer, or unrelated project data.
-#
-# Primary biological window:
-#   Cage change 1, first active phase, first 12 h, matching the early SIS
-#   post-perturbation window used in the behavioral prediction analyses.
+#   These are discrete RFID reader-occupancy maps, not continuous x/y tracking.
 # ================================================================
 
 suppressPackageStartupMessages({
   library(tidyverse)
   library(lmerTest)
   library(emmeans)
+  library(lubridate)
 })
 
 # -----------------------------
 # User options
 # -----------------------------
 
-# Set manually if auto-detection cannot identify the correct main-pipeline file.
-# The file must still contain reader-position information, e.g. PositionID,
-# ReaderID, AntennaID, CoilID, GridPosition, or equivalent.
-# Example:
-# INPUT_FILE <- "analysis_ready/03_derived_metrics/halfhour_based/your_position_level_file.csv"
-INPUT_FILE <- NULL
+RAW_POSITION_DIR <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/preprocessed_data"
 
-MIN_READS_PER_ANIMAL_WINDOW <- 20
+SUS_ANIMALS_FILE <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/sus_animals.csv"
+CON_ANIMALS_FILE <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/con_animals.csv"
+ASSIGN_UNLISTED_AS_RES <- TRUE
+
+BIN_SIZE_SEC <- 1800
+BIN_LABEL <- "30min"
+LONG_GAP_THRESHOLD_SEC <- 3600
+EXCLUDE_LONG_GAPS <- TRUE
+
+MIN_OBSERVATION_SEC_PER_ANIMAL_WINDOW <- 60
 EPS_LOGIT <- 1e-3
 PRIMARY_CAGE_CHANGE <- 1
 PRIMARY_PHASE <- "Active"
 PRIMARY_WINDOW_H <- 12
 
 GROUP_LEVELS <- c("CON", "RES", "SUS")
-GROUP_COLORS <- c(CON = "#3d3b6e", RES = "#C6C3BB", SUS = "#e63947")
 
 POSITION_MAP <- tibble::tibble(
   PositionID = 1:8,
@@ -70,277 +79,212 @@ purrr::walk(
 )
 
 # -----------------------------
-# Helper functions
+# Helpers
 # -----------------------------
 
 message2 <- function(...) message(sprintf(...))
 
-clean_colname <- function(x) {
-  x %>%
-    stringr::str_replace_all("[^A-Za-z0-9]+", "_") %>%
-    stringr::str_replace_all("_+", "_") %>%
-    stringr::str_replace_all("^_|_$", "")
-}
-
-pick_col <- function(nms, regex, required = FALSE, label = regex) {
-  hit <- nms[stringr::str_detect(tolower(nms), regex)]
-  if (length(hit) == 0) {
-    if (required) stop("Could not find required column for: ", label, call. = FALSE)
-    return(NA_character_)
-  }
-  hit[[1]]
-}
-
-read_any_table <- function(path) {
-  ext <- tolower(tools::file_ext(path))
-  message2("Reading input: %s", path)
-  if (ext == "rds") return(readRDS(path))
-  if (ext %in% c("csv", "txt")) return(readr::read_csv(path, show_col_types = FALSE))
-  if (ext == "tsv") return(readr::read_tsv(path, show_col_types = FALSE))
-  if (ext %in% c("xlsx", "xls")) {
-    if (!requireNamespace("readxl", quietly = TRUE)) {
-      stop("Input is Excel, but package 'readxl' is not installed.", call. = FALSE)
-    }
-    return(readxl::read_excel(path))
-  }
-  stop("Unsupported input extension: ", ext, call. = FALSE)
-}
-
-read_header_only <- function(path) {
-  ext <- tolower(tools::file_ext(path))
-  out <- tryCatch({
-    if (ext == "rds") {
-      obj <- readRDS(path)
-      return(names(obj))
-    }
-    if (ext %in% c("csv", "txt")) return(names(readr::read_csv(path, n_max = 0, show_col_types = FALSE)))
-    if (ext == "tsv") return(names(readr::read_tsv(path, n_max = 0, show_col_types = FALSE)))
-    if (ext %in% c("xlsx", "xls")) {
-      if (!requireNamespace("readxl", quietly = TRUE)) return(character())
-      return(names(readxl::read_excel(path, n_max = 0)))
-    }
-    character()
-  }, error = function(e) character())
-  out
-}
-
-has_col_pattern <- function(nms, regex) {
-  any(stringr::str_detect(tolower(clean_colname(nms)), regex))
-}
-
-classify_input_candidate <- function(path) {
-  nms <- read_header_only(path)
-  path_low <- tolower(normalizePath(path, winslash = "/", mustWork = FALSE))
-  base_low <- tolower(basename(path))
-
-  excluded_path <- stringr::str_detect(
-    path_low,
-    "anjaintern|dlcanalyzer|protigy|publication_ready|05_figures|04_model_outputs|spatial_occupancy"
-  )
-  temp_file <- stringr::str_detect(base_low, "^~\\$")
-
-  has_animal <- has_col_pattern(nms, "^(animalnum|animal_id|animalid|mouse_id|mouseid|rfid|tag|transponder)$|animal|mouse")
-  has_group  <- has_col_pattern(nms, "^(group|condition|phenotype|stress_group)$")
-  has_sex    <- has_col_pattern(nms, "^(sex|gender)$")
-  has_cc     <- has_col_pattern(nms, "^(cagechange|cage_change|change|cc|regrouping|regroupingday)$|cage.*change")
-  has_phase  <- has_col_pattern(nms, "^(phase|phaseclass|lightdark|light_dark|cycle)$")
-  has_pos    <- has_col_pattern(nms, "^(positionid|position|reader|readerid|antenna|antennaid|coil|coilid|grid|gridposition)$|position")
-
-  has_required <- has_animal && has_group && has_sex && has_cc && has_phase && has_pos
-
-  score <- 0
-  score <- score + 20 * has_required
-  score <- score + 8 * has_pos
-  score <- score + 3 * has_group + 3 * has_sex + 3 * has_cc + 3 * has_phase + 3 * has_animal
-  score <- score + 8 * stringr::str_detect(path_low, "analysis_ready/03_derived_metrics")
-  score <- score + 5 * stringr::str_detect(path_low, "analysis_ready/02_clean_data")
-  score <- score + 4 * stringr::str_detect(path_low, "multiscale|derived|phase_based|halfhour|position|reader|rfid|antenna|coil")
-  score <- score - 100 * excluded_path
-  score <- score - 100 * temp_file
-  score <- score - 15 * stringr::str_detect(path_low, "supp|figure|model|stat|contrast|prediction|gamm|lmm|summary|session_info")
-
-  tibble(
-    file = path,
-    score = score,
-    usable = has_required && !excluded_path && !temp_file,
-    has_animal = has_animal,
-    has_group = has_group,
-    has_sex = has_sex,
-    has_cagechange = has_cc,
-    has_phase = has_phase,
-    has_position = has_pos,
-    excluded_path = excluded_path
-  )
-}
-
-find_candidate_input <- function() {
-  if (!is.null(INPUT_FILE)) {
-    if (!file.exists(INPUT_FILE)) stop("INPUT_FILE does not exist: ", INPUT_FILE, call. = FALSE)
-
-    check <- classify_input_candidate(INPUT_FILE)
-    if (!isTRUE(check$usable[[1]])) {
-      print(check)
-      stop(
-        "INPUT_FILE exists but does not look like a valid spatial-occupancy input. ",
-        "It must contain AnimalNum/animal, Group, Sex, CageChange, Phase, and PositionID/reader/antenna/coil columns.",
-        call. = FALSE
-      )
-    }
-    return(INPUT_FILE)
-  }
-
-  # Deliberately restrict auto-detection to the main MMMSociability analysis pipeline.
-  # Do not search the whole repo, because legacy intern/DLC/protigy files can look
-  # position-like but lack SIS metadata.
-  search_roots <- c(
-    "analysis_ready/03_derived_metrics",
-    "analysis_ready/02_clean_data",
-    "analysis_ready/01_clean_data"
-  )
-  search_roots <- search_roots[dir.exists(search_roots)]
-
-  if (length(search_roots) == 0) {
-    stop(
-      "No main-pipeline analysis_ready input folders found. ",
-      "Run the cleaning / multiscale behavior metric scripts first, or set INPUT_FILE manually.",
-      call. = FALSE
-    )
-  }
-
-  files <- purrr::map(
-    search_roots,
-    ~ list.files(.x, pattern = "\\.(csv|tsv|txt|rds|xlsx|xls)$", recursive = TRUE, full.names = TRUE)
-  ) %>%
-    unlist(use.names = FALSE) %>%
-    unique()
-
-  if (length(files) == 0) {
-    stop(
-      "No candidate files found under analysis_ready/03_derived_metrics or analysis_ready/02_clean_data. ",
-      "Run the main pipeline first, or set INPUT_FILE manually.",
-      call. = FALSE
-    )
-  }
-
-  ranked <- purrr::map_dfr(files, classify_input_candidate) %>%
-    arrange(desc(usable), desc(score), file)
-
-  usable_ranked <- ranked %>% filter(usable)
-
-  message("Top spatial-occupancy input candidates from the main pipeline:")
-  print(utils::head(ranked, 12))
-
-  if (nrow(usable_ranked) == 0) {
-    stop(
-      "No valid main-pipeline spatial-occupancy input was found. ",
-      "The selected file must still contain reader PositionID/ReaderID/AntennaID/CoilID plus AnimalNum, Group, Sex, CageChange, and Phase. ",
-      "If build_multiscale_behavior_metrics already collapsed away PositionID, use the position-level intermediate immediately before that collapse and set INPUT_FILE manually.",
-      call. = FALSE
-    )
-  }
-
-  best <- usable_ranked$file[[1]]
-  message2("Auto-selected main-pipeline input candidate: %s", best)
-  message("If this is not the position-level file after cleaning/multiscale preparation, set INPUT_FILE manually at the top of this script.")
-  best
-}
-
-standardize_columns <- function(dat) {
-  names(dat) <- clean_colname(names(dat))
-  nms <- names(dat)
-
-  col_animal <- pick_col(nms, "^(animalnum|animal_id|animalid|mouse_id|mouseid|rfid|tag|transponder)$|animal|mouse", TRUE, "AnimalNum")
-  col_group  <- pick_col(nms, "^(group|condition|phenotype|stress_group)$", TRUE, "Group")
-  col_sex    <- pick_col(nms, "^(sex|gender)$", TRUE, "Sex")
-  col_batch  <- pick_col(nms, "^(batch|cohort|experiment|run)$", FALSE, "Batch")
-  col_cage   <- pick_col(nms, "^(cage|cageid|cage_id|homecage)$", FALSE, "Cage")
-  col_cc     <- pick_col(nms, "^(cagechange|cage_change|change|cc|regrouping|regroupingday)$|cage.*change", TRUE, "CageChange")
-  col_phase  <- pick_col(nms, "^(phase|phaseclass|lightdark|light_dark|cycle)$", TRUE, "Phase")
-  col_pos    <- pick_col(nms, "^(positionid|position|reader|readerid|antenna|antennaid|coil|coilid|grid|gridposition)$|position", TRUE, "PositionID")
-
-  col_datetime <- pick_col(nms, "datetime|date_time|timestamp|time_stamp|date.*time", FALSE, "DateTime")
-  col_time_h   <- pick_col(nms, "hour.*within|hours.*within|time_h|timehours|elapsed_h|elapsedhours", FALSE, "time_hours")
-  col_halfhour <- pick_col(nms, "halfhour|half_hour|timebin|time_bin|bin", FALSE, "HalfHour")
-
-  out <- dat %>%
-    mutate(
-      AnimalNum = as.character(.data[[col_animal]]),
-      Group = as.character(.data[[col_group]]),
-      Sex = as.character(.data[[col_sex]]),
-      Batch = if (!is.na(col_batch)) as.character(.data[[col_batch]]) else "Batch_unknown",
-      Cage = if (!is.na(col_cage)) as.character(.data[[col_cage]]) else "Cage_unknown",
-      CageChange = as.character(.data[[col_cc]]),
-      Phase = as.character(.data[[col_phase]]),
-      PositionID = suppressWarnings(as.integer(stringr::str_extract(as.character(.data[[col_pos]]), "\\d+")))
-    )
-
-  if (!is.na(col_datetime)) {
-    out <- out %>% mutate(DateTime_raw = as.character(.data[[col_datetime]]))
-  } else {
-    out <- out %>% mutate(DateTime_raw = NA_character_)
-  }
-
-  if (!is.na(col_time_h)) {
-    out <- out %>% mutate(TimeHours_raw = suppressWarnings(as.numeric(.data[[col_time_h]])))
-  } else if (!is.na(col_halfhour)) {
-    hh <- suppressWarnings(as.numeric(.data[[col_halfhour]]))
-    out <- out %>% mutate(TimeHours_raw = hh * 0.5)
-  } else {
-    out <- out %>% mutate(TimeHours_raw = NA_real_)
-  }
-
-  out %>%
-    mutate(
-      Group = toupper(stringr::str_trim(Group)),
-      Group = dplyr::recode(Group,
-        CONTROL = "CON", CTRL = "CON", C = "CON",
-        RESILIENT = "RES", R = "RES",
-        SUSCEPTIBLE = "SUS", S = "SUS",
-        .default = Group
-      ),
-      Group = factor(Group, levels = GROUP_LEVELS),
-      Sex = stringr::str_to_title(stringr::str_trim(Sex)),
-      Sex = dplyr::recode(Sex, M = "Male", F = "Female", .default = Sex),
-      PhaseClass = case_when(
-        stringr::str_detect(tolower(Phase), "inactive|light|day") ~ "Inactive",
-        stringr::str_detect(tolower(Phase), "active|dark|night") ~ "Active",
-        TRUE ~ as.character(Phase)
-      ),
-      PhaseClass = factor(PhaseClass, levels = c("Active", "Inactive")),
-      CageChangeIndex = suppressWarnings(as.integer(stringr::str_extract(CageChange, "\\d+"))),
-      CageChangeIndex = if_else(is.na(CageChangeIndex), suppressWarnings(as.integer(CageChange)), CageChangeIndex),
-      PositionID = as.integer(PositionID)
-    )
-}
-
-add_time_within_window <- function(dat) {
-  has_datetime <- "DateTime_raw" %in% names(dat) && any(!is.na(dat$DateTime_raw))
-
-  if (has_datetime && requireNamespace("lubridate", quietly = TRUE)) {
-    parsed <- suppressWarnings(lubridate::ymd_hms(dat$DateTime_raw, quiet = TRUE))
-    parsed2 <- suppressWarnings(lubridate::ymd_hm(dat$DateTime_raw, quiet = TRUE))
-    parsed <- if_else(is.na(parsed), parsed2, parsed)
-    dat <- dat %>% mutate(DateTime_parsed = parsed)
-
-    if (any(!is.na(dat$DateTime_parsed))) {
-      return(dat %>%
-        group_by(AnimalNum, CageChangeIndex, PhaseClass) %>%
-        mutate(TimeWithinPhaseHours = as.numeric(difftime(DateTime_parsed, min(DateTime_parsed, na.rm = TRUE), units = "hours"))) %>%
-        ungroup())
-    }
-  }
-
-  if ("TimeHours_raw" %in% names(dat) && any(!is.na(dat$TimeHours_raw))) {
-    return(dat %>%
-      group_by(AnimalNum, CageChangeIndex, PhaseClass) %>%
-      mutate(TimeWithinPhaseHours = TimeHours_raw - min(TimeHours_raw, na.rm = TRUE)) %>%
-      ungroup())
-  }
-
-  dat %>% mutate(TimeWithinPhaseHours = NA_real_)
-}
-
+safe_divide <- function(num, den) ifelse(is.finite(den) & den > 0, num / den, NA_real_)
 safe_logit <- function(x, eps = EPS_LOGIT) qlogis(pmin(pmax(x, eps), 1 - eps))
+
+normalize_animal_id <- function(x) {
+  x %>%
+    as.character() %>%
+    stringr::str_trim() %>%
+    stringr::str_replace_all("\\s+", "") %>%
+    toupper()
+}
+
+read_animal_id_list <- function(path, label) {
+  if (is.null(path) || !file.exists(path)) {
+    warning("Animal reference file not found for ", label, ": ", path, call. = FALSE)
+    return(character())
+  }
+
+  readr::read_lines(path, progress = FALSE) %>%
+    normalize_animal_id() %>%
+    purrr::discard(~ is.na(.x) || .x == "") %>%
+    unique()
+}
+
+assign_batch_sex <- function(batch) {
+  batch_norm <- toupper(stringr::str_trim(as.character(batch)))
+  dplyr::case_when(
+    batch_norm %in% c("B1", "B2", "B5") ~ "Male",
+    batch_norm %in% c("B3", "B4", "B6") ~ "Female",
+    TRUE ~ NA_character_
+  )
+}
+
+infer_phase_from_time <- function(dt) {
+  hhmm <- format(dt, "%H:%M", tz = "UTC")
+  if_else(hhmm >= "18:30" | hhmm < "06:30", "Active", "Inactive")
+}
+
+extract_batch_from_filename <- function(path) stringr::str_extract(basename(path), "B[0-9]+")
+extract_cc_from_filename <- function(path) stringr::str_extract(basename(path), "CC[0-9]+")
+
+read_preprocessed_position_file <- function(path) {
+  dat <- readr::read_csv(path, show_col_types = FALSE)
+  required <- c("DateTime", "AnimalID", "System", "PositionID")
+  missing <- setdiff(required, names(dat))
+  if (length(missing) > 0) {
+    stop("Missing required columns in ", path, ": ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+
+  dat %>%
+    mutate(
+      DateTime = suppressWarnings(as.POSIXct(DateTime, tz = "UTC")),
+      AnimalID = as.character(AnimalID),
+      AnimalNum = AnimalID,
+      System = as.character(System),
+      PositionID = suppressWarnings(as.integer(PositionID)),
+      SourceFile = basename(path),
+      Batch = if ("Batch" %in% names(.)) as.character(Batch) else extract_batch_from_filename(path),
+      CageChange = if ("CageChange" %in% names(.)) as.character(CageChange) else extract_cc_from_filename(path),
+      Phase = if ("Phase" %in% names(.)) as.character(Phase) else infer_phase_from_time(DateTime),
+      Group = if ("Group" %in% names(.)) as.character(Group) else NA_character_,
+      Sex = if ("Sex" %in% names(.)) as.character(Sex) else NA_character_,
+      ConsecActive = if ("ConsecActive" %in% names(.)) suppressWarnings(as.integer(ConsecActive)) else NA_integer_,
+      ConsecInactive = if ("ConsecInactive" %in% names(.)) suppressWarnings(as.integer(ConsecInactive)) else NA_integer_
+    ) %>%
+    filter(!is.na(DateTime), !is.na(AnimalID), !is.na(System), is.finite(PositionID), PositionID %in% POSITION_MAP$PositionID) %>%
+    arrange(SourceFile, Batch, CageChange, System, DateTime, AnimalID)
+}
+
+last_meta_before <- function(dat_sys, t0) {
+  dat_sys %>%
+    filter(DateTime <= t0) %>%
+    slice_tail(n = 1) %>%
+    transmute(
+      SourceFile = first(SourceFile),
+      Batch = first(Batch),
+      CageChange = first(CageChange),
+      System = first(System),
+      Phase = first(Phase),
+      ConsecActive = first(ConsecActive),
+      ConsecInactive = first(ConsecInactive)
+    )
+}
+
+make_occupancy_intervals_one_system <- function(dat_sys) {
+  dat_sys <- dat_sys %>% arrange(DateTime, AnimalID)
+  animals <- sort(unique(dat_sys$AnimalID))
+  event_times <- sort(unique(dat_sys$DateTime))
+  if (length(animals) == 0 || length(event_times) < 2) return(tibble())
+
+  out <- vector("list", length(event_times) - 1)
+  current_pos <- rep(NA_integer_, length(animals)); names(current_pos) <- animals
+  current_group <- rep(NA_character_, length(animals)); names(current_group) <- animals
+  current_sex <- rep(NA_character_, length(animals)); names(current_sex) <- animals
+
+  for (i in seq_len(length(event_times) - 1)) {
+    t0 <- event_times[i]
+    t1 <- event_times[i + 1]
+    duration_sec <- as.numeric(difftime(t1, t0, units = "secs"))
+    if (!is.finite(duration_sec) || duration_sec <= 0) next
+
+    updates <- dat_sys %>% filter(DateTime == t0)
+    if (nrow(updates) > 0) {
+      for (j in seq_len(nrow(updates))) {
+        a <- updates$AnimalID[j]
+        current_pos[a] <- updates$PositionID[j]
+        if (!is.na(updates$Group[j])) current_group[a] <- updates$Group[j]
+        if (!is.na(updates$Sex[j])) current_sex[a] <- updates$Sex[j]
+      }
+    }
+
+    valid <- is.finite(current_pos) & current_pos > 0
+    if (!any(valid)) next
+
+    interval_meta <- last_meta_before(dat_sys, t0)
+    out[[i]] <- tibble(
+      AnimalNum = names(current_pos)[valid],
+      AnimalID = names(current_pos)[valid],
+      PositionID = as.integer(current_pos[valid]),
+      Group = current_group[names(current_pos)[valid]],
+      Sex = current_sex[names(current_pos)[valid]],
+      IntervalStart = t0,
+      IntervalEnd = t1,
+      DurationSec = duration_sec,
+      LongGap = duration_sec > LONG_GAP_THRESHOLD_SEC
+    ) %>%
+      bind_cols(interval_meta[rep(1, sum(valid)), ])
+  }
+
+  bind_rows(out)
+}
+
+split_intervals_to_bins <- function(dat, bin_size_sec) {
+  if (EXCLUDE_LONG_GAPS && "LongGap" %in% names(dat)) dat <- dat %>% filter(!LongGap)
+
+  dat <- dat %>%
+    filter(!is.na(IntervalStart), !is.na(IntervalEnd), is.finite(DurationSec), DurationSec > 0)
+
+  if (nrow(dat) == 0) {
+    return(dat %>%
+      mutate(
+        BinSizeSec = bin_size_sec,
+        BinStart = as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC")
+      ) %>%
+      slice(0))
+  }
+
+  interval_start_num <- as.numeric(dat$IntervalStart)
+  interval_end_num <- as.numeric(dat$IntervalEnd)
+  bin_start_num <- floor(interval_start_num / bin_size_sec) * bin_size_sec
+  bin_end_num <- floor((interval_end_num - 1e-7) / bin_size_sec) * bin_size_sec
+  n_bins <- pmax(0L, as.integer((bin_end_num - bin_start_num) / bin_size_sec) + 1L)
+
+  keep <- n_bins > 0
+  dat <- dat[keep, , drop = FALSE]
+  interval_start_num <- interval_start_num[keep]
+  interval_end_num <- interval_end_num[keep]
+  bin_start_num <- bin_start_num[keep]
+  n_bins <- n_bins[keep]
+
+  row_idx <- rep(seq_len(nrow(dat)), n_bins)
+  bin_offsets <- sequence(n_bins) - 1L
+  split_bin_start_num <- rep(bin_start_num, n_bins) + bin_offsets * bin_size_sec
+  split_start_num <- pmax(rep(interval_start_num, n_bins), split_bin_start_num)
+  split_end_num <- pmin(rep(interval_end_num, n_bins), split_bin_start_num + bin_size_sec)
+  split_duration_sec <- split_end_num - split_start_num
+
+  out <- dat[row_idx, , drop = FALSE]
+  out$IntervalStart <- as.POSIXct(split_start_num, origin = "1970-01-01", tz = "UTC")
+  out$IntervalEnd <- as.POSIXct(split_end_num, origin = "1970-01-01", tz = "UTC")
+  out$DurationSec <- split_duration_sec
+  out$BinSizeSec <- bin_size_sec
+  out$BinStart <- as.POSIXct(split_bin_start_num, origin = "1970-01-01", tz = "UTC")
+
+  out %>% filter(is.finite(DurationSec), DurationSec > 0)
+}
+
+add_time_index <- function(dat) {
+  dat %>%
+    group_by(SourceFile, Batch, CageChange, System) %>%
+    mutate(TimeIndex = as.numeric(difftime(BinStart, min(BinStart, na.rm = TRUE), units = "secs")) / first(BinSizeSec)) %>%
+    ungroup()
+}
+
+add_phase_number <- function(dat) {
+  dat %>%
+    mutate(
+      PhaseNumber = case_when(
+        Phase == "Active" ~ ConsecActive,
+        Phase == "Inactive" ~ ConsecInactive,
+        TRUE ~ NA_integer_
+      )
+    )
+}
+
+crop_after_second_cc4_phase <- function(dat) {
+  dat %>%
+    filter(!(toupper(CageChange) == "CC4" &
+               tolower(Phase) %in% c("active", "inactive") &
+               !is.na(PhaseNumber) &
+               PhaseNumber > 2L))
+}
 
 cohens_d <- function(x, g1, g0) {
   x1 <- x[g1]
@@ -364,84 +308,159 @@ write_csv2 <- function(x, path) {
 }
 
 # -----------------------------
-# Load and prepare data
+# Load raw prior position data
 # -----------------------------
 
-input_file <- find_candidate_input()
-raw0 <- read_any_table(input_file)
-
-raw <- raw0 %>%
-  standardize_columns() %>%
-  add_time_within_window() %>%
-  filter(!is.na(AnimalNum), !is.na(Group), !is.na(Sex), !is.na(CageChangeIndex), !is.na(PhaseClass)) %>%
-  filter(PositionID %in% POSITION_MAP$PositionID) %>%
-  left_join(POSITION_MAP, by = "PositionID")
-
-if (nrow(raw) == 0) {
-  stop("No usable RFID position rows after standardization/filtering. Check PositionID, Phase, CageChange, Group, and Sex columns.", call. = FALSE)
+if (!dir.exists(RAW_POSITION_DIR)) {
+  stop(
+    "RAW_POSITION_DIR does not exist: ", RAW_POSITION_DIR,
+    "\nSet RAW_POSITION_DIR near the top of this script to the folder containing *_AnimalPos_preprocessed.csv files.",
+    call. = FALSE
+  )
 }
 
-raw <- raw %>%
+position_files <- list.files(
+  RAW_POSITION_DIR,
+  pattern = "AnimalPos.*preprocessed\\.csv$|_preprocessed\\.csv$",
+  full.names = TRUE
+)
+
+if (length(position_files) == 0) {
+  stop("No preprocessed AnimalPos CSV files found in RAW_POSITION_DIR: ", RAW_POSITION_DIR, call. = FALSE)
+}
+
+message("Found ", length(position_files), " preprocessed position files.")
+message("Example filename metadata parsing: E9_SIS_B1_CC2_AnimalPos_preprocessed.csv -> Batch B1, CageChange CC2")
+
+all_pos <- purrr::map_dfr(position_files, read_preprocessed_position_file, .progress = TRUE)
+
+sus_animals <- read_animal_id_list(SUS_ANIMALS_FILE, "SUS")
+con_animals <- read_animal_id_list(CON_ANIMALS_FILE, "CON")
+
+overlap <- intersect(sus_animals, con_animals)
+if (length(overlap) > 0) {
+  stop("Animal IDs found in both SUS and CON reference files: ", paste(overlap, collapse = ", "), call. = FALSE)
+}
+
+all_pos <- all_pos %>%
   mutate(
-    Window = case_when(
-      CageChangeIndex == PRIMARY_CAGE_CHANGE & PhaseClass == PRIMARY_PHASE & !is.na(TimeWithinPhaseHours) & TimeWithinPhaseHours < PRIMARY_WINDOW_H ~ "CC1_first_active_first12h",
-      CageChangeIndex == PRIMARY_CAGE_CHANGE & PhaseClass == PRIMARY_PHASE ~ "CC1_first_active_fullphase",
-      TRUE ~ "Full_phase"
-    )
+    AnimalID_raw = AnimalID,
+    AnimalID_norm = normalize_animal_id(AnimalID),
+    Batch_norm = toupper(str_trim(Batch)),
+    ReferenceGroup = case_when(
+      AnimalID_norm %in% sus_animals ~ "SUS",
+      AnimalID_norm %in% con_animals ~ "CON",
+      ASSIGN_UNLISTED_AS_RES ~ "RES",
+      TRUE ~ NA_character_
+    ),
+    ReferenceSex = assign_batch_sex(Batch),
+    Group = coalesce(ReferenceGroup, Group),
+    Sex = coalesce(ReferenceSex, Sex),
+    Group = factor(Group, levels = GROUP_LEVELS),
+    Sex = factor(Sex),
+    PhaseClass = factor(Phase, levels = c("Active", "Inactive")),
+    CageChangeIndex = suppressWarnings(as.integer(str_extract(CageChange, "\\d+")))
   )
 
-if (!any(raw$Window == "CC1_first_active_first12h")) {
-  warning("No rows classified as CC1_first_active_first12h. Timing information may be missing. Primary plots will fall back to CC1_first_active_fullphase.")
+metadata_qc <- all_pos %>%
+  distinct(AnimalID_raw, AnimalID_norm, Batch, CageChange, System, Sex, Group, ReferenceGroup, ReferenceSex, SourceFile) %>%
+  arrange(Batch, CageChange, System, AnimalID_norm)
+write_csv2(metadata_qc, file.path(DIR_DERIVED, "raw_position_metadata_assignment_qc.csv"))
+
+if (any(is.na(all_pos$Group))) warning("Some rows have missing Group after reference assignment.", call. = FALSE)
+if (any(is.na(all_pos$Sex))) warning("Some rows have missing Sex after batch-based assignment.", call. = FALSE)
+
+# -----------------------------
+# Build occupancy intervals and binned position occupancy
+# -----------------------------
+
+message("Building occupancy intervals from raw position events...")
+occupancy_intervals <- all_pos %>%
+  group_by(SourceFile, Batch, CageChange, System) %>%
+  group_split() %>%
+  purrr::map_dfr(make_occupancy_intervals_one_system, .progress = TRUE)
+
+if (nrow(occupancy_intervals) == 0) {
+  stop("No occupancy intervals could be reconstructed. Check DateTime, AnimalID, System, and PositionID columns.", call. = FALSE)
 }
 
-primary_window_label <- if (any(raw$Window == "CC1_first_active_first12h")) "CC1_first_active_first12h" else "CC1_first_active_fullphase"
-
-# -----------------------------
-# Animal-level occupancy
-# -----------------------------
-
-base_keys <- c("AnimalNum", "Batch", "Sex", "Group", "Cage", "CageChange", "CageChangeIndex", "Phase", "PhaseClass", "Window")
-
-occ_counts <- raw %>%
-  count(across(all_of(base_keys)), PositionID, ReaderX, ReaderY, name = "n_reads")
-
-occ_animal <- occ_counts %>%
-  group_by(across(all_of(base_keys))) %>%
-  tidyr::complete(PositionID = POSITION_MAP$PositionID, fill = list(n_reads = 0L)) %>%
-  ungroup() %>%
-  select(-ReaderX, -ReaderY) %>%
-  left_join(POSITION_MAP, by = "PositionID") %>%
-  group_by(across(all_of(base_keys))) %>%
+position_occupancy_by_bin <- occupancy_intervals %>%
+  split_intervals_to_bins(BIN_SIZE_SEC) %>%
+  add_phase_number() %>%
+  group_by(SourceFile, Batch, CageChange, System, Phase, PhaseNumber, BinSizeSec, BinStart, AnimalNum, AnimalID, Group, Sex, PositionID) %>%
+  summarise(PositionSeconds = sum(DurationSec, na.rm = TRUE), .groups = "drop") %>%
+  group_by(SourceFile, Batch, CageChange, System, Phase, PhaseNumber, BinSizeSec, BinStart, AnimalNum, AnimalID, Group, Sex) %>%
   mutate(
-    total_reads = sum(n_reads, na.rm = TRUE),
-    occupancy_fraction = if_else(total_reads > 0, n_reads / total_reads, NA_real_),
-    occupancy_fraction_logit = safe_logit(occupancy_fraction),
-    low_read_window = total_reads < MIN_READS_PER_ANIMAL_WINDOW
+    observation_seconds = sum(PositionSeconds, na.rm = TRUE),
+    occupancy_fraction = safe_divide(PositionSeconds, observation_seconds)
   ) %>%
   ungroup() %>%
+  add_time_index() %>%
+  crop_after_second_cc4_phase() %>%
   mutate(
-    PositionID = factor(PositionID, levels = POSITION_MAP$PositionID),
-    Group = factor(Group, levels = GROUP_LEVELS),
-    PhaseClass = factor(PhaseClass, levels = c("Active", "Inactive"))
-  )
+    BinLabel = BIN_LABEL,
+    PhaseClass = factor(Phase, levels = c("Active", "Inactive")),
+    CageChangeIndex = suppressWarnings(as.integer(str_extract(CageChange, "\\d+")))
+  ) %>%
+  left_join(POSITION_MAP, by = "PositionID") %>%
+  arrange(Batch, CageChange, System, AnimalNum, BinStart, PositionID)
 
-write_csv2(occ_animal, file.path(DIR_DERIVED, "animal_level_reader_occupancy.csv"))
-write_csv2(occ_animal, file.path(DIR_PUBTAB, "animal_level_reader_occupancy.csv"))
+write_csv2(position_occupancy_by_bin, file.path(DIR_DERIVED, "all_position_occupancy_by_bin.csv"))
+write_csv2(position_occupancy_by_bin, file.path(DIR_PUBTAB, "all_position_occupancy_by_bin.csv"))
 
-qc_reader_batch_cage <- raw %>%
-  count(Batch, Cage, PositionID, ReaderX, ReaderY, name = "n_reads") %>%
-  group_by(Batch, Cage) %>%
-  mutate(total_reads_cage_batch = sum(n_reads), reader_fraction = n_reads / total_reads_cage_batch) %>%
-  ungroup()
+# Phase-level occupancy for full active/inactive summaries.
+position_occupancy_by_phase <- occupancy_intervals %>%
+  { if (EXCLUDE_LONG_GAPS) filter(., !LongGap) else . } %>%
+  add_phase_number() %>%
+  group_by(SourceFile, Batch, CageChange, System, Phase, PhaseNumber, AnimalNum, AnimalID, Group, Sex, PositionID) %>%
+  summarise(PositionSeconds = sum(DurationSec, na.rm = TRUE), .groups = "drop") %>%
+  group_by(SourceFile, Batch, CageChange, System, Phase, PhaseNumber, AnimalNum, AnimalID, Group, Sex) %>%
+  mutate(
+    observation_seconds = sum(PositionSeconds, na.rm = TRUE),
+    occupancy_fraction = safe_divide(PositionSeconds, observation_seconds)
+  ) %>%
+  ungroup() %>%
+  crop_after_second_cc4_phase() %>%
+  mutate(
+    BinLabel = "phase",
+    BinSizeSec = NA_real_,
+    BinStart = as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC"),
+    TimeIndex = PhaseNumber,
+    PhaseClass = factor(Phase, levels = c("Active", "Inactive")),
+    CageChangeIndex = suppressWarnings(as.integer(str_extract(CageChange, "\\d+")))
+  ) %>%
+  left_join(POSITION_MAP, by = "PositionID") %>%
+  arrange(Batch, CageChange, System, AnimalNum, Phase, PhaseNumber, PositionID)
 
-qc_animal_window_reads <- occ_animal %>%
-  distinct(AnimalNum, Batch, Sex, Group, Cage, CageChange, CageChangeIndex, PhaseClass, Window, total_reads, low_read_window)
-
-write_csv2(qc_reader_batch_cage, file.path(DIR_DERIVED, "qc_reader_counts_by_batch_cage.csv"))
-write_csv2(qc_animal_window_reads, file.path(DIR_DERIVED, "qc_total_reads_by_animal_window.csv"))
+write_csv2(position_occupancy_by_phase, file.path(DIR_DERIVED, "all_position_occupancy_by_phase.csv"))
+write_csv2(position_occupancy_by_phase, file.path(DIR_PUBTAB, "all_position_occupancy_by_phase.csv"))
 
 # -----------------------------
-# Summary and contrast tables
+# Analysis table for maps and models
+# -----------------------------
+
+occ_animal <- position_occupancy_by_bin %>%
+  group_by(AnimalNum, AnimalID, Batch, Sex, Group, System, CageChange, CageChangeIndex, Phase, PhaseClass) %>%
+  mutate(TimeWithinPhaseHours = as.numeric(difftime(BinStart, min(BinStart, na.rm = TRUE), units = "hours"))) %>%
+  ungroup() %>%
+  mutate(
+    Window = case_when(
+      CageChangeIndex == PRIMARY_CAGE_CHANGE & PhaseClass == PRIMARY_PHASE & TimeWithinPhaseHours < PRIMARY_WINDOW_H ~ "CC1_first_active_first12h",
+      CageChangeIndex == PRIMARY_CAGE_CHANGE & PhaseClass == PRIMARY_PHASE ~ "CC1_first_active_fullphase",
+      TRUE ~ "Full_phase"
+    ),
+    occupancy_fraction_logit = safe_logit(occupancy_fraction),
+    low_read_window = observation_seconds < MIN_OBSERVATION_SEC_PER_ANIMAL_WINDOW,
+    PositionID = factor(PositionID, levels = POSITION_MAP$PositionID),
+    Group = factor(Group, levels = GROUP_LEVELS)
+  )
+
+primary_window_label <- if (any(occ_animal$Window == "CC1_first_active_first12h")) "CC1_first_active_first12h" else "CC1_first_active_fullphase"
+
+write_csv2(occ_animal, file.path(DIR_DERIVED, "animal_level_reader_occupancy_for_maps.csv"))
+
+# -----------------------------
+# Summaries and contrasts
 # -----------------------------
 
 group_occ <- occ_animal %>%
@@ -526,21 +545,28 @@ plot_cage_tiles <- function(dat, fill_col, title, subtitle = NULL, fill_label = 
 # Figures
 # -----------------------------
 
-p_qc <- qc_reader_batch_cage %>%
+qc_reader_batch_system <- position_occupancy_by_bin %>%
+  group_by(Batch, CageChange, System, PositionID, ReaderX, ReaderY) %>%
+  summarise(PositionSeconds = sum(PositionSeconds, na.rm = TRUE), .groups = "drop") %>%
+  group_by(Batch, CageChange, System) %>%
+  mutate(reader_fraction = PositionSeconds / sum(PositionSeconds, na.rm = TRUE)) %>%
+  ungroup()
+
+p_qc <- qc_reader_batch_system %>%
   mutate(PositionID = factor(PositionID, levels = POSITION_MAP$PositionID)) %>%
-  ggplot(aes(x = PositionID, y = interaction(Batch, Cage, sep = " / "), fill = reader_fraction)) +
+  ggplot(aes(x = PositionID, y = interaction(Batch, CageChange, System, sep = " / "), fill = reader_fraction)) +
   geom_tile(color = "white", linewidth = 0.2) +
   scale_fill_viridis_c(option = "magma", name = "Reader\nfraction") +
   labs(
-    title = "RFID reader-use QC by batch and cage",
-    subtitle = "Detects possible reader/cage/batch imbalance before biological interpretation",
-    x = "Reader position", y = "Batch / Cage"
+    title = "RFID reader-use QC by batch, cage change, and system",
+    subtitle = "Check reader/system imbalance before biological interpretation",
+    x = "Reader position", y = "Batch / CageChange / System"
   ) +
   theme_classic(base_size = 8) +
   theme(axis.text.y = element_text(size = 5), plot.title = element_text(face = "bold", size = 9))
 
-save_svg(p_qc, file.path(DIR_FIGS, "qc_reader_fraction_by_batch_cage.svg"), width = 7.5, height = 5.5)
-save_svg(p_qc, file.path(DIR_PUBFIG, "qc_reader_fraction_by_batch_cage.svg"), width = 7.5, height = 5.5)
+save_svg(p_qc, file.path(DIR_FIGS, "qc_reader_fraction_by_batch_cagechange_system.svg"), width = 8, height = 6)
+save_svg(p_qc, file.path(DIR_PUBFIG, "qc_reader_fraction_by_batch_cagechange_system.svg"), width = 8, height = 6)
 
 primary_group_occ <- group_occ %>%
   filter(Window == primary_window_label, CageChangeIndex == PRIMARY_CAGE_CHANGE, PhaseClass == PRIMARY_PHASE)
@@ -550,7 +576,7 @@ if (nrow(primary_group_occ) > 0) {
     primary_group_occ,
     fill_col = "mean_occupancy",
     title = "Reader occupancy after first SIS cage change",
-    subtitle = paste0(primary_window_label, "; animal-level normalized occupancy"),
+    subtitle = paste0(primary_window_label, "; occupancy based on reconstructed position intervals"),
     fill_label = "Mean\noccupancy"
   ) +
     scale_fill_viridis_c(option = "viridis", limits = c(0, NA)) +
@@ -593,7 +619,7 @@ if (nrow(longitudinal_occ) > 0) {
     facet_grid(Sex + PhaseClass ~ Group) +
     labs(
       title = "Longitudinal reader occupancy across SIS cage changes",
-      subtitle = "Animal-level normalized full-phase occupancy",
+      subtitle = "Animal-level normalized occupancy by 30-min bins",
       x = "Cage change", y = "Reader position"
     ) +
     theme_classic(base_size = 8) +
@@ -627,23 +653,6 @@ if (nrow(longitudinal_contrasts) > 0) {
 
   save_svg(p_long_d, file.path(DIR_FIGS, "longitudinal_reader_occupancy_effect_size_heatmap.svg"), width = 8.5, height = 6.2)
   save_svg(p_long_d, file.path(DIR_PUBFIG, "longitudinal_reader_occupancy_effect_size_heatmap.svg"), width = 8.5, height = 6.2)
-}
-
-primary_individual <- occ_animal %>%
-  filter(Window == primary_window_label, CageChangeIndex == PRIMARY_CAGE_CHANGE, PhaseClass == PRIMARY_PHASE)
-
-if (nrow(primary_individual) > 0) {
-  p_ind <- plot_cage_tiles(
-    primary_individual,
-    fill_col = "occupancy_fraction",
-    title = "Individual-animal reader occupancy QC",
-    subtitle = paste0(primary_window_label, "; inspect outliers and low-read windows"),
-    fill_label = "Occupancy"
-  ) +
-    scale_fill_viridis_c(option = "viridis", limits = c(0, NA)) +
-    facet_wrap(~ Sex + Group + AnimalNum, ncol = 6)
-
-  save_svg(p_ind, file.path(DIR_FIGS, "qc_individual_primary_reader_occupancy_maps.svg"), width = 10, height = 8)
 }
 
 # -----------------------------
@@ -726,29 +735,37 @@ fit_primary <- run_lmer_occupancy(primary_model_data, "primary_cc1_first_active_
 fit_long <- run_lmer_occupancy(occ_animal %>% filter(Window == "Full_phase"), "longitudinal_full_phase_reader_occupancy")
 
 # -----------------------------
-# Session info and run log
+# Run log
 # -----------------------------
 
 log_tbl <- tibble(
   item = c(
-    "input_file",
+    "raw_position_dir",
+    "n_position_files",
+    "bin_label",
+    "bin_size_sec",
     "primary_window_label",
-    "n_raw_rows_after_filtering",
+    "n_raw_position_rows",
+    "n_interval_rows",
+    "n_position_occupancy_rows",
     "n_animals",
     "n_batches",
-    "n_cages",
-    "min_reads_per_animal_window",
+    "n_cage_changes",
     "interpretation"
   ),
   value = c(
-    input_file,
+    RAW_POSITION_DIR,
+    as.character(length(position_files)),
+    BIN_LABEL,
+    as.character(BIN_SIZE_SEC),
     primary_window_label,
-    as.character(nrow(raw)),
-    as.character(n_distinct(raw$AnimalNum)),
-    as.character(n_distinct(raw$Batch)),
-    as.character(n_distinct(raw$Cage)),
-    as.character(MIN_READS_PER_ANIMAL_WINDOW),
-    "Discrete RFID reader occupancy; not continuous density tracking"
+    as.character(nrow(all_pos)),
+    as.character(nrow(occupancy_intervals)),
+    as.character(nrow(position_occupancy_by_bin)),
+    as.character(n_distinct(all_pos$AnimalID)),
+    as.character(n_distinct(all_pos$Batch)),
+    as.character(n_distinct(all_pos$CageChange)),
+    "Discrete RFID reader occupancy from reconstructed position intervals; not continuous density tracking"
   )
 )
 
