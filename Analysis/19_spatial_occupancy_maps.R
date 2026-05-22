@@ -11,6 +11,12 @@
 #   These are discrete RFID reader-occupancy maps, not continuous x/y tracking
 #   or true spatial density estimates. POSITION_MAP is a schematic reader map.
 #
+# Intended input:
+#   Prefer a main-pipeline output from analysis_ready/03_derived_metrics or
+#   analysis_ready/02_clean_data created after cleaning / multiscale behavior
+#   preparation, but before reader PositionID information has been collapsed
+#   away. Do not use legacy AnjaIntern, DLCAnalyzer, or unrelated project data.
+#
 # Primary biological window:
 #   Cage change 1, first active phase, first 12 h, matching the early SIS
 #   post-perturbation window used in the behavioral prediction analyses.
@@ -26,10 +32,11 @@ suppressPackageStartupMessages({
 # User options
 # -----------------------------
 
-# Set manually if auto-detection picks the wrong file.
-# Strongly recommended for the first run.
+# Set manually if auto-detection cannot identify the correct main-pipeline file.
+# The file must still contain reader-position information, e.g. PositionID,
+# ReaderID, AntennaID, CoilID, GridPosition, or equivalent.
 # Example:
-# INPUT_FILE <- "analysis_ready/03_derived_metrics/phase_based/your_position_file.csv"
+# INPUT_FILE <- "analysis_ready/03_derived_metrics/halfhour_based/your_position_level_file.csv"
 INPUT_FILE <- NULL
 
 MIN_READS_PER_ANIMAL_WINDOW <- 20
@@ -99,23 +106,107 @@ read_any_table <- function(path) {
   stop("Unsupported input extension: ", ext, call. = FALSE)
 }
 
+read_header_only <- function(path) {
+  ext <- tolower(tools::file_ext(path))
+  out <- tryCatch({
+    if (ext == "rds") {
+      obj <- readRDS(path)
+      return(names(obj))
+    }
+    if (ext %in% c("csv", "txt")) return(names(readr::read_csv(path, n_max = 0, show_col_types = FALSE)))
+    if (ext == "tsv") return(names(readr::read_tsv(path, n_max = 0, show_col_types = FALSE)))
+    if (ext %in% c("xlsx", "xls")) {
+      if (!requireNamespace("readxl", quietly = TRUE)) return(character())
+      return(names(readxl::read_excel(path, n_max = 0)))
+    }
+    character()
+  }, error = function(e) character())
+  out
+}
+
+has_col_pattern <- function(nms, regex) {
+  any(stringr::str_detect(tolower(clean_colname(nms)), regex))
+}
+
+classify_input_candidate <- function(path) {
+  nms <- read_header_only(path)
+  path_low <- tolower(normalizePath(path, winslash = "/", mustWork = FALSE))
+  base_low <- tolower(basename(path))
+
+  excluded_path <- stringr::str_detect(
+    path_low,
+    "anjaintern|dlcanalyzer|protigy|publication_ready|05_figures|04_model_outputs|spatial_occupancy"
+  )
+  temp_file <- stringr::str_detect(base_low, "^~\\$")
+
+  has_animal <- has_col_pattern(nms, "^(animalnum|animal_id|animalid|mouse_id|mouseid|rfid|tag|transponder)$|animal|mouse")
+  has_group  <- has_col_pattern(nms, "^(group|condition|phenotype|stress_group)$")
+  has_sex    <- has_col_pattern(nms, "^(sex|gender)$")
+  has_cc     <- has_col_pattern(nms, "^(cagechange|cage_change|change|cc|regrouping|regroupingday)$|cage.*change")
+  has_phase  <- has_col_pattern(nms, "^(phase|phaseclass|lightdark|light_dark|cycle)$")
+  has_pos    <- has_col_pattern(nms, "^(positionid|position|reader|readerid|antenna|antennaid|coil|coilid|grid|gridposition)$|position")
+
+  has_required <- has_animal && has_group && has_sex && has_cc && has_phase && has_pos
+
+  score <- 0
+  score <- score + 20 * has_required
+  score <- score + 8 * has_pos
+  score <- score + 3 * has_group + 3 * has_sex + 3 * has_cc + 3 * has_phase + 3 * has_animal
+  score <- score + 8 * stringr::str_detect(path_low, "analysis_ready/03_derived_metrics")
+  score <- score + 5 * stringr::str_detect(path_low, "analysis_ready/02_clean_data")
+  score <- score + 4 * stringr::str_detect(path_low, "multiscale|derived|phase_based|halfhour|position|reader|rfid|antenna|coil")
+  score <- score - 100 * excluded_path
+  score <- score - 100 * temp_file
+  score <- score - 15 * stringr::str_detect(path_low, "supp|figure|model|stat|contrast|prediction|gamm|lmm|summary|session_info")
+
+  tibble(
+    file = path,
+    score = score,
+    usable = has_required && !excluded_path && !temp_file,
+    has_animal = has_animal,
+    has_group = has_group,
+    has_sex = has_sex,
+    has_cagechange = has_cc,
+    has_phase = has_phase,
+    has_position = has_pos,
+    excluded_path = excluded_path
+  )
+}
+
 find_candidate_input <- function() {
   if (!is.null(INPUT_FILE)) {
     if (!file.exists(INPUT_FILE)) stop("INPUT_FILE does not exist: ", INPUT_FILE, call. = FALSE)
+
+    check <- classify_input_candidate(INPUT_FILE)
+    if (!isTRUE(check$usable[[1]])) {
+      print(check)
+      stop(
+        "INPUT_FILE exists but does not look like a valid spatial-occupancy input. ",
+        "It must contain AnimalNum/animal, Group, Sex, CageChange, Phase, and PositionID/reader/antenna/coil columns.",
+        call. = FALSE
+      )
+    }
     return(INPUT_FILE)
   }
 
+  # Deliberately restrict auto-detection to the main MMMSociability analysis pipeline.
+  # Do not search the whole repo, because legacy intern/DLC/protigy files can look
+  # position-like but lack SIS metadata.
   search_roots <- c(
-    "analysis_ready",
-    "data", "Data",
-    "output", "Output",
-    "results", "Results",
-    "."
+    "analysis_ready/03_derived_metrics",
+    "analysis_ready/02_clean_data",
+    "analysis_ready/01_clean_data"
   )
   search_roots <- search_roots[dir.exists(search_roots)]
 
-  # list.files() can return 0, 1, or many paths per root.
-  # Use map() + unlist(), not map_chr(), otherwise empty/multi-hit roots fail.
+  if (length(search_roots) == 0) {
+    stop(
+      "No main-pipeline analysis_ready input folders found. ",
+      "Run the cleaning / multiscale behavior metric scripts first, or set INPUT_FILE manually.",
+      call. = FALSE
+    )
+  }
+
   files <- purrr::map(
     search_roots,
     ~ list.files(.x, pattern = "\\.(csv|tsv|txt|rds|xlsx|xls)$", recursive = TRUE, full.names = TRUE)
@@ -123,32 +214,34 @@ find_candidate_input <- function() {
     unlist(use.names = FALSE) %>%
     unique()
 
-  files <- files[!stringr::str_detect(files, "spatial_occupancy")]
-  files <- files[!stringr::str_detect(basename(files), "^~\\$")]
-
   if (length(files) == 0) {
-    stop("No candidate input files found. Set INPUT_FILE manually at the top of this script.", call. = FALSE)
+    stop(
+      "No candidate files found under analysis_ready/03_derived_metrics or analysis_ready/02_clean_data. ",
+      "Run the main pipeline first, or set INPUT_FILE manually.",
+      call. = FALSE
+    )
   }
 
-  score_file <- function(f) {
-    nm <- tolower(normalizePath(f, winslash = "/", mustWork = FALSE))
-    score <- 0
-    score <- score + 5 * stringr::str_detect(nm, "position|animalpos|reader|rfid|antenna|coil")
-    score <- score + 3 * stringr::str_detect(nm, "clean|processed|filtered|agg|derived|phase|halfhour")
-    score <- score + 2 * stringr::str_detect(nm, "analysis_ready")
-    score <- score - 6 * stringr::str_detect(nm, "supp|figure|model|stat|contrast|prediction|gamm|lmm|summary|session_info")
-    score <- score - 8 * stringr::str_detect(nm, "publication_ready|05_figures|04_model_outputs")
-    score
+  ranked <- purrr::map_dfr(files, classify_input_candidate) %>%
+    arrange(desc(usable), desc(score), file)
+
+  usable_ranked <- ranked %>% filter(usable)
+
+  message("Top spatial-occupancy input candidates from the main pipeline:")
+  print(utils::head(ranked, 12))
+
+  if (nrow(usable_ranked) == 0) {
+    stop(
+      "No valid main-pipeline spatial-occupancy input was found. ",
+      "The selected file must still contain reader PositionID/ReaderID/AntennaID/CoilID plus AnimalNum, Group, Sex, CageChange, and Phase. ",
+      "If build_multiscale_behavior_metrics already collapsed away PositionID, use the position-level intermediate immediately before that collapse and set INPUT_FILE manually.",
+      call. = FALSE
+    )
   }
 
-  ranked <- tibble(file = files, score = purrr::map_dbl(files, score_file)) %>%
-    arrange(desc(score), file)
-
-  best <- ranked$file[[1]]
-  message2("Auto-selected input candidate: %s", best)
-  message("If this is wrong, set INPUT_FILE manually at the top of Analysis/19_spatial_occupancy_maps.R.")
-  message("Top candidates were:")
-  print(utils::head(ranked, 10))
+  best <- usable_ranked$file[[1]]
+  message2("Auto-selected main-pipeline input candidate: %s", best)
+  message("If this is not the position-level file after cleaning/multiscale preparation, set INPUT_FILE manually at the top of this script.")
   best
 }
 
