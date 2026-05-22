@@ -54,13 +54,15 @@ EPS_LOGIT <- 1e-3
 PRIMARY_CAGE_CHANGE <- 1
 PRIMARY_PHASE <- "Active"
 PRIMARY_WINDOW_H <- 12
+PRIMARY_PHASE_NUMBER <- 1L
 
 GROUP_LEVELS <- c("CON", "RES", "SUS")
 
 POSITION_MAP <- tibble::tibble(
   PositionID = 1:8,
   ReaderX = c(0, 100, 200, 300, 0, 100, 200, 300),
-  ReaderY = c(0,   0,   0,   0, 116, 116, 116, 116)
+  ReaderY = c(0,   0,   0,   0, 116, 116, 116, 116),
+  ReaderLabel = paste0("R", PositionID)
 )
 
 # -----------------------------
@@ -286,6 +288,20 @@ crop_after_second_cc4_phase <- function(dat) {
                PhaseNumber > 2L))
 }
 
+complete_reader_positions <- function(dat, group_cols) {
+  dat %>%
+    group_by(across(all_of(group_cols))) %>%
+    tidyr::complete(
+      PositionID = POSITION_MAP$PositionID,
+      fill = list(PositionSeconds = 0)
+    ) %>%
+    mutate(
+      observation_seconds = sum(PositionSeconds, na.rm = TRUE),
+      occupancy_fraction = safe_divide(PositionSeconds, observation_seconds)
+    ) %>%
+    ungroup()
+}
+
 cohens_d <- function(x, g1, g0) {
   x1 <- x[g1]
   x0 <- x[g0]
@@ -389,12 +405,7 @@ position_occupancy_by_bin <- occupancy_intervals %>%
   add_phase_number() %>%
   group_by(SourceFile, Batch, CageChange, System, Phase, PhaseNumber, BinSizeSec, BinStart, AnimalNum, AnimalID, Group, Sex, PositionID) %>%
   summarise(PositionSeconds = sum(DurationSec, na.rm = TRUE), .groups = "drop") %>%
-  group_by(SourceFile, Batch, CageChange, System, Phase, PhaseNumber, BinSizeSec, BinStart, AnimalNum, AnimalID, Group, Sex) %>%
-  mutate(
-    observation_seconds = sum(PositionSeconds, na.rm = TRUE),
-    occupancy_fraction = safe_divide(PositionSeconds, observation_seconds)
-  ) %>%
-  ungroup() %>%
+  complete_reader_positions(c("SourceFile", "Batch", "CageChange", "System", "Phase", "PhaseNumber", "BinSizeSec", "BinStart", "AnimalNum", "AnimalID", "Group", "Sex")) %>%
   add_time_index() %>%
   crop_after_second_cc4_phase() %>%
   mutate(
@@ -414,12 +425,7 @@ position_occupancy_by_phase <- occupancy_intervals %>%
   add_phase_number() %>%
   group_by(SourceFile, Batch, CageChange, System, Phase, PhaseNumber, AnimalNum, AnimalID, Group, Sex, PositionID) %>%
   summarise(PositionSeconds = sum(DurationSec, na.rm = TRUE), .groups = "drop") %>%
-  group_by(SourceFile, Batch, CageChange, System, Phase, PhaseNumber, AnimalNum, AnimalID, Group, Sex) %>%
-  mutate(
-    observation_seconds = sum(PositionSeconds, na.rm = TRUE),
-    occupancy_fraction = safe_divide(PositionSeconds, observation_seconds)
-  ) %>%
-  ungroup() %>%
+  complete_reader_positions(c("SourceFile", "Batch", "CageChange", "System", "Phase", "PhaseNumber", "AnimalNum", "AnimalID", "Group", "Sex")) %>%
   crop_after_second_cc4_phase() %>%
   mutate(
     BinLabel = "phase",
@@ -439,23 +445,47 @@ write_csv2(position_occupancy_by_phase, file.path(DIR_PUBTAB, "all_position_occu
 # Analysis table for maps and models
 # -----------------------------
 
-occ_animal <- position_occupancy_by_bin %>%
-  group_by(AnimalNum, AnimalID, Batch, Sex, Group, System, CageChange, CageChangeIndex, Phase, PhaseClass) %>%
+occ_animal_bin <- position_occupancy_by_bin %>%
+  group_by(AnimalNum, AnimalID, Batch, Sex, Group, System, CageChange, CageChangeIndex, Phase, PhaseNumber, PhaseClass) %>%
   mutate(TimeWithinPhaseHours = as.numeric(difftime(BinStart, min(BinStart, na.rm = TRUE), units = "hours"))) %>%
   ungroup() %>%
   mutate(
     Window = case_when(
-      CageChangeIndex == PRIMARY_CAGE_CHANGE & PhaseClass == PRIMARY_PHASE & TimeWithinPhaseHours < PRIMARY_WINDOW_H ~ "CC1_first_active_first12h",
-      CageChangeIndex == PRIMARY_CAGE_CHANGE & PhaseClass == PRIMARY_PHASE ~ "CC1_first_active_fullphase",
-      TRUE ~ "Full_phase"
+      CageChangeIndex == PRIMARY_CAGE_CHANGE &
+        PhaseClass == PRIMARY_PHASE &
+        PhaseNumber == PRIMARY_PHASE_NUMBER &
+        TimeWithinPhaseHours < PRIMARY_WINDOW_H ~ "CC1_active1_first12h",
+      TRUE ~ NA_character_
     ),
+    SummaryScale = "30min_bin",
     occupancy_fraction_logit = safe_logit(occupancy_fraction),
     low_read_window = observation_seconds < MIN_OBSERVATION_SEC_PER_ANIMAL_WINDOW,
     PositionID = factor(PositionID, levels = POSITION_MAP$PositionID),
     Group = factor(Group, levels = GROUP_LEVELS)
   )
 
-primary_window_label <- if (any(occ_animal$Window == "CC1_first_active_first12h")) "CC1_first_active_first12h" else "CC1_first_active_fullphase"
+occ_animal_phase <- position_occupancy_by_phase %>%
+  mutate(
+    Window = case_when(
+      CageChangeIndex == PRIMARY_CAGE_CHANGE &
+        PhaseClass == PRIMARY_PHASE &
+        PhaseNumber == PRIMARY_PHASE_NUMBER ~ "CC1_active1_fullphase",
+      TRUE ~ "Full_phase"
+    ),
+    SummaryScale = "phase",
+    TimeWithinPhaseHours = NA_real_,
+    occupancy_fraction_logit = safe_logit(occupancy_fraction),
+    low_read_window = observation_seconds < MIN_OBSERVATION_SEC_PER_ANIMAL_WINDOW,
+    PositionID = factor(PositionID, levels = POSITION_MAP$PositionID),
+    Group = factor(Group, levels = GROUP_LEVELS)
+  )
+
+occ_animal <- bind_rows(
+  occ_animal_bin %>% filter(!is.na(Window)),
+  occ_animal_phase
+)
+
+primary_window_label <- if (any(occ_animal$Window == "CC1_active1_first12h")) "CC1_active1_first12h" else "CC1_active1_fullphase"
 
 write_csv2(occ_animal, file.path(DIR_DERIVED, "animal_level_reader_occupancy_for_maps.csv"))
 
@@ -463,9 +493,23 @@ write_csv2(occ_animal, file.path(DIR_DERIVED, "animal_level_reader_occupancy_for
 # Summaries and contrasts
 # -----------------------------
 
-group_occ <- occ_animal %>%
+animal_reader_occ <- occ_animal %>%
   filter(!low_read_window) %>%
-  group_by(Sex, Group, CageChangeIndex, PhaseClass, Window, PositionID, ReaderX, ReaderY) %>%
+  group_by(AnimalNum, AnimalID, Batch, Sex, Group, System, CageChangeIndex, PhaseClass, PhaseNumber, Window, SummaryScale, PositionID, ReaderX, ReaderY, ReaderLabel) %>%
+  summarise(
+    occupancy_fraction = mean(occupancy_fraction, na.rm = TRUE),
+    observation_seconds = sum(observation_seconds, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    occupancy_fraction_logit = safe_logit(occupancy_fraction),
+    low_read_window = FALSE
+  )
+
+write_csv2(animal_reader_occ, file.path(DIR_DERIVED, "animal_level_reader_occupancy_summary.csv"))
+
+group_occ <- animal_reader_occ %>%
+  group_by(Sex, Group, CageChangeIndex, PhaseClass, Window, PositionID, ReaderX, ReaderY, ReaderLabel) %>%
   summarise(
     n_animals = n_distinct(AnimalNum),
     mean_occupancy = mean(occupancy_fraction, na.rm = TRUE),
@@ -484,10 +528,9 @@ contrast_specs <- tribble(
   "SUS_minus_RES", "SUS", "RES"
 )
 
-contrast_occ <- occ_animal %>%
-  filter(!low_read_window) %>%
+contrast_occ <- animal_reader_occ %>%
   mutate(Group_chr = as.character(Group)) %>%
-  group_by(Sex, CageChangeIndex, PhaseClass, Window, PositionID, ReaderX, ReaderY) %>%
+  group_by(Sex, CageChangeIndex, PhaseClass, Window, PositionID, ReaderX, ReaderY, ReaderLabel) %>%
   group_modify(~ {
     d <- .x
     purrr::pmap_dfr(contrast_specs, function(contrast, group_a, group_b) {
@@ -516,26 +559,29 @@ write_csv2(contrast_occ, file.path(DIR_PUBTAB, "reader_occupancy_group_contrasts
 # -----------------------------
 
 cage_map_theme <- function() {
-  theme_classic(base_size = 8) +
+  theme_void(base_size = 8) +
     theme(
-      axis.title = element_blank(),
-      axis.text = element_blank(),
-      axis.ticks = element_blank(),
       strip.background = element_blank(),
       strip.text = element_text(face = "bold", size = 8),
       legend.title = element_text(size = 7),
       legend.text = element_text(size = 7),
       plot.title = element_text(face = "bold", size = 9),
       plot.subtitle = element_text(size = 7),
-      plot.margin = margin(4, 4, 4, 4)
+      plot.margin = margin(4, 4, 4, 4),
+      panel.spacing = unit(5, "pt")
     )
 }
 
 plot_cage_tiles <- function(dat, fill_col, title, subtitle = NULL, fill_label = NULL) {
   ggplot(dat, aes(x = ReaderX, y = ReaderY, fill = .data[[fill_col]])) +
-    geom_tile(width = 88, height = 88, color = "white", linewidth = 0.35) +
-    geom_text(aes(label = as.character(PositionID)), size = 2.3, color = "black") +
-    coord_fixed(expand = TRUE) +
+    annotate(
+      "rect",
+      xmin = -58, xmax = 358, ymin = -58, ymax = 174,
+      fill = "grey97", color = "grey35", linewidth = 0.45
+    ) +
+    geom_tile(width = 86, height = 86, color = "white", linewidth = 0.45) +
+    geom_text(aes(label = ReaderLabel), size = 2.5, color = "grey10", fontface = "bold") +
+    coord_fixed(xlim = c(-65, 365), ylim = c(-65, 181), expand = FALSE) +
     scale_y_reverse() +
     labs(title = title, subtitle = subtitle, fill = fill_label) +
     cage_map_theme()
@@ -579,7 +625,7 @@ if (nrow(primary_group_occ) > 0) {
     subtitle = paste0(primary_window_label, "; occupancy based on reconstructed position intervals"),
     fill_label = "Mean\noccupancy"
   ) +
-    scale_fill_viridis_c(option = "viridis", limits = c(0, NA)) +
+    scale_fill_viridis_c(option = "viridis", na.value = "grey92") +
     facet_grid(Sex ~ Group)
 
   save_svg(p_primary, file.path(DIR_FIGS, "primary_cc1_first_active_reader_occupancy_by_sex_group.svg"), width = 7.5, height = 4.8)
@@ -600,7 +646,7 @@ if (nrow(primary_contrasts) > 0) {
     subtitle = paste0(primary_window_label, "; positive values indicate higher occupancy in numerator group"),
     fill_label = "Delta\noccupancy"
   ) +
-    scale_fill_gradient2(limits = c(-lim_delta, lim_delta), oob = scales::squish) +
+    scale_fill_gradient2(limits = c(-lim_delta, lim_delta), oob = scales::squish, na.value = "grey92") +
     facet_grid(Sex ~ contrast)
 
   save_svg(p_diff, file.path(DIR_FIGS, "primary_cc1_first_active_reader_occupancy_difference_maps.svg"), width = 8.2, height = 4.8)
@@ -619,7 +665,7 @@ if (nrow(longitudinal_occ) > 0) {
     facet_grid(Sex + PhaseClass ~ Group) +
     labs(
       title = "Longitudinal reader occupancy across SIS cage changes",
-      subtitle = "Animal-level normalized occupancy by 30-min bins",
+      subtitle = "Animal-level normalized full-phase occupancy",
       x = "Cage change", y = "Reader position"
     ) +
     theme_classic(base_size = 8) +
@@ -641,7 +687,7 @@ if (nrow(longitudinal_contrasts) > 0) {
   p_long_d <- longitudinal_contrasts %>%
     ggplot(aes(x = CageChangeIndex, y = PositionID, fill = cohens_d)) +
     geom_tile(color = "white", linewidth = 0.2) +
-    scale_fill_gradient2(limits = c(-lim_d, lim_d), oob = scales::squish, name = "Cohen's d") +
+    scale_fill_gradient2(limits = c(-lim_d, lim_d), oob = scales::squish, na.value = "grey92", name = "Cohen's d") +
     facet_grid(Sex + PhaseClass ~ contrast) +
     labs(
       title = "Spatial redistribution effect sizes across SIS cage changes",
@@ -728,11 +774,11 @@ run_lmer_occupancy <- function(dat, label) {
   fit
 }
 
-primary_model_data <- occ_animal %>%
+primary_model_data <- animal_reader_occ %>%
   filter(Window == primary_window_label, CageChangeIndex == PRIMARY_CAGE_CHANGE, PhaseClass == PRIMARY_PHASE)
 
 fit_primary <- run_lmer_occupancy(primary_model_data, "primary_cc1_first_active_reader_occupancy")
-fit_long <- run_lmer_occupancy(occ_animal %>% filter(Window == "Full_phase"), "longitudinal_full_phase_reader_occupancy")
+fit_long <- run_lmer_occupancy(animal_reader_occ %>% filter(Window == "Full_phase"), "longitudinal_full_phase_reader_occupancy")
 
 # -----------------------------
 # Run log
