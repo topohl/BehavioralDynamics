@@ -324,6 +324,33 @@ bootstrap_correlation_ci <- function(dat, x_col, y_col = "outcome", n_boot = 500
   )
 }
 
+correlation_test_stats <- function(dat, x_col, y_col, label = NULL) {
+  ok <- is.finite(dat[[x_col]]) & is.finite(dat[[y_col]])
+  x <- dat[[x_col]][ok]
+  y <- dat[[y_col]][ok]
+  out_label <- if (is.null(label)) x_col else label
+  if (length(x) < 4 || sd(x) == 0 || sd(y) == 0) {
+    return(tibble(
+      label = out_label,
+      n = length(x),
+      pearson_r = NA_real_,
+      pearson_p = NA_real_,
+      spearman_rho = NA_real_,
+      spearman_p = NA_real_
+    ))
+  }
+  pearson <- suppressWarnings(cor.test(x, y, method = "pearson"))
+  spearman <- suppressWarnings(cor.test(x, y, method = "spearman", exact = FALSE))
+  tibble(
+    label = out_label,
+    n = length(x),
+    pearson_r = unname(pearson$estimate),
+    pearson_p = pearson$p.value,
+    spearman_rho = unname(spearman$estimate),
+    spearman_p = spearman$p.value
+  )
+}
+
 partial_r_from_lm <- function(dat, feature, covariates, outcome = "outcome") {
   needed <- c(outcome, feature, covariates)
   needed <- needed[needed %in% names(dat)]
@@ -385,6 +412,9 @@ write_output_manifest(
     "tables/prediction_interpretation_constraints.csv",
     "tables/model_ladder_incremental_summary.csv",
     "tables/primary_movement_entropyacf1_associations.csv",
+    "tables/statistics/primary_movement_entropyacf1_correlations_by_sex.csv",
+    "tables/models/model_ladder_prediction_correlations.csv",
+    "tables/models/matched_ladder_prediction_correlations.csv",
     "tables/primary_feature_group_summary.csv",
     "tables/primary_feature_group_contrasts_descriptive.csv",
     "tables/documentation/readout_dictionary.csv",
@@ -398,7 +428,9 @@ write_output_manifest(
     "figures/publication/matched_ladder_behavior_plus_sex_group_cv_r2.svg",
     "figures/publication/matched_ladder_covariate_comparison_cv_r2.svg",
     "figures/publication/behavior_only_repeated_cv_ladder.svg",
-    "figures/publication/primary_movement_entropyacf1_vs_combz.svg"
+    "figures/publication/primary_movement_entropyacf1_vs_combz.svg",
+    "figures/publication/model_ladder_prediction_correlations.svg",
+    "figures/publication/matched_ladder_prediction_correlations.svg"
   ),
   notes = c("Main prediction claim should use the ladder performance plus duration-sensitivity companion table.")
 )
@@ -420,7 +452,9 @@ write_text_file(
     "7. tables/documentation/matched_ladder_predictor_audit.csv",
     "8. figures/publication/matched_ladder_covariate_comparison_cv_r2.svg",
     "9. figures/publication/behavior_only_repeated_cv_ladder.svg",
-    "10. figures/publication/primary_movement_entropyacf1_vs_combz.svg",
+    "10. figures/publication/model_ladder_prediction_correlations.svg",
+    "11. figures/publication/matched_ladder_prediction_correlations.svg",
+    "12. figures/publication/primary_movement_entropyacf1_vs_combz.svg",
     "",
     "Interpretation:",
     "Behavior-only repeated grouped CV is the primary prospective evidence.",
@@ -790,6 +824,28 @@ sex_specific_assoc <- model_dat %>%
 
 write_table(sex_specific_assoc, file.path(output_dir, "tables", "sex_specific_primary_associations.csv"))
 write_table(sex_specific_assoc, file.path(output_dir, "tables", "statistics", "sex_specific_primary_associations.csv"))
+
+primary_correlation_stats_by_sex <- model_dat %>%
+  group_by(Sex) %>%
+  group_modify(~{
+    map_dfr(primary_features, function(fc) {
+      correlation_test_stats(.x, fc, "outcome", label = fc)
+    })
+  }) %>%
+  ungroup() %>%
+  group_by(Sex) %>%
+  mutate(
+    pearson_p_bh_within_sex = p.adjust(pearson_p, method = "BH"),
+    spearman_p_bh_within_sex = p.adjust(spearman_p, method = "BH"),
+    feature = label,
+    feature_label = recode(feature, !!!feature_display_labels),
+    CorrelationUse = "Feature-to-outcome correlation plotted in primary faceted figure"
+  ) %>%
+  ungroup() %>%
+  select(Sex, feature, feature_label, n, pearson_r, pearson_p, pearson_p_bh_within_sex, spearman_rho, spearman_p, spearman_p_bh_within_sex, CorrelationUse)
+
+write_table(primary_correlation_stats_by_sex, file.path(output_dir, "tables", "primary_movement_entropyacf1_correlations_by_sex.csv"))
+write_table(primary_correlation_stats_by_sex, file.path(output_dir, "tables", "statistics", "primary_movement_entropyacf1_correlations_by_sex.csv"))
 
 # ------------------------------------------------
 # MODEL LADDER: EXPLICIT INCREMENTAL PREDICTION
@@ -1322,8 +1378,62 @@ write_table(matched_cv_predictions, file.path(output_dir, "tables", "models", "m
 write_table(matched_cv_performance, file.path(output_dir, "tables", "models", "matched_ladder_repeated_grouped_kfold_performance.csv"))
 
 # ------------------------------------------------
+# PREDICTION CORRELATION STATS FOR PLOTTED LADDERS
+# ------------------------------------------------
+
+ladder_prediction_correlation_stats <- ladder_predictions %>%
+  group_by(Model) %>%
+  group_modify(~correlation_test_stats(.x, "observed", "predicted", label = .y$Model)) %>%
+  ungroup() %>%
+  mutate(
+    pearson_p_bh = p.adjust(pearson_p, method = "BH"),
+    spearman_p_bh = p.adjust(spearman_p, method = "BH"),
+    DisplayModel = recode(Model, !!!model_display_labels),
+    CorrelationUse = "Observed later outcome versus LOO predicted outcome for each adjusted ladder model"
+  ) %>%
+  left_join(
+    ladder_performance %>% select(Model, rmse, mae, cv_r2_vs_mean, prediction_permutation_p, ReportingUse),
+    by = "Model"
+  ) %>%
+  select(Model, DisplayModel, n, pearson_r, pearson_p, pearson_p_bh, spearman_rho, spearman_p, spearman_p_bh, rmse, mae, cv_r2_vs_mean, prediction_permutation_p, ReportingUse, CorrelationUse)
+
+matched_ladder_prediction_correlation_stats <- matched_ladder_predictions %>%
+  group_by(AdjustmentSet, ModelFamily) %>%
+  group_modify(~correlation_test_stats(.x, "observed", "predicted", label = .y$ModelFamily)) %>%
+  ungroup() %>%
+  group_by(AdjustmentSet) %>%
+  mutate(
+    pearson_p_bh_within_adjustment = p.adjust(pearson_p, method = "BH"),
+    spearman_p_bh_within_adjustment = p.adjust(spearman_p, method = "BH")
+  ) %>%
+  ungroup() %>%
+  mutate(
+    DisplayModel = recode(ModelFamily, !!!matched_ladder_model_labels),
+    ManuscriptUse = unname(matched_ladder_use_labels[as.character(AdjustmentSet)]),
+    CorrelationUse = "Observed later outcome versus LOO predicted outcome for each matched ladder model"
+  ) %>%
+  left_join(
+    matched_ladder_performance %>%
+      mutate(AdjustmentSet = as.character(AdjustmentSet)) %>%
+      select(AdjustmentSet, ModelFamily, rmse, mae, cv_r2_vs_mean, prediction_permutation_p, ReportingPriority),
+    by = c("AdjustmentSet", "ModelFamily")
+  ) %>%
+  select(AdjustmentSet, ModelFamily, DisplayModel, n, pearson_r, pearson_p, pearson_p_bh_within_adjustment, spearman_rho, spearman_p, spearman_p_bh_within_adjustment, rmse, mae, cv_r2_vs_mean, prediction_permutation_p, ReportingPriority, ManuscriptUse, CorrelationUse)
+
+write_table(ladder_prediction_correlation_stats, file.path(output_dir, "tables", "model_ladder_prediction_correlations.csv"))
+write_table(ladder_prediction_correlation_stats, file.path(output_dir, "tables", "models", "model_ladder_prediction_correlations.csv"))
+write_table(matched_ladder_prediction_correlation_stats, file.path(output_dir, "tables", "matched_ladder_prediction_correlations.csv"))
+write_table(matched_ladder_prediction_correlation_stats, file.path(output_dir, "tables", "models", "matched_ladder_prediction_correlations.csv"))
+
+# ------------------------------------------------
 # FIGURES
 # ------------------------------------------------
+
+primary_plot_stats <- primary_correlation_stats_by_sex %>%
+  mutate(
+    Feature = factor(feature_label, levels = unname(feature_display_labels[primary_features])),
+    stat_label = paste0("rho=", round(spearman_rho, 2), "\n", format_p(spearman_p))
+  )
 
 p_primary <- model_dat %>%
   select(AnimalNum, Group, Sex, outcome, all_of(primary_features)) %>%
@@ -1333,12 +1443,22 @@ p_primary <- model_dat %>%
     Group = factor(as.character(Group), levels = group_levels)
   ) %>%
   ggplot(aes(Value, outcome)) +
-  geom_smooth(method = "lm", se = TRUE, linewidth = 0.38, alpha = 0.10, colour = "grey25", fill = "grey70") +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.38, alpha = 0.10, colour = "grey25", fill = "grey70") +
   geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.65, stroke = 0.25, alpha = 0.9) +
+  geom_text(
+    data = primary_plot_stats,
+    aes(x = -Inf, y = Inf, label = stat_label),
+    inherit.aes = FALSE,
+    hjust = -0.05,
+    vjust = 1.15,
+    size = 1.65,
+    lineheight = 0.9,
+    colour = "grey20"
+  ) +
   facet_grid(Sex ~ Feature, scales = "free_x") +
   labs(
     title = "Early behavioral organization aligns with later stress burden",
-    subtitle = paste0("CON/RES/SUS are shown for interpretation; fits use animal-level early features from the first ", early_window_hours, " h active phase"),
+    subtitle = paste0("Each panel reports Spearman rho and nominal p; CON/RES/SUS are shown for interpretation, not as required predictors"),
     x = "Early feature value",
     y = outcome_col
   ) +
@@ -1448,7 +1568,7 @@ p_behavior_cv <- repeated_cv_performance_all %>%
   ) %>%
   ggplot(aes(mean_cv_r2, Model, colour = ModelFamily)) +
   geom_vline(xintercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey55") +
-  geom_errorbarh(aes(xmin = cv_r2_ci_low, xmax = cv_r2_ci_high), height = 0, linewidth = 0.35, alpha = 0.75) +
+  geom_errorbar(aes(xmin = cv_r2_ci_low, xmax = cv_r2_ci_high), orientation = "y", width = 0, linewidth = 0.35, alpha = 0.75) +
   geom_point(size = 1.8) +
   facet_grid(. ~ ModelFamily, scales = "free_y", space = "free_y") +
   labs(
@@ -1471,7 +1591,7 @@ p_pred <- best_pred %>%
   mutate(Group = factor(as.character(Group), levels = group_levels)) %>%
   ggplot(aes(observed, predicted)) +
   geom_abline(slope = 1, intercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey45") +
-  geom_smooth(method = "lm", se = TRUE, linewidth = 0.45, alpha = 0.10, colour = "grey20", fill = "grey70") +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.45, alpha = 0.10, colour = "grey20", fill = "grey70") +
   geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.8, stroke = 0.25, alpha = 0.88) +
   facet_grid(. ~ Sex) +
   labs(
@@ -1486,6 +1606,106 @@ p_pred <- best_pred %>%
   make_publication_theme(base_size = 7)
 
 save_plot_svg_pdf(p_pred, file.path(output_dir, "figures", "publication", "best_model_observed_vs_predicted"), width = 89, height = 78)
+
+ladder_prediction_plot_tbl <- ladder_predictions %>%
+  left_join(
+    ladder_prediction_correlation_stats %>%
+      mutate(
+        prediction_stat_label = paste0(
+          "r=", round(pearson_r, 2),
+          ", rho=", round(spearman_rho, 2),
+          "\nCV R2=", round(cv_r2_vs_mean, 2),
+          ", ", format_p(prediction_permutation_p)
+        )
+      ) %>%
+      select(Model, DisplayModel, prediction_stat_label),
+    by = "Model"
+  ) %>%
+  mutate(
+    DisplayModel = factor(DisplayModel, levels = model_display_labels[names(model_display_labels) %in% unique(Model)]),
+    Group = factor(as.character(Group), levels = group_levels)
+  )
+
+p_ladder_prediction_correlations <- ladder_prediction_plot_tbl %>%
+  ggplot(aes(observed, predicted)) +
+  geom_abline(slope = 1, intercept = 0, linewidth = 0.22, linetype = "dashed", colour = "grey50") +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, linewidth = 0.32, colour = "grey25") +
+  geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.35, stroke = 0.22, alpha = 0.86) +
+  geom_text(
+    data = ladder_prediction_plot_tbl %>% distinct(DisplayModel, prediction_stat_label),
+    aes(x = -Inf, y = Inf, label = prediction_stat_label),
+    inherit.aes = FALSE,
+    hjust = -0.04,
+    vjust = 1.15,
+    size = 1.55,
+    lineheight = 0.9,
+    colour = "grey20"
+  ) +
+  facet_wrap(~DisplayModel, scales = "free", ncol = 4) +
+  labs(
+    title = "Observed versus predicted outcome for every adjusted ladder model",
+    subtitle = "Panel statistics are prediction correlations: Pearson r, Spearman rho, cross-validated R2, and permutation p",
+    x = paste0("Observed ", outcome_col),
+    y = paste0("LOO predicted ", outcome_col)
+  ) +
+  scale_colour_manual(values = group_colors, drop = FALSE) +
+  scale_fill_manual(values = group_colors, drop = FALSE) +
+  scale_shape_manual(values = group_shape_values, drop = FALSE) +
+  make_publication_theme(base_size = 6) +
+  theme(legend.position = "top")
+
+save_plot_svg_pdf(p_ladder_prediction_correlations, file.path(output_dir, "figures", "publication", "model_ladder_prediction_correlations"), width = 183, height = 112)
+
+matched_prediction_plot_tbl <- matched_ladder_predictions %>%
+  left_join(
+    matched_ladder_prediction_correlation_stats %>%
+      mutate(
+        AdjustmentSet = as.character(AdjustmentSet),
+        prediction_stat_label = paste0(
+          "r=", round(pearson_r, 2),
+          ", rho=", round(spearman_rho, 2),
+          "\nCV R2=", round(cv_r2_vs_mean, 2),
+          ", ", format_p(prediction_permutation_p)
+        )
+      ) %>%
+      select(AdjustmentSet, ModelFamily, prediction_stat_label),
+    by = c("AdjustmentSet", "ModelFamily")
+  ) %>%
+  mutate(
+    AdjustmentSet = factor(as.character(AdjustmentSet), levels = names(matched_ladder_adjustment_labels)),
+    DisplayModel = factor(recode(ModelFamily, !!!matched_ladder_model_labels), levels = unname(matched_ladder_model_labels)),
+    Group = factor(as.character(Group), levels = group_levels)
+  )
+
+p_matched_prediction_correlations <- matched_prediction_plot_tbl %>%
+  ggplot(aes(observed, predicted)) +
+  geom_abline(slope = 1, intercept = 0, linewidth = 0.22, linetype = "dashed", colour = "grey50") +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, linewidth = 0.32, colour = "grey25") +
+  geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.25, stroke = 0.20, alpha = 0.84) +
+  geom_text(
+    data = matched_prediction_plot_tbl %>% distinct(AdjustmentSet, DisplayModel, prediction_stat_label),
+    aes(x = -Inf, y = Inf, label = prediction_stat_label),
+    inherit.aes = FALSE,
+    hjust = -0.04,
+    vjust = 1.15,
+    size = 1.45,
+    lineheight = 0.9,
+    colour = "grey20"
+  ) +
+  facet_grid(AdjustmentSet ~ DisplayModel, scales = "free") +
+  labs(
+    title = "Prediction correlations across matched ladders",
+    subtitle = "Rows isolate covariate adjustment; columns keep identical behavior feature families",
+    x = paste0("Observed ", outcome_col),
+    y = paste0("LOO predicted ", outcome_col)
+  ) +
+  scale_colour_manual(values = group_colors, drop = FALSE) +
+  scale_fill_manual(values = group_colors, drop = FALSE) +
+  scale_shape_manual(values = group_shape_values, drop = FALSE) +
+  make_publication_theme(base_size = 5.5) +
+  theme(legend.position = "top")
+
+save_plot_svg_pdf(p_matched_prediction_correlations, file.path(output_dir, "figures", "publication", "matched_ladder_prediction_correlations"), width = 183, height = 132)
 
 # ------------------------------------------------
 # TEXT SUMMARY FOR RESULTS WRITING
@@ -1523,10 +1743,13 @@ output_table_catalog <- tibble(
     "tables/design/early_window_design_by_animal.csv",
     "tables/features/early_behavior_features_wide.csv",
     "tables/statistics/primary_movement_entropyacf1_associations.csv",
+    "tables/statistics/primary_movement_entropyacf1_correlations_by_sex.csv",
     "tables/statistics/primary_feature_group_summary.csv",
     "tables/models/model_ladder_performance.csv",
+    "tables/models/model_ladder_prediction_correlations.csv",
     "tables/models/model_ladder_repeated_grouped_kfold_performance.csv",
     "tables/models/matched_ladder_performance.csv",
+    "tables/models/matched_ladder_prediction_correlations.csv",
     "tables/models/matched_ladder_repeated_grouped_kfold_performance.csv",
     "tables/documentation/matched_ladder_predictor_audit.csv",
     "tables/sensitivity/model_ladder_performance_duration_sensitivity.csv",
@@ -1534,8 +1757,8 @@ output_table_catalog <- tibble(
   ),
   category = c(
     "documentation", "documentation", "documentation", "documentation",
-    "design", "features", "statistics", "statistics", "models", "models",
-    "models", "models", "documentation", "sensitivity", "documentation"
+    "design", "features", "statistics", "statistics", "statistics", "models",
+    "models", "models", "models", "models", "models", "documentation", "sensitivity", "documentation"
   ),
   contains = c(
     "Plain-text guide to the analysis folder and recommended reading order.",
@@ -1545,10 +1768,13 @@ output_table_catalog <- tibble(
     "Animal-level early-window bin counts, timing, phase, and duration.",
     "Animal-level early-window feature matrix used for prediction.",
     "Primary feature-to-outcome correlations with bootstrap CIs and FDR correction.",
+    "Sex-stratified feature-to-outcome correlations used for the primary faceted figure annotations.",
     "Descriptive CON/RES/SUS distribution of primary early features.",
     "Leave-one-animal-out model performance table.",
+    "Observed-versus-predicted correlation statistics for every adjusted LOO ladder model.",
     "Repeated grouped CV performance; primary prospective behavior-only evidence.",
     "Matched LOO behavior-only, Sex-adjusted, and Sex + Group-adjusted ladder performance.",
+    "Observed-versus-predicted correlation statistics for every matched ladder model.",
     "Matched repeated grouped CV companion performance for the three covariate-adjustment ladders.",
     "Predictor audit for matched ladders, including covariates and manuscript-use labels.",
     "Duration robustness table comparing full data with short-duration exclusions.",
@@ -1562,10 +1788,13 @@ output_table_catalog <- tibble(
     "Methods/QC",
     "Methods/source data",
     "Main or supplement",
+    "Main figure statistics",
     "Descriptive group context",
     "Supplement/model comparison",
+    "Prediction correlation figure statistics",
     "Main model-performance result",
     "Main/sensitivity/supplement split",
+    "Prediction correlation figure statistics",
     "Robustness/supplement",
     "Methods/model specification",
     "Robustness/supplement",
