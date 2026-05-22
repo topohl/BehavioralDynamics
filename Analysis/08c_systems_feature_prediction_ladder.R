@@ -170,6 +170,43 @@ safe_cor <- function(x, y, method = "pearson") {
   suppressWarnings(cor(x[ok], y[ok], method = method))
 }
 
+format_p <- function(p) {
+  case_when(
+    is.na(p) ~ "p=NA",
+    p < 0.001 ~ "p<.001",
+    TRUE ~ paste0("p=", sub("^0", "", formatC(p, format = "f", digits = 3)))
+  )
+}
+
+correlation_test_stats <- function(dat, x_col, y_col, label = NULL) {
+  x <- suppressWarnings(as.numeric(dat[[x_col]]))
+  y <- suppressWarnings(as.numeric(dat[[y_col]]))
+  ok <- is.finite(x) & is.finite(y)
+  x <- x[ok]
+  y <- y[ok]
+  out_label <- if (is.null(label)) x_col else label
+  if (length(x) < 4 || sd(x) == 0 || sd(y) == 0) {
+    return(tibble(
+      label = out_label,
+      n = length(x),
+      pearson_r = NA_real_,
+      pearson_p = NA_real_,
+      spearman_rho = NA_real_,
+      spearman_p = NA_real_
+    ))
+  }
+  pearson <- suppressWarnings(cor.test(x, y, method = "pearson"))
+  spearman <- suppressWarnings(cor.test(x, y, method = "spearman", exact = FALSE))
+  tibble(
+    label = out_label,
+    n = length(x),
+    pearson_r = unname(pearson$estimate),
+    pearson_p = pearson$p.value,
+    spearman_rho = unname(spearman$estimate),
+    spearman_p = spearman$p.value
+  )
+}
+
 prediction_metrics <- function(observed, predicted) {
   ok <- is.finite(observed) & is.finite(predicted)
   y <- observed[ok]
@@ -298,15 +335,20 @@ write_output_manifest(
     "tables/documentation/model_specification_dictionary.csv",
     "tables/documentation/output_table_catalog.csv",
     "tables/systems_ladder_performance.csv",
+    "tables/models/systems_ladder_prediction_correlations.csv",
+    "tables/models/systems_ladder_prediction_correlations_by_sex.csv",
     "tables/models/systems_ladder_performance_by_sex.csv",
     "tables/systems_ladder_incremental_summary.csv",
     "tables/selected_features_by_domain.csv",
     "tables/systems_feature_audit.csv",
+    "tables/features/systems_feature_correlation_stats.csv",
     "tables/interpretation_constraints.csv"
   ),
   primary_figures = c(
     "figures/publication/systems_ladder_cv_r2.svg",
     "figures/publication/predicted_vs_actual_combz_key_models.svg",
+    "figures/publication/systems_ladder_prediction_correlations.svg",
+    "figures/publication/systems_ladder_prediction_correlations_by_sex.svg",
     "figures/publication/selected_systems_features_correlations.svg"
   ),
   notes = c(
@@ -330,7 +372,11 @@ write_text_file(
     "5. tables/models/systems_ladder_performance.csv",
     "6. tables/models/systems_ladder_performance_by_sex.csv",
     "7. tables/models/systems_ladder_incremental_summary.csv",
-    "8. figures/publication/systems_ladder_cv_r2_by_sex.svg",
+    "8. tables/models/systems_ladder_prediction_correlations.csv",
+    "9. tables/models/systems_ladder_prediction_correlations_by_sex.csv",
+    "10. figures/publication/systems_ladder_cv_r2_by_sex.svg",
+    "11. figures/publication/systems_ladder_prediction_correlations.svg",
+    "12. figures/publication/systems_ladder_prediction_correlations_by_sex.svg",
     "",
     "Interpretation:",
     "08c is a systems-extension and feature-domain analysis, not a replacement for 08b.",
@@ -499,8 +545,27 @@ feature_audit <- tibble(feature = all_numeric) %>%
   ) %>%
   arrange(domain, desc(abs_cor_with_outcome))
 
+feature_correlation_stats <- map_dfr(all_numeric, function(fc) {
+  correlation_test_stats(model_dat_raw, fc, outcome_col, label = fc)
+}) %>%
+  rename(feature = label) %>%
+  mutate(
+    pearson_p_bh = p.adjust(pearson_p, method = "BH"),
+    spearman_p_bh = p.adjust(spearman_p, method = "BH"),
+    CorrelationUse = "Univariable feature-to-outcome association used for systems feature screening and plotted selected-feature correlations"
+  )
+
+feature_audit <- feature_audit %>%
+  left_join(
+    feature_correlation_stats %>%
+      select(feature, pearson_r, pearson_p, pearson_p_bh, spearman_p, spearman_p_bh, CorrelationUse),
+    by = "feature"
+  )
+
 write_tbl(feature_audit, file.path(output_dir, "tables/systems_feature_audit.csv"))
 write_tbl(feature_audit, file.path(output_dir, "tables/features/systems_feature_audit.csv"))
+write_tbl(feature_correlation_stats, file.path(output_dir, "tables/systems_feature_correlation_stats.csv"))
+write_tbl(feature_correlation_stats, file.path(output_dir, "tables/features/systems_feature_correlation_stats.csv"))
 
 select_uncorrelated_features <- function(dat, candidates, max_features = 3, max_abs_cor = 0.85) {
   selected <- character(0)
@@ -603,6 +668,11 @@ systems_readout_dictionary <- feature_audit %>%
     nonmissing_fraction,
     signed_cor_with_outcome,
     abs_cor_with_outcome,
+    pearson_r,
+    pearson_p,
+    pearson_p_bh,
+    spearman_p,
+    spearman_p_bh,
     eligible,
     selected_for_systems_model = feature %in% systems_features,
     definition = case_when(
@@ -629,13 +699,16 @@ sex_specific_feature_audit <- if ("Sex" %in% names(model_dat_raw) && n_distinct(
     group_by(Sex) %>%
     group_modify(~{
       map_dfr(all_numeric, function(fc) {
-        tibble(
-          feature = fc,
-          n = sum(is.finite(.x[[fc]]) & is.finite(.x[[outcome_col]])),
-          spearman_rho = safe_cor(.x[[fc]], .x[[outcome_col]], "spearman")
-        )
+        correlation_test_stats(.x, fc, outcome_col, label = fc)
       })
     }) %>%
+    ungroup() %>%
+    rename(feature = label) %>%
+    group_by(Sex) %>%
+    mutate(
+      pearson_p_bh_within_sex = p.adjust(pearson_p, method = "BH"),
+      spearman_p_bh_within_sex = p.adjust(spearman_p, method = "BH")
+    ) %>%
     ungroup() %>%
     mutate(
       domain = classify_feature_domain(feature),
@@ -950,6 +1023,51 @@ write_tbl(sex_specific_predictions, file.path(output_dir, "tables/models/systems
 write_tbl(sex_specific_coefficients, file.path(output_dir, "tables/models/systems_ladder_coefficients_by_sex.csv"))
 write_tbl(sex_specific_performance, file.path(output_dir, "tables/models/systems_ladder_performance_by_sex.csv"))
 
+main_prediction_correlation_stats <- main_predictions %>%
+  group_by(Model, Method) %>%
+  group_modify(~correlation_test_stats(.x, "observed", "predicted", label = .y$Model)) %>%
+  ungroup() %>%
+  mutate(
+    pearson_p_bh = p.adjust(pearson_p, method = "BH"),
+    spearman_p_bh = p.adjust(spearman_p, method = "BH"),
+    DisplayModel = recode(Model, !!!model_display_labels),
+    CorrelationUse = "Observed later outcome versus LOAO predicted outcome for each systems ladder model"
+  ) %>%
+  left_join(
+    main_performance %>% select(Model, Method, rmse, mae, cv_r2_vs_mean, DomainStep, ReportingRole),
+    by = c("Model", "Method")
+  ) %>%
+  select(Model, DisplayModel, Method, n, pearson_r, pearson_p, pearson_p_bh, spearman_rho, spearman_p, spearman_p_bh, rmse, mae, cv_r2_vs_mean, DomainStep, ReportingRole, CorrelationUse)
+
+sex_prediction_correlation_stats <- if (nrow(sex_specific_predictions) > 0) {
+  sex_specific_predictions %>%
+    group_by(SexModel, AnalysisStratum, Model, Method) %>%
+    group_modify(~correlation_test_stats(.x, "observed", "predicted", label = .y$Model)) %>%
+    ungroup() %>%
+    group_by(SexModel) %>%
+    mutate(
+      pearson_p_bh_within_sex = p.adjust(pearson_p, method = "BH"),
+      spearman_p_bh_within_sex = p.adjust(spearman_p, method = "BH")
+    ) %>%
+    ungroup() %>%
+    mutate(
+      DisplayModel = recode(Model, !!!model_display_labels),
+      CorrelationUse = "Observed later outcome versus within-sex LOAO predicted outcome for each systems ladder model"
+    ) %>%
+    left_join(
+      sex_specific_performance %>% select(SexModel, AnalysisStratum, Model, Method, rmse, mae, cv_r2_vs_mean, DomainStep, ReportingRole),
+      by = c("SexModel", "AnalysisStratum", "Model", "Method")
+    ) %>%
+    select(SexModel, AnalysisStratum, Model, DisplayModel, Method, n, pearson_r, pearson_p, pearson_p_bh_within_sex, spearman_rho, spearman_p, spearman_p_bh_within_sex, rmse, mae, cv_r2_vs_mean, DomainStep, ReportingRole, CorrelationUse)
+} else {
+  tibble()
+}
+
+write_tbl(main_prediction_correlation_stats, file.path(output_dir, "tables/systems_ladder_prediction_correlations.csv"))
+write_tbl(main_prediction_correlation_stats, file.path(output_dir, "tables/models/systems_ladder_prediction_correlations.csv"))
+write_tbl(sex_prediction_correlation_stats, file.path(output_dir, "tables/systems_ladder_prediction_correlations_by_sex.csv"))
+write_tbl(sex_prediction_correlation_stats, file.path(output_dir, "tables/models/systems_ladder_prediction_correlations_by_sex.csv"))
+
 # Optional nonlinear sensitivity.
 if (isTRUE(run_nonlinear_sensitivity) && has_randomForest) {
   rf_specs <- model_specs[c("08b compact behavior", "Full systems compact")]
@@ -1096,7 +1214,7 @@ pred_plot <- plot_pred %>%
   ) %>%
   ggplot(aes(x = observed, y = predicted)) +
   geom_abline(slope = 1, intercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey45") +
-  geom_smooth(method = "lm", se = TRUE, linewidth = 0.38, alpha = 0.10, colour = "grey25", fill = "grey70") +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.38, alpha = 0.10, colour = "grey25", fill = "grey70") +
   geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.75, stroke = 0.25, alpha = 0.88) +
   facet_wrap(~Model, scales = "free") +
   labs(
@@ -1112,11 +1230,112 @@ pred_plot <- plot_pred %>%
 
 save_plot_svg_pdf(pred_plot, file.path(output_dir, "figures/publication/predicted_vs_actual_combz_key_models"), width = 183, height = 92)
 
+all_prediction_plot_tbl <- main_predictions %>%
+  left_join(
+    main_prediction_correlation_stats %>%
+      mutate(
+        prediction_stat_label = paste0(
+          "r=", round(pearson_r, 2),
+          ", rho=", round(spearman_rho, 2),
+          "\nCV R2=", round(cv_r2_vs_mean, 2),
+          ", ", format_p(pearson_p)
+        )
+      ) %>%
+      select(Model, Method, DisplayModel, prediction_stat_label),
+    by = c("Model", "Method")
+  ) %>%
+  mutate(
+    DisplayModel = factor(DisplayModel, levels = model_display_labels[names(model_display_labels) %in% unique(Model)]),
+    Group = factor(as.character(Group), levels = group_levels)
+  )
+
+all_prediction_plot <- all_prediction_plot_tbl %>%
+  ggplot(aes(x = observed, y = predicted)) +
+  geom_abline(slope = 1, intercept = 0, linewidth = 0.22, linetype = "dashed", colour = "grey50") +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, linewidth = 0.32, colour = "grey25") +
+  geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.25, stroke = 0.20, alpha = 0.84) +
+  geom_text(
+    data = all_prediction_plot_tbl %>% distinct(DisplayModel, prediction_stat_label),
+    aes(x = -Inf, y = Inf, label = prediction_stat_label),
+    inherit.aes = FALSE,
+    hjust = -0.04,
+    vjust = 1.15,
+    size = 1.45,
+    lineheight = 0.9,
+    colour = "grey20"
+  ) +
+  facet_wrap(~DisplayModel, scales = "free", ncol = 4) +
+  labs(
+    title = "Prediction correlations for every systems ladder model",
+    subtitle = "Each panel correlates observed CombZ with LOAO predictions; labels show Pearson r, Spearman rho, CV R2, and Pearson p",
+    x = paste0("Actual ", primary_outcome_label),
+    y = paste0("Predicted ", primary_outcome_label)
+  ) +
+  scale_colour_manual(values = group_colors, drop = FALSE) +
+  scale_fill_manual(values = group_colors, drop = FALSE) +
+  scale_shape_manual(values = group_shape_values, drop = FALSE) +
+  theme_pub +
+  theme(legend.position = "top")
+
+save_plot_svg_pdf(all_prediction_plot, file.path(output_dir, "figures/publication/systems_ladder_prediction_correlations"), width = 183, height = 112)
+
+if (nrow(sex_specific_predictions) > 0) {
+  sex_prediction_plot_tbl <- sex_specific_predictions %>%
+    left_join(
+      sex_prediction_correlation_stats %>%
+        mutate(
+          prediction_stat_label = paste0(
+            "r=", round(pearson_r, 2),
+            ", rho=", round(spearman_rho, 2),
+            "\nCV R2=", round(cv_r2_vs_mean, 2),
+            ", ", format_p(pearson_p)
+          )
+        ) %>%
+        select(SexModel, AnalysisStratum, Model, Method, DisplayModel, prediction_stat_label),
+      by = c("SexModel", "AnalysisStratum", "Model", "Method")
+    ) %>%
+    mutate(
+      DisplayModel = factor(DisplayModel, levels = model_display_labels[names(model_display_labels) %in% unique(Model)]),
+      Group = factor(as.character(Group), levels = group_levels)
+    )
+
+  sex_prediction_plot <- sex_prediction_plot_tbl %>%
+    ggplot(aes(x = observed, y = predicted)) +
+    geom_abline(slope = 1, intercept = 0, linewidth = 0.20, linetype = "dashed", colour = "grey50") +
+    geom_smooth(method = "lm", formula = y ~ x, se = FALSE, linewidth = 0.28, colour = "grey25") +
+    geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.05, stroke = 0.18, alpha = 0.82) +
+    geom_text(
+      data = sex_prediction_plot_tbl %>% distinct(SexModel, DisplayModel, prediction_stat_label),
+      aes(x = -Inf, y = Inf, label = prediction_stat_label),
+      inherit.aes = FALSE,
+      hjust = -0.04,
+      vjust = 1.15,
+      size = 1.25,
+      lineheight = 0.9,
+      colour = "grey20"
+    ) +
+    facet_grid(SexModel ~ DisplayModel, scales = "free") +
+    labs(
+      title = "Within-sex prediction correlations for every systems ladder model",
+      subtitle = "Rows are sex-specific fits; Sex is removed as a predictor inside each row",
+      x = paste0("Actual ", primary_outcome_label),
+      y = paste0("Predicted ", primary_outcome_label)
+    ) +
+    scale_colour_manual(values = group_colors, drop = FALSE) +
+    scale_fill_manual(values = group_colors, drop = FALSE) +
+    scale_shape_manual(values = group_shape_values, drop = FALSE) +
+    theme_pub +
+    theme(legend.position = "top")
+
+  save_plot_svg_pdf(sex_prediction_plot, file.path(output_dir, "figures/publication/systems_ladder_prediction_correlations_by_sex"), width = 183, height = 132)
+}
+
 selected_feature_plot_tbl <- feature_audit %>%
   filter(feature %in% systems_features) %>%
   mutate(
     feature_short = str_trunc(feature_label, 42),
-    domain_label = factor(domain_label, levels = names(domain_colors))
+    domain_label = factor(domain_label, levels = names(domain_colors)),
+    stat_label = paste0("rho=", round(signed_cor_with_outcome, 2), ", ", format_p(spearman_p))
   )
 
 if (nrow(selected_feature_plot_tbl) > 0) {
@@ -1125,10 +1344,11 @@ if (nrow(selected_feature_plot_tbl) > 0) {
     geom_vline(xintercept = 0, linewidth = 0.25, colour = "grey55") +
     geom_segment(aes(x = 0, xend = signed_cor_with_outcome, yend = reorder(feature_short, signed_cor_with_outcome)), linewidth = 0.3, alpha = 0.55) +
     geom_point(size = 1.6) +
+    geom_text(aes(label = stat_label), hjust = -0.05, size = 1.55, colour = "grey20", show.legend = FALSE) +
     facet_grid(domain_label ~ ., scales = "free_y", space = "free_y") +
     labs(
       title = "Selected systems features",
-      subtitle = "Univariable Spearman association with later CombZ before multivariable modeling",
+      subtitle = "Univariable Spearman association with later CombZ before multivariable modeling; labels show rho and nominal p",
       x = "Spearman rho with later CombZ",
       y = NULL
     ) +
@@ -1174,10 +1394,13 @@ output_table_catalog <- tibble(
     "tables/input_audit/feature_source_audit.csv",
     "tables/input_audit/systems_model_input_raw.csv",
     "tables/features/systems_feature_audit.csv",
+    "tables/features/systems_feature_correlation_stats.csv",
     "tables/features/systems_feature_audit_by_sex.csv",
     "tables/features/selected_features_by_domain.csv",
     "tables/models/systems_ladder_performance.csv",
+    "tables/models/systems_ladder_prediction_correlations.csv",
     "tables/models/systems_ladder_performance_by_sex.csv",
+    "tables/models/systems_ladder_prediction_correlations_by_sex.csv",
     "tables/models/systems_ladder_incremental_summary.csv",
     "tables/models/systems_ladder_incremental_summary_by_sex.csv",
     "tables/models/systems_ladder_loo_predictions.csv",
@@ -1187,7 +1410,7 @@ output_table_catalog <- tibble(
   category = c(
     "documentation", "documentation", "documentation",
     "input_audit", "input_audit", "features", "features", "features",
-    "models", "models", "models", "models", "models", "models", "documentation"
+    "features", "models", "models", "models", "models", "models", "models", "models", "models", "documentation"
   ),
   contains = c(
     "Plain-text guide to the analysis folder and recommended reading order.",
@@ -1196,10 +1419,13 @@ output_table_catalog <- tibble(
     "All candidate source files and whether each was loaded as an animal-level feature table.",
     "Merged animal-level modeling matrix before final predictor selection.",
     "All candidate features with domain classification, missingness, SD, and outcome association.",
+    "Pearson and Spearman statistics, p-values, and FDR-adjusted p-values for all feature-to-outcome correlations.",
     "Sex-specific univariable feature associations with later CombZ.",
     "Selected feature list by domain with selection rules.",
     "LOAO model performance for the systems ladder.",
+    "Observed-versus-predicted correlation statistics for every pooled systems ladder model.",
     "Within-sex LOAO model performance for the systems ladder.",
+    "Observed-versus-predicted correlation statistics for every within-sex systems ladder model.",
     "Incremental comparison against mean-only and raw-movement baselines.",
     "Within-sex incremental comparison against mean-only and raw-movement baselines.",
     "Animal-level observed and predicted values for each systems model.",
@@ -1213,10 +1439,13 @@ output_table_catalog <- tibble(
     "Methods/input audit",
     "Methods/source data",
     "Supplement/feature audit",
+    "Feature correlation figure statistics",
     "Supplement/sex-specific feature audit",
     "Main or supplement/domain selection",
     "Systems-extension result",
+    "Prediction correlation figure statistics",
     "Sex-specific systems-extension result",
+    "Prediction correlation figure statistics",
     "Systems-extension result",
     "Sex-specific systems-extension result",
     "Supplement/model diagnostics",
