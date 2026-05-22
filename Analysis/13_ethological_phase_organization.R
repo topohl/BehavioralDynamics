@@ -22,24 +22,17 @@ suppressPackageStartupMessages({
   library(stringr)
 })
 
-source_candidates <- c(
-  file.path("Functions", "behavioral_dynamics_helpers.R"),
-  file.path("..", "Functions", "behavioral_dynamics_helpers.R"),
-  "C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/behavioral_dynamics_helpers.R"
+.pipeline_setup_candidates <- c(
+  file.path(getwd(), "Analysis", "_pipeline_setup.R"),
+  file.path(getwd(), "_pipeline_setup.R"),
+  file.path(dirname(tryCatch(normalizePath(sys.frame(1)$ofile, winslash = "/", mustWork = FALSE), error = function(e) getwd())), "_pipeline_setup.R")
 )
-duration_helper_candidates <- c(
-  file.path("Functions", "duration_normalization_helpers.R"),
-  file.path("..", "Functions", "duration_normalization_helpers.R"),
-  "C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/duration_normalization_helpers.R"
-)
-helper_path <- source_candidates[file.exists(source_candidates)][1]
-duration_helper_path <- duration_helper_candidates[file.exists(duration_helper_candidates)][1]
-if (is.na(helper_path)) stop("Could not find behavioral_dynamics_helpers.R", call. = FALSE)
-if (is.na(duration_helper_path)) stop("Could not find duration_normalization_helpers.R", call. = FALSE)
-source(helper_path)
-source(duration_helper_path)
+.pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
+if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
+source(.pipeline_setup)
+source_mmm_helper("duration_normalization_helpers.R")
 
-bin_level <- "5min_based"
+bin_level <- "10min_based"
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 input_file <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
 output_dir <- file.path(base_dir, "analysis_ready/17_ethological_phase_organization", bin_level)
@@ -49,7 +42,7 @@ phase_metrics <- c("Movement", "Entropy", "Proximity")
 output_dirs <- analysis_output_dirs(output_dir)
 write_output_manifest(
   output_dir,
-  script_name = "17_ethological_phase_organization.R",
+  script_name = "13_ethological_phase_organization.R",
   analysis_name = "ethological active/inactive phase organization",
   primary_tables = c(
     "tables/phase_contrast_features.csv",

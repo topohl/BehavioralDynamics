@@ -10,13 +10,13 @@
 # Conceptual framing:
 #   This script does not replace the specialized scripts. It integrates them.
 #   It is intended as the final graphical/statistical layer after running:
-#     03_build_multiscale_behavior_metrics.R
-#     06_burstiness_temporal_instability.R
-#     07_behavioral_state_space.R
-#     08b_early_prediction_model_ladder.R
-#     09_dynamic_social_networks.R
-#     10_hmm_behavioral_states.R
-#     11_gamm_trajectory_features.R
+#     01_build_multiscale_behavior_metrics.R
+#     04_temporal_instability.R
+#     05_behavioral_state_space.R
+#     09_early_prediction_model_ladder.R
+#     06_dynamic_social_networks.R
+#     08_hmm_behavioral_states_optional.R
+#     07_gamm_trajectory_features.R
 #     13_nonlinear_systems_dynamics.R
 #     14_nextgen_behavioral_phenotyping.R
 #
@@ -48,13 +48,24 @@ suppressPackageStartupMessages({
   library(stringr)
 })
 
+.pipeline_setup_candidates <- c(
+  file.path(getwd(), "Analysis", "_pipeline_setup.R"),
+  file.path(getwd(), "_pipeline_setup.R"),
+  file.path(dirname(tryCatch(normalizePath(sys.frame(1)$ofile, winslash = "/", mustWork = FALSE), error = function(e) getwd())), "_pipeline_setup.R")
+)
+.pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
+if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
+source(.pipeline_setup)
+source_mmm_helper("behavioral_dynamics_stats_helpers.R")
+source_mmm_helper("duration_normalization_helpers.R")
+
 # ------------------------------------------------
 # USER CONFIGURATION
 # ------------------------------------------------
 
 # Project root used in your existing scripts. Change only if needed.
 project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-repo_root <- "C:/Users/topohl/Documents/GitHub/MMMSociability"
+repo_root <- MMM_REPO_ROOT
 
 # Main scale for the publication summary. Use 5min_based for the ACF/entropy story;
 # use 10min_based for lower noise and prediction sensitivity.
@@ -136,10 +147,6 @@ sex_levels <- c("Female", "Male")
 source_if_exists <- function(path) {
   if (file.exists(path)) source(path)
 }
-
-source_if_exists(file.path(repo_root, "Functions/behavioral_dynamics_helpers.R"))
-source_if_exists(file.path(repo_root, "Functions/behavioral_dynamics_stats_helpers.R"))
-source_if_exists(file.path(repo_root, "Functions/duration_normalization_helpers.R"))
 
 if (!exists("ensure_dir")) {
   ensure_dir <- function(path) {
@@ -234,7 +241,7 @@ ensure_dir(file.path(output_dir, "figures/qc"))
 output_dirs <- analysis_output_dirs(output_dir)
 write_output_manifest(
   output_dir,
-  script_name = "12_systems_neuroscience_summary.R",
+  script_name = "14_systems_neuroscience_summary_dashboard.R",
   analysis_name = "integrated systems neuroscience summary",
   primary_tables = c(
     "tables/systems_animal_feature_matrix.csv",
@@ -615,7 +622,7 @@ write_table(domain_bin_preference_audit, file.path(output_dir, "tables/systems_d
 base_file <- paths$Path[paths$Source == "multiscale_metrics"]
 base_raw <- read_any_table(base_file)
 if (is.null(base_raw)) {
-  stop("Missing base metrics file. Run Analysis/03_build_multiscale_behavior_metrics.R first. Expected: ", base_file, call. = FALSE)
+  stop("Missing base metrics file. Run Analysis/01_build_multiscale_behavior_metrics.R first. Expected: ", base_file, call. = FALSE)
 }
 
 base <- standardize_id_columns(base_raw)
@@ -1574,21 +1581,21 @@ is_raw_duration_sensitive_feature <- function(feature, metric, statistic, contex
 
 source_script_from_source <- function(source) {
   case_when(
-    source == "raw" ~ "03_build_multiscale_behavior_metrics.R",
-    str_detect(source, "burstiness") ~ "06_burstiness_temporal_instability.R",
-    str_detect(source, "state_space") ~ "07_behavioral_state_space.R",
-    str_detect(source, "early_prediction|prediction") ~ "08b_early_prediction_model_ladder.R",
-    str_detect(source, "dynamic_network") ~ "09_dynamic_social_networks.R",
-    str_detect(source, "hmm") ~ "10_hmm_behavioral_states.R",
-    str_detect(source, "gamm") ~ "11_gamm_trajectory_features.R",
-    str_detect(source, "behavior_proteomics") ~ "12_behavior_proteomics_integration.R",
+    source == "raw" ~ "01_build_multiscale_behavior_metrics.R",
+    str_detect(source, "burstiness") ~ "04_temporal_instability.R",
+    str_detect(source, "state_space") ~ "05_behavioral_state_space.R",
+    str_detect(source, "early_prediction|prediction") ~ "09_early_prediction_model_ladder.R",
+    str_detect(source, "dynamic_network") ~ "06_dynamic_social_networks.R",
+    str_detect(source, "hmm") ~ "08_hmm_behavioral_states_optional.R",
+    str_detect(source, "gamm") ~ "07_gamm_trajectory_features.R",
+    str_detect(source, "behavior_proteomics") ~ "15_behavior_proteomics_integration.R",
     str_detect(source, "nonlinear_systems") ~ "13_nonlinear_systems_dynamics.R",
-    str_detect(source, "qc|chip_loss") ~ "00_tracking_qc_rfid_loss.R",
-    str_detect(source, "adaptation_kinetics") ~ "15_behavioral_adaptation_kinetics.R",
-    str_detect(source, "sleep_like_inactivity") ~ "16_sleep_like_inactivity_metrics.R",
-    str_detect(source, "phase_organization") ~ "17_ethological_phase_organization.R",
+    str_detect(source, "qc|chip_loss") ~ "00_qc_tracking_integrity.R",
+    str_detect(source, "adaptation_kinetics") ~ "11_behavioral_adaptation_kinetics.R",
+    str_detect(source, "sleep_like_inactivity") ~ "12_sleep_like_quiescence_metrics.R",
+    str_detect(source, "phase_organization") ~ "13_ethological_phase_organization.R",
     str_detect(source, "nextgen|nonlinear") ~ "14_nextgen_behavioral_phenotyping.R",
-    str_detect(source, "systems") ~ "12_systems_neuroscience_summary.R",
+    str_detect(source, "systems") ~ "14_systems_neuroscience_summary_dashboard.R",
     TRUE ~ "integrated_optional_output"
   )
 }
@@ -1869,20 +1876,20 @@ integration_audit_registry <- tibble(
     "Chip-loss and low-observation QC"
   ),
   SourceScript = c(
-    "03_build_multiscale_behavior_metrics.R",
-    "06_burstiness_temporal_instability.R",
-    "07_behavioral_state_space.R",
-    "08b_early_prediction_model_ladder.R",
-    "09_dynamic_social_networks.R",
-    "10_hmm_behavioral_states.R",
-    "11_gamm_trajectory_features.R",
+    "01_build_multiscale_behavior_metrics.R",
+    "04_temporal_instability.R",
+    "05_behavioral_state_space.R",
+    "09_early_prediction_model_ladder.R",
+    "06_dynamic_social_networks.R",
+    "08_hmm_behavioral_states_optional.R",
+    "07_gamm_trajectory_features.R",
     "13_nonlinear_systems_dynamics.R",
     "14_nextgen_behavioral_phenotyping.R",
-    "15_behavioral_adaptation_kinetics.R",
-    "16_sleep_like_inactivity_metrics.R",
-    "17_ethological_phase_organization.R",
-    "12_behavior_proteomics_integration.R",
-    "00_tracking_qc_rfid_loss.R"
+    "11_behavioral_adaptation_kinetics.R",
+    "12_sleep_like_quiescence_metrics.R",
+    "13_ethological_phase_organization.R",
+    "15_behavior_proteomics_integration.R",
+    "00_qc_tracking_integrity.R"
   ),
   expected_outputs = I(list(
     file.path(project_root, "analysis_ready/03_derived_metrics", primary_bin_level, "all_behavior_metrics.csv"),
@@ -1954,10 +1961,10 @@ integration_audit_registry <- tibble(
 )
 
 main_dashboard_source_scripts <- c(
-  "03_build_multiscale_behavior_metrics.R",
-  "06_burstiness_temporal_instability.R",
-  "08b_early_prediction_model_ladder.R",
-  "12_systems_neuroscience_summary.R"
+  "01_build_multiscale_behavior_metrics.R",
+  "04_temporal_instability.R",
+  "09_early_prediction_model_ladder.R",
+  "14_systems_neuroscience_summary_dashboard.R"
 )
 
 feature_import_summary <- feature_dictionary %>%
@@ -3533,12 +3540,12 @@ write_table(systems_linear_vs_nonlinear_feature_audit, file.path(output_dir, "ta
 
 sis_dependency_audit <- tibble(
   RequiredScript = c(
-    "03_build_multiscale_behavior_metrics.R", "06_burstiness_temporal_instability.R",
-    "07_behavioral_state_space.R", "08b_early_prediction_model_ladder.R",
-    "09_dynamic_social_networks.R", "10_hmm_behavioral_states.R",
-    "11_gamm_trajectory_features.R", "13_nonlinear_systems_dynamics.R",
-    "14_nextgen_behavioral_phenotyping.R", "15_behavioral_adaptation_kinetics.R",
-    "16_sleep_like_inactivity_metrics.R", "17_ethological_phase_organization.R"
+    "01_build_multiscale_behavior_metrics.R", "04_temporal_instability.R",
+    "05_behavioral_state_space.R", "09_early_prediction_model_ladder.R",
+    "06_dynamic_social_networks.R", "08_hmm_behavioral_states_optional.R",
+    "07_gamm_trajectory_features.R", "13_nonlinear_systems_dynamics.R",
+    "14_nextgen_behavioral_phenotyping.R", "11_behavioral_adaptation_kinetics.R",
+    "12_sleep_like_quiescence_metrics.R", "13_ethological_phase_organization.R"
   ),
   BiologicalDomain = c(
     "Core spontaneous behavior", "Temporal flexibility / rigidity", "Behavioral-state stability",
@@ -3610,7 +3617,7 @@ sis_score_dictionary <- sis_domain_score_specs %>%
     feature = ScoreColumn,
     Feature = ScoreColumn,
     Source = "systems",
-    SourceScript = "12_systems_neuroscience_summary.R",
+    SourceScript = "14_systems_neuroscience_summary_dashboard.R",
     Domain = "sis_systems_domains",
     BiologicalDomain = SISDomain,
     Module = "Predictive systems integration",
@@ -4477,7 +4484,7 @@ systems_endpoint_leakage_audit <- bind_rows(
   tibble(
     ItemType = "group_contrast",
     Item = "RES/SUS/CON group contrasts",
-    SourceScript = "12_systems_neuroscience_summary.R",
+    SourceScript = "14_systems_neuroscience_summary_dashboard.R",
     FeatureUseClass = "primary_secondary_or_exploratory",
     ClaimType = "descriptive",
     LeakageClass = "descriptive_group_contrast",
@@ -4489,7 +4496,7 @@ systems_endpoint_leakage_audit <- bind_rows(
       transmute(
         ItemType = "prediction_model",
         Item = Model,
-        SourceScript = "12_systems_neuroscience_summary.R",
+        SourceScript = "14_systems_neuroscience_summary_dashboard.R",
         FeatureUseClass = "primary_or_secondary_module_scores",
         ClaimType = "predictive",
         LeakageClass = ModelLeakageClass,
@@ -6040,26 +6047,26 @@ systems_output_naming_conventions <- tibble(
 
 duration_sensitivity_audit <- tibble::tribble(
   ~script, ~output_file, ~metric, ~duration_sensitive, ~reason, ~correction_applied, ~normalized_metric_name, ~cc4_exclusion_sensitivity_available, ~reviewer_risk,
-  "03_build_multiscale_behavior_metrics.R", "all_behavior_metrics.csv", "Movement, MovementDistance, ProximitySeconds", TRUE, "Raw counts/seconds scale with observed duration.", "Added observation-duration QC and per-hour rate columns.", "MovementPerHour; MovementDistancePerHour; ProximitySecondsPerHour", TRUE, "high",
+  "01_build_multiscale_behavior_metrics.R", "all_behavior_metrics.csv", "Movement, MovementDistance, ProximitySeconds", TRUE, "Raw counts/seconds scale with observed duration.", "Added observation-duration QC and per-hour rate columns.", "MovementPerHour; MovementDistancePerHour; ProximitySecondsPerHour", TRUE, "high",
   "04_gamm_movement_proximity_phase_and_early_window.R", "gamm AUC tables", "GAMM trajectory AUC", TRUE, "GAMM AUC integrates over the available time grid and can scale with trajectory duration.", "Observation-duration QC exported and AUC tables include per-hour normalized values.", "AUC_per_hour; AUC_diff_per_hour", TRUE, "high",
-  "05_build_dyadic_rfid_contacts.R", "dyadic_network_ready.csv", "same/adjacent position seconds", TRUE, "Dyadic contact seconds scale with observed duration and feed network edge weights.", "Added epoch duration QC, BinSizeSec, and per-hour contact-second rates.", "same_position_seconds_per_hour; adjacent_seconds_per_hour", TRUE, "high",
-  "06_burstiness_temporal_instability.R", "temporal_instability_metrics_per_animal_all_metrics.csv", "RMSSD, ACF1, CV, Fano", TRUE, "Temporal estimates become unstable with short epochs.", "Epoch duration QC joined; helper safeguards retain minimum-bin NA rules; excluding-short-duration table exported.", "same metric, duration-tagged", TRUE, "medium",
-  "07_behavioral_state_space.R", "state_switching_metrics.csv", "n_switches, n_transitions, switch_rate", TRUE, "Raw transition counts scale with number of bins.", "Counts converted to per-hour rates; transition metrics require minimum bins.", "n_switches_per_hour; n_transitions_per_hour", TRUE, "high",
-  "07_behavioral_state_space.R", "state_diversity_metrics.csv", "state entropy", TRUE, "Entropy stability depends on epoch length.", "Duration QC joined and entropy_rate exported.", "entropy_rate", TRUE, "medium",
+  "02_build_dyadic_rfid_contacts.R", "dyadic_network_ready.csv", "same/adjacent position seconds", TRUE, "Dyadic contact seconds scale with observed duration and feed network edge weights.", "Added epoch duration QC, BinSizeSec, and per-hour contact-second rates.", "same_position_seconds_per_hour; adjacent_seconds_per_hour", TRUE, "high",
+  "04_temporal_instability.R", "temporal_instability_metrics_per_animal_all_metrics.csv", "RMSSD, ACF1, CV, Fano", TRUE, "Temporal estimates become unstable with short epochs.", "Epoch duration QC joined; helper safeguards retain minimum-bin NA rules; excluding-short-duration table exported.", "same metric, duration-tagged", TRUE, "medium",
+  "05_behavioral_state_space.R", "state_switching_metrics.csv", "n_switches, n_transitions, switch_rate", TRUE, "Raw transition counts scale with number of bins.", "Counts converted to per-hour rates; transition metrics require minimum bins.", "n_switches_per_hour; n_transitions_per_hour", TRUE, "high",
+  "05_behavioral_state_space.R", "state_diversity_metrics.csv", "state entropy", TRUE, "Entropy stability depends on epoch length.", "Duration QC joined and entropy_rate exported.", "entropy_rate", TRUE, "medium",
   "08_early_prediction_models.R", "early_behavior_features.csv", "early-window features", TRUE, "Prediction features can leak duration if QC columns enter the model.", "Duration QC exported; duration columns excluded from predictors; short-duration feature table exported.", "early_behavior_features_excluding_short_duration.csv", TRUE, "medium",
-  "08b_early_prediction_model_ladder.R", "model_ladder_performance_duration_sensitivity.csv", "prediction ladder performance", TRUE, "LOOCV performance may change if short-duration early-window rows contribute different feature reliability.", "Full-data and excluding-short-duration prediction ladders exported with performance deltas.", "duration-sensitive prediction-performance comparison", TRUE, "medium",
-  "09_dynamic_social_networks.R", "animal_level_social_dynamics.csv", "contact switches", TRUE, "Switch counts scale with observation duration.", "Contact switches converted to per-hour rates and duration-sensitivity table exported.", "contact_switch_count_per_hour", TRUE, "high",
-  "09_dynamic_social_networks.R", "dyadic_pair_summary.csv", "contact bins", TRUE, "Dyadic contact counts scale with observed bins.", "Contact bins converted to per-hour rates.", "contact_bins_per_hour", FALSE, "high",
-  "10_hmm_behavioral_states.R", "hmm_transition_counts.csv", "Transitions", TRUE, "Raw HMM transitions scale with sequence length.", "Minimum sequence length raised and transitions converted to per-hour rates.", "Transitions_per_hour", TRUE, "high",
-  "10_hmm_behavioral_states.R", "hmm_state_dwell_times.csv", "dwell bins", TRUE, "Dwell time in bins depends on bin size and available duration.", "Dwell bins converted to hours and duration QC joined.", "mean_dwell_hours; median_dwell_hours; max_dwell_hours", TRUE, "medium",
-  "11_gamm_trajectory_features.R", "combined_gamm_features.csv", "AUC", TRUE, "AUC is cumulative over trajectory duration.", "AUC set to NA for short trajectories and converted to per-hour rate.", "auc_per_hour", TRUE, "high",
-  "15_behavioral_adaptation_kinetics.R", "adaptation_kinetics_features.csv", "stabilization time, volatility decay, recovery slope", TRUE, "Recovery/stabilization estimates depend on enough bins to estimate early and late trajectory structure.", "Epoch duration QC joined; short-duration sensitivity output exported.", "recovery_slope_per_hour; stabilization_time_hours; adaptation_half_life_hours", TRUE, "medium",
-  "16_sleep_like_inactivity_metrics.R", "sleep_like_inactivity_features.csv", "bout counts and transition rates", TRUE, "Inactivity bout counts and prolonged episodes scale with observation duration.", "Bout/prolonged episode counts converted to rates and duration sensitivity output exported.", "inactivity_bout_count_per_hour; prolonged_inactivity_episodes_per_hour", TRUE, "medium",
-  "17_ethological_phase_organization.R", "phase_contrast_features.csv", "active/inactive phase contrasts", TRUE, "Phase organization estimates require comparable active and inactive observation structure.", "Phase-level duration QC exported and full/excluding-short-duration feature tables written.", "active_minus_inactive_mean; active_inactive_ratio_mean", TRUE, "medium",
-  "12_systems_neuroscience_summary.R", "systems_temporal_latent_epoch_embeddings.csv", "PCA/UMAP/PHATE epoch state space", TRUE, "Embedding can be biased by short/cumulative epoch summaries.", "Duration QC joined; short epochs excluded from latent trajectory embedding.", "duration-tagged normalized features", TRUE, "medium",
-  "12_systems_neuroscience_summary.R", "systems_pca_scores.csv; systems_umap_scores.csv", "animal-level systems state space", TRUE, "Unnormalized cumulative features can dominate embedding axes when observation duration differs.", "PCA/UMAP use duration-robust feature pool excluding raw cumulative/count summaries.", "duration_robust_embedding_prediction feature set", TRUE, "medium",
-  "12_systems_neuroscience_summary.R", "systems_latent_instability_by_animal.csv", "latent path length and roughness", TRUE, "Path length scales with number of epochs.", "Path length normalized per hour and per epoch; roughness normalized by epoch count.", "latent_path_length_per_hour; latent_path_length_per_epoch; latent_roughness_normalized", TRUE, "high",
-  "12_systems_neuroscience_summary.R", "systems_prediction_ladder_performance_duration_sensitivity.csv", "integrated systems prediction ladder", TRUE, "Module scores can inherit duration artifacts if raw cumulative features are included.", "Prediction ladder uses duration-robust feature pool and exports full vs excluding-short-duration performance.", "duration-robust module scores", TRUE, "medium"
+  "09_early_prediction_model_ladder.R", "model_ladder_performance_duration_sensitivity.csv", "prediction ladder performance", TRUE, "LOOCV performance may change if short-duration early-window rows contribute different feature reliability.", "Full-data and excluding-short-duration prediction ladders exported with performance deltas.", "duration-sensitive prediction-performance comparison", TRUE, "medium",
+  "06_dynamic_social_networks.R", "animal_level_social_dynamics.csv", "contact switches", TRUE, "Switch counts scale with observation duration.", "Contact switches converted to per-hour rates and duration-sensitivity table exported.", "contact_switch_count_per_hour", TRUE, "high",
+  "06_dynamic_social_networks.R", "dyadic_pair_summary.csv", "contact bins", TRUE, "Dyadic contact counts scale with observed bins.", "Contact bins converted to per-hour rates.", "contact_bins_per_hour", FALSE, "high",
+  "08_hmm_behavioral_states_optional.R", "hmm_transition_counts.csv", "Transitions", TRUE, "Raw HMM transitions scale with sequence length.", "Minimum sequence length raised and transitions converted to per-hour rates.", "Transitions_per_hour", TRUE, "high",
+  "08_hmm_behavioral_states_optional.R", "hmm_state_dwell_times.csv", "dwell bins", TRUE, "Dwell time in bins depends on bin size and available duration.", "Dwell bins converted to hours and duration QC joined.", "mean_dwell_hours; median_dwell_hours; max_dwell_hours", TRUE, "medium",
+  "07_gamm_trajectory_features.R", "combined_gamm_features.csv", "AUC", TRUE, "AUC is cumulative over trajectory duration.", "AUC set to NA for short trajectories and converted to per-hour rate.", "auc_per_hour", TRUE, "high",
+  "11_behavioral_adaptation_kinetics.R", "adaptation_kinetics_features.csv", "stabilization time, volatility decay, recovery slope", TRUE, "Recovery/stabilization estimates depend on enough bins to estimate early and late trajectory structure.", "Epoch duration QC joined; short-duration sensitivity output exported.", "recovery_slope_per_hour; stabilization_time_hours; adaptation_half_life_hours", TRUE, "medium",
+  "12_sleep_like_quiescence_metrics.R", "sleep_like_inactivity_features.csv", "bout counts and transition rates", TRUE, "Inactivity bout counts and prolonged episodes scale with observation duration.", "Bout/prolonged episode counts converted to rates and duration sensitivity output exported.", "inactivity_bout_count_per_hour; prolonged_inactivity_episodes_per_hour", TRUE, "medium",
+  "13_ethological_phase_organization.R", "phase_contrast_features.csv", "active/inactive phase contrasts", TRUE, "Phase organization estimates require comparable active and inactive observation structure.", "Phase-level duration QC exported and full/excluding-short-duration feature tables written.", "active_minus_inactive_mean; active_inactive_ratio_mean", TRUE, "medium",
+  "14_systems_neuroscience_summary_dashboard.R", "systems_temporal_latent_epoch_embeddings.csv", "PCA/UMAP/PHATE epoch state space", TRUE, "Embedding can be biased by short/cumulative epoch summaries.", "Duration QC joined; short epochs excluded from latent trajectory embedding.", "duration-tagged normalized features", TRUE, "medium",
+  "14_systems_neuroscience_summary_dashboard.R", "systems_pca_scores.csv; systems_umap_scores.csv", "animal-level systems state space", TRUE, "Unnormalized cumulative features can dominate embedding axes when observation duration differs.", "PCA/UMAP use duration-robust feature pool excluding raw cumulative/count summaries.", "duration_robust_embedding_prediction feature set", TRUE, "medium",
+  "14_systems_neuroscience_summary_dashboard.R", "systems_latent_instability_by_animal.csv", "latent path length and roughness", TRUE, "Path length scales with number of epochs.", "Path length normalized per hour and per epoch; roughness normalized by epoch count.", "latent_path_length_per_hour; latent_path_length_per_epoch; latent_roughness_normalized", TRUE, "high",
+  "14_systems_neuroscience_summary_dashboard.R", "systems_prediction_ladder_performance_duration_sensitivity.csv", "integrated systems prediction ladder", TRUE, "Module scores can inherit duration artifacts if raw cumulative features are included.", "Prediction ladder uses duration-robust feature pool and exports full vs excluding-short-duration performance.", "duration-robust module scores", TRUE, "medium"
 )
 
 systems_claim_hierarchy <- tibble(

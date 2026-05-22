@@ -39,8 +39,15 @@ suppressPackageStartupMessages({
   library(parallel)
 })
 
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/behavioral_dynamics_helpers.R")
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/duration_normalization_helpers.R")
+.pipeline_setup_candidates <- c(
+  file.path(getwd(), "Analysis", "_pipeline_setup.R"),
+  file.path(getwd(), "_pipeline_setup.R"),
+  file.path(dirname(tryCatch(normalizePath(sys.frame(1)$ofile, winslash = "/", mustWork = FALSE), error = function(e) getwd())), "_pipeline_setup.R")
+)
+.pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
+if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
+source(.pipeline_setup)
+source_mmm_helper("duration_normalization_helpers.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -84,7 +91,7 @@ metadata_file <- NULL
 output_dirs <- analysis_output_dirs(output_dir)
 write_output_manifest(
   output_dir,
-  script_name = "05_build_dyadic_rfid_contacts.R",
+  script_name = "02_build_dyadic_rfid_contacts.R",
   analysis_name = "dyadic RFID contact table",
   primary_tables = c(
     "tables/dyadic_contacts_by_bin.csv",
@@ -449,7 +456,7 @@ write_table(
   file.path(output_dir, "tables", "dyadic_contacts_by_bin.csv")
 )
 
-# A compact file with the exact columns expected by 09_dynamic_social_networks.R
+# A compact file with the exact columns expected by 06_dynamic_social_networks.R
 network_ready_tbl <- dyad_bin_tbl %>%
   transmute(
     Focal,

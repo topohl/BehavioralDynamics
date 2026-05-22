@@ -18,7 +18,7 @@
 #   used as an adjustment/sensitivity term?
 #
 # Input expectation:
-#   Run Analysis/03_build_multiscale_behavior_metrics.R first.
+#   Run Analysis/01_build_multiscale_behavior_metrics.R first.
 #   The endpoint file must contain AnimalNum and CombZ or your selected
 #   outcome column.
 # ================================================================
@@ -33,9 +33,16 @@ suppressPackageStartupMessages({
   library(stringr)
 })
 
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/behavioral_dynamics_helpers.R")
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/behavioral_dynamics_stats_helpers.R")
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/duration_normalization_helpers.R")
+.pipeline_setup_candidates <- c(
+  file.path(getwd(), "Analysis", "_pipeline_setup.R"),
+  file.path(getwd(), "_pipeline_setup.R"),
+  file.path(dirname(tryCatch(normalizePath(sys.frame(1)$ofile, winslash = "/", mustWork = FALSE), error = function(e) getwd())), "_pipeline_setup.R")
+)
+.pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
+if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
+source(.pipeline_setup)
+source_mmm_helper("behavioral_dynamics_stats_helpers.R")
+source_mmm_helper("duration_normalization_helpers.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -400,7 +407,7 @@ ensure_dir_safe(file.path(output_dir, "figures", "publication"))
 output_dirs <- analysis_output_dirs(output_dir)
 write_output_manifest(
   output_dir,
-  script_name = "08b_early_prediction_model_ladder.R",
+  script_name = "09_early_prediction_model_ladder.R",
   analysis_name = "early prediction model ladder",
   primary_tables = c(
     "tables/model_ladder_performance.csv",

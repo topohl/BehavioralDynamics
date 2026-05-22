@@ -30,20 +30,20 @@ suppressPackageStartupMessages({
 })
 
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-repo_root <- "C:/Users/topohl/Documents/GitHub/MMMSociability"
 bin_level_priority <- c("10min_based", "5min_based", "30min_based", "1min_based")
 input_candidates <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level_priority, "all_behavior_metrics.csv")
-analysis_name <- "18c_raw_movement_broad_phase_stats_corrected"
+analysis_name <- "03_primary_raw_movement_phase_stats"
 min_bins_per_animal <- 2
 export_global_family_corrections <- FALSE
 
-helper_candidates <- c(
-  file.path(repo_root, "Functions", "behavioral_dynamics_helpers.R"),
-  file.path("Functions", "behavioral_dynamics_helpers.R"),
-  file.path("..", "Functions", "behavioral_dynamics_helpers.R")
+.pipeline_setup_candidates <- c(
+  file.path(getwd(), "Analysis", "_pipeline_setup.R"),
+  file.path(getwd(), "_pipeline_setup.R"),
+  file.path(dirname(tryCatch(normalizePath(sys.frame(1)$ofile, winslash = "/", mustWork = FALSE), error = function(e) getwd())), "_pipeline_setup.R")
 )
-helper_path <- helper_candidates[file.exists(helper_candidates)][1]
-if (!is.na(helper_path)) source(helper_path)
+.pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
+if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
+source(.pipeline_setup)
 
 if (!exists("ensure_dir")) {
   ensure_dir <- function(path) {
@@ -177,6 +177,34 @@ sex_col <- first_existing_col(raw_dat, c("Sex", "sex"), "sex column")
 phase_col <- first_existing_col(raw_dat, c("PhaseClass", "Phase", "phase"), "phase column")
 change_col <- first_existing_col(raw_dat, c("CageChange", "Change", "CC"), "cage-change column")
 
+if (exists("write_output_manifest")) {
+  write_output_manifest(
+    output_dir,
+    script_name = "03_primary_raw_movement_phase_stats.R",
+    analysis_name = "primary raw movement broad phase statistics",
+    input_files = input_file,
+    output_directory = output_dir,
+    bin_level = bin_level,
+    key_parameters = list(
+      min_bins_per_animal = min_bins_per_animal,
+      movement_column = movement_col,
+      panel_p_adjustment = "Holm within displayed endpoint panel",
+      export_global_family_corrections = export_global_family_corrections
+    ),
+    primary_tables = c(
+      "tables/raw_movement_phase_filter_qc.csv",
+      "tables/raw_movement_animal_level_endpoints.csv",
+      "tables/raw_movement_group_summary.csv",
+      "tables/raw_movement_overall_active_inactive_panel_counts.csv"
+    ),
+    primary_figures = c(
+      "figures/publication_panels/Fig18c_overall_active_inactive_mean_movement_corrected_stats.svg",
+      "figures/publication_panels/Fig18c_cage_change_phase_mean_movement_corrected_stats.svg",
+      "figures/publication_panels/Fig18c_cage_change_phase_pairwise_pvalue_heatmap_corrected.svg"
+    )
+  )
+}
+
 behav <- raw_dat %>%
   transmute(
     AnimalNum = clean_id(.data[[animal_col]]),
@@ -212,8 +240,8 @@ behav <- raw_dat %>%
 
 readr::write_csv(
   tibble(Field = c("script", "input_file", "bin_level", "movement_column", "output_dir"),
-         Value = c("Analysis/18c_raw_movement_broad_phase_stats_corrected.R", input_file, bin_level, movement_col, output_dir)),
-  file.path(dirs$tables, "input_source_manifest.csv")
+         Value = c("Analysis/03_primary_raw_movement_phase_stats.R", input_file, bin_level, movement_col, output_dir)),
+  file.path(dirs$manifest, "input_source_manifest.csv")
 )
 
 # ------------------------------------------------

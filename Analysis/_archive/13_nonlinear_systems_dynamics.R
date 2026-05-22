@@ -8,10 +8,10 @@
 # response curves.
 #
 # Run after:
-#   Analysis/03_build_multiscale_behavior_metrics.R
+#   Analysis/01_build_multiscale_behavior_metrics.R
 # Optional but useful:
 #   Analysis/08_early_prediction_models.R
-#   Analysis/12_systems_neuroscience_summary.R
+#   Analysis/14_systems_neuroscience_summary_dashboard.R
 # ================================================================
 
 suppressPackageStartupMessages({
@@ -325,7 +325,7 @@ write_output_manifest(
 )
 
 raw <- read_any(input_file)
-if (is.null(raw)) stop("Missing input file. Run 03_build_multiscale_behavior_metrics.R first.", call. = FALSE)
+if (is.null(raw)) stop("Missing input file. Run 01_build_multiscale_behavior_metrics.R first.", call. = FALSE)
 behav <- standardize_input(raw) %>%
   mutate(
     CageChangeLabel = as.character(CageChange),

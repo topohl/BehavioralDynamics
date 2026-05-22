@@ -1,13 +1,13 @@
 # Multiscale behavior metrics: legacy-definition validation notes
 
-This note documents how `Analysis/03_build_multiscale_behavior_metrics.R` maps onto the older MMMSociability metric definitions.
+This note documents how `Analysis/01_build_multiscale_behavior_metrics.R` maps onto the older MMMSociability metric definitions.
 
 ## Checked legacy sources
 
 - `Functions/E9_SIS_AnimalPos-functions.R`
 - `Analysis/E9_SIS_AnimalPos-analyzing.R`
 - `Testing/E9_SIS_AnimalPos-analyzing v.2.0.0.R`
-- `Analysis/05_build_dyadic_rfid_contacts.R`
+- `Analysis/02_build_dyadic_rfid_contacts.R`
 - `Analysis/E9_SIS_AnimalPos-analyzing-shannon v.1.0.1.r`
 
 ## Position mapping
@@ -79,7 +79,7 @@ For the 8-position RFID grid, the theoretical maximum is `log2(8) = 3` if an ani
 
 ## Current architectural implication
 
-`03_build_multiscale_behavior_metrics.R` should be treated as the producer of canonical downstream files:
+`01_build_multiscale_behavior_metrics.R` should be treated as the producer of canonical downstream files:
 
 ```text
 analysis_ready/03_derived_metrics/10sec_based/all_behavior_metrics.csv

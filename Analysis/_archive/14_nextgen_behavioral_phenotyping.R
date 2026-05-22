@@ -4,7 +4,7 @@
 # ================================================================
 # Adds a systems-level phenotyping layer for long-term RFID/home-cage
 # stress-resilience data. This script is designed to run after:
-#   Analysis/03_build_multiscale_behavior_metrics.R
+#   Analysis/01_build_multiscale_behavior_metrics.R
 #
 # Main analyses:
 #   1. Multiscale complexity and entropy fingerprints
@@ -407,7 +407,7 @@ write_output_manifest(
 )
 
 raw <- read_any(input_file)
-if (is.null(raw)) stop("Missing input file. Run 03_build_multiscale_behavior_metrics.R first.", call. = FALSE)
+if (is.null(raw)) stop("Missing input file. Run 01_build_multiscale_behavior_metrics.R first.", call. = FALSE)
 behav <- standardize_input(raw) %>%
   mutate(
     CageChangeLabel = as.character(CageChange),

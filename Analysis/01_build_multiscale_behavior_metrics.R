@@ -41,8 +41,15 @@ suppressPackageStartupMessages({
   library(furrr)
 })
 
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/behavioral_dynamics_helpers.R")
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/duration_normalization_helpers.R")
+.pipeline_setup_candidates <- c(
+  file.path(getwd(), "Analysis", "_pipeline_setup.R"),
+  file.path(getwd(), "_pipeline_setup.R"),
+  file.path(dirname(tryCatch(normalizePath(sys.frame(1)$ofile, winslash = "/", mustWork = FALSE), error = function(e) getwd())), "_pipeline_setup.R")
+)
+.pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
+if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
+source(.pipeline_setup)
+source_mmm_helper("duration_normalization_helpers.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -96,7 +103,7 @@ ensure_dir(file.path(output_root, "qc"))
 analysis_output_dirs(output_root)
 write_output_manifest(
   output_root,
-  script_name = "03_build_multiscale_behavior_metrics.R",
+  script_name = "01_build_multiscale_behavior_metrics.R",
   analysis_name = "canonical multiscale behavior metrics",
   primary_tables = c(
     "10sec_based/all_behavior_metrics.csv",

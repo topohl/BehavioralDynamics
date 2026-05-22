@@ -8,7 +8,7 @@
 #   corrected univariate screening, and cross-validated prediction.
 #
 # Input expectation:
-#   Run Analysis/03_build_multiscale_behavior_metrics.R first.
+#   Run Analysis/01_build_multiscale_behavior_metrics.R first.
 #
 # Recommended scale:
 #   10 min default. This balances temporal resolution with noise.
@@ -25,8 +25,15 @@ suppressPackageStartupMessages({
   library(stringr)
 })
 
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/behavioral_dynamics_helpers.R")
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/behavioral_dynamics_stats_helpers.R")
+.pipeline_setup_candidates <- c(
+  file.path(getwd(), "Analysis", "_pipeline_setup.R"),
+  file.path(getwd(), "_pipeline_setup.R"),
+  file.path(dirname(tryCatch(normalizePath(sys.frame(1)$ofile, winslash = "/", mustWork = FALSE), error = function(e) getwd())), "_pipeline_setup.R")
+)
+.pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
+if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
+source(.pipeline_setup)
+source_mmm_helper("behavioral_dynamics_stats_helpers.R")
 
 # ------------------------------------------------
 # USER INPUT

@@ -8,7 +8,7 @@
 #   RMSSD of prediction, and ACF1 of prediction.
 #
 # Input expectation:
-#   Run Analysis/03_build_multiscale_behavior_metrics.R first.
+#   Run Analysis/01_build_multiscale_behavior_metrics.R first.
 #
 # Recommended scale:
 #   10–30 min bins. Default is 30min_based for smooth trajectory summaries.
@@ -26,8 +26,15 @@ suppressPackageStartupMessages({
   library(pracma)
 })
 
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/behavioral_dynamics_helpers.R")
-source("C:/Users/topohl/Documents/GitHub/MMMSociability/Functions/duration_normalization_helpers.R")
+.pipeline_setup_candidates <- c(
+  file.path(getwd(), "Analysis", "_pipeline_setup.R"),
+  file.path(getwd(), "_pipeline_setup.R"),
+  file.path(dirname(tryCatch(normalizePath(sys.frame(1)$ofile, winslash = "/", mustWork = FALSE), error = function(e) getwd())), "_pipeline_setup.R")
+)
+.pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
+if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
+source(.pipeline_setup)
+source_mmm_helper("duration_normalization_helpers.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -46,7 +53,7 @@ ensure_dir(file.path(output_dir, "figures"))
 output_dirs <- analysis_output_dirs(output_dir)
 write_output_manifest(
   output_dir,
-  script_name = "11_gamm_trajectory_features.R",
+  script_name = "07_gamm_trajectory_features.R",
   analysis_name = "GAMM trajectory features",
   primary_tables = c(
     "tables/gamm_trajectory_features.csv",
