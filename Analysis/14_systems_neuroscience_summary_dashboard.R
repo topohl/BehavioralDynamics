@@ -196,8 +196,30 @@ if (TRUE) {
   save_plot_svg_pdf <- function(plot, filename_base, width = 85, height = 65, units = "mm") {
     ensure_dir(dirname(filename_base))
     ggplot2::ggsave(paste0(filename_base, ".svg"), plot, width = width, height = height, units = units)
-    pdf_device <- if (isTRUE(capabilities("cairo"))) grDevices::cairo_pdf else "pdf"
-    ggplot2::ggsave(paste0(filename_base, ".pdf"), plot, width = width, height = height, units = units, device = pdf_device)
+    pdf_path <- paste0(filename_base, ".pdf")
+    save_pdf <- function(device, label) {
+      ok <- tryCatch(
+        {
+          ggplot2::ggsave(pdf_path, plot, width = width, height = height, units = units, device = device)
+          TRUE
+        },
+        error = function(e) {
+          warning("PDF export with ", label, " failed for ", pdf_path, ": ", conditionMessage(e), call. = FALSE)
+          FALSE
+        }
+      )
+      ok
+    }
+    pdf_ok <- FALSE
+    if (isTRUE(capabilities("cairo"))) {
+      pdf_ok <- save_pdf(grDevices::cairo_pdf, "cairo_pdf")
+    }
+    if (!pdf_ok) {
+      pdf_ok <- save_pdf(grDevices::pdf, "pdf")
+    }
+    if (!pdf_ok) {
+      warning("Skipping PDF export for ", pdf_path, "; SVG and PNG exports were still attempted.", call. = FALSE)
+    }
     ggplot2::ggsave(paste0(filename_base, ".png"), plot, width = width, height = height, units = units, dpi = 600)
     if (exists("mirror_plot_to_standard_folder")) mirror_plot_to_standard_folder(filename_base)
     invisible(filename_base)
@@ -2834,7 +2856,7 @@ if (nrow(latent_epoch_features) >= 20 && length(latent_feature_cols) >= 2) {
     summarise(
       n_epochs = n(),
       latent_path_length = sum(step_distance, na.rm = TRUE),
-      latent_net_displacement = sqrt((last(TemporalPC1) - first(TemporalPC1))^2 + (last(TemporalPC2) - first(TemporalPC2))^2),
+      latent_net_displacement = sqrt((last(TemporalPC1) - dplyr::first(TemporalPC1))^2 + (last(TemporalPC2) - dplyr::first(TemporalPC2))^2),
       latent_roughness = latent_path_length / pmax(latent_net_displacement, 1e-6),
       total_observation_duration_hours = sum(total_observation_duration_hours, na.rm = TRUE),
       latent_path_length_per_hour = latent_path_length / pmax(total_observation_duration_hours, 1e-9),
@@ -4686,7 +4708,7 @@ primary_robustness_plot_tbl <- bind_rows(
   systems_leave_one_context_out_robustness %>%
     filter(ContextType %in% c("Batch", "System")) %>%
     group_by(PrimaryFeatureLabel, RobustnessAxis = ContextType) %>%
-    summarise(robustness_class = if_else(any(str_detect(robustness_class, "sensitive")), first(robustness_class[str_detect(robustness_class, "sensitive")]), "robust"), .groups = "drop"),
+    summarise(robustness_class = if_else(any(str_detect(robustness_class, "sensitive")), dplyr::first(robustness_class[str_detect(robustness_class, "sensitive")]), "robust"), .groups = "drop"),
   systems_bin_size_sensitivity_summary %>%
     filter(any_primary_or_secondary %in% TRUE) %>%
     transmute(PrimaryFeatureLabel = paste(Metric, Statistic, Context, sep = " | "), RobustnessAxis = "Bin-size availability", robustness_class)
@@ -5673,8 +5695,8 @@ cc1_feature_inventory <- tribble(
   ) %>%
   group_by(feature, Domain) %>%
   mutate(
-    n_finite = if_else(Included, sum(is.finite(cc1_first_active_feature_matrix[[first(feature)]])), 0L),
-    missing_fraction = if_else(Included, mean(!is.finite(cc1_first_active_feature_matrix[[first(feature)]])), 1)
+    n_finite = if_else(Included, sum(is.finite(cc1_first_active_feature_matrix[[dplyr::first(feature)]])), 0L),
+    missing_fraction = if_else(Included, mean(!is.finite(cc1_first_active_feature_matrix[[dplyr::first(feature)]])), 1)
   ) %>%
   ungroup() %>%
   filter(Included, n_finite >= 4, missing_fraction <= 0.50) %>%
@@ -5861,7 +5883,7 @@ plot_domain_trajectory <- function(domain_name, phase = "Active", title, subtitl
 early_panel_outcome <- if ("outcome" %in% names(first_active_prediction_table) && primary_outcome %in% first_active_prediction_table$outcome) {
   primary_outcome
 } else if ("outcome" %in% names(first_active_prediction_table) && nrow(first_active_prediction_table) > 0) {
-  first(first_active_prediction_table$outcome)
+  dplyr::first(first_active_prediction_table$outcome)
 } else {
   NA_character_
 }
@@ -5958,7 +5980,7 @@ p_sis_CC1_first_active_heatmap <- cc1_domain_effect_summary %>%
   ) %>%
   ggplot(aes(contrast, Domain, fill = hedges_g)) +
   geom_tile(colour = "white", linewidth = 0.22) +
-  geom_text(aes(label = sig_label(p_fdr)), size = 1.8) +
+  geom_text(aes(label = sig_label(p_fdr)), size = 1.7) +
   facet_grid(Sex ~ .) +
   scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
   labs(
@@ -5967,11 +5989,11 @@ p_sis_CC1_first_active_heatmap <- cc1_domain_effect_summary %>%
     x = NULL,
     y = NULL,
     fill = "g",
-    caption = "RES/SUS contrasts are descriptive because groups are defined from later CombZ; features are restricted to first active phase after first cage change."
+    caption = "Symbols: . q<0.10, * q<0.05, ** q<0.01, *** q<0.001; no symbol = q>=0.10 (BH FDR within sex). Exact statistics exported."
   ) +
   make_nature_theme(base_size = 5.5) +
   theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right")
-save_plot_svg_pdf(p_sis_CC1_first_active_heatmap, file.path(output_dir, "figures/publication_panels/Fig_sis_CC1_first_active_domain_heatmap"), width = 145, height = 92)
+save_plot_svg_pdf(p_sis_CC1_first_active_heatmap, file.path(output_dir, "figures/publication_panels/Fig_sis_CC1_first_active_domain_heatmap"), width = 132, height = 84)
 
 p_sis_flexibility <- plot_domain_trajectory(
   "Behavioral flexibility / predictability",
@@ -6509,9 +6531,9 @@ systems_robustness_summary <- {
     left_join(feature_dictionary %>% select(feature, BiologicalDomain, EvidenceTier), by = "feature") %>%
     group_by(feature, Sex, contrast) %>%
     summarise(
-      Analysis = first(BiologicalDomain),
-      Metric = first(feature),
-      full_data_effect = first(hedges_g),
+      Analysis = dplyr::first(BiologicalDomain),
+      Metric = dplyr::first(feature),
+      full_data_effect = dplyr::first(hedges_g),
       excluding_short_duration_effect = NA_real_,
       delta_estimate = NA_real_,
       delta_cohen_d = NA_real_,
