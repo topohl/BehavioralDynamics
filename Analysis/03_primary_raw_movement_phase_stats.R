@@ -35,6 +35,8 @@ input_candidates <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin
 analysis_name <- "03_primary_raw_movement_phase_stats"
 min_bins_per_animal <- 2
 export_global_family_corrections <- FALSE
+combz_endpoint_file <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
+combz_endpoint_sheet <- "zScore"
 
 .pipeline_setup_candidates <- c(
   file.path(getwd(), "Analysis", "_pipeline_setup.R"),
@@ -66,6 +68,12 @@ safe_se <- function(x) {
   sd(x) / sqrt(length(x))
 }
 
+safe_first_finite <- function(x) {
+  x <- x[is.finite(x)]
+  if (length(x) == 0) return(NA_real_)
+  x[1]
+}
+
 clean_id <- function(x) {
   x_chr <- as.character(x)
   x_num <- suppressWarnings(as.numeric(x_chr))
@@ -83,6 +91,56 @@ format_p <- function(p) {
     is.na(p) ~ "NA",
     p < 0.001 ~ "<0.001",
     TRUE ~ sprintf("%.3f", p)
+  )
+}
+
+format_p_inline <- function(p) {
+  dplyr::case_when(
+    is.na(p) ~ "NA",
+    p < 0.001 ~ "< 0.001",
+    TRUE ~ paste0("= ", sprintf("%.3f", p))
+  )
+}
+
+safe_correlation_tests <- function(dat, x_col = "mean_movement", y_col = "CombZ") {
+  dd <- dat %>%
+    filter(is.finite(.data[[x_col]]), is.finite(.data[[y_col]]))
+
+  n_animals <- n_distinct(dd$AnimalNum)
+  skip_reason <- NA_character_
+  if (n_animals < 4) {
+    skip_reason <- "n < 4"
+  } else if (sd(dd[[x_col]], na.rm = TRUE) == 0 || sd(dd[[y_col]], na.rm = TRUE) == 0) {
+    skip_reason <- "zero variance"
+  }
+
+  if (!is.na(skip_reason)) {
+    return(tibble(
+      n_animals = n_animals,
+      pearson_r = NA_real_,
+      pearson_p = NA_real_,
+      spearman_rho = NA_real_,
+      spearman_p = NA_real_,
+      skipped_reason = skip_reason
+    ))
+  }
+
+  pearson <- tryCatch(
+    suppressWarnings(cor.test(dd[[x_col]], dd[[y_col]], method = "pearson")),
+    error = function(e) NULL
+  )
+  spearman <- tryCatch(
+    suppressWarnings(cor.test(dd[[x_col]], dd[[y_col]], method = "spearman", exact = FALSE)),
+    error = function(e) NULL
+  )
+
+  tibble(
+    n_animals = n_animals,
+    pearson_r = if (is.null(pearson)) NA_real_ else unname(pearson$estimate),
+    pearson_p = if (is.null(pearson)) NA_real_ else pearson$p.value,
+    spearman_rho = if (is.null(spearman)) NA_real_ else unname(spearman$estimate),
+    spearman_p = if (is.null(spearman)) NA_real_ else spearman$p.value,
+    skipped_reason = NA_character_
   )
 }
 
@@ -143,7 +201,8 @@ make_theme <- function(base_size = 7) {
 save_plot <- function(plot, filename_base, width = 170, height = 100, units = "mm") {
   ensure_dir(dirname(filename_base))
   ggsave(paste0(filename_base, ".svg"), plot, width = width, height = height, units = units)
-  ggsave(paste0(filename_base, ".pdf"), plot, width = width, height = height, units = units)
+  pdf_device <- if (isTRUE(capabilities("cairo"))) grDevices::cairo_pdf else "pdf"
+  ggsave(paste0(filename_base, ".pdf"), plot, width = width, height = height, units = units, device = pdf_device)
   ggsave(paste0(filename_base, ".png"), plot, width = width, height = height, units = units, dpi = 600)
   invisible(filename_base)
 }
@@ -194,13 +253,18 @@ if (exists("write_output_manifest")) {
     primary_tables = c(
       "tables/raw_movement_phase_filter_qc.csv",
       "tables/raw_movement_animal_level_endpoints.csv",
+      "tables/raw_movement_combz_input_overall_active_inactive.csv",
+      "stats_tables/raw_movement_combz_correlations_by_sex_phase.csv",
+      "stats_tables/raw_movement_combz_correlations_cagechange_phase.csv",
       "tables/raw_movement_group_summary.csv",
       "tables/raw_movement_overall_active_inactive_panel_counts.csv"
     ),
     primary_figures = c(
+      "figures/publication_panels/raw_movement_active_inactive_vs_combz.svg",
       "figures/publication_panels/Fig18c_overall_active_inactive_mean_movement_corrected_stats.svg",
       "figures/publication_panels/Fig18c_cage_change_phase_mean_movement_corrected_stats.svg",
-      "figures/publication_panels/Fig18c_cage_change_phase_pairwise_pvalue_heatmap_corrected.svg"
+      "figures/publication_panels/Fig18c_cage_change_phase_pairwise_pvalue_heatmap_corrected.svg",
+      "figures/supplementary/raw_movement_cagechange_phase_vs_combz.svg"
     )
   )
 }
@@ -290,6 +354,180 @@ movement_endpoints <- movement_endpoints_pre_filter %>%
     CageChange = as.character(CageChange)
   )
 readr::write_csv(movement_endpoints, file.path(dirs$tables, "raw_movement_animal_level_endpoints.csv"))
+
+# ------------------------------------------------
+# DESCRIPTIVE RAW MOVEMENT x COMBZ ASSOCIATIONS
+# ------------------------------------------------
+
+if (!file.exists(combz_endpoint_file)) {
+  stop("CombZ endpoint file not found: ", combz_endpoint_file, call. = FALSE)
+}
+if (!requireNamespace("readxl", quietly = TRUE)) {
+  stop("Install readxl to read CombZ endpoint Excel files.", call. = FALSE)
+}
+
+combz_raw <- readxl::read_excel(combz_endpoint_file, sheet = combz_endpoint_sheet)
+combz_animal_col <- first_existing_col(combz_raw, c("ID", "AnimalNum", "Animal", "MouseID", "Mouse", "RFID", "animal_id"), "CombZ animal column")
+combz_col <- first_existing_col(combz_raw, c("CombZ", "combz", "Comb_Z", "CompositeZ"), "CombZ column")
+
+combz_endpoints <- combz_raw %>%
+  transmute(
+    AnimalNum = clean_id(.data[[combz_animal_col]]),
+    CombZ = suppressWarnings(as.numeric(.data[[combz_col]]))
+  ) %>%
+  filter(!is.na(AnimalNum)) %>%
+  group_by(AnimalNum) %>%
+  summarise(CombZ = safe_first_finite(CombZ), .groups = "drop")
+
+movement_endpoints_combz <- movement_endpoints %>%
+  left_join(combz_endpoints, by = "AnimalNum")
+
+combz_main_input <- movement_endpoints_combz %>%
+  filter(
+    ScopeType %in% c("overall_by_phase"),
+    Endpoint %in% c("Active", "Inactive"),
+    is.finite(mean_movement),
+    is.finite(CombZ)
+  ) %>%
+  mutate(
+    Sex = factor(as.character(Sex)),
+    Endpoint = factor(as.character(Endpoint), levels = c("Active", "Inactive")),
+    PhaseClass = factor(as.character(PhaseClass), levels = c("Active", "Inactive")),
+    Group = factor(as.character(Group), levels = mmm_group_levels)
+  )
+
+readr::write_csv(
+  combz_main_input,
+  file.path(dirs$tables, "raw_movement_combz_input_overall_active_inactive.csv")
+)
+
+combz_cor_main <- combz_main_input %>%
+  group_by(Sex, Endpoint, PhaseClass) %>%
+  group_modify(~ safe_correlation_tests(.x)) %>%
+  ungroup() %>%
+  mutate(
+    pearson_p_bh = p.adjust(pearson_p, method = "BH"),
+    spearman_p_bh = p.adjust(spearman_p, method = "BH")
+  )
+
+readr::write_csv(
+  combz_cor_main,
+  file.path(dirs$stats, "raw_movement_combz_correlations_by_sex_phase.csv")
+)
+
+combz_main_plot_stats <- combz_cor_main %>%
+  mutate(
+    Endpoint = factor(as.character(Endpoint), levels = c("Active", "Inactive")),
+    Sex = factor(as.character(Sex), levels = levels(combz_main_input$Sex)),
+    stat_label = paste0(
+      "r = ", if_else(is.na(pearson_r), "NA", sprintf("%.2f", pearson_r)), "\n",
+      "p ", format_p_inline(pearson_p), "\n",
+      "n = ", n_animals
+    )
+  )
+
+p_combz_main <- ggplot(combz_main_input, aes(mean_movement, CombZ)) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.38, alpha = 0.10, colour = "grey25", fill = "grey70") +
+  geom_point(aes(colour = Group, fill = Group), shape = 21, size = 1.65, stroke = 0.25, alpha = 0.9) +
+  geom_text(
+    data = combz_main_plot_stats,
+    aes(x = -Inf, y = Inf, label = stat_label),
+    inherit.aes = FALSE,
+    hjust = -0.05,
+    vjust = 1.15,
+    size = 1.65,
+    lineheight = 0.9,
+    colour = "grey20"
+  ) +
+  facet_wrap(vars(Endpoint, Sex), nrow = 2, scales = "free") +
+  labs(
+    title = "Broad raw movement is descriptively associated with stress burden",
+    subtitle = "Pearson correlations by sex and phase; CON/RES/SUS are shown for interpretation only",
+    x = "Mean raw movement per animal",
+    y = "CombZ"
+  ) +
+  scale_colour_manual(values = mmm_group_colors, drop = FALSE) +
+  scale_fill_manual(values = mmm_group_colors, drop = FALSE) +
+  make_publication_theme(base_size = 6) +
+  theme(legend.box.spacing = unit(0.5, "mm"), aspect.ratio = 1)
+
+save_plot(
+  p_combz_main,
+  file.path(dirs$figure_publication, "raw_movement_active_inactive_vs_combz"),
+  width = 183,
+  height = 125
+)
+
+combz_cc_input <- movement_endpoints_combz %>%
+  filter(
+    ScopeType == "cage_change_by_phase",
+    is.finite(mean_movement),
+    is.finite(CombZ)
+  ) %>%
+  mutate(
+    Sex = factor(as.character(Sex)),
+    PhaseClass = factor(as.character(PhaseClass), levels = c("Active", "Inactive")),
+    CageChange = factor(as.character(CageChange), levels = unique(as.character(CageChange[order(CageChangeIndex)]))),
+    Group = factor(as.character(Group), levels = mmm_group_levels)
+  )
+
+combz_cor_cc <- combz_cc_input %>%
+  group_by(Sex, CageChange, CageChangeIndex, PhaseClass, Endpoint) %>%
+  group_modify(~ safe_correlation_tests(.x)) %>%
+  ungroup() %>%
+  mutate(
+    pearson_p_bh = p.adjust(pearson_p, method = "BH"),
+    spearman_p_bh = p.adjust(spearman_p, method = "BH")
+  )
+
+readr::write_csv(
+  combz_cor_cc,
+  file.path(dirs$stats, "raw_movement_combz_correlations_cagechange_phase.csv")
+)
+
+combz_cc_plot_stats <- combz_cor_cc %>%
+  mutate(
+    Sex = factor(as.character(Sex), levels = levels(combz_cc_input$Sex)),
+    CageChange = factor(as.character(CageChange), levels = levels(combz_cc_input$CageChange)),
+    PhaseClass = factor(as.character(PhaseClass), levels = c("Active", "Inactive")),
+    stat_label = paste0(
+      "r = ", if_else(is.na(pearson_r), "NA", sprintf("%.2f", pearson_r)), "\n",
+      "p ", format_p_inline(pearson_p), "\n",
+      "n = ", n_animals
+    )
+  )
+
+p_combz_cc <- ggplot(combz_cc_input, aes(mean_movement, CombZ)) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.32, alpha = 0.10, colour = "grey25", fill = "grey70") +
+  geom_point(aes(colour = Group, fill = Group), shape = 21, size = 1.35, stroke = 0.22, alpha = 0.85) +
+  geom_text(
+    data = combz_cc_plot_stats,
+    aes(x = -Inf, y = Inf, label = stat_label),
+    inherit.aes = FALSE,
+    hjust = -0.05,
+    vjust = 1.15,
+    size = 1.35,
+    lineheight = 0.85,
+    colour = "grey20"
+  ) +
+  facet_grid(Sex + PhaseClass ~ CageChange, scales = "free") +
+  labs(
+    title = "Cage-change phase raw movement associations with CombZ",
+    subtitle = "Supplementary descriptive Pearson correlations; group is shown only as point colour",
+    x = "Mean raw movement per animal",
+    y = "CombZ"
+  ) +
+  scale_colour_manual(values = mmm_group_colors, drop = FALSE) +
+  scale_fill_manual(values = mmm_group_colors, drop = FALSE) +
+  make_publication_theme(base_size = 5.5) +
+  theme(legend.box.spacing = unit(0.5, "mm"), aspect.ratio = 1)
+
+save_plot(
+  p_combz_cc,
+  file.path(dirs$figure_supplementary, "raw_movement_cagechange_phase_vs_combz"),
+  width = 220,
+  height = 150
+)
 
 inactive_post <- phase_filter_qc %>%
   filter(PhaseClass == "Inactive") %>%
