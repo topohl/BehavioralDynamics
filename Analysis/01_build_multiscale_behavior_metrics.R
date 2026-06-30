@@ -894,48 +894,95 @@ phase_output <- build_phase_metrics()
 export_cookiehab_primary_window_metrics <- function(bin_outputs) {
   if (!identical(dataset_id, "cookiehab")) return(invisible(NULL))
 
-  source_label <- dplyr::case_when(
-    "10min" %in% names(bin_outputs) ~ "10min",
-    "5min" %in% names(bin_outputs) ~ "5min",
-    TRUE ~ names(bin_outputs)[1]
-  )
-  dat <- bin_outputs[[source_label]]
-  if (is.null(dat) || !"CookieWindowPrimary" %in% names(dat)) {
-    warning("CookieWindowPrimary is not available in stage 01 outputs; primary-window export skipped.", call. = FALSE)
+  export_scales <- intersect(c("5min", "10min"), names(bin_outputs))
+  if (length(export_scales) == 0) {
+    warning("Neither 5min nor 10min outputs are available; cookiehab primary-window export skipped.", call. = FALSE)
     return(invisible(NULL))
   }
-
-  primary <- dat %>%
-    filter(CookieWindowPrimary %in% TRUE)
 
   out_dir <- file.path(output_root, "cookiehab_primary_I2_17_18")
   ensure_dir(out_dir)
 
-  write_table(
-    primary,
-    file.path(out_dir, "all_behavior_metrics_cookiehab_I2_17_18.csv")
+  note <- tibble(
+    note = c(
+      "5min is recommended for CookieSubWindow analyses because the 17:45 planned transition aligns with 5-minute bins.",
+      "10min is exported as a companion table for comparability with the main 10-minute metric scale.",
+      "Coverage QC is derived from metric observation_seconds, not raw-row timestamp span."
+    )
   )
+  write_table(note, file.path(out_dir, "cookiehab_primary_I2_17_18_scale_note.csv"))
 
-  qc <- primary %>%
-    summarise(
-      source_bin_label = source_label,
-      n_rows = n(),
-      n_animals = n_distinct(AnimalID),
-      n_bins = n_distinct(BinStart),
-      coverage_minutes = sum(observation_seconds, na.rm = TRUE) / 60,
-      n_batches = n_distinct(Batch),
-      n_systems = n_distinct(System),
-      n_groups = n_distinct(Group),
-      n_sexes = n_distinct(Sex)
+  exported <- purrr::map(export_scales, function(source_label) {
+    dat <- bin_outputs[[source_label]]
+    if (is.null(dat) || !"CookieWindowPrimary" %in% names(dat)) {
+      warning("CookieWindowPrimary is not available in ", source_label, " output; skipping that scale.", call. = FALSE)
+      return(NULL)
+    }
+
+    primary <- dat %>%
+      filter(CookieWindowPrimary %in% TRUE)
+
+    scale_dir <- file.path(out_dir, source_label)
+    ensure_dir(scale_dir)
+
+    write_table(
+      primary,
+      file.path(scale_dir, paste0("all_behavior_metrics_cookiehab_I2_17_18_", source_label, ".csv"))
     )
 
-  qc_counts <- primary %>%
-    count(Batch, System, Group, Sex, name = "n_rows") %>%
-    arrange(Batch, System, Group, Sex)
+    per_animal_qc <- primary %>%
+      group_by(SourceFile, Batch, System, AnimalID, Group, Sex, BinLabel) %>%
+      summarise(
+        n_bins = n_distinct(BinStart),
+        coverage_minutes = sum(observation_seconds, na.rm = TRUE) / 60,
+        min_bin_start = min(BinStart, na.rm = TRUE),
+        max_bin_start = max(BinStart, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      arrange(SourceFile, Batch, System, AnimalID, BinLabel)
 
-  write_table(qc, file.path(out_dir, "cookiehab_primary_I2_17_18_qc.csv"))
-  write_table(qc_counts, file.path(out_dir, "cookiehab_primary_I2_17_18_batch_system_group_sex_counts.csv"))
-  invisible(primary)
+    summary_qc <- primary %>%
+      summarise(
+        BinLabel = source_label,
+        qc_basis = "derived_metric_observation_seconds",
+        n_rows = n(),
+        n_animals = n_distinct(AnimalID),
+        n_bins = n_distinct(BinStart),
+        coverage_minutes = sum(observation_seconds, na.rm = TRUE) / 60,
+        n_batches = n_distinct(Batch),
+        n_systems = n_distinct(System),
+        n_groups = n_distinct(Group),
+        n_sexes = n_distinct(Sex)
+      )
+
+    qc_counts <- primary %>%
+      count(BinLabel, Batch, System, Group, Sex, name = "n_rows") %>%
+      arrange(BinLabel, Batch, System, Group, Sex)
+
+    write_table(per_animal_qc, file.path(scale_dir, paste0("cookiehab_primary_I2_17_18_per_animal_coverage_qc_", source_label, ".csv")))
+    write_table(summary_qc, file.path(scale_dir, paste0("cookiehab_primary_I2_17_18_summary_qc_", source_label, ".csv")))
+    write_table(qc_counts, file.path(scale_dir, paste0("cookiehab_primary_I2_17_18_batch_system_group_sex_counts_", source_label, ".csv")))
+
+    list(primary = primary, per_animal_qc = per_animal_qc, summary_qc = summary_qc, counts = qc_counts)
+  })
+
+  exported <- purrr::compact(exported)
+  if (length(exported) > 0) {
+    write_table(
+      purrr::map_dfr(exported, "summary_qc"),
+      file.path(out_dir, "cookiehab_primary_I2_17_18_summary_qc.csv")
+    )
+    write_table(
+      purrr::map_dfr(exported, "per_animal_qc"),
+      file.path(out_dir, "cookiehab_primary_I2_17_18_per_animal_coverage_qc.csv")
+    )
+    write_table(
+      purrr::map_dfr(exported, "counts"),
+      file.path(out_dir, "cookiehab_primary_I2_17_18_batch_system_group_sex_counts.csv")
+    )
+  }
+
+  invisible(exported)
 }
 
 export_cookiehab_primary_window_metrics(all_bin_outputs)
