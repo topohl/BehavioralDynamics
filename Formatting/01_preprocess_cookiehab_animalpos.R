@@ -70,17 +70,46 @@ if (length(raw_files) == 0) {
 sus_ids <- cookiehab_read_id_list(sus_animals_file)
 con_ids <- cookiehab_read_id_list(con_animals_file)
 
-manifest <- tibble(
-  RawFile = normalizePath(raw_files, winslash = "/", mustWork = FALSE),
-  SourceFile = basename(raw_files),
-  Batch = stringr::str_extract(SourceFile, "B[1-6]"),
-  Dataset = "cookiehab",
-  RawParadigm = "EPMaftercagechange",
-  OutputFile = file.path(
-    output_dir,
-    stringr::str_replace(SourceFile, "_AnimalPos\\.csv$", "_AnimalPos_cookiehab_preprocessed.csv")
+sanitize_cookiehab_path_part <- function(x) {
+  x <- stringr::str_replace_all(x, "[^A-Za-z0-9]+", "_")
+  x <- stringr::str_replace_all(x, "^_+|_+$", "")
+  ifelse(is.na(x) | x == "", "root", x)
+}
+
+make_cookiehab_output_files <- function(raw_files, raw_root, output_dir) {
+  raw_abs <- normalizePath(raw_files, winslash = "/", mustWork = FALSE)
+  root_abs <- normalizePath(raw_root, winslash = "/", mustWork = FALSE)
+  relative_path <- ifelse(
+    startsWith(raw_abs, paste0(root_abs, "/")),
+    substring(raw_abs, nchar(root_abs) + 2L),
+    basename(raw_abs)
   )
-)
+  relative_folder <- dirname(relative_path)
+  source_file <- basename(raw_abs)
+  base_stem <- stringr::str_replace(source_file, "_AnimalPos\\.csv$", "_AnimalPos_cookiehab_preprocessed")
+  duplicated_source <- duplicated(source_file) | duplicated(source_file, fromLast = TRUE)
+
+  output_stem <- ifelse(
+    duplicated_source,
+    paste0(sanitize_cookiehab_path_part(relative_folder), "_", base_stem),
+    base_stem
+  )
+  output_stem <- make.unique(output_stem, sep = "_dup")
+
+  tibble(
+    RawFile = raw_abs,
+    RelativeFolder = relative_folder,
+    SourceFile = source_file,
+    OutputFile = file.path(output_dir, paste0(output_stem, ".csv"))
+  )
+}
+
+manifest <- make_cookiehab_output_files(raw_files, raw_root, output_dir) |>
+  dplyr::mutate(
+    Batch = stringr::str_extract(SourceFile, "B[1-6]"),
+    Dataset = "cookiehab",
+    RawParadigm = "EPMaftercagechange"
+  )
 
 message("Found ", nrow(manifest), " cookiehab raw AnimalPos files.")
 
@@ -93,20 +122,23 @@ processed <- purrr::map2(manifest$RawFile, manifest$OutputFile, function(raw_fil
 
 all_preprocessed <- dplyr::bind_rows(processed)
 
+manifest_qc <- purrr::map2_dfr(processed, manifest$RawFile, function(dat, raw_file) {
+  dat |>
+    dplyr::summarise(
+      RawFile = raw_file,
+      n_rows = dplyr::n(),
+      n_animals = dplyr::n_distinct(AnimalID),
+      n_systems = dplyr::n_distinct(System),
+      start_time = min(DateTime, na.rm = TRUE),
+      end_time = max(DateTime, na.rm = TRUE),
+      n_primary_window_rows = sum(CookieWindowPrimary, na.rm = TRUE)
+    )
+})
+
 manifest <- manifest |>
   dplyr::left_join(
-    all_preprocessed |>
-      dplyr::group_by(SourceFile) |>
-      dplyr::summarise(
-        n_rows = dplyr::n(),
-        n_animals = dplyr::n_distinct(AnimalID),
-        n_systems = dplyr::n_distinct(System),
-        start_time = min(DateTime, na.rm = TRUE),
-        end_time = max(DateTime, na.rm = TRUE),
-        n_primary_window_rows = sum(CookieWindowPrimary, na.rm = TRUE),
-        .groups = "drop"
-      ),
-    by = "SourceFile"
+    manifest_qc,
+    by = "RawFile"
   )
 
 phase_window_qc <- all_preprocessed |>
