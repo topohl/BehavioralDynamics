@@ -149,18 +149,71 @@ read_preprocessed_position_file <- function(path) {
       System = as.character(System),
       PositionID = suppressWarnings(as.integer(PositionID)),
       SourceFile = basename(path),
+      Dataset = if ("Dataset" %in% names(.)) as.character(Dataset) else NA_character_,
+      RawParadigm = if ("RawParadigm" %in% names(.)) as.character(RawParadigm) else NA_character_,
       Batch = if ("Batch" %in% names(.)) as.character(Batch) else str_extract(basename(path), "B[0-9]+"),
       CageChange = if ("CageChange" %in% names(.)) as.character(CageChange) else str_extract(basename(path), "CC[0-9]+"),
+      Epoch = if ("Epoch" %in% names(.)) as.character(Epoch) else CageChange,
       Phase = if ("Phase" %in% names(.)) as.character(Phase) else if_else(
         format(DateTime, "%H:%M", tz = "UTC") >= "18:30" | format(DateTime, "%H:%M", tz = "UTC") < "06:30",
         "Active", "Inactive"
       ),
       Group = if ("Group" %in% names(.)) as.character(Group) else NA_character_,
       Sex = if ("Sex" %in% names(.)) as.character(Sex) else NA_character_,
-      HalfHoursElapsed = if ("HalfHoursElapsed" %in% names(.)) suppressWarnings(as.numeric(HalfHoursElapsed)) else NA_real_
+      HalfHoursElapsed = if ("HalfHoursElapsed" %in% names(.)) suppressWarnings(as.numeric(HalfHoursElapsed)) else NA_real_,
+      MinutesOfDay = if ("MinutesOfDay" %in% names(.)) suppressWarnings(as.integer(MinutesOfDay)) else NA_integer_,
+      CookieWindowPrimary = if ("CookieWindowPrimary" %in% names(.)) as.logical(CookieWindowPrimary) else NA,
+      CookieSubWindow = if ("CookieSubWindow" %in% names(.)) as.character(CookieSubWindow) else NA_character_,
+      CookieHabEpoch = if ("CookieHabEpoch" %in% names(.)) as.character(CookieHabEpoch) else NA_character_
     ) %>%
     filter(!is.na(DateTime), !is.na(AnimalID), !is.na(System), is.finite(PositionID), PositionID > 0) %>%
     arrange(SourceFile, System, DateTime, AnimalID)
+}
+
+cookiehab_annotation_cols <- c(
+  "Dataset", "RawParadigm", "Epoch", "MinutesOfDay",
+  "CookieWindowPrimary", "CookieSubWindow", "CookieHabEpoch"
+)
+
+has_cookiehab_annotation_content <- function(dat) {
+  if (!all(cookiehab_annotation_cols %in% names(dat))) return(FALSE)
+  any(dat$CookieWindowPrimary %in% TRUE, na.rm = TRUE) ||
+    any(!is.na(dat$CookieHabEpoch) & dat$CookieHabEpoch != "", na.rm = TRUE) ||
+    any(!is.na(dat$Dataset) & dat$Dataset == "cookiehab", na.rm = TRUE)
+}
+
+drop_empty_cookiehab_annotations <- function(dat, keep_annotations) {
+  if (isTRUE(keep_annotations)) return(dat)
+  dat %>% select(-any_of(cookiehab_annotation_cols))
+}
+
+collapse_character_annotation <- function(x) {
+  x <- unique(stats::na.omit(as.character(x)))
+  x <- x[x != ""]
+  if (length(x) == 0) return(NA_character_)
+  if (length(x) == 1) return(x)
+  paste(sort(x), collapse = "|")
+}
+
+last_interval_meta_before <- function(dat_sys, t0) {
+  dat_sys %>%
+    filter(DateTime <= t0) %>%
+    slice_tail(n = 1) %>%
+    transmute(
+      SourceFile = first(SourceFile),
+      Dataset = first(Dataset),
+      RawParadigm = first(RawParadigm),
+      Batch = first(Batch),
+      CageChange = first(CageChange),
+      Epoch = first(Epoch),
+      System = first(System),
+      Phase = first(Phase),
+      HalfHoursElapsed = first(HalfHoursElapsed),
+      MinutesOfDay = first(MinutesOfDay),
+      CookieWindowPrimary = first(CookieWindowPrimary),
+      CookieSubWindow = first(CookieSubWindow),
+      CookieHabEpoch = first(CookieHabEpoch)
+    )
 }
 
 make_interval_dyads_one_system <- function(dat_sys) {
@@ -207,30 +260,7 @@ make_interval_dyads_one_system <- function(dat_sys) {
     # kept but flagged so they can be excluded later if needed.
     long_gap <- duration_sec > long_gap_threshold_sec
 
-    interval_meta <- updates %>%
-      slice_tail(n = 1) %>%
-      transmute(
-        SourceFile = first(SourceFile),
-        Batch = first(Batch),
-        CageChange = first(CageChange),
-        System = first(System),
-        Phase = first(Phase),
-        HalfHoursElapsed = first(HalfHoursElapsed)
-      )
-
-    if (nrow(interval_meta) == 0) {
-      interval_meta <- dat_sys %>%
-        filter(DateTime <= t0) %>%
-        slice_tail(n = 1) %>%
-        transmute(
-          SourceFile = first(SourceFile),
-          Batch = first(Batch),
-          CageChange = first(CageChange),
-          System = first(System),
-          Phase = first(Phase),
-          HalfHoursElapsed = first(HalfHoursElapsed)
-        )
-    }
+    interval_meta <- last_interval_meta_before(dat_sys, t0)
 
     pair_tbl <- map_dfr(animal_pairs, function(p) {
       pos_a <- current_pos[p[1]]
@@ -343,6 +373,13 @@ aggregate_dyads_by_bin <- function(interval_tbl) {
       n_long_gaps = sum(LongGap, na.rm = TRUE),
       Group = first(na.omit(c(Group_Focal, Group_Partner, NA_character_))),
       Sex = first(na.omit(c(Sex_Focal, Sex_Partner, NA_character_))),
+      Dataset = collapse_character_annotation(Dataset),
+      RawParadigm = collapse_character_annotation(RawParadigm),
+      Epoch = collapse_character_annotation(Epoch),
+      MinutesOfDay = if (all(is.na(MinutesOfDay))) NA_integer_ else as.integer(min(MinutesOfDay, na.rm = TRUE)),
+      CookieWindowPrimary = any(CookieWindowPrimary, na.rm = TRUE),
+      CookieSubWindow = collapse_character_annotation(CookieSubWindow),
+      CookieHabEpoch = collapse_character_annotation(CookieHabEpoch),
       .groups = "drop"
     ) %>%
     mutate(
@@ -375,6 +412,7 @@ if (length(files) == 0) {
 message("Found ", length(files), " preprocessed files.")
 
 all_pos <- map_dfr_parallel(files, read_preprocessed_position_file)
+keep_cookiehab_annotations <- has_cookiehab_annotation_content(all_pos)
 
 # Optional metadata merge
 if (!is.null(metadata_file) && file.exists(metadata_file)) {
@@ -435,7 +473,7 @@ if (nrow(interval_tbl) == 0) {
 }
 
 write_table(
-  interval_tbl,
+  drop_empty_cookiehab_annotations(interval_tbl, keep_cookiehab_annotations),
   file.path(output_dir, "tables", "dyadic_contacts_interval_level.csv")
 )
 
@@ -455,7 +493,7 @@ write_epoch_duration_qc(
 )
 
 write_table(
-  dyad_bin_tbl,
+  drop_empty_cookiehab_annotations(dyad_bin_tbl, keep_cookiehab_annotations),
   file.path(output_dir, "tables", "dyadic_contacts_by_bin.csv")
 )
 
@@ -475,6 +513,13 @@ network_ready_tbl <- dyad_bin_tbl %>%
     CageChange,
     Batch,
     System,
+    Dataset,
+    RawParadigm,
+    Epoch,
+    MinutesOfDay,
+    CookieWindowPrimary,
+    CookieSubWindow,
+    CookieHabEpoch,
     BinSizeSec,
     observation_seconds,
     same_position_fraction,
@@ -484,7 +529,8 @@ network_ready_tbl <- dyad_bin_tbl %>%
     mean_grid_distance,
     n_intervals,
     n_long_gaps
-  )
+  ) %>%
+  drop_empty_cookiehab_annotations(keep_cookiehab_annotations)
 
 write_table(
   network_ready_tbl,
