@@ -55,8 +55,12 @@ source_mmm_helper("duration_normalization_helpers.R")
 # USER INPUT
 # ------------------------------------------------
 
-input_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/preprocessed_data"
-output_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics"
+existing_default_input_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/preprocessed_data"
+existing_default_output_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics"
+
+input_dir <- getOption("mmm.preprocessed_dir", existing_default_input_dir)
+output_root <- getOption("mmm.derived_metrics_dir", existing_default_output_root)
+dataset_id <- getOption("mmm.dataset_id", "sis_cc")
 
 # Optional animal reference lists. These are one-ID-per-line CSV/text files.
 # Matching is done after robust character normalization, so mixed numeric/string
@@ -200,8 +204,11 @@ read_preprocessed_position_file <- function(path) {
       System = as.character(System),
       PositionID = suppressWarnings(as.integer(PositionID)),
       SourceFile = basename(path),
+      Dataset = if ("Dataset" %in% names(.)) as.character(Dataset) else dataset_id,
+      RawParadigm = if ("RawParadigm" %in% names(.)) as.character(RawParadigm) else NA_character_,
       Batch = if ("Batch" %in% names(.)) as.character(Batch) else str_extract(basename(path), "B[0-9]+"),
-      CageChange = if ("CageChange" %in% names(.)) as.character(CageChange) else str_extract(basename(path), "CC[0-9]+"),
+      CageChange = if ("CageChange" %in% names(.)) as.character(CageChange) else coalesce(str_extract(basename(path), "CC[0-9]+"), NA_character_),
+      Epoch = if ("Epoch" %in% names(.)) as.character(Epoch) else CageChange,
       Phase = if ("Phase" %in% names(.)) as.character(Phase) else if_else(
         format(DateTime, "%H:%M", tz = "UTC") >= "18:30" | format(DateTime, "%H:%M", tz = "UTC") < "06:30",
         "Active", "Inactive"
@@ -210,7 +217,11 @@ read_preprocessed_position_file <- function(path) {
       Sex = if ("Sex" %in% names(.)) as.character(Sex) else NA_character_,
       ConsecActive = if ("ConsecActive" %in% names(.)) suppressWarnings(as.integer(ConsecActive)) else NA_integer_,
       ConsecInactive = if ("ConsecInactive" %in% names(.)) suppressWarnings(as.integer(ConsecInactive)) else NA_integer_,
-      HalfHoursElapsed = if ("HalfHoursElapsed" %in% names(.)) suppressWarnings(as.numeric(HalfHoursElapsed)) else NA_real_
+      HalfHoursElapsed = if ("HalfHoursElapsed" %in% names(.)) suppressWarnings(as.numeric(HalfHoursElapsed)) else NA_real_,
+      MinutesOfDay = if ("MinutesOfDay" %in% names(.)) suppressWarnings(as.integer(MinutesOfDay)) else NA_integer_,
+      CookieWindowPrimary = if ("CookieWindowPrimary" %in% names(.)) as.logical(CookieWindowPrimary) else NA,
+      CookieSubWindow = if ("CookieSubWindow" %in% names(.)) as.character(CookieSubWindow) else NA_character_,
+      CookieHabEpoch = if ("CookieHabEpoch" %in% names(.)) as.character(CookieHabEpoch) else NA_character_
     ) %>%
     filter(!is.na(DateTime), !is.na(AnimalID), !is.na(System), is.finite(PositionID), PositionID > 0) %>%
     arrange(SourceFile, Batch, CageChange, System, DateTime, AnimalID)
@@ -327,12 +338,19 @@ last_meta_before <- function(dat_sys, t0) {
     slice_tail(n = 1) %>%
     transmute(
       SourceFile = first(SourceFile),
+      Dataset = first(Dataset),
+      RawParadigm = first(RawParadigm),
       Batch = first(Batch),
       CageChange = first(CageChange),
+      Epoch = first(Epoch),
       System = first(System),
       Phase = first(Phase),
       ConsecActive = first(ConsecActive),
-      ConsecInactive = first(ConsecInactive)
+      ConsecInactive = first(ConsecInactive),
+      MinutesOfDay = first(MinutesOfDay),
+      CookieWindowPrimary = first(CookieWindowPrimary),
+      CookieSubWindow = first(CookieSubWindow),
+      CookieHabEpoch = first(CookieHabEpoch)
     )
 }
 
@@ -582,6 +600,42 @@ make_time_index <- function(dat) {
     ungroup()
 }
 
+collapse_character_annotation <- function(x) {
+  x <- unique(stats::na.omit(as.character(x)))
+  if (length(x) == 0) return(NA_character_)
+  if (length(x) == 1) return(x)
+  paste(sort(x), collapse = "|")
+}
+
+add_cookiehab_bin_annotations <- function(out, bin_size_sec) {
+  if (!identical(dataset_id, "cookiehab")) return(out)
+  if (!all(c("CookieWindowPrimary", "CookieHabEpoch") %in% names(occupancy_intervals))) return(out)
+
+  annotation_tbl <- occupancy_intervals %>%
+    split_intervals_to_bins(bin_size_sec) %>%
+    group_by(SourceFile, Batch, CageChange, System, BinSizeSec, BinStart, AnimalNum, AnimalID) %>%
+    summarise(
+      Dataset = collapse_character_annotation(Dataset),
+      RawParadigm = collapse_character_annotation(RawParadigm),
+      Epoch = collapse_character_annotation(Epoch),
+      MinutesOfDay = if (all(is.na(MinutesOfDay))) NA_integer_ else as.integer(min(MinutesOfDay, na.rm = TRUE)),
+      CookieWindowPrimary = any(CookieWindowPrimary, na.rm = TRUE),
+      CookieSubWindow = collapse_character_annotation(CookieSubWindow),
+      CookieHabEpoch = collapse_character_annotation(CookieHabEpoch),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      MinutesOfDay = if_else(is.infinite(MinutesOfDay), NA_integer_, MinutesOfDay),
+      CookieSubWindow = na_if(CookieSubWindow, "")
+    )
+
+  out %>%
+    left_join(
+      annotation_tbl,
+      by = c("SourceFile", "Batch", "CageChange", "System", "BinSizeSec", "BinStart", "AnimalNum", "AnimalID")
+    )
+}
+
 summarise_occupancy_by_bin <- function(bin_size_sec) {
   occupancy_intervals %>%
     split_intervals_to_bins(bin_size_sec) %>%
@@ -714,8 +768,10 @@ build_bin_metrics <- function(bin_label, bin_size_sec) {
     left_join(prox, by = c("SourceFile", "Batch", "CageChange", "System", "Phase", "PhaseNumber", "BinSizeSec", "BinStart", "AnimalNum")) %>%
     crop_after_second_cc4_phase() %>%
     standardize_metric_output(bin_label) %>%
+    add_cookiehab_bin_annotations(bin_size_sec) %>%
     select(
       AnimalNum, AnimalID, Batch, CageChange, System, Group, Sex, Phase,
+      any_of(c("Dataset", "RawParadigm", "Epoch", "MinutesOfDay", "CookieWindowPrimary", "CookieSubWindow", "CookieHabEpoch")),
       BinLabel, BinSizeSec, BinStart, TimeIndex,
       Movement, MovementPerHour, MovementDistance, MovementDistancePerHour,
       Proximity, ProximitySeconds, ProximityFraction,
@@ -832,7 +888,57 @@ all_bin_outputs <- purrr::pmap(
   list(bin_specs$bin_label, bin_specs$bin_size_sec),
   build_bin_metrics
 )
+names(all_bin_outputs) <- bin_specs$bin_label
 phase_output <- build_phase_metrics()
+
+export_cookiehab_primary_window_metrics <- function(bin_outputs) {
+  if (!identical(dataset_id, "cookiehab")) return(invisible(NULL))
+
+  source_label <- dplyr::case_when(
+    "10min" %in% names(bin_outputs) ~ "10min",
+    "5min" %in% names(bin_outputs) ~ "5min",
+    TRUE ~ names(bin_outputs)[1]
+  )
+  dat <- bin_outputs[[source_label]]
+  if (is.null(dat) || !"CookieWindowPrimary" %in% names(dat)) {
+    warning("CookieWindowPrimary is not available in stage 01 outputs; primary-window export skipped.", call. = FALSE)
+    return(invisible(NULL))
+  }
+
+  primary <- dat %>%
+    filter(CookieWindowPrimary %in% TRUE)
+
+  out_dir <- file.path(output_root, "cookiehab_primary_I2_17_18")
+  ensure_dir(out_dir)
+
+  write_table(
+    primary,
+    file.path(out_dir, "all_behavior_metrics_cookiehab_I2_17_18.csv")
+  )
+
+  qc <- primary %>%
+    summarise(
+      source_bin_label = source_label,
+      n_rows = n(),
+      n_animals = n_distinct(AnimalID),
+      n_bins = n_distinct(BinStart),
+      coverage_minutes = sum(observation_seconds, na.rm = TRUE) / 60,
+      n_batches = n_distinct(Batch),
+      n_systems = n_distinct(System),
+      n_groups = n_distinct(Group),
+      n_sexes = n_distinct(Sex)
+    )
+
+  qc_counts <- primary %>%
+    count(Batch, System, Group, Sex, name = "n_rows") %>%
+    arrange(Batch, System, Group, Sex)
+
+  write_table(qc, file.path(out_dir, "cookiehab_primary_I2_17_18_qc.csv"))
+  write_table(qc_counts, file.path(out_dir, "cookiehab_primary_I2_17_18_batch_system_group_sex_counts.csv"))
+  invisible(primary)
+}
+
+export_cookiehab_primary_window_metrics(all_bin_outputs)
 
 qc_tbl <- bind_rows(
   map2_dfr(bin_specs$bin_label, all_bin_outputs, function(label, dat) {
