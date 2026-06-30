@@ -1439,7 +1439,10 @@ write_table(matched_ladder_prediction_correlation_stats, file.path(output_dir, "
 primary_plot_stats <- primary_correlation_stats_by_sex %>%
   mutate(
     Feature = factor(feature_label, levels = unname(feature_display_labels[primary_features])),
-    stat_label = paste0("rho=", round(spearman_rho, 2), "\n", format_p(spearman_p))
+    stat_label = paste0(
+      "Spearman ρ = ", round(spearman_rho, 2), "\n",
+      sub("^p<", "p < ", sub("^p=", "p = ", format_p(spearman_p)))
+    )
   )
 
 p_primary <- model_dat %>%
@@ -1451,7 +1454,7 @@ p_primary <- model_dat %>%
   ) %>%
   ggplot(aes(Value, outcome)) +
   geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.38, alpha = 0.10, colour = "grey25", fill = "grey70") +
-  geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.65, stroke = 0.25, alpha = 0.9) +
+  geom_point(aes(colour = Group, fill = Group), shape = 21, size = 1.65, stroke = 0.25, alpha = 0.9) +
   geom_text(
     data = primary_plot_stats,
     aes(x = -Inf, y = Inf, label = stat_label),
@@ -1462,7 +1465,7 @@ p_primary <- model_dat %>%
     lineheight = 0.9,
     colour = "grey20"
   ) +
-  facet_grid(Sex ~ Feature, scales = "free_x") +
+  facet_wrap(vars(Sex, Feature), nrow = 2, scales = "free") +
   labs(
     title = "Early behavioral organization aligns with later stress burden",
     subtitle = paste0("Each panel reports Spearman rho and nominal p; CON/RES/SUS are shown for interpretation, not as required predictors"),
@@ -1471,11 +1474,10 @@ p_primary <- model_dat %>%
   ) +
   scale_colour_manual(values = group_colors, drop = FALSE) +
   scale_fill_manual(values = group_colors, drop = FALSE) +
-  scale_shape_manual(values = group_shape_values, drop = FALSE) +
   make_publication_theme(base_size = 6) +
-  theme(legend.box.spacing = unit(0.5, "mm"))
+  theme(legend.box.spacing = unit(0.5, "mm"), aspect.ratio = 1)
 
-save_plot_svg_pdf(p_primary, file.path(output_dir, "figures", "publication", "primary_movement_entropyacf1_vs_combz"), width = 183, height = 102)
+save_plot_svg_pdf(p_primary, file.path(output_dir, "figures", "publication", "primary_movement_entropyacf1_vs_combz"), width = 183, height = 125)
 
 p_ladder <- ladder_performance %>%
   mutate(
