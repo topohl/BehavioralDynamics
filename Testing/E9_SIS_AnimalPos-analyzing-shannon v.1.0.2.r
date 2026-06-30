@@ -264,8 +264,15 @@ log_message("Starting reviewer-ready Shannon entropy pipeline")
 # ===================================================================
 group_cols <- c(
   con = "#3d3b6e",
-  res = "#c6c3bb",
+  res = "#C6C3BB",
   sus = "#e63947"
+)
+
+# Match the movement/proximity GAMM contrast palette.
+gamm_pair_cols <- c(
+  "RES - CON" = "#3d3b6e",
+  "SUS - CON" = "#e63947",
+  "SUS - RES" = "#C6C3BB"
 )
 
 sex_cols <- c(
@@ -299,15 +306,16 @@ theme_publication <- function(base_size = 7, base_family = "sans") {
     )
 }
 
-theme_nature_gamm <- function(base_size = 7, base_family = "sans") {
+theme_nature_gamm <- function(base_size = 9, base_family = "sans") {
   theme_publication(base_size = base_size, base_family = base_family) +
     ggplot2::theme(
       legend.position = "top",
-      legend.justification = "left",
+      legend.justification = "center",
       legend.box.spacing = grid::unit(0.5, "mm"),
       panel.spacing = grid::unit(2.4, "mm"),
-      plot.title = ggplot2::element_text(size = base_size + 1, face = "plain", hjust = 0),
-      plot.subtitle = ggplot2::element_blank(),
+      strip.text = ggplot2::element_text(face = "bold"),
+      plot.title = ggplot2::element_text(size = base_size + 1, face = "bold", hjust = 0.5),
+      plot.subtitle = ggplot2::element_text(size = base_size - 1, hjust = 0.5),
       plot.caption = ggplot2::element_text(size = base_size - 1, colour = "grey25", hjust = 0),
       plot.caption.position = "plot"
     )
@@ -1737,6 +1745,7 @@ cc1_active_gamm_result <- NULL
 cc1_active_gamm_prediction_df <- tibble()
 cc1_active_gamm_auc <- tibble()
 cc1_active_gamm_auc_contrasts <- tibble()
+cc1_active_gamm_auc_contrasts_with_ci <- tibble()
 cc1_active_observed_auc <- tibble()
 cc1_active_observed_auc_anova <- tibble()
 cc1_active_observed_auc_contrasts <- tibble()
@@ -1903,6 +1912,126 @@ if (nrow(cc1_active_gamm_prediction_df) > 0) {
   }
 }
 
+simulate_cc1_active_gamm_auc_contrasts <- function(cc1_results, n_sim = 5000L, seed = 20260622L) {
+  if (length(cc1_results) == 0) return(tibble())
+
+  contrast_definitions <- list(
+    `RES - CON` = c("res", "con"),
+    `SUS - CON` = c("sus", "con"),
+    `SUS - RES` = c("sus", "res")
+  )
+
+  had_random_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (had_random_seed) previous_random_seed <- get(".Random.seed", envir = .GlobalEnv)
+  on.exit({
+    if (had_random_seed) {
+      assign(".Random.seed", previous_random_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+  set.seed(seed)
+
+  contrast_table <- purrr::imap_dfr(cc1_results, function(cc1_result, sex_name) {
+    model <- cc1_result$model
+    model_data <- cc1_result$data
+    group_levels <- levels(model_data$Group)
+
+    grid <- tidyr::expand_grid(
+      HalfHourWithinCC0 = 0:23,
+      Group = group_levels
+    ) %>%
+      mutate(
+        Group = factor(Group, levels = group_levels),
+        AnimalID = factor(levels(model_data$AnimalID)[1], levels = levels(model_data$AnimalID)),
+        System = factor(levels(model_data$System)[1], levels = levels(model_data$System))
+      )
+
+    prediction_matrix <- predict(
+      model,
+      newdata = grid,
+      type = "lpmatrix",
+      exclude = c("s(AnimalID)", "s(System)")
+    )
+
+    beta <- coef(model)
+    beta_sim <- MASS::mvrnorm(
+      n = n_sim,
+      mu = beta,
+      Sigma = vcov(model)
+    )
+
+    point_curves <- model$family$linkinv(as.numeric(prediction_matrix %*% beta))
+    simulated_curves <- model$family$linkinv(prediction_matrix %*% t(beta_sim))
+
+    group_point_auc <- stats::setNames(numeric(length(group_levels)), group_levels)
+    group_simulated_auc <- stats::setNames(
+      lapply(group_levels, function(group_value) numeric(n_sim)),
+      group_levels
+    )
+
+    for (group_value in group_levels) {
+      group_rows <- which(as.character(grid$Group) == group_value)
+      group_point_auc[[group_value]] <- trapezoid_auc(
+        grid$HalfHourWithinCC0[group_rows],
+        point_curves[group_rows]
+      )
+      group_simulated_auc[[group_value]] <- apply(
+        simulated_curves[group_rows, , drop = FALSE],
+        2,
+        function(fit) trapezoid_auc(grid$HalfHourWithinCC0[group_rows], fit)
+      )
+    }
+
+    purrr::imap_dfr(contrast_definitions, function(groups, contrast_name) {
+      if (!all(groups %in% group_levels)) return(tibble())
+
+      simulated_difference <- group_simulated_auc[[groups[1]]] -
+        group_simulated_auc[[groups[2]]]
+      n_finite_simulations <- sum(is.finite(simulated_difference))
+      lower_tail_count <- sum(simulated_difference <= 0, na.rm = TRUE)
+      upper_tail_count <- sum(simulated_difference >= 0, na.rm = TRUE)
+      simulation_p_value <- min(
+        1,
+        2 * (min(lower_tail_count, upper_tail_count) + 1) /
+          (n_finite_simulations + 1)
+      )
+
+      tibble(
+        Sex = sex_name,
+        contrast = contrast_name,
+        estimate = group_point_auc[[groups[1]]] - group_point_auc[[groups[2]]],
+        conf.low = unname(stats::quantile(simulated_difference, 0.025, na.rm = TRUE)),
+        conf.high = unname(stats::quantile(simulated_difference, 0.975, na.rm = TRUE)),
+        n_sim = as.integer(n_sim),
+        p_AUC_raw = simulation_p_value,
+        model = "cc1_active_phase1_gamm_auc_contrast"
+      )
+    })
+  })
+
+  contrast_table %>%
+    group_by(Sex) %>%
+    mutate(p_AUC_BH = p.adjust(p_AUC_raw, method = "BH")) %>%
+    ungroup()
+}
+
+cc1_active_gamm_auc_contrasts_with_ci <- simulate_cc1_active_gamm_auc_contrasts(
+  cc1_active_gamm_results,
+  n_sim = 5000L,
+  seed = 20260622L
+)
+
+if (save_tables && nrow(cc1_active_gamm_auc_contrasts_with_ci) > 0) {
+  write_review_csv(
+    cc1_active_gamm_auc_contrasts_with_ci,
+    review_cc1_active_gamm_stats_dir,
+    "cc1_active_phase1_gamm",
+    "auc_pairwise_contrasts_with_ci",
+    "all_sexes"
+  )
+}
+
 if (length(cc1_active_gamm_results) > 0) {
   cc1_active_model_data_all <- bind_rows(purrr::map(cc1_active_gamm_results, "data"))
 
@@ -2027,7 +2156,7 @@ if (RUN_EXPLORATION_MODELS) {
 # -------------------------------------------------------------------
 # Trajectory-style plotting utilities matching the reference GAMM figure
 # -------------------------------------------------------------------
-theme_trajectory_reference <- function(base_size = 7, base_family = "sans") {
+theme_trajectory_reference <- function(base_size = 9, base_family = "sans") {
   ggplot2::theme_classic(base_size = base_size, base_family = base_family) +
     ggplot2::theme(
       axis.line = ggplot2::element_line(linewidth = 0.28, colour = "#1A1A1A"),
@@ -2037,13 +2166,13 @@ theme_trajectory_reference <- function(base_size = 7, base_family = "sans") {
       axis.title = ggplot2::element_text(size = base_size + 1, colour = "#1A1A1A"),
       strip.background = ggplot2::element_blank(),
       strip.text = ggplot2::element_text(size = base_size + 1, colour = "#1A1A1A"),
-      legend.position = "right",
+      legend.position = "top",
       legend.title = ggplot2::element_text(size = base_size, colour = "#1A1A1A"),
       legend.text = ggplot2::element_text(size = base_size, colour = "#1A1A1A"),
       legend.key.size = grid::unit(3.0, "mm"),
       panel.grid = ggplot2::element_blank(),
-      plot.title = ggplot2::element_text(size = base_size + 2, face = "plain", hjust = 0, colour = "#1A1A1A"),
-      plot.subtitle = ggplot2::element_text(size = base_size, hjust = 0, colour = "#1A1A1A"),
+      plot.title = ggplot2::element_text(size = base_size + 1, face = "bold", hjust = 0.5, colour = "#1A1A1A"),
+      plot.subtitle = ggplot2::element_text(size = base_size - 1, hjust = 0.5, colour = "#1A1A1A"),
       plot.margin = grid::unit(c(2, 2, 2, 2), "mm")
     )
 }
@@ -2408,8 +2537,8 @@ gamm_prediction_df <- if (exists("gamm_results") && length(gamm_results) > 0) {
 fig_gamm_prediction <- if (nrow(gamm_prediction_df) > 0) {
   gamm_prediction_df %>%
     ggplot(aes(x = TimeScaled, y = fit, colour = GroupLabel, fill = GroupLabel)) +
-    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.16, colour = NA) +
-    geom_line(linewidth = 0.55) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.18, colour = NA) +
+    geom_line(linewidth = 1.0, alpha = 0.9) +
     facet_grid(Phase ~ Sex) +
     scale_colour_manual(values = c(CON = group_cols[["con"]], RES = group_cols[["res"]], SUS = group_cols[["sus"]])) +
     scale_fill_manual(values = c(CON = group_cols[["con"]], RES = group_cols[["res"]], SUS = group_cols[["sus"]])) +
@@ -2435,14 +2564,15 @@ fig_gamm_raw_overlay <- if (nrow(gamm_prediction_df) > 0) {
       data = gamm_prediction_df,
       aes(x = TimeScaled, y = fit, ymin = lower, ymax = upper, fill = GroupLabel),
       inherit.aes = FALSE,
-      alpha = 0.16,
+      alpha = 0.18,
       colour = NA
     ) +
     geom_line(
       data = gamm_prediction_df,
       aes(x = TimeScaled, y = fit, colour = GroupLabel),
       inherit.aes = FALSE,
-      linewidth = 0.55
+      linewidth = 1.0,
+      alpha = 0.9
     ) +
     facet_grid(Phase ~ Sex) +
     scale_colour_manual(values = c(CON = group_cols[["con"]], RES = group_cols[["res"]], SUS = group_cols[["sus"]])) +
@@ -2465,8 +2595,8 @@ fig_gamm_group_level <- if (nrow(gamm_prediction_df) > 0) {
   # This keeps the visual focus on group separation while preserving animal-level inference.
   gamm_prediction_df %>%
     ggplot(aes(x = TimeScaled, y = fit, colour = GroupLabel, fill = GroupLabel)) +
-    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.16, colour = NA) +
-    geom_line(linewidth = 0.65) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.18, colour = NA) +
+    geom_line(linewidth = 1.0, alpha = 0.9) +
     facet_wrap(~ Sex, nrow = 1) +
     scale_colour_manual(values = c(CON = group_cols[["con"]], RES = group_cols[["res"]], SUS = group_cols[["sus"]])) +
     scale_fill_manual(values = c(CON = group_cols[["con"]], RES = group_cols[["res"]], SUS = group_cols[["sus"]])) +
@@ -2518,7 +2648,8 @@ fig_cc1_active_individual_gamm <- if (!is.null(cc1_active_gamm_result) && nrow(c
       data = cc1_active_gamm_prediction_df,
       aes(x = HalfHourWithinCC0, y = fit, colour = GroupLabel),
       inherit.aes = FALSE,
-      linewidth = 0.55
+      linewidth = 1.0,
+      alpha = 0.9
     ) +
     facet_wrap(~ Sex, nrow = 1) +
     scale_x_continuous(breaks = c(0, 6, 12, 18, 23), limits = c(0, 23)) +
@@ -2541,8 +2672,8 @@ fig_cc1_active_individual_gamm <- if (!is.null(cc1_active_gamm_result) && nrow(c
 fig_cc1_active_group_gamm <- if (nrow(cc1_active_gamm_prediction_df) > 0) {
   cc1_active_gamm_prediction_df %>%
     ggplot(aes(x = HalfHourWithinCC0, y = fit, colour = GroupLabel, fill = GroupLabel)) +
-    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.16, colour = NA) +
-    geom_line(linewidth = 0.62) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.18, colour = NA) +
+    geom_line(linewidth = 1.0, alpha = 0.9) +
     facet_wrap(~ Sex, nrow = 1) +
     scale_x_continuous(breaks = c(0, 6, 12, 18, 23), limits = c(0, 23)) +
     scale_y_continuous(limits = c(0, max_position_entropy), expand = expansion(mult = c(0.02, 0.04))) +
@@ -2667,6 +2798,69 @@ fig_cc1_active_gamm_auc_contrasts <- if (nrow(cc1_active_gamm_auc_contrasts) > 0
   NULL
 }
 
+fig_cc1_active_gamm_auc_forest <- if (nrow(cc1_active_gamm_auc_contrasts_with_ci) > 0) {
+  cc1_active_gamm_auc_contrasts_with_ci %>%
+    mutate(
+      contrast = factor(contrast, levels = c("RES - CON", "SUS - CON", "SUS - RES")),
+      sig_label = case_when(
+        is.na(p_AUC_BH) ~ "",
+        p_AUC_BH < 0.001 ~ "***",
+        p_AUC_BH < 0.01 ~ "**",
+        p_AUC_BH < 0.05 ~ "*",
+        p_AUC_BH < 0.10 ~ "\u2020",
+        TRUE ~ ""
+      )
+    ) %>%
+    group_by(Sex) %>%
+    mutate(
+      x_abs_max = max(abs(c(conf.low, conf.high)), na.rm = TRUE),
+      x_abs_max = if_else(is.finite(x_abs_max) & x_abs_max > 0, x_abs_max, 1),
+      x_pad = x_abs_max * 0.08
+    ) %>%
+    ungroup() %>%
+    ggplot(aes(x = estimate, y = contrast, colour = contrast)) +
+    geom_vline(xintercept = 0, linewidth = 0.28, colour = "grey55") +
+    geom_segment(
+      aes(x = conf.low, xend = conf.high, yend = contrast),
+      linewidth = 0.65,
+      lineend = "round"
+    ) +
+    geom_point(size = 1.9, stroke = 0.25) +
+    geom_text(
+      aes(x = conf.high + x_pad * 0.25, label = sig_label),
+      colour = "black",
+      size = 2.4,
+      hjust = 0,
+      vjust = 0.45,
+      show.legend = FALSE
+    ) +
+    scale_colour_manual(values = gamm_pair_cols, guide = "none") +
+    scale_x_continuous(expand = expansion(mult = c(0.08, 0.22))) +
+    facet_wrap(~ Sex, scales = "free_x", ncol = 1) +
+    labs(
+      x = "ΔAUC (Group A - Group B)",
+      y = NULL,
+      title = "CC1 active phase 1: GAMM entropy AUC contrasts",
+      caption = "Points show GAMM-predicted entropy AUC differences; bars show simulation-based 95% CIs. BH-adjusted within sex: *** p < 0.001, ** p < 0.01, * p < 0.05, \u2020 p < 0.10."
+    ) +
+    theme_classic(base_size = 7, base_family = "sans") +
+    theme(
+      legend.position = "none",
+      axis.line.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.text.y = element_text(colour = "black", size = 6.5),
+      axis.text.x = element_text(colour = "black", size = 6),
+      axis.title.x = element_text(size = 7),
+      strip.background = element_blank(),
+      strip.text = element_text(face = "bold", size = 6.5, hjust = 0),
+      plot.title = element_text(face = "bold", hjust = 0, size = 8),
+      plot.caption = element_text(hjust = 0, size = 6),
+      plot.margin = margin(3, 12, 3, 3)
+    )
+} else {
+  NULL
+}
+
 if (save_plots) {
   # Main figure panels: saved as SVG + PDF
   save_review_figure_dual(fig_animal_phase, review_main_panels_dir, "figure", "fig1a_individual_entropy_emm", "phase", width = 90, height = 75)
@@ -2681,35 +2875,48 @@ if (save_plots) {
 
   # GAMM timecourse panels
   if (!is.null(fig_gamm_prediction)) {
-    save_review_figure_dual(fig_gamm_prediction, review_gamm_figures_dir, "gamm", "predicted_entropy_trajectories", NULL, width = 150, height = 95)
+    save_review_figure_dual(fig_gamm_prediction, review_gamm_figures_dir, "gamm", "predicted_entropy_trajectories", NULL, width = 127, height = 152.4)
   }
 
   if (!is.null(fig_gamm_raw_overlay)) {
-    save_review_figure_dual(fig_gamm_raw_overlay, review_gamm_figures_dir, "gamm", "raw_overlay_predicted_trajectories", NULL, width = 150, height = 95)
+    save_review_figure_dual(fig_gamm_raw_overlay, review_gamm_figures_dir, "gamm", "raw_overlay_predicted_trajectories", NULL, width = 127, height = 152.4)
   }
 
   if (!is.null(fig_gamm_group_level)) {
-    save_review_figure_dual(fig_gamm_group_level, review_gamm_figures_dir, "gamm", "group_level_entropy_trajectories", NULL, width = 150, height = 75)
+    save_review_figure_dual(fig_gamm_group_level, review_gamm_figures_dir, "gamm", "group_level_entropy_trajectories", NULL, width = 127, height = 76.2)
   }
 
   if (!is.null(fig_cc1_active_individual_gamm)) {
-    save_review_figure_dual(fig_cc1_active_individual_gamm, review_cc1_active_gamm_figures_dir, "cc1_active_phase1_gamm", "individual_trajectories", "animal_entropy", width = 150, height = 72)
+    save_review_figure_dual(fig_cc1_active_individual_gamm, review_cc1_active_gamm_figures_dir, "cc1_active_phase1_gamm", "individual_trajectories", "animal_entropy", width = 127, height = 76.2)
   }
 
   if (!is.null(fig_cc1_active_group_gamm)) {
-    save_review_figure_dual(fig_cc1_active_group_gamm, review_cc1_active_gamm_figures_dir, "cc1_active_phase1_gamm", "group_estimates", "animal_entropy", width = 120, height = 68)
+    save_review_figure_dual(fig_cc1_active_group_gamm, review_cc1_active_gamm_figures_dir, "cc1_active_phase1_gamm", "group_estimates", "animal_entropy", width = 127, height = 76.2)
   }
 
   if (!is.null(fig_cc1_active_group_observed)) {
-    save_review_figure_dual(fig_cc1_active_group_observed, review_cc1_active_gamm_figures_dir, "cc1_active_phase1", "observed_group_means", "animal_entropy", width = 120, height = 68)
+    save_review_figure_dual(fig_cc1_active_group_observed, review_cc1_active_gamm_figures_dir, "cc1_active_phase1", "observed_group_means", "animal_entropy", width = 127, height = 76.2)
   }
 
   if (!is.null(fig_cc1_active_auc)) {
-    save_review_figure_dual(fig_cc1_active_auc, review_cc1_active_gamm_figures_dir, "cc1_active_phase1_gamm", "auc_contrasts", "animal_entropy", width = 110, height = 72)
+    save_review_figure_dual(fig_cc1_active_auc, review_cc1_active_gamm_figures_dir, "cc1_active_phase1_gamm", "auc_contrasts", "animal_entropy", width = 127, height = 76.2)
   }
 
   if (!is.null(fig_cc1_active_gamm_auc_contrasts)) {
-    save_review_figure_dual(fig_cc1_active_gamm_auc_contrasts, review_cc1_active_gamm_figures_dir, "cc1_active_phase1_gamm", "auc_pairwise_contrast_differences", "animal_entropy", width = 95, height = 68)
+    save_review_figure_dual(fig_cc1_active_gamm_auc_contrasts, review_cc1_active_gamm_figures_dir, "cc1_active_phase1_gamm", "auc_pairwise_contrast_differences", "animal_entropy", width = 101.6, height = 76.2)
+  }
+
+  if (!is.null(fig_cc1_active_gamm_auc_forest)) {
+    n_cc1_auc_forest_sexes <- n_distinct(cc1_active_gamm_auc_contrasts_with_ci$Sex)
+    save_review_figure_dual(
+      fig_cc1_active_gamm_auc_forest,
+      review_cc1_active_gamm_figures_dir,
+      "cc1_active_phase1_gamm",
+      "forest_auc_pairwise_contrasts",
+      "animal_entropy",
+      width = 38.1,
+      height = max(55.9, 38.1 * n_cc1_auc_forest_sexes)
+    )
   }
 
   if (exists("gamm_prediction_df") && nrow(gamm_prediction_df) > 0 && save_tables) {
