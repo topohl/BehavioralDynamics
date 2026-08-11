@@ -677,7 +677,7 @@ feature_dictionary <- feature_dictionary_raw %>%
     manuscript_reporting_role = case_when(
       readout %in% canonical_features ~ "PRIMARY",
       readout == "Movement_x_EntropyACF1" ~ "EXPLORATORY/COMPATIBILITY",
-      TRUE ~ "SECONDARY OR EXPLORATORY; NOT IN PRIMARY REGISTRY"
+      TRUE ~ "SECONDARY OR EXPLORATORY; NOT PART OF THE CANONICAL THREE-FEATURE PRIMARY PREDICTOR REGISTRY"
     )
   ) %>%
   arrange(match(readout, canonical_features), readout)
@@ -1072,44 +1072,412 @@ validate_xlsx_package <- function(xlsx_path, expected_ranges, expected_sheet_nam
   )
 }
 
-write_sheet <- function(wb, sheet, dat) {
-  openxlsx::addWorksheet(wb, sheet, gridLines = FALSE)
-  header_style <- openxlsx::createStyle(
-    fontName = "Arial", fontSize = 10, textDecoration = "bold",
-    fgFill = "#FFFFFF", fontColour = "#000000",
-    border = "Bottom", borderColour = "#000000", borderStyle = "thin",
-    halign = "left", valign = "center", wrapText = TRUE
-  )
-  text_style <- openxlsx::createStyle(fontName = "Arial", fontSize = 9, halign = "left", valign = "top", wrapText = TRUE)
-  number_style <- openxlsx::createStyle(fontName = "Arial", fontSize = 9, halign = "right", valign = "top", numFmt = "0.0000")
-  integer_style <- openxlsx::createStyle(fontName = "Arial", fontSize = 9, halign = "right", valign = "top", numFmt = "0")
+stage16_palette <- list(
+  header = "#202020",
+  text = "#222222",
+  secondary = "#6B6B6B",
+  alternate = "#F7F7F7",
+  neutral = "#F1F1F1",
+  cool_neutral = "#F2F5F7",
+  separator = "#D9D9D9",
+  accent = "#B51F2E",
+  pale_accent = "#FBEFF1",
+  pale_warning = "#FFF2F0",
+  white = "#FFFFFF"
+)
 
-  openxlsx::writeData(wb, sheet, dat, headerStyle = header_style, rowNames = FALSE, withFilter = TRUE)
+stage16_result_widths <- c(
+  claim_id = 27, reporting_role = 15, analysis_domain = 32, endpoint = 17,
+  time_window = 30, bin_level = 13, biological_unit = 20, n_animals = 10,
+  sex = 20, contrast_or_model = 36, estimate = 12, effect_size_type = 34,
+  effect_size = 12, ci_low = 12, ci_high = 12, p_raw = 13, p_adjusted = 13,
+  adjustment_method = 29, multiplicity_family = 34, validation_scheme = 38,
+  robustness_status = 42, source_script = 38, source_table = 42, notes = 42,
+  source_row_key = 30, model_id = 29, model_label = 38, predictors = 40,
+  rmse = 11, mae = 11, pearson_r = 12, spearman_rho = 13,
+  repeated_cv_mean_r2 = 15, repeated_cv_mean_rmse = 17,
+  repeated_cv_mean_mae = 16, cv_r2_q025 = 12, cv_r2_q975 = 12,
+  interval_type = 34, permutation_numerator = 14,
+  permutation_denominator = 16, permutation_display = 14
+)
+
+stage16_sheet_widths <- list(
+  README = c(item = 27, definition = 90),
+  Primary_results = stage16_result_widths,
+  Prediction_validation = c(
+    model_id = 29, model_label = 38, reporting_role = 24, predictors = 42,
+    n_animals = 10, validation_scheme = 42, loao_cv_r2 = 12, loao_rmse = 12,
+    loao_mae = 12, loao_pearson_r = 14, loao_spearman_rho = 15,
+    repeated_5fold_mean_r2 = 17, repeated_5fold_mean_rmse = 19,
+    repeated_5fold_mean_mae = 18, cv_r2_q025 = 12, cv_r2_q975 = 12,
+    interval_type = 34, permutation_scheme = 42,
+    permutation_observed_statistic = 18, permutation_null_median = 17,
+    permutation_null_q025 = 16, permutation_null_q975 = 16,
+    permutation_empirical_p = 17, permutation_n = 13, permutation_seed = 15,
+    permutation_numerator = 14, permutation_denominator = 16,
+    permutation_display = 14, interpretation = 54
+  ),
+  Supplementary_stats = stage16_result_widths,
+  QC_exclusions = c(
+    qc_record_type = 32, source_table = 42, qc_reporting_status = 44,
+    AnimalID = 12, Sex = 10, Group = 10, n_windows = 10, n_pass = 9,
+    n_review = 10, n_moderate = 11, n_high = 9, max_flags = 10,
+    worst_zero_fraction = 16, worst_dominant_position_fraction = 20,
+    lowest_mean_entropy = 17, earliest_possible_collapse = 20,
+    suggested_decision = 38, comment = 46, PhaseClass = 14,
+    n_animals_pre_filter = 17, n_rows_pre_filter = 16,
+    n_animals_post_filter = 18, n_rows_post_filter = 17
+  ),
+  Analysis_audit = stage16_result_widths,
+  Feature_dictionary = c(
+    readout = 30, display_label = 30, domain = 26, definition = 62,
+    manuscript_role = 31, manuscript_reporting_role = 45
+  )
+)
+
+stage16_tab_colours <- c(
+  README = "#8A8A8A", Primary_results = stage16_palette$accent,
+  Prediction_validation = stage16_palette$accent,
+  Supplementary_stats = "#A6A6A6", QC_exclusions = "#A6A6A6",
+  Analysis_audit = "#4A4A4A", Feature_dictionary = "#8A8A8A"
+)
+
+stage16_freeze_columns <- c(
+  README = NA_integer_, Primary_results = 4L, Prediction_validation = 3L,
+  Supplementary_stats = 4L, QC_exclusions = 5L, Analysis_audit = 4L,
+  Feature_dictionary = 2L
+)
+
+stage16_row_heights <- c(
+  README = 42, Primary_results = 54, Prediction_validation = 58,
+  Supplementary_stats = 40, QC_exclusions = 34, Analysis_audit = 42,
+  Feature_dictionary = 44
+)
+
+stage16_wrap_columns <- function(sheet) {
+  result_prose <- c(
+    "analysis_domain", "time_window", "biological_unit", "sex",
+    "contrast_or_model", "effect_size_type", "adjustment_method",
+    "multiplicity_family", "validation_scheme", "robustness_status",
+    "source_script", "source_table", "notes", "model_label", "predictors",
+    "interval_type"
+  )
+  switch(
+    sheet,
+    README = "definition",
+    Primary_results = result_prose,
+    Prediction_validation = c(
+      "model_label", "reporting_role", "predictors", "validation_scheme",
+      "interval_type", "permutation_scheme", "interpretation"
+    ),
+    Supplementary_stats = result_prose,
+    QC_exclusions = c(
+      "qc_record_type", "source_table", "qc_reporting_status",
+      "suggested_decision", "comment"
+    ),
+    Analysis_audit = result_prose,
+    Feature_dictionary = c(
+      "display_label", "domain", "definition", "manuscript_role",
+      "manuscript_reporting_role"
+    ),
+    character()
+  )
+}
+
+stage16_create_styles <- function() {
+  list(
+    header = openxlsx::createStyle(
+      fontName = "Arial", fontSize = 10, textDecoration = "bold",
+      fgFill = stage16_palette$header, fontColour = stage16_palette$white,
+      border = "Bottom", borderColour = stage16_palette$separator,
+      borderStyle = "thin", halign = "left", valign = "center",
+      wrapText = TRUE
+    ),
+    body = openxlsx::createStyle(
+      fontName = "Arial", fontSize = 9, fontColour = stage16_palette$text,
+      fgFill = stage16_palette$white, halign = "left", valign = "center",
+      wrapText = FALSE
+    ),
+    wrap = openxlsx::createStyle(wrapText = TRUE, valign = "center"),
+    alternate = openxlsx::createStyle(fgFill = stage16_palette$alternate),
+    number = openxlsx::createStyle(halign = "right", numFmt = "0.000"),
+    p_value = openxlsx::createStyle(halign = "right", numFmt = "0.000E+00"),
+    integer = openxlsx::createStyle(halign = "right", numFmt = "0"),
+    date_time = openxlsx::createStyle(halign = "center", numFmt = "yyyy-mm-dd hh:mm"),
+    identifier = openxlsx::createStyle(textDecoration = "bold"),
+    section_top = openxlsx::createStyle(
+      border = "Top", borderColour = stage16_palette$separator,
+      borderStyle = "medium"
+    ),
+    primary_role = openxlsx::createStyle(
+      textDecoration = "bold", fontColour = stage16_palette$accent
+    ),
+    secondary_role = openxlsx::createStyle(
+      textDecoration = "bold", fontColour = stage16_palette$secondary
+    ),
+    status_role = openxlsx::createStyle(
+      textDecoration = "italic", fontColour = stage16_palette$secondary
+    ),
+    headline_row = openxlsx::createStyle(fgFill = stage16_palette$pale_accent),
+    headline_label = openxlsx::createStyle(
+      textDecoration = "bold", fontColour = stage16_palette$accent
+    ),
+    supported_p = openxlsx::createStyle(
+      textDecoration = "bold", fontColour = stage16_palette$accent
+    ),
+    neutral_row = openxlsx::createStyle(fgFill = stage16_palette$neutral),
+    cool_row = openxlsx::createStyle(fgFill = stage16_palette$cool_neutral),
+    warning = openxlsx::createStyle(
+      fgFill = stage16_palette$pale_warning,
+      fontColour = "#7A1720", textDecoration = "bold", wrapText = TRUE
+    ),
+    readme_item = openxlsx::createStyle(
+      fgFill = stage16_palette$neutral, textDecoration = "bold"
+    ),
+    canonical_feature = openxlsx::createStyle(fgFill = stage16_palette$pale_accent)
+  )
+}
+
+stage16_apply_role_style <- function(wb, sheet, dat, styles) {
+  role_col <- match("reporting_role", names(dat))
+  if (is.na(role_col) || nrow(dat) == 0L) return(invisible(wb))
+  role_values <- as.character(dat$reporting_role)
+  role_styles <- list(
+    PRIMARY = styles$primary_role,
+    SECONDARY = styles$secondary_role,
+    STATUS = styles$status_role
+  )
+  for (role in names(role_styles)) {
+    rows <- which(role_values == role) + 1L
+    if (length(rows)) {
+      openxlsx::addStyle(
+        wb, sheet, role_styles[[role]], rows = rows, cols = role_col,
+        gridExpand = TRUE, stack = TRUE
+      )
+    }
+  }
+  invisible(wb)
+}
+
+stage16_apply_sheet_emphasis <- function(wb, sheet, dat, styles) {
+  if (nrow(dat) == 0L) return(invisible(wb))
+  data_rows <- seq_len(nrow(dat)) + 1L
+
+  if (sheet == "README") {
+    openxlsx::addStyle(
+      wb, sheet, styles$readme_item, rows = data_rows,
+      cols = match("item", names(dat)), gridExpand = TRUE, stack = TRUE
+    )
+  }
+
+  if (sheet == "Primary_results") {
+    section_rows <- which(!duplicated(dat$analysis_domain)) + 1L
+    section_rows <- setdiff(section_rows, 2L)
+    if (length(section_rows)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$section_top, rows = section_rows,
+        cols = seq_len(ncol(dat)), gridExpand = TRUE, stack = TRUE
+      )
+    }
+    id_cols <- match(c("claim_id", "contrast_or_model"), names(dat), nomatch = 0L)
+    openxlsx::addStyle(
+      wb, sheet, styles$identifier, rows = data_rows, cols = id_cols[id_cols > 0L],
+      gridExpand = TRUE, stack = TRUE
+    )
+    headline_rows <- which(dat$model_id == "movement_mean") + 1L
+    if (length(headline_rows)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$headline_row, rows = headline_rows,
+        cols = seq_len(ncol(dat)), gridExpand = TRUE, stack = TRUE
+      )
+      headline_cols <- match(c("claim_id", "contrast_or_model", "model_label"), names(dat), nomatch = 0L)
+      openxlsx::addStyle(
+        wb, sheet, styles$headline_label, rows = headline_rows,
+        cols = headline_cols[headline_cols > 0L], gridExpand = TRUE, stack = TRUE
+      )
+    }
+    p_col <- match("p_adjusted", names(dat))
+    supported_rows <- which(!is.na(dat$p_adjusted) & dat$p_adjusted < 0.05) + 1L
+    if (!is.na(p_col) && length(supported_rows)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$supported_p, rows = supported_rows, cols = p_col,
+        gridExpand = TRUE, stack = TRUE
+      )
+    }
+  }
+
+  if (sheet == "Prediction_validation") {
+    row_styles <- list(
+      reference_baseline = styles$neutral_row,
+      primary_behavior_only = styles$headline_row,
+      sex_adjusted_sensitivity = styles$cool_row
+    )
+    for (role in names(row_styles)) {
+      rows <- which(dat$reporting_role == role) + 1L
+      if (length(rows)) {
+        openxlsx::addStyle(
+          wb, sheet, row_styles[[role]], rows = rows, cols = seq_len(ncol(dat)),
+          gridExpand = TRUE, stack = TRUE
+        )
+      }
+    }
+    model_cols <- match(c("model_id", "model_label"), names(dat), nomatch = 0L)
+    openxlsx::addStyle(
+      wb, sheet, styles$identifier, rows = data_rows, cols = model_cols[model_cols > 0L],
+      gridExpand = TRUE, stack = TRUE
+    )
+    headline_rows <- which(dat$model_id == "movement_mean") + 1L
+    if (length(headline_rows)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$headline_label, rows = headline_rows,
+        cols = model_cols[model_cols > 0L], gridExpand = TRUE, stack = TRUE
+      )
+    }
+  }
+
+  if (sheet == "QC_exclusions") {
+    decision <- if ("suggested_decision" %in% names(dat)) coalesce(as.character(dat$suggested_decision), "") else rep("", nrow(dat))
+    comment <- if ("comment" %in% names(dat)) coalesce(as.character(dat$comment), "") else rep("", nrow(dat))
+    warning_rows <- which(str_detect(
+      paste(decision, comment),
+      regex("manual.?review|high.?suspicion", ignore_case = TRUE)
+    )) + 1L
+    warning_cols <- match(c("suggested_decision", "comment"), names(dat), nomatch = 0L)
+    if (length(warning_rows) && any(warning_cols > 0L)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$warning, rows = warning_rows,
+        cols = warning_cols[warning_cols > 0L], gridExpand = TRUE, stack = TRUE
+      )
+    }
+  }
+
+  if (sheet == "Feature_dictionary") {
+    primary_rows <- which(dat$readout %in% canonical_features) + 1L
+    if (length(primary_rows)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$canonical_feature, rows = primary_rows,
+        cols = seq_len(ncol(dat)), gridExpand = TRUE, stack = TRUE
+      )
+      openxlsx::addStyle(
+        wb, sheet, styles$headline_label, rows = primary_rows,
+        cols = match("readout", names(dat)), gridExpand = TRUE, stack = TRUE
+      )
+    }
+  }
+
+  stage16_apply_role_style(wb, sheet, dat, styles)
+  invisible(wb)
+}
+
+write_sheet <- function(wb, sheet, dat, styles) {
+  openxlsx::addWorksheet(
+    wb, sheet, gridLines = FALSE, tabColour = unname(stage16_tab_colours[[sheet]]),
+    zoom = if (sheet %in% c("Supplementary_stats", "QC_exclusions", "Analysis_audit")) 85 else 90
+  )
+  # openxlsx assigns a fixed custom number-format ID to POSIXct columns. That
+  # can collide with other custom formats in the same workbook and make plain
+  # numeric statistics display as dates in Excel. Write the equivalent Excel
+  # serial explicitly, then apply the intended date/time display style below.
+  write_dat <- dat
+  posix_cols <- which(vapply(write_dat, inherits, logical(1), what = "POSIXt"))
+  for (col in posix_cols) {
+    write_dat[[col]] <- as.numeric(write_dat[[col]]) / 86400 + 25569
+  }
+
+  openxlsx::writeData(
+    wb, sheet, write_dat, headerStyle = styles$header,
+    rowNames = FALSE, withFilter = TRUE, keepNA = FALSE
+  )
+
   n_cols <- ncol(dat)
   n_rows <- nrow(dat)
-  if (n_cols > 0L) {
-    openxlsx::setRowHeights(wb, sheet, rows = 1, heights = 30)
-    openxlsx::freezePane(wb, sheet, firstRow = TRUE)
-    widths <- pmin(
-      45,
-      pmax(10, vapply(dat, function(x) {
-        vals <- c(names(x), as.character(head(x, 200L)))
-        max(nchar(vals, type = "width"), na.rm = TRUE) + 2
-      }, numeric(1)))
-    )
-    openxlsx::setColWidths(wb, sheet, cols = seq_len(n_cols), widths = widths)
+  if (n_cols < 1L) return(invisible(wb))
+
+  widths <- rep(14, n_cols)
+  names(widths) <- names(dat)
+  declared_widths <- stage16_sheet_widths[[sheet]]
+  matched_widths <- intersect(names(declared_widths), names(widths))
+  widths[matched_widths] <- declared_widths[matched_widths]
+  openxlsx::setColWidths(wb, sheet, cols = seq_len(n_cols), widths = unname(widths))
+  openxlsx::setRowHeights(wb, sheet, rows = 1L, heights = 38)
+
+  freeze_col <- unname(stage16_freeze_columns[[sheet]])
+  if (is.na(freeze_col)) {
+    openxlsx::freezePane(wb, sheet, firstActiveRow = 2L)
+  } else {
+    openxlsx::freezePane(wb, sheet, firstActiveRow = 2L, firstActiveCol = freeze_col)
   }
-  if (n_rows > 0L && n_cols > 0L) {
-    data_rows <- 2:(n_rows + 1L)
-    openxlsx::addStyle(wb, sheet, text_style, rows = data_rows, cols = seq_len(n_cols), gridExpand = TRUE, stack = FALSE)
-    numeric_cols <- which(vapply(dat, is.numeric, logical(1)))
-    integer_cols <- union(
-      which(vapply(dat, is.integer, logical(1))),
-      which(str_detect(names(dat), regex("^(n($|_)|.*_n$)|n_animals|numerator|denominator|seed|CageChangeIndex", ignore_case = TRUE)))
+
+  if (n_rows > 0L) {
+    data_rows <- seq_len(n_rows) + 1L
+    openxlsx::setRowHeights(
+      wb, sheet, rows = data_rows,
+      heights = unname(stage16_row_heights[[sheet]])
     )
-    decimal_cols <- setdiff(numeric_cols, integer_cols)
-    if (length(decimal_cols)) openxlsx::addStyle(wb, sheet, number_style, rows = data_rows, cols = decimal_cols, gridExpand = TRUE, stack = TRUE)
-    if (length(integer_cols)) openxlsx::addStyle(wb, sheet, integer_style, rows = data_rows, cols = integer_cols, gridExpand = TRUE, stack = TRUE)
+    openxlsx::addStyle(
+      wb, sheet, styles$body, rows = data_rows, cols = seq_len(n_cols),
+      gridExpand = TRUE, stack = FALSE
+    )
+    alternate_rows <- data_rows[seq_along(data_rows) %% 2L == 0L]
+    if (length(alternate_rows)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$alternate, rows = alternate_rows,
+        cols = seq_len(n_cols), gridExpand = TRUE, stack = TRUE
+      )
+    }
+
+    wrap_cols <- match(stage16_wrap_columns(sheet), names(dat), nomatch = 0L)
+    if (any(wrap_cols > 0L)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$wrap, rows = data_rows, cols = wrap_cols[wrap_cols > 0L],
+        gridExpand = TRUE, stack = TRUE
+      )
+    }
+
+    numeric_cols <- which(vapply(write_dat, is.numeric, logical(1)))
+    p_cols <- intersect(
+      numeric_cols,
+      which(names(dat) %in% c("p_raw", "p_adjusted", "permutation_empirical_p"))
+    )
+    date_cols <- intersect(numeric_cols, which(names(dat) == "earliest_possible_collapse"))
+    integer_cols <- intersect(
+      numeric_cols,
+      union(
+        which(vapply(dat, is.integer, logical(1))),
+        which(str_detect(
+          names(dat),
+          regex("^(n($|_)|.*_n$)|n_animals|numerator|denominator|seed|max_flags|CageChangeIndex", ignore_case = TRUE)
+        ))
+      )
+    )
+    decimal_cols <- setdiff(numeric_cols, union(union(p_cols, date_cols), integer_cols))
+
+    if (length(decimal_cols)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$number, rows = data_rows, cols = decimal_cols,
+        gridExpand = TRUE, stack = TRUE
+      )
+    }
+    if (length(p_cols)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$p_value, rows = data_rows, cols = p_cols,
+        gridExpand = TRUE, stack = TRUE
+      )
+    }
+    if (length(integer_cols)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$integer, rows = data_rows, cols = integer_cols,
+        gridExpand = TRUE, stack = TRUE
+      )
+    }
+    if (length(date_cols)) {
+      openxlsx::addStyle(
+        wb, sheet, styles$date_time, rows = data_rows, cols = date_cols,
+        gridExpand = TRUE, stack = TRUE
+      )
+    }
+
+    stage16_apply_sheet_emphasis(wb, sheet, dat, styles)
   }
   invisible(wb)
 }
@@ -1120,6 +1488,10 @@ readr::write_csv(supplementary_results, artifact_paths[["supplementary"]], na = 
 readr::write_csv(analysis_audit, artifact_paths[["audit"]], na = "NA")
 
 wb <- openxlsx::createWorkbook(creator = "MMMSociability Stage 16")
+openxlsx::modifyBaseFont(
+  wb, fontSize = 9, fontName = "Arial", fontColour = stage16_palette$text
+)
+stage16_styles <- stage16_create_styles()
 worksheet_data <- list(
   README = readme_sheet,
   Primary_results = primary_results,
@@ -1130,7 +1502,8 @@ worksheet_data <- list(
   Feature_dictionary = feature_dictionary
 )
 expected_sheet_ranges <- vapply(worksheet_data, xlsx_used_range, character(1))
-purrr::iwalk(worksheet_data, ~ write_sheet(wb, .y, .x))
+purrr::iwalk(worksheet_data, ~ write_sheet(wb, .y, .x, stage16_styles))
+openxlsx::activeSheet(wb) <- "README"
 prepare_openxlsx_package_metadata(wb, expected_sheet_ranges)
 openxlsx::saveWorkbook(wb, artifact_paths[["workbook"]], overwrite = TRUE)
 
