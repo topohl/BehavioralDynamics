@@ -1,5 +1,5 @@
 # ================================================================
-# Corrected Broad Raw Movement Phase Statistics
+# Secondary Broad Raw Movement Phase Statistics
 # MMMSociability
 # ================================================================
 # Goal:
@@ -8,12 +8,13 @@
 #   2) overall active/inactive movement,
 #   3) cage-change x active/inactive movement.
 #
-# Important correction relative to 18b:
+# Manuscript role and correction relative to 18b:
+#   - Stage 09 is the primary prospective prediction analysis; this Stage 03
+#     scan is secondary phenotype/group characterization.
 #   - Plotted p-values are Holm-adjusted within the displayed panel only
 #     across the three planned pairwise contrasts: RES-CON, SUS-CON, SUS-RES.
-#   - Wider family-wise corrections are still exported separately, but are
-#     not used as the panel label because that makes the figure misleadingly
-#     conservative and hard to read.
+#   - No wider global family-wise correction is exported when
+#     export_global_family_corrections = FALSE.
 #   - Optional repeated-measures LMMs are exported separately for inference
 #     across all cage-change/phase epochs.
 # ================================================================
@@ -150,7 +151,6 @@ sig_stars <- function(p) {
     p < 0.001 ~ "***",
     p < 0.01 ~ "**",
     p < 0.05 ~ "*",
-    p < 0.10 ~ "†",
     TRUE ~ ""
   )
 }
@@ -240,7 +240,7 @@ if (exists("write_output_manifest")) {
   write_output_manifest(
     output_dir,
     script_name = "03_primary_raw_movement_phase_stats.R",
-    analysis_name = "primary raw movement broad phase statistics",
+    analysis_name = "secondary raw movement phenotype/group characterization",
     input_files = input_file,
     output_directory = output_dir,
     bin_level = bin_level,
@@ -546,12 +546,18 @@ group_summary <- movement_endpoints %>%
   group_by(ScopeType, Endpoint, Sex, Group, CageChange, CageChangeIndex, PhaseClass) %>%
   summarise(
     n_animals = n_distinct(AnimalNum),
-    mean_movement = safe_mean(mean_movement),
     se_movement = safe_se(mean_movement),
-    ci95_low = mean_movement - 1.96 * se_movement,
-    ci95_high = mean_movement + 1.96 * se_movement,
+    mean_movement = safe_mean(mean_movement),
+    ci_half_width = if_else(
+      n_animals > 1L,
+      stats::qt(0.975, df = n_animals - 1L) * se_movement,
+      NA_real_
+    ),
+    ci95_low = mean_movement - ci_half_width,
+    ci95_high = mean_movement + ci_half_width,
     .groups = "drop"
-  )
+  ) %>%
+  select(-ci_half_width)
 readr::write_csv(group_summary, file.path(dirs$tables, "raw_movement_group_summary.csv"))
 
 # ------------------------------------------------
@@ -788,7 +794,7 @@ p_overall <- ggplot(overall_phase_plot, aes(Group, mean_movement, colour = Group
   scale_fill_manual(values = mmm_group_colors, drop = FALSE) +
   labs(
     title = "Overall raw movement endpoints",
-    subtitle = "Animal-level means; displayed p-values are Holm-adjusted within each panel across the three planned contrasts",
+    subtitle = "Holm-adjusted within each prespecified\nthree-contrast panel",
     x = NULL,
     y = "Mean raw movement per animal",
     caption = paste0("Input: ", basename(input_file), " | bin level: ", bin_level)
@@ -798,11 +804,11 @@ p_overall <- ggplot(overall_phase_plot, aes(Group, mean_movement, colour = Group
 
 save_plot(p_overall, file.path(dirs$figure_publication, "Fig18c_overall_active_inactive_mean_movement_corrected_stats"), width = 60, height = 60)
 
-# 2) Cage-change x phase plot: show only panel-Holm hits to avoid label clutter.
+# 2) Cage-change x phase plot: show only panel-Holm p < 0.05 rows to avoid label clutter.
 cc_plot <- group_summary %>% filter(ScopeType == "cage_change_by_phase")
 
 cc_labels <- pairwise_stats %>%
-  filter(ScopeType == "cage_change_by_phase", stars_panel != "") %>%
+  filter(ScopeType == "cage_change_by_phase", !is.na(p_holm_panel), p_holm_panel < 0.05) %>%
   mutate(label_piece = paste0(contrast, " ", stars_panel)) %>%
   group_by(Sex, CageChange, CageChangeIndex, PhaseClass) %>%
   summarise(stats_label = paste(label_piece, collapse = "\n"), .groups = "drop")
@@ -823,7 +829,7 @@ p_cc <- ggplot(cc_plot, aes(CageChange, mean_movement, colour = Group, group = G
   scale_colour_manual(values = mmm_group_colors, drop = FALSE) +
   labs(
     title = "Raw movement by cage change and phase",
-    subtitle = "Labels show panel-Holm hits only: * <0.05, † <0.10. Family-wise p-values are exported separately.",
+    subtitle = "Displayed comparisons are Holm-adjusted within each prespecified three-contrast panel; the wider scan is secondary/descriptive",
     x = "Cage change",
     y = "Mean raw movement per animal"
   ) +
@@ -857,7 +863,7 @@ save_plot(p_heat, file.path(dirs$figure_publication, "Fig18c_cage_change_phase_p
 message("Corrected broad raw movement phase statistics complete: ", output_dir)
 message("Selected input: ", input_file)
 message("Selected bin level: ", bin_level)
-message("Panel-Holm hits p < 0.10: ", nrow(hits_panel))
+message("Audit rows with panel-Holm p < 0.10 (not publication trend annotations): ", nrow(hits_panel))
 if (isTRUE(export_global_family_corrections)) {
   message("Family-Holm hits p < 0.10: ", nrow(hits_family))
 } else {

@@ -9,27 +9,32 @@ This folder is organized as a staged, reviewer-safe pipeline. The scripts remain
 | 00 | `00_qc_tracking_integrity.R` | Non-destructive RFID/tracking integrity QC | Preprocessed or derived movement/entropy/proximity files | QC tables, Excel report, QC figures |
 | 01 | `01_build_multiscale_behavior_metrics.R` | Canonical multiscale behavior metrics | Preprocessed RFID position data | `all_behavior_metrics.csv` at multiple bin levels |
 | 02 | `02_build_dyadic_rfid_contacts.R` | Dyadic RFID contact table | Preprocessed position data | Dyadic contact tables and network-ready edge table |
-| 03 | `03_primary_raw_movement_phase_stats.R` | Primary raw movement broad phase statistics | Stage 01 metrics | Raw movement endpoints, planned pairwise statistics, publication panels |
+| 03 | `03_primary_raw_movement_phase_stats.R` | Secondary phenotype/group characterization using broad raw movement | Stage 01 metrics | Raw movement endpoints, planned pairwise statistics, publication panels |
 | 04 | `04_temporal_instability.R` | Temporal instability and burstiness features | Stage 01 metrics | Per-animal instability tables and figures |
 | 05 | `05_behavioral_state_space.R` | Behavioral state-space features | Stage 01 metrics | State diversity and switching tables |
 | 06 | `06_dynamic_social_networks.R` | Dynamic social network features | Stage 02 dyadic contacts, with metric fallback | Animal-level social dynamics and network summaries |
 | 07 | `07_gamm_trajectory_features.R` | GAMM trajectory-derived features | Stage 01 metrics | Trajectory feature tables |
 | 08 | `08_hmm_behavioral_states_optional.R` | Optional HMM state model | Stage 01 metrics | HMM state assignments and transition summaries |
-| 09 | `09_early_prediction_model_ladder.R` | Primary early prediction model ladder | Stage 01 metrics plus endpoint table | Conservative early behavior prediction tables and figures |
+| 09 | `09_early_prediction_model_ladder.R` | Primary early prediction model ladder: first active 12 h after the first cage change, using 10-min bins | Stage 01 metrics plus endpoint table | Fixed a priori early behavior prediction tables, permutation tests, and figures |
 | 10 | `10_systems_feature_prediction_ladder.R` | Secondary systems-extension prediction ladder | Stage 09 plus optional downstream features | Domain-wise systems prediction comparison |
 | 11 | `11_behavioral_adaptation_kinetics.R` | Adaptation/recovery kinetics | Stage 01 metrics | Recovery and stabilization feature tables |
 | 12 | `12_sleep_like_quiescence_metrics.R` | Sleep-like quiescence metrics | Stage 01 metrics | Inactivity bout and quiescence summaries |
 | 13 | `13_ethological_phase_organization.R` | Ethological phase organization | Stage 01 metrics | Phase contrast, timing, fragmentation, and recovery features |
 | 14 | `14_systems_neuroscience_summary_dashboard.R` | Integrated systems neuroscience dashboard | Stages 01, 04-13, optional proteomics | Feature matrix, audits, scorecards, dashboard panels |
 | 15 | `15_behavior_proteomics_integration.R` | Optional behavior-proteomics integration | Behavioral feature tables plus proteomics module data | Behavior-proteomics bridge tables and figures |
+| 16 | `16_manuscript_behavior_report.R` | Export-only manuscript reporting layer | Canonical Stage 09 tables plus selected Stage 03/QC tables | One source-data workbook, primary/supplementary/audit CSVs, and manifest |
 
 ## Primary vs Secondary
 
-`09_early_prediction_model_ladder.R` is the primary early prediction analysis. It preserves the conservative manuscript claim: early behavioral organization predicts later stress burden without using RES/SUS group labels as primary predictors.
+`09_early_prediction_model_ladder.R` is the primary early prediction analysis. It asks whether behavior during the first active 12 h after the first cage change predicts later CombZ. The canonical prediction resolution is 10-min bins; 5-min binning is a predefined resolution sensitivity. Stage 14 may retain its own 5-min integration backbone.
+
+The fixed a priori behavior-only models are the mean-only intercept baseline, `Movement_mean`, and `Movement_mean + Movement_rmssd + Entropy_acf1`. Corresponding Sex-adjusted models are sensitivity analyses. RES/SUS `Group` is endpoint-derived and is excluded from all canonical primary models; larger Group-adjusted ladders remain supplementary/contextual compatibility outputs.
 
 `10_systems_feature_prediction_ladder.R` is secondary. It extends the primary model ladder with broader systems-level feature domains and should be framed as an extension/sensitivity analysis rather than a replacement.
 
-`03_primary_raw_movement_phase_stats.R` is the only active raw movement broad phase statistics script. The older `18_raw_movement_publication_trajectory.R` and `18b_raw_movement_broad_phase_stats.R` are archived.
+`03_primary_raw_movement_phase_stats.R` is the active secondary phenotype/group-characterization script for broad raw movement. Its displayed CON/RES/SUS pairwise comparisons are Holm-adjusted within each prespecified three-contrast panel. With `export_global_family_corrections = FALSE`, no wider global family-wise correction is exported or claimed. The wider Stage 03 scan is secondary/descriptive and does not replace the Stage 09 prospective analysis. The older `18_raw_movement_publication_trajectory.R` and `18b_raw_movement_broad_phase_stats.R` are archived.
+
+`16_manuscript_behavior_report.R` is a thin assembly layer. It reads existing Stage 09, Stage 03, and QC tables and writes exactly one manuscript source-data workbook plus one primary, supplementary, audit, and manifest CSV in `analysis_ready/16_manuscript_behavior_report/10min_based/`. It does not fit models or recalculate statistics. Stage 10/14 predictive claims, HMM/state, manifold, nonlinear, systems-composite, and behavior-proteomics outputs remain exploratory and are not promoted to the primary registry.
 
 ## Output Layout
 
@@ -45,6 +50,8 @@ Active scripts use the standardized output layout:
 
 The shared helper `Functions/behavioral_dynamics_helpers.R` creates these folders and writes `manifest/input_output_manifest.csv` plus `manifest/output_manifest.csv`. Legacy `output_manifest.csv` at the output root is retained as a compatibility copy for existing readers.
 
+Stage 16 intentionally uses a flat output directory for its five non-duplicated manuscript artifacts rather than copying identical CSVs into the standard subfolders.
+
 ## Running Everything
 
 Use `run_all_analysis.R` from the repo root or the `Analysis/` folder. Optional stages are controlled through R options:
@@ -57,6 +64,12 @@ options(
   mmm.continue_on_error = FALSE
 )
 source("Analysis/run_all_analysis.R")
+```
+
+After the required canonical Stage 09 and selected Stage 03 outputs have been generated, assemble the manuscript report separately with:
+
+```r
+source("Analysis/16_manuscript_behavior_report.R")
 ```
 
 ## Old-to-New Filename Map

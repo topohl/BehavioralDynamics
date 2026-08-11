@@ -10,12 +10,12 @@
 #
 # Biological use case:
 #   P25 first cage change, first 12 h active phase, bin size set below.
-#   Primary features: Movement_mean and Entropy_acf1.
+#   Primary features: Movement_mean, Movement_rmssd, and Entropy_acf1.
 #
 # Main question:
-#   Does early entropy persistence refine prediction of later CombZ beyond
-#   movement, while keeping CON/RES/SUS grouping descriptive unless explicitly
-#   used as an adjustment/sensitivity term?
+#   Do Movement_mean, Movement_rmssd, and Entropy_acf1 during the first active
+#   12 h after the first cage change predict later CombZ? CON/RES/SUS grouping
+#   remains descriptive/supplementary and never enters the clean primary models.
 #
 # Input expectation:
 #   Run Analysis/01_build_multiscale_behavior_metrics.R first.
@@ -79,6 +79,9 @@ proximity_col <- "ProximityFraction"
 
 # Model options.
 n_prediction_permutations <- 5000
+n_primary_outcome_permutations <- 1000
+primary_outcome_permutation_seed <- 20260811
+n_repeated_cv_repeats <- 100
 n_bootstrap <- 5000
 set.seed(123)
 
@@ -139,6 +142,7 @@ make_publication_theme <- function(base_size = 7) {
 
 feature_display_labels <- c(
   "Movement_mean" = "Movement",
+  "Movement_rmssd" = "Movement RMSSD",
   "Entropy_acf1" = "Entropy persistence",
   "Movement_x_EntropyACF1" = "Movement x entropy"
 )
@@ -168,14 +172,14 @@ matched_ladder_adjustment_labels <- c(
 )
 
 matched_ladder_use_labels <- c(
-  "Behavior only" = "Primary prospective evidence",
-  "Behavior + Sex" = "Sex-adjusted sensitivity",
+  "Behavior only" = "Legacy behavior-only compatibility ladder",
+  "Behavior + Sex" = "Legacy Sex-adjusted sensitivity ladder",
   "Behavior + Sex + Group" = "Group-adjusted contextual/supplementary analyses"
 )
 
 matched_ladder_fill_values <- c(
-  "Primary prospective evidence" = "#2F4858",
-  "Sex-adjusted sensitivity" = "#7A8F6A",
+  "Legacy behavior-only compatibility ladder" = "#2F4858",
+  "Legacy Sex-adjusted sensitivity ladder" = "#7A8F6A",
   "Group-adjusted contextual/supplementary analyses" = "#8A817C"
 )
 
@@ -189,7 +193,7 @@ classify_model_reporting_use <- function(model_name) {
       "Movement + Entropy ACF1",
       "Movement x Entropy ACF1",
       "Full behavior compact"
-    ) ~ "Behavior plus sex/group adjustment",
+    ) ~ "Supplementary/contextual sex/group-adjusted model",
     TRUE ~ "Sensitivity"
   )
 }
@@ -210,13 +214,23 @@ get_first_cage_change <- function(x) {
   if (any(is.finite(cc_num))) ux[which.min(ifelse(is.finite(cc_num), cc_num, Inf))] else sort(ux)[1]
 }
 
-impute_numeric <- function(dat, cols) {
-  dat %>%
-    mutate(across(all_of(cols), ~{
-      med <- median(.x, na.rm = TRUE)
-      if (!is.finite(med)) med <- 0
-      replace_na(.x, med)
-    }))
+impute_numeric_from_training <- function(train, test, predictors) {
+  numeric_predictors <- predictors[
+    predictors %in% names(train) &
+      predictors %in% names(test) &
+      vapply(train[predictors[predictors %in% names(train)]], is.numeric, logical(1))
+  ]
+  medians <- setNames(numeric(length(numeric_predictors)), numeric_predictors)
+
+  for (predictor in numeric_predictors) {
+    med <- median(train[[predictor]], na.rm = TRUE)
+    if (!is.finite(med)) med <- 0
+    medians[[predictor]] <- med
+    train[[predictor]][is.na(train[[predictor]])] <- med
+    test[[predictor]][is.na(test[[predictor]])] <- med
+  }
+
+  list(train = train, test = test, medians = medians)
 }
 
 prediction_metrics <- function(observed, predicted) {
@@ -235,6 +249,8 @@ prediction_metrics <- function(observed, predicted) {
   )
 }
 
+# Compatibility statistic only: permutes the finished prediction vector relative
+# to outcomes. This is not a full-pipeline or model-refitting permutation test.
 permutation_prediction_p <- function(observed, predicted, n_perm = 5000, seed = 123) {
   ok <- is.finite(observed) & is.finite(predicted)
   y <- observed[ok]
@@ -265,19 +281,28 @@ sanitize_model_predictors <- function(predictors, dat, outcome = "outcome") {
   predictors
 }
 
-loo_lm_predict <- function(dat, predictors, model_name) {
+loo_lm_predict <- function(dat, predictors, model_name, collect_coefficients = TRUE) {
   predictors <- sanitize_model_predictors(predictors, dat, outcome = "outcome")
+  if (anyDuplicated(dat$AnimalNum)) {
+    stop("loo_lm_predict() requires one model row per AnimalNum.", call. = FALSE)
+  }
   pred <- rep(NA_real_, nrow(dat))
   coef_rows <- list()
 
   for (i in seq_len(nrow(dat))) {
-    train <- dat[-i, , drop = FALSE]
-    test <- dat[i, , drop = FALSE]
+    held_out_id <- dat$AnimalNum[i]
+    train <- dat %>% filter(AnimalNum != held_out_id)
+    test <- dat %>% filter(AnimalNum == held_out_id)
+    prepared <- impute_numeric_from_training(train, test, predictors)
+    train <- prepared$train
+    test <- prepared$test
     form <- make_formula("outcome", predictors)
     fit <- try(lm(form, data = train), silent = TRUE)
     if (inherits(fit, "try-error")) next
     pred[i] <- tryCatch(as.numeric(predict(fit, newdata = test)), error = function(e) NA_real_)
-    coef_rows[[i]] <- broom_like_coef(fit, held_out_animal = dat$AnimalNum[i], model_name = model_name)
+    if (isTRUE(collect_coefficients)) {
+      coef_rows[[i]] <- broom_like_coef(fit, held_out_animal = held_out_id, model_name = model_name)
+    }
   }
 
   pred_tbl <- dat %>%
@@ -410,6 +435,10 @@ write_output_manifest(
   script_name = "09_early_prediction_model_ladder.R",
   analysis_name = "early prediction model ladder",
   primary_tables = c(
+    "tables/models/primary_prediction_performance.csv",
+    "tables/models/primary_prediction_permutation_test.csv",
+    "tables/statistics/primary_feature_sex_interactions.csv",
+    "tables/documentation/primary_prediction_model_registry.csv",
     "tables/model_ladder_performance.csv",
     "tables/model_ladder_performance_duration_sensitivity.csv",
     "tables/model_ladder_repeated_grouped_kfold_performance.csv",
@@ -439,35 +468,40 @@ write_output_manifest(
     "figures/publication/model_ladder_prediction_correlations.svg",
     "figures/publication/matched_ladder_prediction_correlations.svg"
   ),
-  notes = c("Main prediction claim should use the ladder performance plus duration-sensitivity companion table.")
+  notes = c("Main prediction claims should use tables/models/primary_prediction_performance.csv and its outcome-permutation companion; larger ladders are compatibility outputs.")
 )
 
 write_text_file(
   c(
-    "08b early prediction model ladder",
+    "Stage 09 early prediction model ladder",
     "",
     "Purpose:",
     "This analysis tests whether early first-active-phase behavioral features predict later CombZ.",
     "",
     "Recommended reading order:",
     "1. tables/documentation/analysis_readme.txt",
-    "2. tables/documentation/model_specification_dictionary.csv",
-    "3. tables/documentation/readout_dictionary.csv",
-    "4. tables/model_ladder_repeated_grouped_kfold_performance.csv",
-    "5. tables/model_ladder_performance.csv",
-    "6. tables/models/matched_ladder_performance.csv",
-    "7. tables/documentation/matched_ladder_predictor_audit.csv",
-    "8. figures/publication/matched_ladder_covariate_comparison_cv_r2.svg",
-    "9. figures/publication/behavior_only_repeated_cv_ladder.svg",
-    "10. figures/publication/model_ladder_prediction_correlations.svg",
-    "11. figures/publication/matched_ladder_prediction_correlations.svg",
-    "12. figures/publication/primary_movement_entropyacf1_vs_combz.svg",
+    "2. tables/models/primary_prediction_performance.csv",
+    "3. tables/models/primary_prediction_permutation_test.csv",
+    "4. tables/statistics/primary_feature_sex_interactions.csv",
+    "5. tables/documentation/model_specification_dictionary.csv",
+    "6. tables/documentation/readout_dictionary.csv",
+    "7. tables/model_ladder_repeated_grouped_kfold_performance.csv",
+    "8. tables/model_ladder_performance.csv",
+    "9. tables/models/matched_ladder_performance.csv",
+    "10. tables/documentation/matched_ladder_predictor_audit.csv",
+    "11. figures/publication/matched_ladder_covariate_comparison_cv_r2.svg",
+    "12. figures/publication/behavior_only_repeated_cv_ladder.svg",
+    "13. figures/publication/model_ladder_prediction_correlations.svg",
+    "14. figures/publication/matched_ladder_prediction_correlations.svg",
+    "15. figures/publication/primary_movement_entropyacf1_vs_combz.svg",
     "",
     "Interpretation:",
-    "Behavior-only repeated grouped CV is the primary prospective evidence.",
+    "The fixed a priori behavior-only registry is the primary prospective evidence.",
+    "Its canonical features are Movement_mean, Movement_rmssd, and Entropy_acf1.",
+    "The primary window is the first active 12 h after the first cage change at 10-min resolution.",
     "Matched ladders separate behavior-only, Sex-adjusted, and Sex + Group-adjusted sensitivity analyses using identical behavior feature sets.",
     "CON/RES/SUS group labels are shown for interpretation and descriptive summaries.",
-    "Models containing Group should be treated as descriptive adjustment/sensitivity analyses."
+    "Models containing Group are supplementary/contextual and never enter the canonical primary summary."
   ),
   file.path(output_dir, "tables", "documentation", "analysis_readme.txt")
 )
@@ -641,7 +675,7 @@ readout_dictionary <- tibble(
   ),
   manuscript_role = c(
     "Primary baseline feature",
-    "Compact behavior feature",
+    "Primary temporal volatility feature",
     "Compact behavior feature",
     "Compact behavior feature",
     "Compact behavior feature",
@@ -704,8 +738,14 @@ write_table(model_dat, file.path(output_dir, "tables", "models", "model_ladder_i
 # PRIMARY FEATURE ASSOCIATIONS
 # ------------------------------------------------
 
-primary_features <- c("Movement_mean", "Entropy_acf1", "Movement_x_EntropyACF1")
-primary_features <- primary_features[primary_features %in% names(model_dat)]
+primary_features <- c("Movement_mean", "Movement_rmssd", "Entropy_acf1")
+if (!identical(primary_features, c("Movement_mean", "Movement_rmssd", "Entropy_acf1"))) {
+  stop("The canonical primary feature registry has changed unexpectedly.", call. = FALSE)
+}
+missing_primary_features <- setdiff(primary_features, names(model_dat))
+if (length(missing_primary_features) > 0) {
+  stop("Missing canonical primary feature(s): ", paste(missing_primary_features, collapse = ", "), call. = FALSE)
+}
 
 primary_assoc <- map_dfr(primary_features, function(fc) {
   cor_s <- suppressWarnings(cor.test(model_dat[[fc]], model_dat$outcome, method = "spearman", exact = FALSE))
@@ -720,7 +760,8 @@ primary_assoc <- map_dfr(primary_features, function(fc) {
     pearson_p = cor_p$p.value,
     spearman_boot_ci_low = boot$ci_low,
     spearman_boot_ci_high = boot$ci_high,
-    partial_r_controlling_movement = if_else(fc == "Entropy_acf1", partial_r_from_lm(model_dat, fc, c("Movement_mean", "Sex", "Group")), NA_real_),
+    partial_r_controlling_movement = if_else(fc == "Entropy_acf1", partial_r_from_lm(model_dat, fc, "Movement_mean"), NA_real_),
+    partial_r_controlling_movement_and_sex = if_else(fc == "Entropy_acf1", partial_r_from_lm(model_dat, fc, c("Movement_mean", "Sex")), NA_real_),
     BinLevel = bin_level,
     Outcome = outcome_col
   )
@@ -811,7 +852,8 @@ write_table(primary_group_contrasts, file.path(output_dir, "tables", "primary_fe
 write_table(primary_group_summary, file.path(output_dir, "tables", "statistics", "primary_feature_group_summary.csv"))
 write_table(primary_group_contrasts, file.path(output_dir, "tables", "statistics", "primary_feature_group_contrasts_descriptive.csv"))
 
-# Sex-specific associations, because the biological effect appears female-specific.
+# Sex-stratified associations are descriptive estimates; interaction tests below
+# formally assess whether feature slopes differ by Sex.
 sex_specific_assoc <- model_dat %>%
   group_by(Sex) %>%
   group_modify(~{
@@ -846,13 +888,54 @@ primary_correlation_stats_by_sex <- model_dat %>%
     spearman_p_bh_within_sex = p.adjust(spearman_p, method = "BH"),
     feature = label,
     feature_label = recode(feature, !!!feature_display_labels),
-    CorrelationUse = "Feature-to-outcome correlation plotted in primary faceted figure"
+    CorrelationUse = "Descriptive sex-stratified estimate plotted in the primary faceted figure; not an interaction test"
   ) %>%
   ungroup() %>%
   select(Sex, feature, feature_label, n, pearson_r, pearson_p, pearson_p_bh_within_sex, spearman_rho, spearman_p, spearman_p_bh_within_sex, CorrelationUse)
 
 write_table(primary_correlation_stats_by_sex, file.path(output_dir, "tables", "primary_movement_entropyacf1_correlations_by_sex.csv"))
 write_table(primary_correlation_stats_by_sex, file.path(output_dir, "tables", "statistics", "primary_movement_entropyacf1_correlations_by_sex.csv"))
+
+primary_feature_sex_interactions <- map_dfr(primary_features, function(fc) {
+  d <- model_dat %>%
+    transmute(outcome, feature_value = .data[[fc]], Sex) %>%
+    drop_na()
+  if (nrow(d) < 6 || n_distinct(d$Sex) != 2 || sd(d$feature_value) == 0) {
+    return(tibble(
+      feature = fc,
+      n = nrow(d),
+      interaction_estimate = NA_real_,
+      interaction_se = NA_real_,
+      interaction_ci_low = NA_real_,
+      interaction_ci_high = NA_real_,
+      interaction_p = NA_real_
+    ))
+  }
+
+  fit <- lm(outcome ~ feature_value * Sex, data = d)
+  coef_tbl <- summary(fit)$coefficients
+  interaction_term <- grep("feature_value:Sex|Sex.*:feature_value", rownames(coef_tbl), value = TRUE)
+  if (length(interaction_term) != 1) {
+    stop("Expected exactly one feature-by-Sex interaction term for ", fc, ".", call. = FALSE)
+  }
+  term <- interaction_term[[1]]
+  ci <- suppressMessages(confint(fit, parm = term, level = 0.95))
+  tibble(
+    feature = fc,
+    n = nrow(d),
+    interaction_estimate = unname(coef_tbl[term, "Estimate"]),
+    interaction_se = unname(coef_tbl[term, "Std. Error"]),
+    interaction_ci_low = unname(ci[1]),
+    interaction_ci_high = unname(ci[2]),
+    interaction_p = unname(coef_tbl[term, "Pr(>|t|)"])
+  )
+}) %>%
+  mutate(
+    interaction_p_bh = p.adjust(interaction_p, method = "BH"),
+    interaction_test_family = "Three canonical primary feature-by-Sex interaction tests"
+  )
+
+write_table(primary_feature_sex_interactions, file.path(output_dir, "tables", "statistics", "primary_feature_sex_interactions.csv"))
 
 # ------------------------------------------------
 # MODEL LADDER: EXPLICIT INCREMENTAL PREDICTION
@@ -899,9 +982,8 @@ write_table(model_predictor_audit, file.path(output_dir, "tables", "models", "mo
 
 numeric_predictors <- unique(unlist(model_specs))
 numeric_predictors <- numeric_predictors[numeric_predictors %in% names(model_dat) & sapply(model_dat[numeric_predictors], is.numeric)]
-model_dat_imputed <- impute_numeric(model_dat, numeric_predictors)
 
-ladder_results <- imap(model_specs, ~loo_lm_predict(model_dat_imputed, .x, .y))
+ladder_results <- imap(model_specs, ~loo_lm_predict(model_dat, .x, .y))
 ladder_predictions <- map_dfr(ladder_results, "predictions")
 ladder_coefficients <- map_dfr(ladder_results, "coefficients")
 
@@ -914,6 +996,7 @@ ladder_performance <- ladder_predictions %>%
       pdat <- ladder_predictions %>% filter(Model == .x)
       permutation_prediction_p(pdat$observed, pdat$predicted, n_prediction_permutations, seed = 123)
     }),
+    prediction_permutation_interpretation = "post-hoc prediction-vector association permutation",
     BinLevel = bin_level,
     Outcome = outcome_col,
     ReportingUse = classify_model_reporting_use(Model),
@@ -942,6 +1025,7 @@ run_ladder_duration_set <- function(dat, analysis_set) {
         mae = NA_real_,
         cv_r2_vs_mean = NA_real_,
         prediction_permutation_p = NA_real_,
+        prediction_permutation_interpretation = "post-hoc prediction-vector association permutation",
         BinLevel = bin_level,
         Outcome = outcome_col,
         DurationAnalysisSet = analysis_set,
@@ -950,8 +1034,7 @@ run_ladder_duration_set <- function(dat, analysis_set) {
     ))
   }
 
-  dat_imp <- impute_numeric(dat, numeric_predictors)
-  fits <- imap(model_specs, ~loo_lm_predict(dat_imp, .x, .y))
+  fits <- imap(model_specs, ~loo_lm_predict(dat, .x, .y))
   preds <- map_dfr(fits, "predictions") %>% mutate(DurationAnalysisSet = analysis_set)
   coefs <- map_dfr(fits, "coefficients") %>% mutate(DurationAnalysisSet = analysis_set)
   perf <- preds %>%
@@ -963,6 +1046,7 @@ run_ladder_duration_set <- function(dat, analysis_set) {
         pdat <- preds %>% filter(Model == .x)
         permutation_prediction_p(pdat$observed, pdat$predicted, n_prediction_permutations, seed = 123)
       }),
+      prediction_permutation_interpretation = "post-hoc prediction-vector association permutation",
       BinLevel = bin_level,
       Outcome = outcome_col,
       DurationAnalysisSet = analysis_set,
@@ -1040,31 +1124,106 @@ write_table(ladder_coefficients_duration_sensitivity, file.path(output_dir, "tab
 write_table(ladder_performance_duration_sensitivity, file.path(output_dir, "tables", "sensitivity", "model_ladder_performance_duration_sensitivity.csv"))
 
 # ------------------------------------------------
-# GROUPED K-FOLD COMPANION: BEHAVIOR-ONLY PRIMARY CLAIM
+# GROUPED K-FOLD COMPANION AND LEGACY COMPATIBILITY LADDERS
 # ------------------------------------------------
 
 make_grouped_folds <- function(dat, k = 5, repeats = 100, group_col = "AnimalNum", seed = 123) {
+  if (!group_col %in% names(dat)) stop("Grouping column not found: ", group_col, call. = FALSE)
+  if (anyNA(dat[[group_col]])) stop("Grouping IDs must not be missing.", call. = FALSE)
   set.seed(seed)
   ids <- unique(dat[[group_col]])
   k <- min(k, length(ids))
-  map_dfr(seq_len(repeats), function(rep_i) {
+  fold_map <- map_dfr(seq_len(repeats), function(rep_i) {
     shuffled <- sample(ids)
     fold_id <- rep(seq_len(k), length.out = length(shuffled))
     tibble(Repeat = rep_i, Fold = fold_id, !!group_col := shuffled)
   })
+  assert_grouped_fold_invariants(dat, fold_map, group_col)
+  fold_map
 }
 
-kfold_lm_predict <- function(dat, predictors, model_name, fold_map) {
+assert_grouped_fold_invariants <- function(dat, fold_map, group_col = "AnimalNum") {
+  ids <- unique(dat[[group_col]])
+  if (!all(c("Repeat", "Fold", group_col) %in% names(fold_map))) {
+    stop("Fold map is missing Repeat, Fold, or the grouping ID.", call. = FALSE)
+  }
+  fold_counts <- fold_map %>% count(Repeat, .data[[group_col]], name = "n_assignments")
+  if (any(fold_counts$n_assignments != 1)) {
+    stop("Each animal must have exactly one fold assignment per Repeat.", call. = FALSE)
+  }
+  coverage_ok <- fold_map %>%
+    group_by(Repeat) %>%
+    summarise(complete = setequal(.data[[group_col]], ids), .groups = "drop")
+  if (!all(coverage_ok$complete)) {
+    stop("Every Repeat must cover the complete animal set exactly once.", call. = FALSE)
+  }
+  fold_sizes <- fold_map %>% count(Repeat, Fold, name = "fold_size")
+  balance <- fold_sizes %>%
+    group_by(Repeat) %>%
+    summarise(size_range = max(fold_size) - min(fold_size), .groups = "drop")
+  if (any(balance$size_range > 1)) {
+    stop("Fold sizes must differ by at most one animal within each Repeat.", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+assert_repeated_cv_prediction_invariants <- function(pred_tbl) {
+  required <- c("Model", "Repeat", "Fold", "AnimalNum")
+  if (!all(required %in% names(pred_tbl))) {
+    stop("Repeated-CV predictions are missing invariant-check columns.", call. = FALSE)
+  }
+  counts <- pred_tbl %>% count(Model, Repeat, AnimalNum, name = "n_predictions")
+  if (any(counts$n_predictions != 1)) {
+    stop("Every animal must have exactly one out-of-fold prediction row per Repeat and Model.", call. = FALSE)
+  }
+  if (any(!is.finite(pred_tbl$predicted))) {
+    stop("Every animal must receive one finite out-of-fold prediction per Repeat and Model.", call. = FALSE)
+  }
+  model_animals <- pred_tbl %>% distinct(Model, AnimalNum) %>% count(Model, name = "n_animals")
+  expected_n <- max(model_animals$n_animals)
+  if (any(model_animals$n_animals != expected_n)) {
+    stop("All repeated-CV models must cover the same complete animal set.", call. = FALSE)
+  }
+  repeat_coverage <- pred_tbl %>%
+    distinct(Model, Repeat, AnimalNum) %>%
+    count(Model, Repeat, name = "n_animals")
+  if (any(repeat_coverage$n_animals != expected_n)) {
+    stop("Every Model and Repeat must cover the complete animal set exactly once.", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+kfold_lm_predict <- function(dat, predictors, model_name, fold_map, group_col = "AnimalNum") {
   predictors <- sanitize_model_predictors(predictors, dat, outcome = "outcome")
-  pred_rows <- vector("list", nrow(fold_map))
-  for (i in seq_len(nrow(fold_map))) {
-    held_out_id <- fold_map$AnimalNum[i]
-    repeat_i <- fold_map$Repeat[i]
-    fold_i <- fold_map$Fold[i]
-    train <- dat %>% filter(AnimalNum != held_out_id)
-    test <- dat %>% filter(AnimalNum == held_out_id)
+  if (anyDuplicated(dat[[group_col]])) {
+    stop("kfold_lm_predict() requires one model row per animal.", call. = FALSE)
+  }
+  assert_grouped_fold_invariants(dat, fold_map, group_col)
+  all_ids <- unique(dat[[group_col]])
+  fold_keys <- fold_map %>% distinct(Repeat, Fold) %>% arrange(Repeat, Fold)
+  pred_rows <- vector("list", nrow(fold_keys))
+
+  for (i in seq_len(nrow(fold_keys))) {
+    repeat_i <- fold_keys$Repeat[i]
+    fold_i <- fold_keys$Fold[i]
+    test_ids <- fold_map %>%
+      filter(Repeat == repeat_i, Fold == fold_i) %>%
+      pull(all_of(group_col))
+    train_ids <- setdiff(all_ids, test_ids)
+    if (length(intersect(train_ids, test_ids)) > 0) {
+      stop("Training and test animal IDs overlap.", call. = FALSE)
+    }
+    train <- dat[dat[[group_col]] %in% train_ids, , drop = FALSE]
+    test <- dat[dat[[group_col]] %in% test_ids, , drop = FALSE]
+    prepared <- impute_numeric_from_training(train, test, predictors)
+    train <- prepared$train
+    test <- prepared$test
     fit <- try(lm(make_formula("outcome", predictors), data = train), silent = TRUE)
-    pred <- if (inherits(fit, "try-error")) NA_real_ else tryCatch(as.numeric(predict(fit, newdata = test)), error = function(e) NA_real_)
+    pred <- if (inherits(fit, "try-error")) {
+      rep(NA_real_, nrow(test))
+    } else {
+      tryCatch(as.numeric(predict(fit, newdata = test)), error = function(e) rep(NA_real_, nrow(test)))
+    }
     pred_rows[[i]] <- test %>%
       transmute(
         Repeat = repeat_i,
@@ -1075,11 +1234,14 @@ kfold_lm_predict <- function(dat, predictors, model_name, fold_map) {
         Model = model_name
       )
   }
-  bind_rows(pred_rows)
+  predictions <- bind_rows(pred_rows)
+  assert_repeated_cv_prediction_invariants(predictions)
+  predictions
 }
 
 summarise_repeated_cv <- function(pred_tbl, analysis_set) {
   if (nrow(pred_tbl) == 0) return(tibble())
+  assert_repeated_cv_prediction_invariants(pred_tbl)
   pred_tbl %>%
     group_by(Model, Repeat) %>%
     group_modify(~prediction_metrics(.x$observed, .x$predicted)) %>%
@@ -1093,17 +1255,228 @@ summarise_repeated_cv <- function(pred_tbl, analysis_set) {
       mean_rmse = mean(rmse, na.rm = TRUE),
       mean_mae = mean(mae, na.rm = TRUE),
       mean_cv_r2 = mean(cv_r2_vs_mean, na.rm = TRUE),
-      cv_r2_ci_low = quantile(cv_r2_vs_mean, 0.025, na.rm = TRUE, names = FALSE),
-      cv_r2_ci_high = quantile(cv_r2_vs_mean, 0.975, na.rm = TRUE, names = FALSE),
+      cv_r2_q025 = quantile(cv_r2_vs_mean, 0.025, na.rm = TRUE, names = FALSE),
+      cv_r2_q975 = quantile(cv_r2_vs_mean, 0.975, na.rm = TRUE, names = FALSE),
       .groups = "drop"
     ) %>%
     mutate(
+      cv_r2_ci_low = cv_r2_q025,
+      cv_r2_ci_high = cv_r2_q975,
+      interval_type = "2.5-97.5% quantiles across repeated CV splits",
+      legacy_ci_column_note = "cv_r2_ci_low/high are compatibility aliases for resampling quantiles, not confidence intervals",
       BinLevel = bin_level,
       Outcome = outcome_col,
       CVScheme = "repeated_grouped_kfold_leave_animals_intact",
       DurationAnalysisSet = analysis_set
     )
 }
+
+run_primary_outcome_permutation <- function(dat, predictors, model_id, n_perm, seed) {
+  if (anyDuplicated(dat$AnimalNum)) {
+    stop("Outcome permutation requires one row per AnimalNum.", call. = FALSE)
+  }
+  observed_predictions <- loo_lm_predict(
+    dat,
+    predictors,
+    model_id,
+    collect_coefficients = FALSE
+  )$predictions
+  observed_statistic <- prediction_metrics(
+    observed_predictions$observed,
+    observed_predictions$predicted
+  )$cv_r2_vs_mean
+
+  set.seed(seed)
+  null_statistics <- vapply(seq_len(n_perm), function(perm_i) {
+    perm_dat <- dat
+    perm_dat$outcome <- sample(dat$outcome, replace = FALSE)
+    perm_predictions <- loo_lm_predict(
+      perm_dat,
+      predictors,
+      model_id,
+      collect_coefficients = FALSE
+    )$predictions
+    prediction_metrics(
+      perm_predictions$observed,
+      perm_predictions$predicted
+    )$cv_r2_vs_mean
+  }, numeric(1))
+
+  finite_null <- null_statistics[is.finite(null_statistics)]
+  tibble(
+    model = model_id,
+    observed_statistic_name = "cv_r2_vs_mean",
+    observed_statistic = observed_statistic,
+    null_median = median(finite_null, na.rm = TRUE),
+    null_q025 = quantile(finite_null, 0.025, na.rm = TRUE, names = FALSE),
+    null_q975 = quantile(finite_null, 0.975, na.rm = TRUE, names = FALSE),
+    empirical_p = (sum(finite_null >= observed_statistic) + 1) / (length(finite_null) + 1),
+    n_permutations = n_perm,
+    cv_scheme = "leave-one-animal-out outcome permutation with full refit",
+    seed = seed
+  )
+}
+
+# Fixed a priori manuscript-facing registry. Larger ladders below are retained
+# for compatibility and supplementary/contextual analyses.
+primary_prediction_registry <- tibble(
+  model_id = c(
+    "mean_only",
+    "movement_mean",
+    "primary_behavior_family",
+    "movement_mean_sex",
+    "primary_behavior_family_sex"
+  ),
+  model_label = c(
+    "Mean-only intercept baseline",
+    "Movement mean",
+    "Movement mean + movement RMSSD + entropy ACF1",
+    "Movement mean + Sex",
+    "Movement mean + movement RMSSD + entropy ACF1 + Sex"
+  ),
+  reporting_role = c(
+    "reference_baseline",
+    "primary_behavior_only",
+    "primary_behavior_only",
+    "sex_adjusted_sensitivity",
+    "sex_adjusted_sensitivity"
+  ),
+  predictors_list = list(
+    character(0),
+    "Movement_mean",
+    c("Movement_mean", "Movement_rmssd", "Entropy_acf1"),
+    c("Movement_mean", "Sex"),
+    c("Movement_mean", "Movement_rmssd", "Entropy_acf1", "Sex")
+  ),
+  notes = c(
+    "Reference only; no predictors.",
+    "Fixed a priori non-null primary behavior-only model.",
+    "Fixed a priori canonical primary feature family; not selected by observed performance.",
+    "Sex-adjusted sensitivity corresponding to the movement-mean model.",
+    "Sex-adjusted sensitivity corresponding to the canonical primary feature family."
+  )
+)
+
+expected_primary_model_ids <- c(
+  "mean_only",
+  "movement_mean",
+  "primary_behavior_family",
+  "movement_mean_sex",
+  "primary_behavior_family_sex"
+)
+if (!identical(primary_prediction_registry$model_id, expected_primary_model_ids)) {
+  stop("The manuscript-facing primary model registry contains unintended models.", call. = FALSE)
+}
+primary_prediction_specs <- set_names(
+  map(primary_prediction_registry$predictors_list, sanitize_model_predictors, dat = model_dat, outcome = "outcome"),
+  primary_prediction_registry$model_id
+)
+if (!identical(primary_prediction_specs$movement_mean, "Movement_mean") ||
+    !identical(primary_prediction_specs$primary_behavior_family, primary_features) ||
+    any(vapply(primary_prediction_specs[c("movement_mean", "primary_behavior_family")], function(x) {
+      any(x %in% c("Group", "outcome", outcome_col)) || !all(x %in% primary_features)
+    }, logical(1)))) {
+  stop("Primary behavior-only predictors must be exactly the a priori behavior features and must exclude Group/endpoints.", call. = FALSE)
+}
+primary_prediction_model_dictionary <- primary_prediction_registry %>%
+  transmute(
+    model_id,
+    model_label,
+    reporting_role,
+    predictors = map_chr(predictors_list, ~paste(.x, collapse = " + ")),
+    fixed_a_priori = TRUE,
+    uses_group = map_lgl(predictors_list, ~"Group" %in% .x),
+    notes
+  )
+write_table(primary_prediction_model_dictionary, file.path(output_dir, "tables", "documentation", "primary_prediction_model_registry.csv"))
+
+primary_loo_results <- imap(primary_prediction_specs, ~loo_lm_predict(model_dat, .x, .y))
+primary_prediction_predictions <- map_dfr(primary_loo_results, "predictions")
+primary_loo_performance <- primary_prediction_predictions %>%
+  group_by(Model) %>%
+  group_modify(~prediction_metrics(.x$observed, .x$predicted)) %>%
+  ungroup() %>%
+  rename(model_id = Model)
+
+primary_fold_map <- make_grouped_folds(
+  model_dat,
+  k = 5,
+  repeats = n_repeated_cv_repeats,
+  seed = 521
+)
+primary_repeated_predictions <- imap_dfr(
+  primary_prediction_specs,
+  ~kfold_lm_predict(model_dat, .x, .y, primary_fold_map)
+)
+primary_repeated_performance <- summarise_repeated_cv(primary_repeated_predictions, "full") %>%
+  transmute(
+    model_id = Model,
+    repeated_cv_mean_r2 = mean_cv_r2,
+    repeated_cv_mean_rmse = mean_rmse,
+    repeated_cv_mean_mae = mean_mae,
+    cv_r2_q025,
+    cv_r2_q975,
+    interval_type
+  )
+
+primary_non_null_ids <- c("movement_mean", "primary_behavior_family")
+primary_prediction_permutation_test <- map_dfr(primary_non_null_ids, function(model_id) {
+  run_primary_outcome_permutation(
+    model_dat,
+    primary_prediction_specs[[model_id]],
+    model_id,
+    n_perm = n_primary_outcome_permutations,
+    seed = primary_outcome_permutation_seed
+  )
+}) %>%
+  left_join(
+    primary_prediction_registry %>% select(model_id, model_label),
+    by = c("model" = "model_id")
+  ) %>%
+  select(model, model_label, everything())
+
+primary_prediction_performance <- primary_prediction_registry %>%
+  transmute(
+    model_id,
+    model_label,
+    reporting_role,
+    predictors = map_chr(predictors_list, ~paste(.x, collapse = " + ")),
+    notes
+  ) %>%
+  left_join(primary_loo_performance, by = "model_id") %>%
+  left_join(primary_repeated_performance, by = "model_id") %>%
+  left_join(
+    primary_prediction_permutation_test %>% select(model = model, permutation_p = empirical_p),
+    by = c("model_id" = "model")
+  ) %>%
+  transmute(
+    model_id,
+    model_label,
+    reporting_role,
+    predictors,
+    n_animals = n,
+    validation_scheme = "Leave-one-animal-out primary estimate; repeated 5-fold CV robustness companion",
+    cv_r2 = cv_r2_vs_mean,
+    rmse,
+    mae,
+    pearson_r,
+    spearman_rho,
+    permutation_p,
+    repeated_cv_mean_r2,
+    repeated_cv_mean_rmse,
+    repeated_cv_mean_mae,
+    cv_r2_q025,
+    cv_r2_q975,
+    interval_type,
+    duration_analysis_set = "full",
+    notes
+  )
+
+if (!identical(primary_prediction_performance$model_id, expected_primary_model_ids)) {
+  stop("The canonical primary prediction summary contains unintended or missing models.", call. = FALSE)
+}
+write_table(primary_prediction_performance, file.path(output_dir, "tables", "models", "primary_prediction_performance.csv"))
+write_table(primary_prediction_permutation_test, file.path(output_dir, "tables", "models", "primary_prediction_permutation_test.csv"))
 
 behavior_predictors <- c("Movement_mean", "Movement_rmssd", "Entropy_acf1")
 compact_behavior_predictors <- c(
@@ -1136,12 +1509,12 @@ behavior_cv_model_dictionary <- imap_dfr(cv_specs, function(predictors, model_na
     CVScheme = "Repeated grouped 5-fold CV; animal is the held-out unit",
     ManuscriptUse = if_else(
       str_detect(model_name, "^Behavior-only"),
-      "Primary prospective behavior-only evidence",
-      "Sensitivity/descriptive adjustment"
+      "Supplementary/compatibility behavior-only ladder; use the canonical primary registry for manuscript claims",
+      "Supplementary/contextual adjustment"
     ),
     InterpretationGuardrail = if_else(
       str_detect(model_name, "^Behavior-only"),
-      "May support early behavior predicting later stress burden.",
+      "Compatibility ladder only; do not select a model from observed performance.",
       "Do not use as the central prospective claim if Group reflects later stress phenotype."
     )
   )
@@ -1150,17 +1523,15 @@ write_table(behavior_cv_model_dictionary, file.path(output_dir, "tables", "docum
 
 cv_predictors <- unique(unlist(cv_specs))
 cv_predictors <- cv_predictors[cv_predictors %in% names(model_dat) & sapply(model_dat[cv_predictors], is.numeric)]
-cv_model_dat <- impute_numeric(model_dat, cv_predictors)
-fold_map <- make_grouped_folds(cv_model_dat, k = 5, repeats = 100, seed = 321)
-repeated_cv_predictions <- imap_dfr(cv_specs, ~kfold_lm_predict(cv_model_dat, .x, .y, fold_map))
+fold_map <- make_grouped_folds(model_dat, k = 5, repeats = n_repeated_cv_repeats, seed = 321)
+repeated_cv_predictions <- imap_dfr(cv_specs, ~kfold_lm_predict(model_dat, .x, .y, fold_map))
 repeated_cv_performance <- summarise_repeated_cv(repeated_cv_predictions, "full")
 
 repeated_cv_no_short_predictions <- tibble()
 repeated_cv_no_short_performance <- tibble()
 if (nrow(no_short_model_dat) >= 8) {
-  no_short_cv_dat <- impute_numeric(no_short_model_dat, cv_predictors)
-  no_short_fold_map <- make_grouped_folds(no_short_cv_dat, k = 5, repeats = 100, seed = 322)
-  repeated_cv_no_short_predictions <- imap_dfr(cv_specs, ~kfold_lm_predict(no_short_cv_dat, .x, .y, no_short_fold_map))
+  no_short_fold_map <- make_grouped_folds(no_short_model_dat, k = 5, repeats = n_repeated_cv_repeats, seed = 322)
+  repeated_cv_no_short_predictions <- imap_dfr(cv_specs, ~kfold_lm_predict(no_short_model_dat, .x, .y, no_short_fold_map))
   repeated_cv_no_short_performance <- summarise_repeated_cv(repeated_cv_no_short_predictions, "excluding_short_duration")
 }
 
@@ -1173,7 +1544,7 @@ repeated_cv_performance_all <- bind_rows(repeated_cv_performance, repeated_cv_no
   ungroup() %>%
   select(-full_mean_cv_r2) %>%
   mutate(
-    ReportingUse = if_else(str_detect(Model, "^Behavior-only"), "Primary prospective behavior-only evidence", "Sensitivity: descriptive sex/group adjustment"),
+    ReportingUse = if_else(str_detect(Model, "^Behavior-only"), "Supplementary/compatibility behavior-only ladder", "Supplementary/contextual sex/group adjustment"),
     ModelFamily = if_else(str_detect(Model, "^Behavior-only"), "Behavior only", "Behavior + sex/group")
   )
 
@@ -1191,14 +1562,14 @@ prediction_interpretation_constraints <- tibble(
     "Allowed language"
   ),
   Interpretation = c(
-    "Use behavior-only models to support early behavior predicting later stress burden.",
+    "Use only the fixed a priori canonical primary registry to support early behavior predicting later stress burden.",
     "RES/SUS group labels may be derived from CombZ, so group terms should not be treated as independent prospective predictors.",
-    "Use the matched behavior-only ladder as the clearest prospective behavior result because it excludes Sex and Group covariates.",
-    "Use the matched Behavior + Sex ladder as a secondary/main-text sensitivity analysis.",
+    "Retain the larger matched behavior-only ladder for compatibility; it must not replace the fixed a priori canonical primary registry.",
+    "Retain the larger matched Behavior + Sex ladder as a supplementary sensitivity analysis.",
     "Use the matched Behavior + Sex + Group ladder only as contextual/supplementary adjustment because Group derives from later endpoint structure.",
     "Use behavior + group/sex models as descriptive adjustment/sensitivity analyses, not as the central claim.",
     "Grouped folds keep all observations from an animal together; the animal is the biological unit.",
-    "Permutation p-values test full-pipeline prediction strength for the final observed predictions.",
+    "Legacy prediction_permutation_p values are post-hoc prediction-vector association permutations; the canonical primary non-null models use a separate LOAO outcome-permutation test with full refitting.",
     "Main-text claims require consistent full-data and excluding-short-duration performance.",
     "Use predictive/associative wording; avoid causal or biomarker language without external validation."
   ),
@@ -1231,7 +1602,7 @@ matched_ladder_behavior_sets <- list(
   "Mean only" = character(0),
   "Movement mean" = "Movement_mean",
   "Movement + entropy persistence" = c("Movement_mean", "Entropy_acf1"),
-  "Primary behavior family" = c("Movement_mean", "Entropy_acf1", "Movement_x_EntropyACF1"),
+  "Primary behavior family" = c("Movement_mean", "Movement_rmssd", "Entropy_acf1"),
   "Compact behavior dynamics" = c(
     "Movement_mean", "Movement_rmssd", "Movement_acf1",
     "Entropy_mean", "Entropy_rmssd", "Entropy_acf1",
@@ -1267,8 +1638,8 @@ matched_ladder_predictor_audit <- imap_dfr(matched_ladder_specs, function(specs,
       UsesGroup = "Group" %in% predictors,
       ManuscriptUse = unname(matched_ladder_use_labels[adjustment]),
       InterpretationGuardrail = case_when(
-        adjustment == "Behavior only" ~ "Primary prospective behavior-only evidence; no sex or endpoint-derived group covariates.",
-        adjustment == "Behavior + Sex" ~ "Secondary/main-text sensitivity asking whether behavior predicts beyond sex.",
+        adjustment == "Behavior only" ~ "Legacy compatibility ladder; canonical primary models are reported separately.",
+        adjustment == "Behavior + Sex" ~ "Legacy supplementary sensitivity; canonical Sex-adjusted models are reported separately.",
         adjustment == "Behavior + Sex + Group" ~ "Contextual/supplementary only because RES/SUS group labels derive from later endpoint structure related to CombZ.",
         TRUE ~ NA_character_
       )
@@ -1284,11 +1655,10 @@ matched_ladder_predictors <- unique(unlist(matched_ladder_specs))
 matched_ladder_numeric_predictors <- matched_ladder_predictors[
   matched_ladder_predictors %in% names(model_dat) & sapply(model_dat[matched_ladder_predictors], is.numeric)
 ]
-matched_ladder_model_dat <- impute_numeric(model_dat, matched_ladder_numeric_predictors)
 
 matched_ladder_results <- imap(matched_ladder_specs, function(specs, adjustment) {
   imap(specs, function(predictors, model_family) {
-    res <- loo_lm_predict(matched_ladder_model_dat, predictors, model_family)
+    res <- loo_lm_predict(model_dat, predictors, model_family)
     list(
       predictions = res$predictions %>%
         mutate(
@@ -1323,20 +1693,21 @@ matched_ladder_performance <- matched_ladder_predictions %>%
       pdat <- matched_ladder_predictions %>% filter(AdjustmentSet == .x, ModelFamily == .y)
       permutation_prediction_p(pdat$observed, pdat$predicted, n_prediction_permutations, seed = 123)
     }),
+    prediction_permutation_interpretation = "post-hoc prediction-vector association permutation",
     BinLevel = bin_level,
     Outcome = outcome_col,
     DisplayModel = recode(ModelFamily, !!!matched_ladder_model_labels),
     AdjustmentSet = factor(AdjustmentSet, levels = names(matched_ladder_adjustment_labels)),
     ManuscriptUse = unname(matched_ladder_use_labels[as.character(AdjustmentSet)]),
     ReportingPriority = case_when(
-      as.character(AdjustmentSet) == "Behavior only" ~ "primary",
-      as.character(AdjustmentSet) == "Behavior + Sex" ~ "secondary_main_text_sensitivity",
+      as.character(AdjustmentSet) == "Behavior only" ~ "supplementary_compatibility",
+      as.character(AdjustmentSet) == "Behavior + Sex" ~ "supplementary_sensitivity",
       as.character(AdjustmentSet) == "Behavior + Sex + Group" ~ "supplementary_contextual",
       TRUE ~ "context"
     ),
     InterpretationGuardrail = case_when(
-      as.character(AdjustmentSet) == "Behavior only" ~ "Primary prospective behavior-only model.",
-      as.character(AdjustmentSet) == "Behavior + Sex" ~ "Sensitivity model adjusted for sex.",
+      as.character(AdjustmentSet) == "Behavior only" ~ "Legacy compatibility ladder; do not select a primary model from observed performance.",
+      as.character(AdjustmentSet) == "Behavior + Sex" ~ "Legacy supplementary sensitivity adjusted for sex.",
       as.character(AdjustmentSet) == "Behavior + Sex + Group" ~ "Do not frame as primary prospective evidence because Group is endpoint-derived.",
       TRUE ~ NA_character_
     )
@@ -1356,9 +1727,8 @@ for (adjustment in names(matched_ladder_specs)) {
     matched_cv_specs[[paste(adjustment, model_family, sep = ": ")]] <- matched_ladder_specs[[adjustment]][[model_family]]
   }
 }
-matched_cv_model_dat <- impute_numeric(model_dat, matched_ladder_numeric_predictors)
-matched_cv_fold_map <- make_grouped_folds(matched_cv_model_dat, k = 5, repeats = 100, seed = 421)
-matched_cv_predictions <- imap_dfr(matched_cv_specs, ~kfold_lm_predict(matched_cv_model_dat, .x, .y, matched_cv_fold_map)) %>%
+matched_cv_fold_map <- make_grouped_folds(model_dat, k = 5, repeats = n_repeated_cv_repeats, seed = 421)
+matched_cv_predictions <- imap_dfr(matched_cv_specs, ~kfold_lm_predict(model_dat, .x, .y, matched_cv_fold_map)) %>%
   separate_wider_delim(Model, delim = ": ", names = c("AdjustmentSet", "ModelFamily"), too_few = "align_start") %>%
   mutate(
     DisplayModel = recode(ModelFamily, !!!matched_ladder_model_labels),
@@ -1372,8 +1742,8 @@ matched_cv_performance <- matched_cv_predictions %>%
     DisplayModel = recode(ModelFamily, !!!matched_ladder_model_labels),
     ManuscriptUse = unname(matched_ladder_use_labels[AdjustmentSet]),
     ReportingPriority = case_when(
-      AdjustmentSet == "Behavior only" ~ "primary",
-      AdjustmentSet == "Behavior + Sex" ~ "secondary_main_text_sensitivity",
+      AdjustmentSet == "Behavior only" ~ "supplementary_compatibility",
+      AdjustmentSet == "Behavior + Sex" ~ "supplementary_sensitivity",
       AdjustmentSet == "Behavior + Sex + Group" ~ "supplementary_contextual",
       TRUE ~ "context"
     )
@@ -1482,7 +1852,7 @@ save_plot_svg_pdf(p_primary, file.path(output_dir, "figures", "publication", "pr
 p_ladder <- ladder_performance %>%
   mutate(
     DisplayModel = factor(DisplayModel, levels = rev(DisplayModel[order(cv_r2_vs_mean)])),
-    ReportingUse = factor(ReportingUse, levels = c("Reference baseline", "Behavior plus sex/group adjustment", "Descriptive group/sex adjustment", "Sensitivity"))
+    ReportingUse = factor(ReportingUse, levels = c("Reference baseline", "Supplementary/contextual sex/group-adjusted model", "Descriptive group/sex adjustment", "Sensitivity"))
   ) %>%
   ggplot(aes(cv_r2_vs_mean, DisplayModel, fill = ReportingUse)) +
   geom_vline(xintercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey55") +
@@ -1495,7 +1865,7 @@ p_ladder <- ladder_performance %>%
   ) +
   scale_fill_manual(values = c(
     "Reference baseline" = "grey82",
-    "Behavior plus sex/group adjustment" = "#7A8F6A",
+    "Supplementary/contextual sex/group-adjusted model" = "#7A8F6A",
     "Descriptive group/sex adjustment" = "#B8B1A5",
     "Sensitivity" = "grey65"
   ), drop = FALSE) +
@@ -1536,16 +1906,16 @@ make_matched_ladder_plot <- function(perf_tbl, adjustment_filter = NULL, title =
 p_matched_behavior_only <- make_matched_ladder_plot(
   matched_ladder_performance,
   adjustment_filter = "Behavior only",
-  title = "Behavior-only prediction ladder",
-  subtitle = "Primary prospective model: behavior predictors only"
+  title = "Legacy behavior-only prediction ladder",
+  subtitle = "Compatibility output; canonical a priori models are reported in primary_prediction_performance.csv"
 )
 save_plot_svg_pdf(p_matched_behavior_only, file.path(output_dir, "figures", "publication", "matched_ladder_behavior_only_cv_r2"), width = 89, height = 82)
 
 p_matched_behavior_sex <- make_matched_ladder_plot(
   matched_ladder_performance,
   adjustment_filter = "Behavior + Sex",
-  title = "Sex-adjusted prediction ladder",
-  subtitle = "Sensitivity model: Sex + identical behavior predictors"
+  title = "Legacy Sex-adjusted prediction ladder",
+  subtitle = "Supplementary compatibility output"
 )
 save_plot_svg_pdf(p_matched_behavior_sex, file.path(output_dir, "figures", "publication", "matched_ladder_behavior_plus_sex_cv_r2"), width = 89, height = 82)
 
@@ -1577,12 +1947,12 @@ p_behavior_cv <- repeated_cv_performance_all %>%
   ) %>%
   ggplot(aes(mean_cv_r2, Model, colour = ModelFamily)) +
   geom_vline(xintercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey55") +
-  geom_errorbar(aes(xmin = cv_r2_ci_low, xmax = cv_r2_ci_high), orientation = "y", width = 0, linewidth = 0.35, alpha = 0.75) +
+  geom_errorbar(aes(xmin = cv_r2_q025, xmax = cv_r2_q975), orientation = "y", width = 0, linewidth = 0.35, alpha = 0.75) +
   geom_point(size = 1.8) +
   facet_grid(. ~ ModelFamily, scales = "free_y", space = "free_y") +
   labs(
-    title = "Behavior-only prediction is the primary prospective test",
-    subtitle = "Repeated grouped 5-fold cross-validation; points show mean, bars show 95% repeat interval",
+    title = "Legacy repeated-CV compatibility ladders",
+    subtitle = "Points show means; bars show 2.5-97.5% quantiles across repeated CV splits (not confidence intervals)",
     x = "Mean cross-validated R2 vs mean-only baseline",
     y = NULL
   ) +
@@ -1592,11 +1962,11 @@ p_behavior_cv <- repeated_cv_performance_all %>%
 
 save_plot_svg_pdf(p_behavior_cv, file.path(output_dir, "figures", "publication", "behavior_only_repeated_cv_ladder"), width = 183, height = 82)
 
-best_model <- ladder_performance %>% slice_max(cv_r2_vs_mean, n = 1, with_ties = FALSE) %>% pull(Model)
-best_pred <- ladder_predictions %>% filter(Model == best_model)
-best_perf <- ladder_performance %>% filter(Model == best_model)
+primary_display_model_id <- "primary_behavior_family"
+primary_display_pred <- primary_prediction_predictions %>% filter(Model == primary_display_model_id)
+primary_display_perf <- primary_prediction_performance %>% filter(model_id == primary_display_model_id)
 
-p_pred <- best_pred %>%
+p_pred <- primary_display_pred %>%
   mutate(Group = factor(as.character(Group), levels = group_levels)) %>%
   ggplot(aes(observed, predicted)) +
   geom_abline(slope = 1, intercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey45") +
@@ -1604,8 +1974,8 @@ p_pred <- best_pred %>%
   geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.8, stroke = 0.25, alpha = 0.88) +
   facet_grid(. ~ Sex) +
   labs(
-    title = paste0("Observed vs predicted stress burden: ", recode(best_model, !!!model_display_labels)),
-    subtitle = paste0("LOO r=", round(best_perf$pearson_r, 2), ", CV R2=", round(best_perf$cv_r2_vs_mean, 2), ", ", format_p(best_perf$prediction_permutation_p)),
+    title = "Observed vs predicted stress burden: a priori primary behavior model",
+    subtitle = paste0("LOAO r=", round(primary_display_perf$pearson_r, 2), ", CV R2=", round(primary_display_perf$cv_r2, 2), ", outcome-permutation ", format_p(primary_display_perf$permutation_p)),
     x = paste0("Observed ", outcome_col),
     y = paste0("Predicted ", outcome_col)
   ) +
@@ -1614,6 +1984,7 @@ p_pred <- best_pred %>%
   scale_shape_manual(values = group_shape_values, drop = FALSE) +
   make_publication_theme(base_size = 7)
 
+# Legacy filename retained for compatibility; the plotted model is fixed a priori.
 save_plot_svg_pdf(p_pred, file.path(output_dir, "figures", "publication", "best_model_observed_vs_predicted"), width = 89, height = 78)
 
 ladder_prediction_plot_tbl <- ladder_predictions %>%
@@ -1653,7 +2024,7 @@ p_ladder_prediction_correlations <- ladder_prediction_plot_tbl %>%
   facet_wrap(~DisplayModel, scales = "free", ncol = 4) +
   labs(
     title = "Observed versus predicted outcome for every adjusted ladder model",
-    subtitle = "Panel statistics are prediction correlations: Pearson r, Spearman rho, cross-validated R2, and permutation p",
+    subtitle = "Panel p-values are post-hoc prediction-vector association permutations, not model-refitting permutations",
     x = paste0("Observed ", outcome_col),
     y = paste0("LOO predicted ", outcome_col)
   ) +
@@ -1704,7 +2075,7 @@ p_matched_prediction_correlations <- matched_prediction_plot_tbl %>%
   facet_grid(AdjustmentSet ~ DisplayModel, scales = "free") +
   labs(
     title = "Prediction correlations across matched ladders",
-    subtitle = "Rows isolate covariate adjustment; columns keep identical behavior feature families",
+    subtitle = "Rows isolate covariate adjustment; displayed p-values are post-hoc prediction-vector association permutations",
     x = paste0("Observed ", outcome_col),
     y = paste0("LOO predicted ", outcome_col)
   ) +
@@ -1720,95 +2091,56 @@ save_plot_svg_pdf(p_matched_prediction_correlations, file.path(output_dir, "figu
 # TEXT SUMMARY FOR RESULTS WRITING
 # ------------------------------------------------
 
-combined_row <- incremental_summary %>% filter(Model == "Movement + Entropy ACF1")
-movement_row <- incremental_summary %>% filter(Model == "Movement only")
+combined_row <- primary_prediction_performance %>% filter(model_id == "primary_behavior_family")
+movement_row <- primary_prediction_performance %>% filter(model_id == "movement_mean")
 entropy_row <- primary_assoc %>% filter(feature == "Entropy_acf1")
 movement_assoc_row <- primary_assoc %>% filter(feature == "Movement_mean")
+movement_rmssd_assoc_row <- primary_assoc %>% filter(feature == "Movement_rmssd")
 
 results_summary <- tibble(
   Result = c(
     "Primary prospective window",
     "Movement association",
+    "Movement RMSSD association",
     "Entropy ACF1 association",
-    "Incremental model comparison"
+    "Fixed a priori model comparison"
   ),
   Text = c(
     paste0("Features were extracted from the first ", early_window_hours, " h of the active phase after the first cage change using ", bin_level, " bins."),
     if (nrow(movement_assoc_row) > 0) paste0("Early movement correlated with later ", outcome_col, " (Spearman rho=", round(movement_assoc_row$spearman_rho, 3), ", BH ", format_p(movement_assoc_row$spearman_p_bh), ").") else "Movement association unavailable.",
+    if (nrow(movement_rmssd_assoc_row) > 0) paste0("Early movement RMSSD correlated with later ", outcome_col, " (Spearman rho=", round(movement_rmssd_assoc_row$spearman_rho, 3), ", BH ", format_p(movement_rmssd_assoc_row$spearman_p_bh), ").") else "Movement RMSSD association unavailable.",
     if (nrow(entropy_row) > 0) paste0("Early entropy ACF1 correlated with later ", outcome_col, " (Spearman rho=", round(entropy_row$spearman_rho, 3), ", BH ", format_p(entropy_row$spearman_p_bh), "; bootstrap CI ", round(entropy_row$spearman_boot_ci_low, 3), " to ", round(entropy_row$spearman_boot_ci_high, 3), ").") else "Entropy ACF1 association unavailable.",
-    if (nrow(combined_row) > 0 && nrow(movement_row) > 0) paste0("Adding entropy ACF1 to movement changed LOO RMSE from ", round(movement_row$rmse, 3), " to ", round(combined_row$rmse, 3), " and CV R2 from ", round(movement_row$cv_r2_vs_mean, 3), " to ", round(combined_row$cv_r2_vs_mean, 3), ".") else "Incremental comparison unavailable."
+    if (nrow(combined_row) > 0 && nrow(movement_row) > 0) paste0("The fixed a priori Movement_mean + Movement_rmssd + Entropy_acf1 model had LOAO RMSE ", round(combined_row$rmse, 3), " and CV R2 ", round(combined_row$cv_r2, 3), "; the fixed Movement_mean model had RMSE ", round(movement_row$rmse, 3), " and CV R2 ", round(movement_row$cv_r2, 3), ". Models were not selected by observed performance.") else "A priori model comparison unavailable."
   )
 )
 
 write_table(results_summary, file.path(output_dir, "tables", "results_summary_text.csv"))
 write_table(results_summary, file.path(output_dir, "tables", "documentation", "results_summary_text.csv"))
 
-output_table_catalog <- tibble(
-  file = c(
-    "tables/documentation/analysis_readme.txt",
-    "tables/documentation/readout_dictionary.csv",
-    "tables/documentation/model_specification_dictionary.csv",
-    "tables/documentation/behavior_cv_model_dictionary.csv",
-    "tables/design/early_window_design_by_animal.csv",
-    "tables/features/early_behavior_features_wide.csv",
-    "tables/statistics/primary_movement_entropyacf1_associations.csv",
-    "tables/statistics/primary_movement_entropyacf1_correlations_by_sex.csv",
-    "tables/statistics/primary_feature_group_summary.csv",
-    "tables/models/model_ladder_performance.csv",
-    "tables/models/model_ladder_prediction_correlations.csv",
-    "tables/models/model_ladder_repeated_grouped_kfold_performance.csv",
-    "tables/models/matched_ladder_performance.csv",
-    "tables/models/matched_ladder_prediction_correlations.csv",
-    "tables/models/matched_ladder_repeated_grouped_kfold_performance.csv",
-    "tables/documentation/matched_ladder_predictor_audit.csv",
-    "tables/sensitivity/model_ladder_performance_duration_sensitivity.csv",
-    "tables/documentation/results_summary_text.csv"
-  ),
-  category = c(
-    "documentation", "documentation", "documentation", "documentation",
-    "design", "features", "statistics", "statistics", "statistics", "models",
-    "models", "models", "models", "models", "models", "documentation", "sensitivity", "documentation"
-  ),
-  contains = c(
-    "Plain-text guide to the analysis folder and recommended reading order.",
-    "Definitions and manuscript roles for generated readouts.",
-    "LOO model ladder predictors, model type, and interpretation guardrails.",
-    "Repeated grouped CV model definitions and manuscript-use labels.",
-    "Animal-level early-window bin counts, timing, phase, and duration.",
-    "Animal-level early-window feature matrix used for prediction.",
-    "Primary feature-to-outcome correlations with bootstrap CIs and FDR correction.",
-    "Sex-stratified feature-to-outcome correlations used for the primary faceted figure annotations.",
-    "Descriptive CON/RES/SUS distribution of primary early features.",
-    "Leave-one-animal-out model performance table.",
-    "Observed-versus-predicted correlation statistics for every adjusted LOO ladder model.",
-    "Repeated grouped CV performance; primary prospective behavior-only evidence.",
-    "Matched LOO behavior-only, Sex-adjusted, and Sex + Group-adjusted ladder performance.",
-    "Observed-versus-predicted correlation statistics for every matched ladder model.",
-    "Matched repeated grouped CV companion performance for the three covariate-adjustment ladders.",
-    "Predictor audit for matched ladders, including covariates and manuscript-use labels.",
-    "Duration robustness table comparing full data with short-duration exclusions.",
-    "Short manuscript-ready text snippets generated from the current run."
-  ),
-  manuscript_use = c(
-    "Start here",
-    "Methods/readout definitions",
-    "Methods/model specification",
-    "Methods/model specification",
-    "Methods/QC",
-    "Methods/source data",
-    "Main or supplement",
-    "Main figure statistics",
-    "Descriptive group context",
-    "Supplement/model comparison",
-    "Prediction correlation figure statistics",
-    "Main model-performance result",
-    "Main/sensitivity/supplement split",
-    "Prediction correlation figure statistics",
-    "Robustness/supplement",
-    "Methods/model specification",
-    "Robustness/supplement",
-    "Drafting aid"
-  )
+output_table_catalog <- tribble(
+  ~file, ~category, ~contains, ~manuscript_use,
+  "tables/documentation/analysis_readme.txt", "documentation", "Plain-text guide to the analysis folder and recommended reading order.", "Start here",
+  "tables/documentation/readout_dictionary.csv", "documentation", "Definitions and manuscript roles for generated readouts.", "Methods/readout definitions",
+  "tables/documentation/primary_prediction_model_registry.csv", "documentation", "Fixed a priori canonical primary and Sex-adjusted model definitions.", "Methods/model specification",
+  "tables/documentation/model_specification_dictionary.csv", "documentation", "Legacy adjusted LOO ladder predictors and interpretation guardrails.", "Supplementary compatibility",
+  "tables/documentation/behavior_cv_model_dictionary.csv", "documentation", "Legacy repeated grouped CV model definitions and manuscript-use labels.", "Supplementary compatibility",
+  "tables/design/early_window_design_by_animal.csv", "design", "Animal-level early-window bin counts, timing, phase, and duration.", "Methods/QC",
+  "tables/features/early_behavior_features_wide.csv", "features", "Animal-level early-window feature matrix used for prediction.", "Methods/source data",
+  "tables/models/primary_prediction_performance.csv", "models", "Canonical fixed a priori LOAO performance with repeated-CV resampling quantiles.", "Primary model-performance result",
+  "tables/models/primary_prediction_permutation_test.csv", "models", "Outcome-permutation LOAO tests with full refitting for the two non-null primary behavior-only models.", "Primary prediction inference",
+  "tables/statistics/primary_movement_entropyacf1_associations.csv", "statistics", "Canonical primary feature-to-outcome correlations with bootstrap intervals and FDR correction.", "Main or supplement",
+  "tables/statistics/primary_movement_entropyacf1_correlations_by_sex.csv", "statistics", "Descriptive sex-stratified primary feature-to-outcome correlations.", "Descriptive main/supplement",
+  "tables/statistics/primary_feature_sex_interactions.csv", "statistics", "Pooled feature-by-Sex interaction terms with BH correction across three tests.", "Formal interaction inference",
+  "tables/statistics/primary_feature_group_summary.csv", "statistics", "Descriptive CON/RES/SUS distribution of primary early features.", "Descriptive group context",
+  "tables/models/model_ladder_performance.csv", "models", "Legacy adjusted leave-one-animal-out model performance.", "Supplementary compatibility",
+  "tables/models/model_ladder_prediction_correlations.csv", "models", "Observed-versus-predicted correlation statistics for every legacy adjusted LOO model.", "Supplementary compatibility",
+  "tables/models/model_ladder_repeated_grouped_kfold_performance.csv", "models", "Legacy repeated grouped CV performance with resampling quantiles.", "Supplementary compatibility",
+  "tables/models/matched_ladder_performance.csv", "models", "Legacy matched LOO behavior-only, Sex-adjusted, and Sex + Group-adjusted ladder performance.", "Supplementary compatibility",
+  "tables/models/matched_ladder_prediction_correlations.csv", "models", "Observed-versus-predicted correlation statistics for every matched ladder model.", "Supplementary compatibility",
+  "tables/models/matched_ladder_repeated_grouped_kfold_performance.csv", "models", "Legacy matched repeated grouped CV companion performance.", "Supplementary compatibility",
+  "tables/documentation/matched_ladder_predictor_audit.csv", "documentation", "Predictor audit for matched ladders, including covariates and manuscript-use labels.", "Methods/model specification",
+  "tables/sensitivity/model_ladder_performance_duration_sensitivity.csv", "sensitivity", "Duration robustness table comparing full data with short-duration exclusions.", "Robustness/supplement",
+  "tables/documentation/results_summary_text.csv", "documentation", "Short manuscript-ready text snippets generated from the canonical primary results.", "Drafting aid"
 )
 write_table(output_table_catalog, file.path(output_dir, "tables", "documentation", "output_table_catalog.csv"))
 write_table(output_table_catalog, file.path(output_dir, "tables", "output_table_catalog.csv"))

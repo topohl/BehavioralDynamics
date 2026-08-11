@@ -82,7 +82,9 @@ The primary prospective behavioral window is:
 | Cage change | First cage change |
 | Phase | First active phase |
 | Duration | First 12 h |
-| Resolution | 5-min bins |
+| Resolution | 10-min bins for the primary Stage 09 prediction analysis |
+
+Five-minute binning is a predefined resolution sensitivity for the early-prediction question, not the canonical primary prediction resolution. Stage 14 may retain its own 5-min integration backbone; this does not redefine the Stage 09 primary analysis.
 
 Primary endpoint:
 
@@ -130,7 +132,15 @@ group labels -> stress phenotype
 
 because RES/SUS groups are partially derived from downstream stress-burden measures.
 
-Group-aware models are useful sensitivity analyses, but they should not be framed as independent prospective prediction.
+Sex-adjusted models are sensitivity analyses. Models containing RES/SUS `Group` are supplementary/contextual because the grouping is derived from downstream phenotype structure related to CombZ; they must not enter the clean primary prospective summary.
+
+The fixed a priori manuscript-facing behavior-only registry is:
+
+1. Mean-only intercept baseline
+2. `Movement_mean`
+3. `Movement_mean + Movement_rmssd + Entropy_acf1`
+
+The corresponding Sex-adjusted sensitivity models add `Sex` to models 2 and 3. Models are not selected or labelled as best according to observed cross-validation performance.
 
 ---
 
@@ -138,16 +148,30 @@ Group-aware models are useful sensitivity analyses, but they should not be frame
 
 Primary reporting should include:
 
-- LOOCV model ladder
-- repeated grouped k-fold CV
-- full-pipeline permutation testing
+- the fixed a priori behavior-only model registry and its Sex-adjusted sensitivities
+- leave-one-animal-out cross-validation
+- repeated grouped 5-fold CV as a resampling-robustness companion
+- outcome-permutation testing with full refitting for the two non-null primary behavior-only models
 - bootstrap confidence intervals
-- behavior-only model ladder
-- behavior + sex sensitivity ladder
-- behavior + group/sex sensitivity ladder
 - duration sensitivity analyses
 
+Quantiles across repeated CV splits are resampling-distribution quantiles, not ordinary confidence intervals. Legacy prediction-vector permutations may be retained for compatibility but must be labelled as post-hoc prediction-vector association permutations rather than full-pipeline tests. Larger behavior-only, Sex-adjusted, and Group-adjusted ladders are supplementary compatibility outputs.
+
 Cross-validation results should be emphasized more strongly than single-fit in-sample performance.
+
+---
+
+# Secondary Stage 03 Characterization
+
+`Analysis/03_primary_raw_movement_phase_stats.R` provides secondary phenotype/group characterization; it is not the primary prospective analysis. Its displayed CON/RES/SUS pairwise comparisons use Holm adjustment within each prespecified three-contrast panel. When `export_global_family_corrections = FALSE`, no wider global family-wise correction is exported or claimed. The wider cage-change/phase scan is secondary/descriptive, and p < 0.10 dagger or trend annotations are not used in publication-facing figures.
+
+---
+
+# Manuscript Report Export Layer
+
+`Analysis/16_manuscript_behavior_report.R` is an export/assembly layer only. It reads canonical Stage 09 results plus selected Stage 03 and QC outputs without refitting models or recalculating statistics. Its primary registry is limited to the three canonical Stage 09 feature associations, fixed prospective prediction models and Sex-adjusted sensitivities, and formal feature-by-Sex interaction tests. Stage 10/14 predictive claims, HMM/state models, manifold and nonlinear analyses, high-dimensional systems prediction, systems composites, and behavior-proteomics integration remain exploratory unless explicitly enabled in a later reporting decision.
+
+Repeated grouped-CV intervals in this report are labelled 2.5-97.5% resampling quantiles, never confidence intervals. Full-refit empirical permutation results retain the exact numerator and denominator (for example, 1/1001) and are not displayed as P < 0.001. Internal cross-validation is not external validation.
 
 ---
 
@@ -483,6 +507,7 @@ The recommended active manuscript-facing order is:
 13. `Analysis/13_ethological_phase_organization.R`
 14. `Analysis/14_systems_neuroscience_summary_dashboard.R`
 15. `Analysis/15_behavior_proteomics_integration.R`
+16. `Analysis/16_manuscript_behavior_report.R` (export/assembly after canonical upstream outputs exist)
 
 Optional analyses:
 
