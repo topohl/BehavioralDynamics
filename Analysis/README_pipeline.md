@@ -22,7 +22,7 @@ This folder is organized as a staged, reviewer-safe pipeline. The scripts remain
 | 13 | `13_ethological_phase_organization.R` | Ethological phase organization | Stage 01 metrics | Phase contrast, timing, fragmentation, and recovery features |
 | 14 | `14_systems_neuroscience_summary_dashboard.R` | Integrated systems neuroscience dashboard | Stages 01, 04-13, optional proteomics | Feature matrix, audits, scorecards, dashboard panels |
 | 15 | `15_behavior_proteomics_integration.R` | Optional behavior-proteomics integration | Behavioral feature tables plus proteomics module data | Behavior-proteomics bridge tables and figures |
-| 16 | `16_manuscript_behavior_report.R` | Export-only manuscript reporting layer | Canonical Stage 09 tables plus selected Stage 03/QC tables | One source-data workbook, primary/supplementary/audit CSVs, and manifest |
+| 16 | `16_manuscript_behavior_report.R` | Export-only manuscript reporting layer | Canonical Stage 09 tables plus selected Stage 03/QC tables | Typed results, animal/prediction/movement source data, provenance, validation, and one source-data workbook |
 
 ## Primary vs Secondary
 
@@ -34,23 +34,21 @@ The fixed a priori behavior-only models are the mean-only intercept baseline, `M
 
 `03_primary_raw_movement_phase_stats.R` is the active secondary phenotype/group-characterization script for broad raw movement. Its displayed CON/RES/SUS pairwise comparisons are Holm-adjusted within each prespecified three-contrast panel. With `export_global_family_corrections = FALSE`, no wider global family-wise correction is exported or claimed. The wider Stage 03 scan is secondary/descriptive and does not replace the Stage 09 prospective analysis. The older `18_raw_movement_publication_trajectory.R` and `18b_raw_movement_broad_phase_stats.R` are archived.
 
-`16_manuscript_behavior_report.R` is a thin assembly layer. It reads existing Stage 09, Stage 03, and QC tables and writes exactly one manuscript source-data workbook plus one primary, supplementary, audit, and manifest CSV in `analysis_ready/16_manuscript_behavior_report/10min_based/`. It does not fit models or recalculate statistics. Stage 10/14 predictive claims, HMM/state, manifold, nonlinear, systems-composite, and behavior-proteomics outputs remain exploratory and are not promoted to the primary registry.
+`16_manuscript_behavior_report.R` is a thin assembly layer. It reads existing Stage 09, Stage 03, and QC tables and writes the canonical manuscript package to `analysis_ready/manuscript/behavior/`. The entry point is `Behavioral_Source_Data.xlsx`; compact CSV companions provide primary results, supplementary results, animal-level source data, held-out prediction source data, movement-phase source data, provenance, validation, and a SHA-256 manifest. It does not fit models or recalculate statistics. Stage 10/14 predictive claims, HMM/state, manifold, nonlinear, systems-composite, and behavior-proteomics outputs remain exploratory and are not promoted to the primary registry.
 
 ## Output Layout
 
-Active scripts use the standardized output layout:
+The bounded Stage 03/09/10 migration uses:
 
 - `tables/`
-- `stats_tables/`
-- `figures/publication_panels/`
-- `figures/supplementary/`
-- `figures/qc/`
-- `manifest/`
-- `logs/`
+- `figures/`
+- `audit/`
 
-The shared helper `Functions/behavioral_dynamics_helpers.R` creates these folders and writes `manifest/input_output_manifest.csv` plus `manifest/output_manifest.csv`. Legacy `output_manifest.csv` at the output root is retained as a compatibility copy for existing readers.
+Canonical migrated roots are `analysis_ready/pipeline/03_movement_phase_stats/10min/`, `analysis_ready/pipeline/09_early_prediction/10min/`, and `analysis_ready/pipeline/10_systems_prediction/10min/`. Resolution tokens use `10min`, not `10min_based`. Future writes go only to the canonical location. Readers resolve the canonical path first and one documented legacy path second; fallback use warns and is recorded in provenance. Historical legacy directories are retained but are not rewritten by Stage 16.
 
-Stage 16 intentionally uses a flat output directory for its five non-duplicated manuscript artifacts rather than copying identical CSVs into the standard subfolders.
+`analysis_ready/README.md` and `analysis_ready/output_index.csv` are the human and machine-readable navigation entry points. Stages not listed above retain their current layout until a later migration.
+
+Stage 09 and Stage 10 canonical writers flatten old category subfolders and suppress repeated writes of the same object to the same canonical filename. A conflicting attempt to write different objects to one canonical filename fails clearly.
 
 ## Running Everything
 
@@ -71,6 +69,8 @@ After the required canonical Stage 09 and selected Stage 03 outputs have been ge
 ```r
 source("Analysis/16_manuscript_behavior_report.R")
 ```
+
+Stage 16 may read existing legacy Stage 03/09 outputs during the transition, but it always writes the manuscript package only to `analysis_ready/manuscript/behavior/`.
 
 ## Old-to-New Filename Map
 

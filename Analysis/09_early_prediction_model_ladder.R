@@ -51,7 +51,9 @@ source_mmm_helper("duration_normalization_helpers.R")
 bin_level <- "10min_based"
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 input_file <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
-output_dir <- file.path(base_dir, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", bin_level)
+output_dir <- behavior_stage_dir(
+  base_dir, "09", "early_prediction", resolution = bin_level
+)
 
 # Endpoint file should contain one row per animal or repeated rows with a stable endpoint.
 # If NULL, the script tries to read the outcome from input_file.
@@ -420,55 +422,47 @@ behav <- standardize_behavior_columns(
   )
 
 ensure_dir_safe(output_dir)
-ensure_dir_safe(file.path(output_dir, "tables"))
-ensure_dir_safe(file.path(output_dir, "tables", "documentation"))
-ensure_dir_safe(file.path(output_dir, "tables", "design"))
-ensure_dir_safe(file.path(output_dir, "tables", "features"))
-ensure_dir_safe(file.path(output_dir, "tables", "models"))
-ensure_dir_safe(file.path(output_dir, "tables", "statistics"))
-ensure_dir_safe(file.path(output_dir, "tables", "sensitivity"))
-ensure_dir_safe(file.path(output_dir, "figures"))
-ensure_dir_safe(file.path(output_dir, "figures", "publication"))
 output_dirs <- analysis_output_dirs(output_dir)
 write_output_manifest(
   output_dir,
   script_name = "09_early_prediction_model_ladder.R",
   analysis_name = "early prediction model ladder",
   primary_tables = c(
-    "tables/models/primary_prediction_performance.csv",
-    "tables/models/primary_prediction_permutation_test.csv",
-    "tables/statistics/primary_feature_sex_interactions.csv",
-    "tables/documentation/primary_prediction_model_registry.csv",
+    "tables/primary_prediction_performance.csv",
+    "tables/primary_prediction_permutation_test.csv",
+    "tables/primary_prediction_predictions.csv",
+    "tables/primary_feature_sex_interactions.csv",
+    "tables/primary_prediction_model_registry.csv",
     "tables/model_ladder_performance.csv",
     "tables/model_ladder_performance_duration_sensitivity.csv",
     "tables/model_ladder_repeated_grouped_kfold_performance.csv",
-    "tables/models/matched_ladder_performance.csv",
-    "tables/models/matched_ladder_repeated_grouped_kfold_performance.csv",
-    "tables/documentation/matched_ladder_predictor_audit.csv",
+    "tables/matched_ladder_performance.csv",
+    "tables/matched_ladder_repeated_grouped_kfold_performance.csv",
+    "tables/matched_ladder_predictor_audit.csv",
     "tables/prediction_interpretation_constraints.csv",
     "tables/model_ladder_incremental_summary.csv",
     "tables/primary_movement_entropyacf1_associations.csv",
-    "tables/statistics/primary_movement_entropyacf1_correlations_by_sex.csv",
-    "tables/models/model_ladder_prediction_correlations.csv",
-    "tables/models/matched_ladder_prediction_correlations.csv",
+    "tables/primary_movement_entropyacf1_correlations_by_sex.csv",
+    "tables/model_ladder_prediction_correlations.csv",
+    "tables/matched_ladder_prediction_correlations.csv",
     "tables/primary_feature_group_summary.csv",
     "tables/primary_feature_group_contrasts_descriptive.csv",
-    "tables/documentation/readout_dictionary.csv",
-    "tables/documentation/model_specification_dictionary.csv",
-    "tables/documentation/output_table_catalog.csv"
+    "tables/readout_dictionary.csv",
+    "tables/model_specification_dictionary.csv",
+    "tables/output_table_catalog.csv"
   ),
   primary_figures = c(
-    "figures/publication/model_ladder_cv_r2.svg",
-    "figures/publication/matched_ladder_behavior_only_cv_r2.svg",
-    "figures/publication/matched_ladder_behavior_plus_sex_cv_r2.svg",
-    "figures/publication/matched_ladder_behavior_plus_sex_group_cv_r2.svg",
-    "figures/publication/matched_ladder_covariate_comparison_cv_r2.svg",
-    "figures/publication/behavior_only_repeated_cv_ladder.svg",
-    "figures/publication/primary_movement_entropyacf1_vs_combz.svg",
-    "figures/publication/model_ladder_prediction_correlations.svg",
-    "figures/publication/matched_ladder_prediction_correlations.svg"
+    "figures/model_ladder_cv_r2.svg",
+    "figures/matched_ladder_behavior_only_cv_r2.svg",
+    "figures/matched_ladder_behavior_plus_sex_cv_r2.svg",
+    "figures/matched_ladder_behavior_plus_sex_group_cv_r2.svg",
+    "figures/matched_ladder_covariate_comparison_cv_r2.svg",
+    "figures/behavior_only_repeated_cv_ladder.svg",
+    "figures/primary_movement_entropyacf1_vs_combz.svg",
+    "figures/model_ladder_prediction_correlations.svg",
+    "figures/matched_ladder_prediction_correlations.svg"
   ),
-  notes = c("Main prediction claims should use tables/models/primary_prediction_performance.csv and its outcome-permutation companion; larger ladders are compatibility outputs.")
+  notes = c("Main prediction claims should use tables/primary_prediction_performance.csv and its outcome-permutation companion; larger ladders are compatibility outputs.")
 )
 
 write_text_file(
@@ -479,21 +473,21 @@ write_text_file(
     "This analysis tests whether early first-active-phase behavioral features predict later CombZ.",
     "",
     "Recommended reading order:",
-    "1. tables/documentation/analysis_readme.txt",
-    "2. tables/models/primary_prediction_performance.csv",
-    "3. tables/models/primary_prediction_permutation_test.csv",
-    "4. tables/statistics/primary_feature_sex_interactions.csv",
-    "5. tables/documentation/model_specification_dictionary.csv",
-    "6. tables/documentation/readout_dictionary.csv",
+    "1. audit/analysis_readme.txt",
+    "2. tables/primary_prediction_performance.csv",
+    "3. tables/primary_prediction_permutation_test.csv",
+    "4. tables/primary_feature_sex_interactions.csv",
+    "5. tables/model_specification_dictionary.csv",
+    "6. tables/readout_dictionary.csv",
     "7. tables/model_ladder_repeated_grouped_kfold_performance.csv",
     "8. tables/model_ladder_performance.csv",
-    "9. tables/models/matched_ladder_performance.csv",
-    "10. tables/documentation/matched_ladder_predictor_audit.csv",
-    "11. figures/publication/matched_ladder_covariate_comparison_cv_r2.svg",
-    "12. figures/publication/behavior_only_repeated_cv_ladder.svg",
-    "13. figures/publication/model_ladder_prediction_correlations.svg",
-    "14. figures/publication/matched_ladder_prediction_correlations.svg",
-    "15. figures/publication/primary_movement_entropyacf1_vs_combz.svg",
+    "9. tables/matched_ladder_performance.csv",
+    "10. tables/matched_ladder_predictor_audit.csv",
+    "11. figures/matched_ladder_covariate_comparison_cv_r2.svg",
+    "12. figures/behavior_only_repeated_cv_ladder.svg",
+    "13. figures/model_ladder_prediction_correlations.svg",
+    "14. figures/matched_ladder_prediction_correlations.svg",
+    "15. figures/primary_movement_entropyacf1_vs_combz.svg",
     "",
     "Interpretation:",
     "The fixed a priori behavior-only registry is the primary prospective evidence.",
@@ -503,7 +497,7 @@ write_text_file(
     "CON/RES/SUS group labels are shown for interpretation and descriptive summaries.",
     "Models containing Group are supplementary/contextual and never enter the canonical primary summary."
   ),
-  file.path(output_dir, "tables", "documentation", "analysis_readme.txt")
+  file.path(output_dirs$audit, "analysis_readme.txt")
 )
 
 epoch_duration_qc <- write_epoch_duration_qc(behav, output_dir, metric_source = "08b_early_prediction_model_ladder", bin_size_sec = infer_bin_size_sec(behav))
@@ -1392,6 +1386,10 @@ write_table(primary_prediction_model_dictionary, file.path(output_dir, "tables",
 
 primary_loo_results <- imap(primary_prediction_specs, ~loo_lm_predict(model_dat, .x, .y))
 primary_prediction_predictions <- map_dfr(primary_loo_results, "predictions")
+write_table(
+  primary_prediction_predictions,
+  file.path(output_dir, "tables", "primary_prediction_predictions.csv")
+)
 primary_loo_performance <- primary_prediction_predictions %>%
   group_by(Model) %>%
   group_modify(~prediction_metrics(.x$observed, .x$predicted)) %>%
@@ -2142,6 +2140,8 @@ output_table_catalog <- tribble(
   "tables/sensitivity/model_ladder_performance_duration_sensitivity.csv", "sensitivity", "Duration robustness table comparing full data with short-duration exclusions.", "Robustness/supplement",
   "tables/documentation/results_summary_text.csv", "documentation", "Short manuscript-ready text snippets generated from the canonical primary results.", "Drafting aid"
 )
+output_table_catalog <- output_table_catalog %>%
+  mutate(file = paste0("tables/", basename(file)))
 write_table(output_table_catalog, file.path(output_dir, "tables", "documentation", "output_table_catalog.csv"))
 write_table(output_table_catalog, file.path(output_dir, "tables", "output_table_catalog.csv"))
 

@@ -50,3 +50,75 @@ source_mmm_helper <- function(helper_file, required = TRUE) {
 }
 
 source_mmm_helper("behavioral_dynamics_helpers.R")
+
+# Canonical reporting/output paths for the bounded manuscript-critical migration.
+# Other stages retain their historical locations until they are migrated explicitly.
+behavior_analysis_ready_dir <- function(base_dir) {
+  file.path(base_dir, "analysis_ready")
+}
+
+behavior_normalize_resolution <- function(resolution) {
+  if (is.null(resolution) || length(resolution) == 0L || is.na(resolution) || !nzchar(resolution)) {
+    return(NULL)
+  }
+  sub("_based$", "", as.character(resolution))
+}
+
+behavior_stage_dir <- function(base_dir, stage_id, stage_name, resolution = NULL) {
+  stage_root <- file.path(
+    behavior_analysis_ready_dir(base_dir),
+    "pipeline",
+    paste0(stage_id, "_", stage_name)
+  )
+  resolution <- behavior_normalize_resolution(resolution)
+  if (is.null(resolution)) stage_root else file.path(stage_root, resolution)
+}
+
+behavior_stage_tables <- function(base_dir, stage_id, stage_name, resolution = NULL) {
+  file.path(behavior_stage_dir(base_dir, stage_id, stage_name, resolution), "tables")
+}
+
+behavior_stage_figures <- function(base_dir, stage_id, stage_name, resolution = NULL) {
+  file.path(behavior_stage_dir(base_dir, stage_id, stage_name, resolution), "figures")
+}
+
+behavior_stage_audit <- function(base_dir, stage_id, stage_name, resolution = NULL) {
+  file.path(behavior_stage_dir(base_dir, stage_id, stage_name, resolution), "audit")
+}
+
+behavior_manuscript_dir <- function(base_dir, domain = "behavior") {
+  file.path(behavior_analysis_ready_dir(base_dir), "manuscript", domain)
+}
+
+resolve_behavior_artifact <- function(canonical_path,
+                                      legacy_paths = character(),
+                                      required = TRUE,
+                                      source_id = basename(canonical_path)) {
+  candidates <- unique(c(canonical_path, legacy_paths))
+  candidates <- candidates[!is.na(candidates) & nzchar(candidates)]
+  hits <- candidates[file.exists(candidates)]
+  if (length(hits) == 0L) {
+    if (isTRUE(required)) {
+      stop(
+        "Missing required behavioral artifact ", source_id, ". Tried:\n- ",
+        paste(candidates, collapse = "\n- "),
+        call. = FALSE
+      )
+    }
+    return(list(
+      path = canonical_path,
+      resolution = "missing_optional",
+      exists = FALSE,
+      canonical_path = canonical_path,
+      legacy_path = paste(legacy_paths, collapse = "; ")
+    ))
+  }
+  selected <- hits[[1]]
+  list(
+    path = selected,
+    resolution = if (identical(selected, canonical_path)) "canonical" else "legacy_fallback",
+    exists = TRUE,
+    canonical_path = canonical_path,
+    legacy_path = paste(legacy_paths, collapse = "; ")
+  )
+}

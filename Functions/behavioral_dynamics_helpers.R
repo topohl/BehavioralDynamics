@@ -30,6 +30,42 @@ ensure_dir <- function(path) {
   invisible(path)
 }
 
+# Canonical animal identity contract used for all behavioral metadata joins.
+# Numeric identifiers are aliases irrespective of leading zero padding; mixed
+# alphanumeric identifiers retain their embedded zeros (for example OR004).
+canonical_animal_id <- function(x) {
+  x <- as.character(x)
+  out <- vapply(x, function(value) {
+    if (is.na(value)) return(NA_character_)
+    value <- toupper(gsub("\\s+", "", trimws(value)))
+    if (!nzchar(value)) return(NA_character_)
+    if (grepl("^[0-9]+$", value)) {
+      value <- sub("^0+(?=.)", "", value, perl = TRUE)
+    }
+    value
+  }, character(1))
+  unname(out)
+}
+
+is_canonical_behavior_stage_path <- function(path) {
+  grepl("/analysis_ready/pipeline/", normalizePath(path, winslash = "/", mustWork = FALSE), fixed = TRUE)
+}
+
+canonicalize_behavior_output_path <- function(path) {
+  normalized <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  if (!is_canonical_behavior_stage_path(normalized)) return(path)
+  match <- regexec(
+    "^(.*?/analysis_ready/pipeline/[^/]+(?:/[^/]+)?)/(tables|figures|audit)/(?:.*/)?([^/]+)$",
+    normalized,
+    perl = TRUE
+  )
+  parts <- regmatches(normalized, match)[[1]]
+  if (length(parts) != 4L) return(path)
+  file.path(parts[[2]], parts[[3]], parts[[4]])
+}
+
+.mmm_output_write_registry <- new.env(parent = emptyenv())
+
 mmm_group_levels <- c("CON", "RES", "SUS")
 mmm_group_colors <- c("CON" = "#3d3b6e", "RES" = "#C6C3BB", "SUS" = "#e63947", "All" = "grey55")
 mmm_pair_colors <- c("RES-CON" = "#3d3b6e", "SUS-CON" = "#e63947", "SUS-RES" = "#8A817C")
@@ -54,22 +90,46 @@ pretty_metric_label <- function(x) {
 }
 
 analysis_output_dirs <- function(output_dir) {
-  dirs <- list(
-    root = output_dir,
-    tables = file.path(output_dir, "tables"),
-    stats = file.path(output_dir, "stats_tables"),
-    manifest = file.path(output_dir, "manifest"),
-    logs = file.path(output_dir, "logs"),
-    qc = file.path(output_dir, "figures", "qc"),
-    table_qc = file.path(output_dir, "tables", "qc"),
-    table_sensitivity = file.path(output_dir, "tables", "duration_sensitivity"),
-    figure_root = file.path(output_dir, "figures"),
-    figure_publication = file.path(output_dir, "figures", "publication_panels"),
-    figure_supplementary = file.path(output_dir, "figures", "supplementary"),
-    figure_qc = file.path(output_dir, "figures", "qc"),
-    figure_exploratory = file.path(output_dir, "figures", "exploratory"),
-    figure_interactive = file.path(output_dir, "figures", "interactive")
-  )
+  if (is_canonical_behavior_stage_path(output_dir)) {
+    tables <- file.path(output_dir, "tables")
+    figures <- file.path(output_dir, "figures")
+    audit <- file.path(output_dir, "audit")
+    dirs <- list(
+      root = output_dir,
+      tables = tables,
+      stats = tables,
+      manifest = audit,
+      logs = audit,
+      audit = audit,
+      qc = audit,
+      table_qc = audit,
+      table_sensitivity = tables,
+      figure_root = figures,
+      figure_publication = figures,
+      figure_supplementary = figures,
+      figure_qc = figures,
+      figure_exploratory = figures,
+      figure_interactive = figures
+    )
+  } else {
+    dirs <- list(
+      root = output_dir,
+      tables = file.path(output_dir, "tables"),
+      stats = file.path(output_dir, "stats_tables"),
+      manifest = file.path(output_dir, "manifest"),
+      logs = file.path(output_dir, "logs"),
+      audit = file.path(output_dir, "manifest"),
+      qc = file.path(output_dir, "figures", "qc"),
+      table_qc = file.path(output_dir, "tables", "qc"),
+      table_sensitivity = file.path(output_dir, "tables", "duration_sensitivity"),
+      figure_root = file.path(output_dir, "figures"),
+      figure_publication = file.path(output_dir, "figures", "publication_panels"),
+      figure_supplementary = file.path(output_dir, "figures", "supplementary"),
+      figure_qc = file.path(output_dir, "figures", "qc"),
+      figure_exploratory = file.path(output_dir, "figures", "exploratory"),
+      figure_interactive = file.path(output_dir, "figures", "interactive")
+    )
+  }
   purrr::walk(unlist(dirs), ensure_dir)
   dirs
 }
@@ -98,6 +158,38 @@ harmonize_analysis_outputs <- function(output_dir,
 
   figure_ext <- "\\.(svg|pdf|png|jpg|jpeg|tif|tiff|html)$"
   figure_files <- list.files(figure_root, pattern = figure_ext, recursive = TRUE, full.names = TRUE, ignore.case = TRUE)
+
+  if (is_canonical_behavior_stage_path(output_dir)) {
+    info <- if (length(figure_files)) file.info(figure_files) else data.frame()
+    inventory <- if (length(figure_files)) {
+      tibble(
+        file = basename(figure_files),
+        relative_path = file.path("figures", basename(figure_files)),
+        figure_class = "figure",
+        harmonized_path = normalizePath(figure_files, winslash = "/", mustWork = FALSE),
+        file_size_bytes = as.numeric(info$size),
+        modified_time = as.POSIXct(info$mtime)
+      ) %>% arrange(file)
+    } else {
+      tibble(
+        file = character(), relative_path = character(), figure_class = character(),
+        harmonized_path = character(), file_size_bytes = numeric(),
+        modified_time = as.POSIXct(character())
+      )
+    }
+    readr::write_csv(inventory, file.path(dirs$audit, "output_figure_inventory.csv"))
+    readr::write_csv(
+      tibble(
+        artifact_type = "figures",
+        n_files = nrow(inventory),
+        folder = "figures/",
+        status = if (nrow(inventory)) "available" else "empty"
+      ),
+      file.path(dirs$audit, "output_folder_summary.csv")
+    )
+    return(invisible(inventory))
+  }
+
   if (length(figure_files) == 0) {
     inventory <- tibble(
       file = character(),
@@ -191,6 +283,7 @@ harmonize_analysis_outputs <- function(output_dir,
 mirror_plot_to_standard_folder <- function(filename_base) {
   figure_root_pattern <- "/figures/"
   normalized_base <- normalizePath(filename_base, winslash = "/", mustWork = FALSE)
+  if (is_canonical_behavior_stage_path(normalized_base)) return(invisible(filename_base))
   if (!grepl(figure_root_pattern, normalized_base, fixed = TRUE)) return(invisible(filename_base))
 
   output_dir <- sub("/figures/.*$", "", normalized_base)
@@ -229,7 +322,7 @@ write_output_manifest <- function(output_dir,
                                   primary_tables = character(),
                                   primary_figures = character(),
                                   notes = character()) {
-  analysis_output_dirs(output_dir)
+  dirs <- analysis_output_dirs(output_dir)
   caller_env <- parent.frame()
   if (length(input_files) == 0) {
     input_names <- c("input_file", "input_files", "INPUT_FILES", "input_candidates", "input_08b", "endpoint_file", "proteomics_module_file")
@@ -290,9 +383,19 @@ write_output_manifest <- function(output_dir,
     timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")
   )
 
-  readr::write_csv(manifest_outputs, file.path(output_dir, "manifest", "output_manifest.csv"))
-  readr::write_csv(manifest_outputs, file.path(output_dir, "output_manifest.csv"))
-  readr::write_csv(manifest_run, file.path(output_dir, "manifest", "input_output_manifest.csv"))
+  if (is_canonical_behavior_stage_path(output_dir)) {
+    manifest_outputs <- manifest_outputs %>%
+      mutate(output = if_else(
+        output_type %in% c("table", "figure"),
+        paste0(if_else(output_type == "table", "tables/", "figures/"), basename(output)),
+        output
+      ))
+  }
+  readr::write_csv(manifest_outputs, file.path(dirs$manifest, "output_manifest.csv"))
+  readr::write_csv(manifest_run, file.path(dirs$manifest, "input_output_manifest.csv"))
+  if (!is_canonical_behavior_stage_path(output_dir)) {
+    readr::write_csv(manifest_outputs, file.path(output_dir, "output_manifest.csv"))
+  }
   invisible(manifest_run)
 }
 
@@ -581,6 +684,7 @@ make_publication_theme <- function(base_size = 7) {
 }
 
 save_plot_svg_pdf <- function(plot, filename_base, width = 85, height = 65, units = "mm", dpi = 600) {
+  filename_base <- canonicalize_behavior_output_path(filename_base)
   ensure_dir(dirname(filename_base))
   ggplot2::ggsave(paste0(filename_base, ".svg"), plot, width = width, height = height, units = units)
   pdf_device <- if (isTRUE(capabilities("cairo"))) grDevices::cairo_pdf else "pdf"
@@ -590,9 +694,25 @@ save_plot_svg_pdf <- function(plot, filename_base, width = 85, height = 65, unit
   invisible(filename_base)
 }
 
-write_table <- function(x, path) {
+write_table <- function(x, path, na = "NA", source_expression = NULL) {
+  if (is.null(source_expression)) {
+    source_expression <- paste(deparse(substitute(x)), collapse = " ")
+  }
+  path <- canonicalize_behavior_output_path(path)
+  registry_key <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  if (exists(registry_key, envir = .mmm_output_write_registry, inherits = FALSE)) {
+    prior_expression <- get(registry_key, envir = .mmm_output_write_registry, inherits = FALSE)
+    if (identical(prior_expression, source_expression)) return(invisible(path))
+    stop(
+      "Conflicting canonical output writes target ", path,
+      ". First expression: ", prior_expression,
+      "; second expression: ", source_expression,
+      call. = FALSE
+    )
+  }
   ensure_dir(dirname(path))
-  readr::write_csv(x, path)
+  readr::write_csv(x, path, na = na)
+  assign(registry_key, source_expression, envir = .mmm_output_write_registry)
   invisible(path)
 }
 

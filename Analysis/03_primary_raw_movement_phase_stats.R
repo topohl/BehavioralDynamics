@@ -75,12 +75,6 @@ safe_first_finite <- function(x) {
   x[1]
 }
 
-clean_id <- function(x) {
-  x_chr <- as.character(x)
-  x_num <- suppressWarnings(as.numeric(x_chr))
-  ifelse(is.na(x_num), x_chr, as.character(x_num))
-}
-
 first_existing_col <- function(dat, candidates, label = "column") {
   hit <- candidates[candidates %in% names(dat)][1]
   if (is.na(hit)) stop("Could not find ", label, ". Tried: ", paste(candidates, collapse = ", "), call. = FALSE)
@@ -215,7 +209,9 @@ hits <- input_candidates[file.exists(input_candidates)]
 if (length(hits) == 0) stop("No all_behavior_metrics.csv found in analysis_ready/03_derived_metrics.", call. = FALSE)
 input_file <- hits[1]
 bin_level <- bin_level_priority[match(input_file, input_candidates)]
-output_dir <- file.path(base_dir, "analysis_ready", analysis_name, bin_level)
+output_dir <- behavior_stage_dir(
+  base_dir, "03", "movement_phase_stats", resolution = bin_level
+)
 
 if (exists("analysis_output_dirs")) {
   dirs <- analysis_output_dirs(output_dir)
@@ -271,7 +267,7 @@ if (exists("write_output_manifest")) {
 
 behav <- raw_dat %>%
   transmute(
-    AnimalNum = clean_id(.data[[animal_col]]),
+    AnimalNum = canonical_animal_id(.data[[animal_col]]),
     Group = as.character(.data[[group_col]]),
     Sex = as.character(.data[[sex_col]]),
     PhaseRaw = as.character(.data[[phase_col]]),
@@ -301,6 +297,25 @@ behav <- raw_dat %>%
     PhaseClass = factor(PhaseClass, levels = c("Active", "Inactive"))
   ) %>%
   filter(!is.na(AnimalNum), !is.na(Group), !is.na(Sex), !is.na(PhaseClass), is.finite(Movement))
+
+identity_conflicts <- behav %>%
+  distinct(AnimalNum, Group, Sex) %>%
+  group_by(AnimalNum) %>%
+  summarise(
+    n_groups = n_distinct(Group),
+    n_sexes = n_distinct(Sex),
+    groups = paste(sort(unique(as.character(Group))), collapse = "|"),
+    sexes = paste(sort(unique(as.character(Sex))), collapse = "|"),
+    .groups = "drop"
+  ) %>%
+  filter(n_groups > 1L | n_sexes > 1L)
+if (nrow(identity_conflicts) > 0L) {
+  stop(
+    "Stage 03 input contains conflicting Group or Sex metadata after canonicalizing AnimalNum:\n",
+    paste(utils::capture.output(print(identity_conflicts, n = Inf)), collapse = "\n"),
+    call. = FALSE
+  )
+}
 
 readr::write_csv(
   tibble(Field = c("script", "input_file", "bin_level", "movement_column", "output_dir"),
@@ -372,15 +387,26 @@ combz_col <- first_existing_col(combz_raw, c("CombZ", "combz", "Comb_Z", "Compos
 
 combz_endpoints <- combz_raw %>%
   transmute(
-    AnimalNum = clean_id(.data[[combz_animal_col]]),
+    AnimalNum = canonical_animal_id(.data[[combz_animal_col]]),
     CombZ = suppressWarnings(as.numeric(.data[[combz_col]]))
   ) %>%
   filter(!is.na(AnimalNum)) %>%
   group_by(AnimalNum) %>%
-  summarise(CombZ = safe_first_finite(CombZ), .groups = "drop")
+  summarise(
+    n_combz = n_distinct(CombZ[is.finite(CombZ)]),
+    CombZ = safe_first_finite(CombZ),
+    .groups = "drop"
+  )
+if (any(combz_endpoints$n_combz > 1L)) {
+  stop("CombZ endpoint file contains conflicting finite values for a canonical AnimalNum.", call. = FALSE)
+}
+combz_endpoints <- select(combz_endpoints, AnimalNum, CombZ)
 
 movement_endpoints_combz <- movement_endpoints %>%
-  left_join(combz_endpoints, by = "AnimalNum")
+  left_join(combz_endpoints, by = "AnimalNum", relationship = "many-to-one")
+if (nrow(movement_endpoints_combz) != nrow(movement_endpoints)) {
+  stop("Movement/CombZ join changed row count; a many-to-many join is not allowed.", call. = FALSE)
+}
 
 combz_main_input <- movement_endpoints_combz %>%
   filter(

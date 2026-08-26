@@ -73,11 +73,17 @@ base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior
 # already contains the first cage-change, first 12 h active-phase features and
 # the later CombZ endpoint.
 input_08b <- file.path(
-  base_dir,
-  "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder",
-  bin_level,
-  "tables/model_ladder_input.csv"
+  behavior_stage_tables(base_dir, "09", "early_prediction", bin_level),
+  "model_ladder_input.csv"
 )
+legacy_input_08b <- file.path(
+  base_dir, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder",
+  bin_level, "tables/model_ladder_input.csv"
+)
+input_08b_resolution <- resolve_behavior_artifact(
+  input_08b, legacy_input_08b, required = TRUE, source_id = "stage09_model_input"
+)
+input_08b <- input_08b_resolution$path
 
 # Optional: search these analysis folders for additional animal-level feature
 # tables. The script only uses files with an AnimalNum column and numeric
@@ -95,10 +101,8 @@ feature_search_dirs <- c(
   file.path(base_dir, "analysis_ready/14_nextgen_behavioral_phenotyping")
 )
 
-output_dir <- file.path(
-  base_dir,
-  "analysis_ready/06_behavioral_dynamics/systems_feature_prediction_ladder",
-  bin_level
+output_dir <- behavior_stage_dir(
+  base_dir, "10", "systems_prediction", resolution = bin_level
 )
 
 outcome_col <- "outcome"      # in 08b model_ladder_input.csv this is CombZ renamed to outcome
@@ -152,9 +156,12 @@ ensure_dir <- function(path) {
 }
 
 write_tbl <- function(x, path) {
-  ensure_dir(dirname(path))
-  readr::write_csv(x, path, na = "")
-  invisible(x)
+  write_table(
+    x,
+    path,
+    na = "",
+    source_expression = paste(deparse(substitute(x)), collapse = " ")
+  )
 }
 
 write_text_file <- function(lines, path) {
@@ -356,15 +363,7 @@ model_display_labels <- c(
 # LOAD 08b PRIMARY TABLE
 # ------------------------------------------------
 
-ensure_dir(file.path(output_dir, "tables"))
-ensure_dir(file.path(output_dir, "tables", "documentation"))
-ensure_dir(file.path(output_dir, "tables", "input_audit"))
-ensure_dir(file.path(output_dir, "tables", "features"))
-ensure_dir(file.path(output_dir, "tables", "models"))
-ensure_dir(file.path(output_dir, "tables", "sensitivity"))
-ensure_dir(file.path(output_dir, "figures"))
-ensure_dir(file.path(output_dir, "figures/publication"))
-analysis_output_dirs(output_dir)
+output_dirs <- analysis_output_dirs(output_dir)
 write_output_manifest(
   output_dir,
   script_name = "10_systems_feature_prediction_ladder.R",
@@ -410,18 +409,18 @@ write_text_file(
     "This analysis extends 08b by asking whether biologically grouped systems-level behavioral domains improve prediction beyond raw movement and compact early behavior.",
     "",
     "Recommended reading order:",
-    "1. tables/documentation/analysis_readme.txt",
-    "2. tables/documentation/model_specification_dictionary.csv",
-    "3. tables/documentation/systems_readout_dictionary.csv",
-    "4. tables/features/selected_features_by_domain.csv",
-    "5. tables/models/tiered_elastic_net_model_comparison.csv",
-    "6. tables/models/tiered_elastic_net_coefficient_stability.csv",
-    "7. tables/models/systems_ladder_performance.csv",
-    "8. tables/models/systems_ladder_performance_by_sex.csv",
-    "9. tables/models/systems_ladder_incremental_summary.csv",
-    "10. tables/models/systems_ladder_prediction_correlations.csv",
-    "11. figures/publication/tiered_elastic_net_prediction_comparison.svg",
-    "12. figures/publication/tiered_movement_temporal_prediction.svg",
+    "1. audit/analysis_readme.txt",
+    "2. tables/model_specification_dictionary.csv",
+    "3. tables/systems_readout_dictionary.csv",
+    "4. tables/selected_features_by_domain.csv",
+    "5. tables/tiered_elastic_net_model_comparison.csv",
+    "6. tables/tiered_elastic_net_coefficient_stability.csv",
+    "7. tables/systems_ladder_performance.csv",
+    "8. tables/systems_ladder_performance_by_sex.csv",
+    "9. tables/systems_ladder_incremental_summary.csv",
+    "10. tables/systems_ladder_prediction_correlations.csv",
+    "11. figures/tiered_elastic_net_prediction_comparison.svg",
+    "12. figures/tiered_movement_temporal_prediction.svg",
     "",
     "Interpretation:",
     "Tier A behavior-only models are the clean primary early behavioral prediction models.",
@@ -432,7 +431,7 @@ write_text_file(
     "CON/RES/SUS labels are shown for interpretation in primary plots and are predictors only in the explicit Tier C upper-bound models.",
     "Movement-derived RFID locomotor variables should be described as movement or locomotor features, not as a broad clinical psychomotor construct."
   ),
-  file.path(output_dir, "tables", "documentation", "analysis_readme.txt")
+  file.path(output_dirs$audit, "analysis_readme.txt")
 )
 
 if (!file.exists(input_08b)) {
@@ -643,16 +642,6 @@ selected_by_domain <- feature_audit %>%
     .groups = "drop"
   ) %>%
   mutate(n_selected = map_int(selected_features, length))
-
-write_tbl(
-  selected_by_domain %>%
-    mutate(
-      domain_label = recode(domain, !!!domain_labels),
-      selected_features_raw = map_chr(selected_features, ~paste(.x, collapse = "; ")),
-      selected_features = map_chr(selected_features, ~paste(pretty_systems_feature(.x), collapse = "; "))
-    ),
-  file.path(output_dir, "tables/selected_features_by_domain.csv")
-)
 
 selected_features_by_domain_documented <- selected_by_domain %>%
   mutate(
@@ -1784,6 +1773,8 @@ output_table_catalog <- tibble(
     "Methods/limitations"
   )
 )
+output_table_catalog <- output_table_catalog %>%
+  mutate(file = paste0("tables/", basename(file)))
 write_tbl(output_table_catalog, file.path(output_dir, "tables/documentation/output_table_catalog.csv"))
 write_tbl(output_table_catalog, file.path(output_dir, "tables/output_table_catalog.csv"))
 

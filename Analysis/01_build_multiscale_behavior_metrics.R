@@ -63,8 +63,9 @@ output_root <- getOption("mmm.derived_metrics_dir", existing_default_output_root
 dataset_id <- getOption("mmm.dataset_id", "sis_cc")
 
 # Optional animal reference lists. These are one-ID-per-line CSV/text files.
-# Matching is done after robust character normalization, so mixed numeric/string
-# IDs such as 4, 303, OQ754, OR111 are handled consistently.
+# Matching is done after the shared canonical animal-identity normalization, so
+# numeric aliases such as 0004/4 and 00303/303 are handled consistently while
+# alphanumeric IDs such as OR004 remain intact.
 sus_animals_file <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/sus_animals.csv"
 con_animals_file <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/con_animals.csv"
 
@@ -81,13 +82,22 @@ bin_specs <- tibble::tribble(
   "10min",    600,
   "30min",    1800
 )
+requested_bin_labels <- getOption("mmm.bin_labels", bin_specs$bin_label)
+if (!all(requested_bin_labels %in% bin_specs$bin_label)) {
+  stop(
+    "Unknown requested bin label(s): ",
+    paste(setdiff(requested_bin_labels, bin_specs$bin_label), collapse = ", "),
+    call. = FALSE
+  )
+}
+bin_specs <- bin_specs %>% filter(bin_label %in% requested_bin_labels)
 
 metadata_file <- NULL
 long_gap_threshold_sec <- 3600
 exclude_long_gaps_from_metrics <- TRUE
 
-use_multicore <- TRUE
-n_cores <- max(1L, parallel::detectCores(logical = TRUE) - 1L)
+use_multicore <- getOption("mmm.use_multicore", TRUE)
+n_cores <- getOption("mmm.n_cores", max(1L, parallel::detectCores(logical = TRUE) - 1L))
 
 if (use_multicore && requireNamespace("furrr", quietly = TRUE) && requireNamespace("future", quietly = TRUE)) {
   future::plan(future::multisession, workers = n_cores)
@@ -155,14 +165,6 @@ safe_divide <- function(num, den) {
   ifelse(is.finite(den) & den > 0, num / den, NA_real_)
 }
 
-normalize_animal_id <- function(x) {
-  x %>%
-    as.character() %>%
-    stringr::str_trim() %>%
-    stringr::str_replace_all("\\s+", "") %>%
-    toupper()
-}
-
 read_animal_id_list <- function(path, label) {
   if (is.null(path) || !file.exists(path)) {
     warning("Animal reference file not found for ", label, ": ", path, call. = FALSE)
@@ -170,9 +172,51 @@ read_animal_id_list <- function(path, label) {
   }
 
   readr::read_lines(path, progress = FALSE) %>%
-    normalize_animal_id() %>%
+    canonical_animal_id() %>%
     purrr::discard(~ is.na(.x) || .x == "") %>%
     unique()
+}
+
+repair_existing_metrics_identity <- function(path) {
+  if (!file.exists(path)) {
+    stop("Cannot repair identity metadata; derived metrics file is missing: ", path, call. = FALSE)
+  }
+  sus_ids <- read_animal_id_list(sus_animals_file, "SUS")
+  con_ids <- read_animal_id_list(con_animals_file, "CON")
+  overlap <- intersect(sus_ids, con_ids)
+  if (length(overlap) > 0L) {
+    stop("Canonical AnimalIDs occur in both SUS and CON references: ", paste(overlap, collapse = ", "), call. = FALSE)
+  }
+  dat <- readr::read_csv(path, show_col_types = FALSE)
+  animal_col <- first_existing_col(dat, c("AnimalNum", "AnimalID", "Animal"), TRUE, "derived-metrics animal column")
+  sex_col <- first_existing_col(dat, c("Sex", "sex"), FALSE, "derived-metrics sex column")
+  if (is.na(sex_col)) stop("Derived metrics file lacks Sex; cannot validate identity metadata.", call. = FALSE)
+  dat <- dat %>%
+    mutate(
+      AnimalID_raw = if ("AnimalID_raw" %in% names(.)) as.character(AnimalID_raw) else as.character(.data[[animal_col]]),
+      AnimalNum = canonical_animal_id(.data[[animal_col]]),
+      AnimalID = AnimalNum,
+      Group = case_when(
+        AnimalNum %in% sus_ids ~ "SUS",
+        AnimalNum %in% con_ids ~ "CON",
+        assign_unlisted_animals_as_res ~ "RES",
+        TRUE ~ NA_character_
+      ),
+      Sex = as.character(.data[[sex_col]])
+    )
+  conflicts <- dat %>%
+    distinct(AnimalNum, Group, Sex) %>%
+    group_by(AnimalNum) %>%
+    summarise(n_groups = n_distinct(Group), n_sexes = n_distinct(Sex), .groups = "drop") %>%
+    filter(n_groups > 1L | n_sexes > 1L)
+  if (nrow(conflicts) > 0L) {
+    stop("Identity repair would leave conflicting Group or Sex metadata.", call. = FALSE)
+  }
+  if (n_distinct(dat$AnimalNum) != 111L) {
+    stop("Identity repair expected 111 canonical animals but found ", n_distinct(dat$AnimalNum), call. = FALSE)
+  }
+  readr::write_csv(dat, path, na = "NA")
+  invisible(dat)
 }
 
 assign_batch_sex <- function(batch) {
@@ -199,8 +243,11 @@ read_preprocessed_position_file <- function(path) {
   dat %>%
     mutate(
       DateTime = suppressWarnings(as.POSIXct(DateTime, tz = "UTC")),
-      AnimalID = as.character(AnimalID),
-      AnimalNum = AnimalID,
+      AnimalID_raw = as.character(AnimalID),
+      AnimalNum = canonical_animal_id(AnimalID_raw),
+      # Keep AnimalID as a compatibility alias for the canonical analysis ID.
+      # The unmodified source spelling remains available in AnimalID_raw.
+      AnimalID = AnimalNum,
       System = as.character(System),
       PositionID = suppressWarnings(as.integer(PositionID)),
       SourceFile = basename(path),
@@ -227,6 +274,16 @@ read_preprocessed_position_file <- function(path) {
     arrange(SourceFile, Batch, CageChange, System, DateTime, AnimalID)
 }
 
+if (isTRUE(getOption("mmm.repair_existing_metrics_identity", FALSE))) {
+  repair_path <- getOption(
+    "mmm.repair_metrics_path",
+    file.path(output_root, "10min_based", "all_behavior_metrics.csv")
+  )
+  repair_existing_metrics_identity(repair_path)
+  message("Repaired canonical animal identity/group metadata in: ", repair_path)
+  quit(save = "no", status = 0L)
+}
+
 files <- list.files(input_dir, pattern = "_preprocessed\\.csv$", full.names = TRUE)
 if (length(files) == 0) stop("No preprocessed files found in ", input_dir, call. = FALSE)
 
@@ -241,14 +298,14 @@ if (!is.null(metadata_file) && file.exists(metadata_file)) {
 
   meta_small <- meta %>%
     transmute(
-      AnimalID = as.character(.data[[meta_animal_col]]),
+      AnimalNum = canonical_animal_id(.data[[meta_animal_col]]),
       MetaGroup = if (!is.na(meta_group_col)) as.character(.data[[meta_group_col]]) else NA_character_,
       MetaSex = if (!is.na(meta_sex_col)) as.character(.data[[meta_sex_col]]) else NA_character_
     ) %>%
-    distinct(AnimalID, .keep_all = TRUE)
+    distinct(AnimalNum, .keep_all = TRUE)
 
   all_pos <- all_pos %>%
-    left_join(meta_small, by = "AnimalID") %>%
+    left_join(meta_small, by = "AnimalNum") %>%
     mutate(Group = coalesce(Group, MetaGroup), Sex = coalesce(Sex, MetaSex)) %>%
     select(-MetaGroup, -MetaSex)
 }
@@ -271,8 +328,7 @@ if (length(reference_overlap) > 0) {
 
 all_pos <- all_pos %>%
   mutate(
-    AnimalID_raw = AnimalID,
-    AnimalID_norm = normalize_animal_id(AnimalID),
+    AnimalID_norm = canonical_animal_id(AnimalNum),
     Batch_norm = toupper(str_trim(Batch)),
     ReferenceGroup = case_when(
       AnimalID_norm %in% sus_animals ~ "SUS",
@@ -285,8 +341,29 @@ all_pos <- all_pos %>%
     Sex = coalesce(ReferenceSex, Sex)
   )
 
+# Raw aliases may map many-to-one, but phenotype and sex must be unique on the
+# canonical analysis identity before any metric aggregation occurs.
+identity_conflicts <- all_pos %>%
+  distinct(AnimalNum, Group, Sex) %>%
+  group_by(AnimalNum) %>%
+  summarise(
+    n_groups = n_distinct(Group, na.rm = TRUE),
+    n_sexes = n_distinct(Sex, na.rm = TRUE),
+    groups = paste(sort(unique(na.omit(Group))), collapse = "|"),
+    sexes = paste(sort(unique(na.omit(Sex))), collapse = "|"),
+    .groups = "drop"
+  ) %>%
+  filter(n_groups > 1L | n_sexes > 1L)
+if (nrow(identity_conflicts) > 0L) {
+  stop(
+    "Canonical animal identity has conflicting Group or Sex metadata:\n",
+    paste(utils::capture.output(print(identity_conflicts, n = Inf)), collapse = "\n"),
+    call. = FALSE
+  )
+}
+
 animal_group_sex_qc <- all_pos %>%
-  distinct(AnimalID_raw, AnimalID_norm, Batch, Batch_norm, Sex, Group, ReferenceGroup, ReferenceSex) %>%
+  distinct(AnimalID_raw, AnimalNum, AnimalID_norm, Batch, Batch_norm, Sex, Group, ReferenceGroup, ReferenceSex) %>%
   arrange(Batch_norm, Group, AnimalID_norm)
 
 write_table(
