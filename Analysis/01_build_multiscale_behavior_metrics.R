@@ -17,6 +17,15 @@
 #   analysis_ready/03_derived_metrics/qc/reference_ids_not_found_in_preprocessed_data.csv
 #   analysis_ready/03_derived_metrics/qc/group_sex_assignment_summary.csv
 #
+# Recovering after an animal-identity correction (e.g. a canonical_animal_id()
+# change in Functions/behavioral_dynamics_helpers.R):
+#   The only supported recovery path is a full rerun of this script from the
+#   preprocessed position data, which regenerates every fixed-width scale plus
+#   phase_based from scratch. There is no supported in-place repair of a single
+#   existing derived-metrics file. A forensic/testing-only single-file repair
+#   helper (never equivalent to a full rebuild) lives in
+#   Testing/repair_existing_metrics_identity_utility.R.
+#
 # Key definitions:
 #   Movement                  = number of RFID position transitions per animal/bin
 #   MovementDistance          = summed Manhattan grid distance moved per animal/bin
@@ -177,48 +186,6 @@ read_animal_id_list <- function(path, label) {
     unique()
 }
 
-repair_existing_metrics_identity <- function(path) {
-  if (!file.exists(path)) {
-    stop("Cannot repair identity metadata; derived metrics file is missing: ", path, call. = FALSE)
-  }
-  sus_ids <- read_animal_id_list(sus_animals_file, "SUS")
-  con_ids <- read_animal_id_list(con_animals_file, "CON")
-  overlap <- intersect(sus_ids, con_ids)
-  if (length(overlap) > 0L) {
-    stop("Canonical AnimalIDs occur in both SUS and CON references: ", paste(overlap, collapse = ", "), call. = FALSE)
-  }
-  dat <- readr::read_csv(path, show_col_types = FALSE)
-  animal_col <- first_existing_col(dat, c("AnimalNum", "AnimalID", "Animal"), TRUE, "derived-metrics animal column")
-  sex_col <- first_existing_col(dat, c("Sex", "sex"), FALSE, "derived-metrics sex column")
-  if (is.na(sex_col)) stop("Derived metrics file lacks Sex; cannot validate identity metadata.", call. = FALSE)
-  dat <- dat %>%
-    mutate(
-      AnimalID_raw = if ("AnimalID_raw" %in% names(.)) as.character(AnimalID_raw) else as.character(.data[[animal_col]]),
-      AnimalNum = canonical_animal_id(.data[[animal_col]]),
-      AnimalID = AnimalNum,
-      Group = case_when(
-        AnimalNum %in% sus_ids ~ "SUS",
-        AnimalNum %in% con_ids ~ "CON",
-        assign_unlisted_animals_as_res ~ "RES",
-        TRUE ~ NA_character_
-      ),
-      Sex = as.character(.data[[sex_col]])
-    )
-  conflicts <- dat %>%
-    distinct(AnimalNum, Group, Sex) %>%
-    group_by(AnimalNum) %>%
-    summarise(n_groups = n_distinct(Group), n_sexes = n_distinct(Sex), .groups = "drop") %>%
-    filter(n_groups > 1L | n_sexes > 1L)
-  if (nrow(conflicts) > 0L) {
-    stop("Identity repair would leave conflicting Group or Sex metadata.", call. = FALSE)
-  }
-  if (n_distinct(dat$AnimalNum) != 111L) {
-    stop("Identity repair expected 111 canonical animals but found ", n_distinct(dat$AnimalNum), call. = FALSE)
-  }
-  readr::write_csv(dat, path, na = "NA")
-  invisible(dat)
-}
-
 assign_batch_sex <- function(batch) {
   batch_norm <- toupper(stringr::str_trim(as.character(batch)))
   dplyr::case_when(
@@ -272,16 +239,6 @@ read_preprocessed_position_file <- function(path) {
     ) %>%
     filter(!is.na(DateTime), !is.na(AnimalID), !is.na(System), is.finite(PositionID), PositionID > 0) %>%
     arrange(SourceFile, Batch, CageChange, System, DateTime, AnimalID)
-}
-
-if (isTRUE(getOption("mmm.repair_existing_metrics_identity", FALSE))) {
-  repair_path <- getOption(
-    "mmm.repair_metrics_path",
-    file.path(output_root, "10min_based", "all_behavior_metrics.csv")
-  )
-  repair_existing_metrics_identity(repair_path)
-  message("Repaired canonical animal identity/group metadata in: ", repair_path)
-  quit(save = "no", status = 0L)
 }
 
 files <- list.files(input_dir, pattern = "_preprocessed\\.csv$", full.names = TRUE)

@@ -572,6 +572,21 @@ feature_module_from_parts <- function(source, domain, metric, statistic, context
 }
 
 # ------------------------------------------------
+# STAGE 04 / STAGE 09 UPSTREAM ARTIFACT RESOLUTION (single source of truth)
+# ------------------------------------------------
+# Resolved once here; every downstream loader and audit below reuses these
+# same resolved objects rather than re-deriving candidate paths, so the
+# dependency/integration audits can never disagree with what was actually
+# imported into the dashboard.
+
+stage04_temporal_instability_primary <- resolve_stage04_temporal_instability_artifact(
+  project_root, "temporal_instability_metrics_per_animal_all_metrics.csv", domain_bin_preference("temporal_flexibility")
+)
+stage09_early_prediction_primary <- resolve_stage09_early_prediction_artifact(
+  project_root, "early_behavior_features_wide.csv", domain_bin_preference("early_prediction")
+)
+
+# ------------------------------------------------
 # INPUT PATH REGISTRY
 # ------------------------------------------------
 
@@ -593,9 +608,9 @@ paths <- tibble(
   ),
   Path = c(
     file.path(project_root, "analysis_ready/03_derived_metrics", primary_bin_level, "all_behavior_metrics.csv"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", primary_bin_level, "tables"),
+    stage04_temporal_instability_primary$path,
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", primary_bin_level, "tables"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", primary_bin_level, "tables"),
+    stage09_early_prediction_primary$path,
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", primary_bin_level, "tables"),
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", primary_bin_level, "tables"),
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", primary_bin_level, "tables"),
@@ -1326,17 +1341,10 @@ optional_files <- tibble(
     "phase_organization", "phase_organization", "phase_organization", "phase_organization", "phase_organization"
   ),
   path = c(
-    first_existing_path(c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", domain_bin_preference("temporal_flexibility"), "tables/temporal_instability_metrics_per_animal_all_metrics.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", domain_bin_preference("temporal_flexibility"), "tables/burstiness_instability_features.csv")
-    )),
+    stage04_temporal_instability_primary$path,
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_diversity_metrics.csv")),
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_switching_metrics.csv")),
-    first_existing_path(c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", domain_bin_preference("early_prediction"), "tables/early_behavior_features_wide.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", domain_bin_preference("early_prediction"), "tables/early_behavior_features.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", domain_bin_preference("early_prediction"), "tables/early_behavior_features_wide.csv")
-    )),
+    stage09_early_prediction_primary$path,
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables/animal_level_social_dynamics.csv")),
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables/dyadic_node_summary.csv")),
     first_existing_path(file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", domain_bin_preference("nonlinear_systems"), "derived_data/animal_level_nonlinear_feature_matrix.csv")),
@@ -1915,15 +1923,12 @@ integration_audit_registry <- tibble(
   ),
   expected_outputs = I(list(
     file.path(project_root, "analysis_ready/03_derived_metrics", primary_bin_level, "all_behavior_metrics.csv"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", domain_bin_preference("temporal_flexibility"), "tables/temporal_instability_metrics_per_animal_all_metrics.csv"),
+    stage04_temporal_instability_primary$tried,
     c(
       file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_diversity_metrics.csv"),
       file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_switching_metrics.csv")
     ),
-    c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", domain_bin_preference("early_prediction"), "tables/early_behavior_features.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", domain_bin_preference("early_prediction"), "tables/early_behavior_features_wide.csv")
-    ),
+    stage09_early_prediction_primary$tried,
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables/animal_level_social_dynamics.csv"),
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", domain_bin_preference("hmm"), "tables/hmm_state_occupancy.csv"),
     c(
@@ -2046,22 +2051,10 @@ systems_robustness_audit <- tibble(
     if (is.null(proteomics_module_file)) NA_character_ else proteomics_module_file
   ),
   upstream_evidence = c(
-    first_existing_path(c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", primary_bin_level, "tables/model_ladder_performance.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", primary_bin_level, "tables/model_ladder_performance.csv")
-    )),
-    first_existing_path(c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", primary_bin_level, "tables/model_ladder_performance.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", primary_bin_level, "tables/model_ladder_performance.csv")
-    )),
-    first_existing_path(c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", primary_bin_level, "tables/model_ladder_repeated_grouped_kfold_performance.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", primary_bin_level, "tables/model_ladder_repeated_grouped_kfold_performance.csv")
-    )),
-    first_existing_path(c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", primary_bin_level, "tables/model_ladder_performance_duration_sensitivity.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction", primary_bin_level, "tables/model_ladder_performance_duration_sensitivity.csv")
-    )),
+    resolve_stage09_early_prediction_artifact(project_root, "model_ladder_performance.csv", domain_bin_preference("early_prediction"))$path,
+    resolve_stage09_early_prediction_artifact(project_root, "model_ladder_performance.csv", domain_bin_preference("early_prediction"))$path,
+    resolve_stage09_early_prediction_artifact(project_root, "model_ladder_repeated_grouped_kfold_performance.csv", domain_bin_preference("early_prediction"))$path,
+    resolve_stage09_early_prediction_artifact(project_root, "model_ladder_performance_duration_sensitivity.csv", domain_bin_preference("early_prediction"))$path,
     file.path(project_root, "analysis_ready/00_tracking_qc_rfid_loss", "tables/tracking_qc_by_animal.csv"),
     file.path(output_dir, "tables/duration_sensitivity"),
     file.path(project_root, "analysis_ready/12_behavior_proteomics_integration", "tables/behavior_proteomics_merged.csv")
@@ -3577,9 +3570,9 @@ sis_dependency_audit <- tibble(
   ),
   ExpectedPath = c(
     base_file,
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/burstiness", domain_bin_preference("temporal_flexibility"), "tables")),
+    stage04_temporal_instability_primary$path,
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables")),
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", domain_bin_preference("early_prediction"), "tables")),
+    resolve_stage09_early_prediction_artifact(project_root, "primary_prediction_performance.csv", domain_bin_preference("early_prediction"))$path,
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables")),
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", domain_bin_preference("hmm"), "tables")),
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", domain_bin_preference("adaptive_recovery"), "tables")),

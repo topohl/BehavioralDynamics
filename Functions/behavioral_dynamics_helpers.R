@@ -33,18 +33,14 @@ ensure_dir <- function(path) {
 # Canonical animal identity contract used for all behavioral metadata joins.
 # Numeric identifiers are aliases irrespective of leading zero padding; mixed
 # alphanumeric identifiers retain their embedded zeros (for example OR004).
+# Vectorized over the whole input; never round-trips through numeric, so
+# arbitrarily long numeric-looking RFID strings do not lose precision.
 canonical_animal_id <- function(x) {
   x <- as.character(x)
-  out <- vapply(x, function(value) {
-    if (is.na(value)) return(NA_character_)
-    value <- toupper(gsub("\\s+", "", trimws(value)))
-    if (!nzchar(value)) return(NA_character_)
-    if (grepl("^[0-9]+$", value)) {
-      value <- sub("^0+(?=.)", "", value, perl = TRUE)
-    }
-    value
-  }, character(1))
-  unname(out)
+  normalized <- toupper(gsub("\\s+", "", trimws(x)))
+  is_numeric_like <- grepl("^[0-9]+$", normalized)
+  normalized[is_numeric_like] <- sub("^0+(?=.)", "", normalized[is_numeric_like], perl = TRUE)
+  ifelse(is.na(normalized) | !nzchar(normalized), NA_character_, normalized)
 }
 
 is_canonical_behavior_stage_path <- function(path) {

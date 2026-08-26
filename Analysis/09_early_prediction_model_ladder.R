@@ -529,9 +529,7 @@ early_dat <- early_dat %>%
   mutate(BinLevel = bin_level, ProximityInput = proximity_col)
 
 write_table(early_dat, file.path(output_dir, "tables", "early_window_rows_used.csv"))
-write_table(early_dat, file.path(output_dir, "tables", "design", "early_window_rows_used.csv"))
 write_table(filter_short_duration_epochs(early_dat, epoch_duration_qc), file.path(output_dir, "tables", "early_window_rows_used_excluding_short_duration.csv"))
-write_table(filter_short_duration_epochs(early_dat, epoch_duration_qc), file.path(output_dir, "tables", "design", "early_window_rows_used_excluding_short_duration.csv"))
 
 window_design_tbl <- early_dat %>%
   group_by(AnimalNum, Group, Sex, Phase) %>%
@@ -550,7 +548,6 @@ window_design_tbl <- early_dat %>%
   )
 
 write_table(window_design_tbl, file.path(output_dir, "tables", "early_window_design_by_animal.csv"))
-write_table(window_design_tbl, file.path(output_dir, "tables", "design", "early_window_design_by_animal.csv"))
 
 # ------------------------------------------------
 # FEATURE EXTRACTION
@@ -594,9 +591,6 @@ feature_wide <- feature_long %>%
 write_table(feature_long, file.path(output_dir, "tables", "early_behavior_features_long.csv"))
 write_table(feature_wide, file.path(output_dir, "tables", "early_behavior_features_wide.csv"))
 write_table(feature_wide %>% filter(!contains_short_duration_epoch %in% TRUE), file.path(output_dir, "tables", "early_behavior_features_wide_excluding_short_duration.csv"))
-write_table(feature_long, file.path(output_dir, "tables", "features", "early_behavior_features_long.csv"))
-write_table(feature_wide, file.path(output_dir, "tables", "features", "early_behavior_features_wide.csv"))
-write_table(feature_wide %>% filter(!contains_short_duration_epoch %in% TRUE), file.path(output_dir, "tables", "features", "early_behavior_features_wide_excluding_short_duration.csv"))
 
 readout_dictionary <- tibble(
   readout = c(
@@ -685,7 +679,7 @@ readout_dictionary <- tibble(
     "QC/sensitivity"
   )
 )
-write_table(readout_dictionary, file.path(output_dir, "tables", "documentation", "readout_dictionary.csv"))
+write_table(readout_dictionary, file.path(output_dir, "tables", "readout_dictionary.csv"))
 
 # ------------------------------------------------
 # ENDPOINT HANDLING
@@ -726,7 +720,6 @@ model_dat <- feature_wide %>%
 if (nrow(model_dat) < 8) stop("Fewer than 8 animals with endpoint data. Model ladder not reliable.")
 
 write_table(model_dat, file.path(output_dir, "tables", "model_ladder_input.csv"))
-write_table(model_dat, file.path(output_dir, "tables", "models", "model_ladder_input.csv"))
 
 # ------------------------------------------------
 # PRIMARY FEATURE ASSOCIATIONS
@@ -771,7 +764,6 @@ primary_assoc <- map_dfr(primary_features, function(fc) {
   arrange(spearman_p_bh)
 
 write_table(primary_assoc, file.path(output_dir, "tables", "primary_movement_entropyacf1_associations.csv"))
-write_table(primary_assoc, file.path(output_dir, "tables", "statistics", "primary_movement_entropyacf1_associations.csv"))
 
 primary_group_summary <- model_dat %>%
   select(AnimalNum, Group, Sex, outcome, all_of(primary_features)) %>%
@@ -843,8 +835,6 @@ primary_group_contrasts <- model_dat %>%
 
 write_table(primary_group_summary, file.path(output_dir, "tables", "primary_feature_group_summary.csv"))
 write_table(primary_group_contrasts, file.path(output_dir, "tables", "primary_feature_group_contrasts_descriptive.csv"))
-write_table(primary_group_summary, file.path(output_dir, "tables", "statistics", "primary_feature_group_summary.csv"))
-write_table(primary_group_contrasts, file.path(output_dir, "tables", "statistics", "primary_feature_group_contrasts_descriptive.csv"))
 
 # Sex-stratified associations are descriptive estimates; interaction tests below
 # formally assess whether feature slopes differ by Sex.
@@ -866,7 +856,6 @@ sex_specific_assoc <- model_dat %>%
   mutate(BinLevel = bin_level, Outcome = outcome_col)
 
 write_table(sex_specific_assoc, file.path(output_dir, "tables", "sex_specific_primary_associations.csv"))
-write_table(sex_specific_assoc, file.path(output_dir, "tables", "statistics", "sex_specific_primary_associations.csv"))
 
 primary_correlation_stats_by_sex <- model_dat %>%
   group_by(Sex) %>%
@@ -888,7 +877,6 @@ primary_correlation_stats_by_sex <- model_dat %>%
   select(Sex, feature, feature_label, n, pearson_r, pearson_p, pearson_p_bh_within_sex, spearman_rho, spearman_p, spearman_p_bh_within_sex, CorrelationUse)
 
 write_table(primary_correlation_stats_by_sex, file.path(output_dir, "tables", "primary_movement_entropyacf1_correlations_by_sex.csv"))
-write_table(primary_correlation_stats_by_sex, file.path(output_dir, "tables", "statistics", "primary_movement_entropyacf1_correlations_by_sex.csv"))
 
 primary_feature_sex_interactions <- map_dfr(primary_features, function(fc) {
   d <- model_dat %>%
@@ -929,7 +917,7 @@ primary_feature_sex_interactions <- map_dfr(primary_features, function(fc) {
     interaction_test_family = "Three canonical primary feature-by-Sex interaction tests"
   )
 
-write_table(primary_feature_sex_interactions, file.path(output_dir, "tables", "statistics", "primary_feature_sex_interactions.csv"))
+write_table(primary_feature_sex_interactions, file.path(output_dir, "tables", "primary_feature_sex_interactions.csv"))
 
 # ------------------------------------------------
 # MODEL LADDER: EXPLICIT INCREMENTAL PREDICTION
@@ -971,8 +959,7 @@ model_predictor_audit <- imap_dfr(model_specs, function(predictors, model_name) 
   )
 })
 write_table(model_predictor_audit, file.path(output_dir, "tables", "model_ladder_predictor_audit.csv"))
-write_table(model_predictor_audit, file.path(output_dir, "tables", "documentation", "model_specification_dictionary.csv"))
-write_table(model_predictor_audit, file.path(output_dir, "tables", "models", "model_ladder_predictor_audit.csv"))
+write_table(model_predictor_audit, file.path(output_dir, "tables", "model_specification_dictionary.csv"))
 
 numeric_predictors <- unique(unlist(model_specs))
 numeric_predictors <- numeric_predictors[numeric_predictors %in% names(model_dat) & sapply(model_dat[numeric_predictors], is.numeric)]
@@ -1109,13 +1096,6 @@ write_table(incremental_summary, file.path(output_dir, "tables", "model_ladder_i
 write_table(ladder_predictions_duration_sensitivity, file.path(output_dir, "tables", "model_ladder_loo_predictions_duration_sensitivity.csv"))
 write_table(ladder_coefficients_duration_sensitivity, file.path(output_dir, "tables", "model_ladder_loo_coefficients_duration_sensitivity.csv"))
 write_table(ladder_performance_duration_sensitivity, file.path(output_dir, "tables", "model_ladder_performance_duration_sensitivity.csv"))
-write_table(ladder_predictions, file.path(output_dir, "tables", "models", "model_ladder_loo_predictions.csv"))
-write_table(ladder_coefficients, file.path(output_dir, "tables", "models", "model_ladder_loo_coefficients.csv"))
-write_table(ladder_performance, file.path(output_dir, "tables", "models", "model_ladder_performance.csv"))
-write_table(incremental_summary, file.path(output_dir, "tables", "models", "model_ladder_incremental_summary.csv"))
-write_table(ladder_predictions_duration_sensitivity, file.path(output_dir, "tables", "sensitivity", "model_ladder_loo_predictions_duration_sensitivity.csv"))
-write_table(ladder_coefficients_duration_sensitivity, file.path(output_dir, "tables", "sensitivity", "model_ladder_loo_coefficients_duration_sensitivity.csv"))
-write_table(ladder_performance_duration_sensitivity, file.path(output_dir, "tables", "sensitivity", "model_ladder_performance_duration_sensitivity.csv"))
 
 # ------------------------------------------------
 # GROUPED K-FOLD COMPANION AND LEGACY COMPATIBILITY LADDERS
@@ -1382,7 +1362,7 @@ primary_prediction_model_dictionary <- primary_prediction_registry %>%
     uses_group = map_lgl(predictors_list, ~"Group" %in% .x),
     notes
   )
-write_table(primary_prediction_model_dictionary, file.path(output_dir, "tables", "documentation", "primary_prediction_model_registry.csv"))
+write_table(primary_prediction_model_dictionary, file.path(output_dir, "tables", "primary_prediction_model_registry.csv"))
 
 primary_loo_results <- imap(primary_prediction_specs, ~loo_lm_predict(model_dat, .x, .y))
 primary_prediction_predictions <- map_dfr(primary_loo_results, "predictions")
@@ -1473,8 +1453,8 @@ primary_prediction_performance <- primary_prediction_registry %>%
 if (!identical(primary_prediction_performance$model_id, expected_primary_model_ids)) {
   stop("The canonical primary prediction summary contains unintended or missing models.", call. = FALSE)
 }
-write_table(primary_prediction_performance, file.path(output_dir, "tables", "models", "primary_prediction_performance.csv"))
-write_table(primary_prediction_permutation_test, file.path(output_dir, "tables", "models", "primary_prediction_permutation_test.csv"))
+write_table(primary_prediction_performance, file.path(output_dir, "tables", "primary_prediction_performance.csv"))
+write_table(primary_prediction_permutation_test, file.path(output_dir, "tables", "primary_prediction_permutation_test.csv"))
 
 behavior_predictors <- c("Movement_mean", "Movement_rmssd", "Entropy_acf1")
 compact_behavior_predictors <- c(
@@ -1517,7 +1497,7 @@ behavior_cv_model_dictionary <- imap_dfr(cv_specs, function(predictors, model_na
     )
   )
 })
-write_table(behavior_cv_model_dictionary, file.path(output_dir, "tables", "documentation", "behavior_cv_model_dictionary.csv"))
+write_table(behavior_cv_model_dictionary, file.path(output_dir, "tables", "behavior_cv_model_dictionary.csv"))
 
 cv_predictors <- unique(unlist(cv_specs))
 cv_predictors <- cv_predictors[cv_predictors %in% names(model_dat) & sapply(model_dat[cv_predictors], is.numeric)]
@@ -1588,9 +1568,6 @@ prediction_interpretation_constraints <- tibble(
 write_table(repeated_cv_predictions, file.path(output_dir, "tables", "model_ladder_repeated_grouped_kfold_predictions.csv"))
 write_table(repeated_cv_performance_all, file.path(output_dir, "tables", "model_ladder_repeated_grouped_kfold_performance.csv"))
 write_table(prediction_interpretation_constraints, file.path(output_dir, "tables", "prediction_interpretation_constraints.csv"))
-write_table(repeated_cv_predictions, file.path(output_dir, "tables", "models", "model_ladder_repeated_grouped_kfold_predictions.csv"))
-write_table(repeated_cv_performance_all, file.path(output_dir, "tables", "models", "model_ladder_repeated_grouped_kfold_performance.csv"))
-write_table(prediction_interpretation_constraints, file.path(output_dir, "tables", "documentation", "prediction_interpretation_constraints.csv"))
 
 # ------------------------------------------------
 # MATCHED LADDERS: BEHAVIOR ONLY VS COVARIATE SENSITIVITY
@@ -1646,8 +1623,6 @@ matched_ladder_predictor_audit <- imap_dfr(matched_ladder_specs, function(specs,
 })
 
 write_table(matched_ladder_predictor_audit, file.path(output_dir, "tables", "matched_ladder_predictor_audit.csv"))
-write_table(matched_ladder_predictor_audit, file.path(output_dir, "tables", "models", "matched_ladder_predictor_audit.csv"))
-write_table(matched_ladder_predictor_audit, file.path(output_dir, "tables", "documentation", "matched_ladder_predictor_audit.csv"))
 
 matched_ladder_predictors <- unique(unlist(matched_ladder_specs))
 matched_ladder_numeric_predictors <- matched_ladder_predictors[
@@ -1715,9 +1690,6 @@ matched_ladder_performance <- matched_ladder_predictions %>%
 write_table(matched_ladder_predictions, file.path(output_dir, "tables", "matched_ladder_loo_predictions.csv"))
 write_table(matched_ladder_coefficients, file.path(output_dir, "tables", "matched_ladder_loo_coefficients.csv"))
 write_table(matched_ladder_performance, file.path(output_dir, "tables", "matched_ladder_performance.csv"))
-write_table(matched_ladder_predictions, file.path(output_dir, "tables", "models", "matched_ladder_loo_predictions.csv"))
-write_table(matched_ladder_coefficients, file.path(output_dir, "tables", "models", "matched_ladder_loo_coefficients.csv"))
-write_table(matched_ladder_performance, file.path(output_dir, "tables", "models", "matched_ladder_performance.csv"))
 
 matched_cv_specs <- list()
 for (adjustment in names(matched_ladder_specs)) {
@@ -1749,8 +1721,6 @@ matched_cv_performance <- matched_cv_predictions %>%
 
 write_table(matched_cv_predictions, file.path(output_dir, "tables", "matched_ladder_repeated_grouped_kfold_predictions.csv"))
 write_table(matched_cv_performance, file.path(output_dir, "tables", "matched_ladder_repeated_grouped_kfold_performance.csv"))
-write_table(matched_cv_predictions, file.path(output_dir, "tables", "models", "matched_ladder_repeated_grouped_kfold_predictions.csv"))
-write_table(matched_cv_performance, file.path(output_dir, "tables", "models", "matched_ladder_repeated_grouped_kfold_performance.csv"))
 
 # ------------------------------------------------
 # PREDICTION CORRELATION STATS FOR PLOTTED LADDERS
@@ -1796,9 +1766,7 @@ matched_ladder_prediction_correlation_stats <- matched_ladder_predictions %>%
   select(AdjustmentSet, ModelFamily, DisplayModel, n, pearson_r, pearson_p, pearson_p_bh_within_adjustment, spearman_rho, spearman_p, spearman_p_bh_within_adjustment, rmse, mae, cv_r2_vs_mean, prediction_permutation_p, ReportingPriority, ManuscriptUse, CorrelationUse)
 
 write_table(ladder_prediction_correlation_stats, file.path(output_dir, "tables", "model_ladder_prediction_correlations.csv"))
-write_table(ladder_prediction_correlation_stats, file.path(output_dir, "tables", "models", "model_ladder_prediction_correlations.csv"))
 write_table(matched_ladder_prediction_correlation_stats, file.path(output_dir, "tables", "matched_ladder_prediction_correlations.csv"))
-write_table(matched_ladder_prediction_correlation_stats, file.path(output_dir, "tables", "models", "matched_ladder_prediction_correlations.csv"))
 
 # ------------------------------------------------
 # FIGURES
@@ -1845,7 +1813,7 @@ p_primary <- model_dat %>%
   make_publication_theme(base_size = 6) +
   theme(legend.box.spacing = unit(0.5, "mm"), aspect.ratio = 1)
 
-save_plot_svg_pdf(p_primary, file.path(output_dir, "figures", "publication", "primary_movement_entropyacf1_vs_combz"), width = 183, height = 125)
+save_plot_svg_pdf(p_primary, file.path(output_dir, "figures", "primary_movement_entropyacf1_vs_combz"), width = 183, height = 125)
 
 p_ladder <- ladder_performance %>%
   mutate(
@@ -1870,7 +1838,7 @@ p_ladder <- ladder_performance %>%
   make_publication_theme(base_size = 7) +
   theme(panel.grid.major.y = element_blank())
 
-save_plot_svg_pdf(p_ladder, file.path(output_dir, "figures", "publication", "model_ladder_cv_r2"), width = 89, height = 82)
+save_plot_svg_pdf(p_ladder, file.path(output_dir, "figures", "model_ladder_cv_r2"), width = 89, height = 82)
 
 make_matched_ladder_plot <- function(perf_tbl, adjustment_filter = NULL, title = "Prediction ladder", subtitle = NULL, facet = FALSE) {
   plot_tbl <- perf_tbl %>%
@@ -1907,7 +1875,7 @@ p_matched_behavior_only <- make_matched_ladder_plot(
   title = "Legacy behavior-only prediction ladder",
   subtitle = "Compatibility output; canonical a priori models are reported in primary_prediction_performance.csv"
 )
-save_plot_svg_pdf(p_matched_behavior_only, file.path(output_dir, "figures", "publication", "matched_ladder_behavior_only_cv_r2"), width = 89, height = 82)
+save_plot_svg_pdf(p_matched_behavior_only, file.path(output_dir, "figures", "matched_ladder_behavior_only_cv_r2"), width = 89, height = 82)
 
 p_matched_behavior_sex <- make_matched_ladder_plot(
   matched_ladder_performance,
@@ -1915,7 +1883,7 @@ p_matched_behavior_sex <- make_matched_ladder_plot(
   title = "Legacy Sex-adjusted prediction ladder",
   subtitle = "Supplementary compatibility output"
 )
-save_plot_svg_pdf(p_matched_behavior_sex, file.path(output_dir, "figures", "publication", "matched_ladder_behavior_plus_sex_cv_r2"), width = 89, height = 82)
+save_plot_svg_pdf(p_matched_behavior_sex, file.path(output_dir, "figures", "matched_ladder_behavior_plus_sex_cv_r2"), width = 89, height = 82)
 
 p_matched_behavior_sex_group <- make_matched_ladder_plot(
   matched_ladder_performance,
@@ -1923,7 +1891,7 @@ p_matched_behavior_sex_group <- make_matched_ladder_plot(
   title = "Sex + group-adjusted prediction ladder",
   subtitle = "Contextual only: Group is endpoint-derived and not primary prospective evidence"
 )
-save_plot_svg_pdf(p_matched_behavior_sex_group, file.path(output_dir, "figures", "publication", "matched_ladder_behavior_plus_sex_group_cv_r2"), width = 89, height = 82)
+save_plot_svg_pdf(p_matched_behavior_sex_group, file.path(output_dir, "figures", "matched_ladder_behavior_plus_sex_group_cv_r2"), width = 89, height = 82)
 
 p_matched_ladder_combined <- make_matched_ladder_plot(
   matched_ladder_performance,
@@ -1932,7 +1900,7 @@ p_matched_ladder_combined <- make_matched_ladder_plot(
   facet = TRUE
 ) +
   theme(legend.position = "top")
-save_plot_svg_pdf(p_matched_ladder_combined, file.path(output_dir, "figures", "publication", "matched_ladder_covariate_comparison_cv_r2"), width = 183, height = 82)
+save_plot_svg_pdf(p_matched_ladder_combined, file.path(output_dir, "figures", "matched_ladder_covariate_comparison_cv_r2"), width = 183, height = 82)
 
 p_behavior_cv <- repeated_cv_performance_all %>%
   filter(DurationAnalysisSet == "full") %>%
@@ -1958,7 +1926,7 @@ p_behavior_cv <- repeated_cv_performance_all %>%
   make_publication_theme(base_size = 7) +
   theme(panel.grid.major.y = element_blank(), legend.position = "none")
 
-save_plot_svg_pdf(p_behavior_cv, file.path(output_dir, "figures", "publication", "behavior_only_repeated_cv_ladder"), width = 183, height = 82)
+save_plot_svg_pdf(p_behavior_cv, file.path(output_dir, "figures", "behavior_only_repeated_cv_ladder"), width = 183, height = 82)
 
 primary_display_model_id <- "primary_behavior_family"
 primary_display_pred <- primary_prediction_predictions %>% filter(Model == primary_display_model_id)
@@ -1983,7 +1951,7 @@ p_pred <- primary_display_pred %>%
   make_publication_theme(base_size = 7)
 
 # Legacy filename retained for compatibility; the plotted model is fixed a priori.
-save_plot_svg_pdf(p_pred, file.path(output_dir, "figures", "publication", "best_model_observed_vs_predicted"), width = 89, height = 78)
+save_plot_svg_pdf(p_pred, file.path(output_dir, "figures", "best_model_observed_vs_predicted"), width = 89, height = 78)
 
 ladder_prediction_plot_tbl <- ladder_predictions %>%
   left_join(
@@ -2032,7 +2000,7 @@ p_ladder_prediction_correlations <- ladder_prediction_plot_tbl %>%
   make_publication_theme(base_size = 6) +
   theme(legend.position = "top")
 
-save_plot_svg_pdf(p_ladder_prediction_correlations, file.path(output_dir, "figures", "publication", "model_ladder_prediction_correlations"), width = 183, height = 112)
+save_plot_svg_pdf(p_ladder_prediction_correlations, file.path(output_dir, "figures", "model_ladder_prediction_correlations"), width = 183, height = 112)
 
 matched_prediction_plot_tbl <- matched_ladder_predictions %>%
   left_join(
@@ -2083,7 +2051,7 @@ p_matched_prediction_correlations <- matched_prediction_plot_tbl %>%
   make_publication_theme(base_size = 5.5) +
   theme(legend.position = "top")
 
-save_plot_svg_pdf(p_matched_prediction_correlations, file.path(output_dir, "figures", "publication", "matched_ladder_prediction_correlations"), width = 183, height = 132)
+save_plot_svg_pdf(p_matched_prediction_correlations, file.path(output_dir, "figures", "matched_ladder_prediction_correlations"), width = 183, height = 132)
 
 # ------------------------------------------------
 # TEXT SUMMARY FOR RESULTS WRITING
@@ -2113,36 +2081,32 @@ results_summary <- tibble(
 )
 
 write_table(results_summary, file.path(output_dir, "tables", "results_summary_text.csv"))
-write_table(results_summary, file.path(output_dir, "tables", "documentation", "results_summary_text.csv"))
 
 output_table_catalog <- tribble(
   ~file, ~category, ~contains, ~manuscript_use,
-  "tables/documentation/analysis_readme.txt", "documentation", "Plain-text guide to the analysis folder and recommended reading order.", "Start here",
-  "tables/documentation/readout_dictionary.csv", "documentation", "Definitions and manuscript roles for generated readouts.", "Methods/readout definitions",
-  "tables/documentation/primary_prediction_model_registry.csv", "documentation", "Fixed a priori canonical primary and Sex-adjusted model definitions.", "Methods/model specification",
-  "tables/documentation/model_specification_dictionary.csv", "documentation", "Legacy adjusted LOO ladder predictors and interpretation guardrails.", "Supplementary compatibility",
-  "tables/documentation/behavior_cv_model_dictionary.csv", "documentation", "Legacy repeated grouped CV model definitions and manuscript-use labels.", "Supplementary compatibility",
-  "tables/design/early_window_design_by_animal.csv", "design", "Animal-level early-window bin counts, timing, phase, and duration.", "Methods/QC",
-  "tables/features/early_behavior_features_wide.csv", "features", "Animal-level early-window feature matrix used for prediction.", "Methods/source data",
-  "tables/models/primary_prediction_performance.csv", "models", "Canonical fixed a priori LOAO performance with repeated-CV resampling quantiles.", "Primary model-performance result",
-  "tables/models/primary_prediction_permutation_test.csv", "models", "Outcome-permutation LOAO tests with full refitting for the two non-null primary behavior-only models.", "Primary prediction inference",
-  "tables/statistics/primary_movement_entropyacf1_associations.csv", "statistics", "Canonical primary feature-to-outcome correlations with bootstrap intervals and FDR correction.", "Main or supplement",
-  "tables/statistics/primary_movement_entropyacf1_correlations_by_sex.csv", "statistics", "Descriptive sex-stratified primary feature-to-outcome correlations.", "Descriptive main/supplement",
-  "tables/statistics/primary_feature_sex_interactions.csv", "statistics", "Pooled feature-by-Sex interaction terms with BH correction across three tests.", "Formal interaction inference",
-  "tables/statistics/primary_feature_group_summary.csv", "statistics", "Descriptive CON/RES/SUS distribution of primary early features.", "Descriptive group context",
-  "tables/models/model_ladder_performance.csv", "models", "Legacy adjusted leave-one-animal-out model performance.", "Supplementary compatibility",
-  "tables/models/model_ladder_prediction_correlations.csv", "models", "Observed-versus-predicted correlation statistics for every legacy adjusted LOO model.", "Supplementary compatibility",
-  "tables/models/model_ladder_repeated_grouped_kfold_performance.csv", "models", "Legacy repeated grouped CV performance with resampling quantiles.", "Supplementary compatibility",
-  "tables/models/matched_ladder_performance.csv", "models", "Legacy matched LOO behavior-only, Sex-adjusted, and Sex + Group-adjusted ladder performance.", "Supplementary compatibility",
-  "tables/models/matched_ladder_prediction_correlations.csv", "models", "Observed-versus-predicted correlation statistics for every matched ladder model.", "Supplementary compatibility",
-  "tables/models/matched_ladder_repeated_grouped_kfold_performance.csv", "models", "Legacy matched repeated grouped CV companion performance.", "Supplementary compatibility",
-  "tables/documentation/matched_ladder_predictor_audit.csv", "documentation", "Predictor audit for matched ladders, including covariates and manuscript-use labels.", "Methods/model specification",
-  "tables/sensitivity/model_ladder_performance_duration_sensitivity.csv", "sensitivity", "Duration robustness table comparing full data with short-duration exclusions.", "Robustness/supplement",
-  "tables/documentation/results_summary_text.csv", "documentation", "Short manuscript-ready text snippets generated from the canonical primary results.", "Drafting aid"
+  "audit/analysis_readme.txt", "documentation", "Plain-text guide to the analysis folder and recommended reading order.", "Start here",
+  "tables/readout_dictionary.csv", "documentation", "Definitions and manuscript roles for generated readouts.", "Methods/readout definitions",
+  "tables/primary_prediction_model_registry.csv", "documentation", "Fixed a priori canonical primary and Sex-adjusted model definitions.", "Methods/model specification",
+  "tables/model_specification_dictionary.csv", "documentation", "Legacy adjusted LOO ladder predictors and interpretation guardrails.", "Supplementary compatibility",
+  "tables/behavior_cv_model_dictionary.csv", "documentation", "Legacy repeated grouped CV model definitions and manuscript-use labels.", "Supplementary compatibility",
+  "tables/early_window_design_by_animal.csv", "design", "Animal-level early-window bin counts, timing, phase, and duration.", "Methods/QC",
+  "tables/early_behavior_features_wide.csv", "features", "Animal-level early-window feature matrix used for prediction.", "Methods/source data",
+  "tables/primary_prediction_performance.csv", "models", "Canonical fixed a priori LOAO performance with repeated-CV resampling quantiles.", "Primary model-performance result",
+  "tables/primary_prediction_permutation_test.csv", "models", "Outcome-permutation LOAO tests with full refitting for the two non-null primary behavior-only models.", "Primary prediction inference",
+  "tables/primary_movement_entropyacf1_associations.csv", "statistics", "Canonical primary feature-to-outcome correlations with bootstrap intervals and FDR correction.", "Main or supplement",
+  "tables/primary_movement_entropyacf1_correlations_by_sex.csv", "statistics", "Descriptive sex-stratified primary feature-to-outcome correlations.", "Descriptive main/supplement",
+  "tables/primary_feature_sex_interactions.csv", "statistics", "Pooled feature-by-Sex interaction terms with BH correction across three tests.", "Formal interaction inference",
+  "tables/primary_feature_group_summary.csv", "statistics", "Descriptive CON/RES/SUS distribution of primary early features.", "Descriptive group context",
+  "tables/model_ladder_performance.csv", "models", "Legacy adjusted leave-one-animal-out model performance.", "Supplementary compatibility",
+  "tables/model_ladder_prediction_correlations.csv", "models", "Observed-versus-predicted correlation statistics for every legacy adjusted LOO model.", "Supplementary compatibility",
+  "tables/model_ladder_repeated_grouped_kfold_performance.csv", "models", "Legacy repeated grouped CV performance with resampling quantiles.", "Supplementary compatibility",
+  "tables/matched_ladder_performance.csv", "models", "Legacy matched LOO behavior-only, Sex-adjusted, and Sex + Group-adjusted ladder performance.", "Supplementary compatibility",
+  "tables/matched_ladder_prediction_correlations.csv", "models", "Observed-versus-predicted correlation statistics for every matched ladder model.", "Supplementary compatibility",
+  "tables/matched_ladder_repeated_grouped_kfold_performance.csv", "models", "Legacy matched repeated grouped CV companion performance.", "Supplementary compatibility",
+  "tables/matched_ladder_predictor_audit.csv", "documentation", "Predictor audit for matched ladders, including covariates and manuscript-use labels.", "Methods/model specification",
+  "tables/model_ladder_performance_duration_sensitivity.csv", "sensitivity", "Duration robustness table comparing full data with short-duration exclusions.", "Robustness/supplement",
+  "tables/results_summary_text.csv", "documentation", "Short manuscript-ready text snippets generated from the canonical primary results.", "Drafting aid"
 )
-output_table_catalog <- output_table_catalog %>%
-  mutate(file = paste0("tables/", basename(file)))
-write_table(output_table_catalog, file.path(output_dir, "tables", "documentation", "output_table_catalog.csv"))
 write_table(output_table_catalog, file.path(output_dir, "tables", "output_table_catalog.csv"))
 
 if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
