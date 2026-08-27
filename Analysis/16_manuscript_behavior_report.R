@@ -1038,7 +1038,11 @@ validation <- tribble(
   "resolution_sensitivity_status", "availability", "PASS", "Unavailable for canonical export unless corrected Stage 09 source exists", declared_sensitivity_status$robustness_status[declared_sensitivity_status$claim_id == "STATUS_S09_5MIN"], "Legacy 5-min output is not promoted.", "s09_prediction_performance",
   "duration_sensitivity_status", "availability", "PASS", "Not promoted from the legacy larger ladder", declared_sensitivity_status$robustness_status[declared_sensitivity_status$claim_id == "STATUS_S09_DURATION"], "Primary-model duration sensitivity remains explicitly unavailable.", "s09_prediction_performance",
   "required_source_availability", "lineage", "PASS", as.character(sum(source_registry$required)), as.character(sum(source_registry$required & source_registry$exists)), "All required Stage 03/09 sources resolved.", NA_character_,
-  "legacy_fallback_recorded", "lineage", "PASS", "Every fallback identified", paste(legacy_sources_used$source_id, collapse = "; "), "Canonical paths were preferred; selected legacy paths are explicit in Provenance.", NA_character_,
+  # An empty vector would paste() to "", and an empty string does not round-trip
+  # identically through CSV (read back as NA) and XLSX (read back as ""), which
+  # trips the strict workbook/CSV reconciliation below. Report the no-fallback
+  # case with an explicit sentinel instead; it is also clearer to a reader.
+  "legacy_fallback_recorded", "lineage", "PASS", "Every fallback identified", if (nrow(legacy_sources_used) == 0L) "none" else paste(legacy_sources_used$source_id, collapse = "; "), "Canonical paths were preferred; selected legacy paths are explicit in Provenance.", NA_character_,
   "protected_stage_hash_validation", "invariance", "PASS", "Upstream hashes stable during Stage 16", "PASS", "Stage 16 reads sources only; SHA-256 values before and after assembly matched.", NA_character_,
   "animal_source_uniqueness", "source_data", "PASS", "One row per AnimalID", as.character(nrow(animal_level_source_data)), "Animal-level values are selected directly from the canonical Stage 09 model input.", "s09_model_input",
   "prediction_source_uniqueness", "source_data", "PASS", "One row per AnimalID and model_id", as.character(nrow(prediction_source_data)), "Held-out predictions cover Movement_mean and the plotted three-feature model.", "s09_prediction_source",

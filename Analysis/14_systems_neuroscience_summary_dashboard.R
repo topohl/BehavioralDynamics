@@ -2459,6 +2459,9 @@ module_scorecards_base <- feature_qc %>%
   )))
 
 write_table(module_scorecards_base, file.path(output_dir, "tables/systems_module_scorecards_base.csv"))
+# Provisional: guarantees systems_module_scorecards.csv exists even when no
+# outcome data are available. Superseded below by the prediction-enriched
+# version whenever length(available_outcomes) > 0.
 write_table(module_scorecards_base, file.path(output_dir, "tables/systems_module_scorecards.csv"))
 
 feature_redundancy_tbl <- map_dfr(unique(feature_dictionary$Module), function(mod) {
@@ -4405,7 +4408,9 @@ if (length(available_outcomes) > 0) {
       )
     )
 
-  write_table(module_scorecards, file.path(output_dir, "tables/systems_module_scorecards.csv"))
+  # Final, prediction-enriched scorecards intentionally supersede the
+  # provisional base version written earlier in this run.
+  write_table(module_scorecards, file.path(output_dir, "tables/systems_module_scorecards.csv"), supersede = TRUE)
 
   prediction_sex_stats <- prediction_tbl %>%
     group_by(Sex) %>%

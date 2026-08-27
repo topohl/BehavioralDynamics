@@ -690,7 +690,13 @@ save_plot_svg_pdf <- function(plot, filename_base, width = 85, height = 65, unit
   invisible(filename_base)
 }
 
-write_table <- function(x, path, na = "NA", source_expression = NULL) {
+# `supersede = TRUE` marks an INTENTIONAL provisional-then-final write: a stage
+# writes a placeholder early so the artifact always exists, then overwrites it
+# with an enriched version once the optional inputs needed to build that version
+# are known to be available. Without the flag such a write is indistinguishable
+# from an accidental duplicate targeting the same path, which is exactly what
+# this registry exists to catch, so the guard stays strict by default.
+write_table <- function(x, path, na = "NA", source_expression = NULL, supersede = FALSE) {
   if (is.null(source_expression)) {
     source_expression <- paste(deparse(substitute(x)), collapse = " ")
   }
@@ -699,12 +705,15 @@ write_table <- function(x, path, na = "NA", source_expression = NULL) {
   if (exists(registry_key, envir = .mmm_output_write_registry, inherits = FALSE)) {
     prior_expression <- get(registry_key, envir = .mmm_output_write_registry, inherits = FALSE)
     if (identical(prior_expression, source_expression)) return(invisible(path))
-    stop(
-      "Conflicting canonical output writes target ", path,
-      ". First expression: ", prior_expression,
-      "; second expression: ", source_expression,
-      call. = FALSE
-    )
+    if (!isTRUE(supersede)) {
+      stop(
+        "Conflicting canonical output writes target ", path,
+        ". First expression: ", prior_expression,
+        "; second expression: ", source_expression,
+        ". If the second write is an intentional provisional-then-final upgrade, pass supersede = TRUE.",
+        call. = FALSE
+      )
+    }
   }
   ensure_dir(dirname(path))
   readr::write_csv(x, path, na = na)

@@ -94,3 +94,37 @@ cat("\nConclusion: the write-registry rerun bug is NOT reproducible under the no
 cat("pipeline entrypoint. Registry lifecycle semantics are left unchanged; the\n")
 cat("actual Stage 09 duplicate-write problem (same content written under two\n")
 cat("candidate paths within a single run) was fixed at the call sites instead.\n")
+
+# ------------------------------------------------------------------
+# Part 3: supersede semantics. A stage may legitimately write a
+# provisional artifact early and overwrite it with an enriched version
+# later in the SAME run (Stage 14's systems_module_scorecards.csv). That
+# is opt-in via supersede = TRUE; without it the duplicate-write guard
+# must still fire, because an unmarked duplicate is indistinguishable
+# from the accidental double-write this registry exists to catch.
+# ------------------------------------------------------------------
+tmp3 <- tempfile(fileext = ".csv")
+provisional <- tibble(v = 1)
+enriched <- tibble(v = 2, extra = "enriched")
+
+write_table(provisional, tmp3)
+check3a <- identical(as.numeric(read_csv(tmp3, show_col_types = FALSE)$v), 1)
+
+# Unmarked duplicate with different content must still error.
+blocked <- tryCatch({ write_table(enriched, tmp3); FALSE }, error = function(e) TRUE)
+
+# Marked supersede must overwrite.
+write_table(enriched, tmp3, supersede = TRUE)
+after <- read_csv(tmp3, show_col_types = FALSE)
+check3b <- identical(as.numeric(after$v), 2) && "extra" %in% names(after)
+
+cat("\n== Part 3: provisional-then-final supersede ==\n")
+cat("Provisional write landed:", check3a, "\n")
+cat("Unmarked duplicate still blocked:", blocked, "\n")
+cat("supersede = TRUE overwrote with enriched version:", check3b, "\n")
+unlink(tmp3)
+
+if (!check3a || !blocked || !check3b) {
+  stop("supersede semantics are incorrect: the guard must stay strict by default and only yield to an explicit supersede = TRUE.", call. = FALSE)
+}
+cat("\nSupersede semantics: PASS\n")
