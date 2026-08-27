@@ -685,6 +685,47 @@ write_table(readout_dictionary, file.path(output_dir, "tables", "readout_diction
 # ENDPOINT HANDLING
 # ------------------------------------------------
 
+# Endpoint animal IDs must be canonicalized on the SAME contract as the
+# behavioral metrics side (Stage 01 writes canonical AnimalNum). Endpoint
+# sources such as E9_Behavior_Data.xlsx store zero-padded spellings (0004,
+# 00303, ...), which silently fail to join against canonical metrics IDs and
+# drop those animals from every primary model. Collapsing aliases is only
+# safe if the aliases agree, so conflicting finite outcome values fail closed
+# rather than being silently resolved by first(na.omit(...)).
+collapse_endpoint_by_canonical_animal <- function(dat, animal_col, value_col, source_label) {
+  tidy <- dat %>%
+    transmute(
+      AnimalNum_raw = as.character(.data[[animal_col]]),
+      AnimalNum = canonical_animal_id(.data[[animal_col]]),
+      outcome = suppressWarnings(as.numeric(.data[[value_col]]))
+    ) %>%
+    filter(!is.na(AnimalNum))
+
+  conflicts <- tidy %>%
+    filter(is.finite(outcome)) %>%
+    group_by(AnimalNum) %>%
+    summarise(
+      n_distinct_outcome = n_distinct(outcome),
+      raw_ids = paste(sort(unique(AnimalNum_raw)), collapse = " | "),
+      outcome_values = paste(format(sort(unique(outcome))), collapse = " | "),
+      .groups = "drop"
+    ) %>%
+    filter(n_distinct_outcome > 1L)
+
+  if (nrow(conflicts) > 0L) {
+    stop(
+      "Endpoint aliases collapsing onto one canonical AnimalNum carry conflicting finite ",
+      value_col, " values (", source_label, "). Resolve the source data before rerunning:\n",
+      paste(utils::capture.output(print(as.data.frame(conflicts))), collapse = "\n"),
+      call. = FALSE
+    )
+  }
+
+  tidy %>%
+    group_by(AnimalNum) %>%
+    summarise(outcome = first(na.omit(outcome)), .groups = "drop")
+}
+
 endpoint_dat <- NULL
 if (!is.null(endpoint_file) && file.exists(endpoint_file)) {
   ext <- tools::file_ext(endpoint_file) %>% tolower()
@@ -694,19 +735,46 @@ if (!is.null(endpoint_file) && file.exists(endpoint_file)) {
     read_behavior_table(endpoint_file)
   }
   endpoint_animal_col <- first_existing_col(endpoint_raw, c("AnimalNum", "Animal", "MouseID", "Mouse", "ID", "RFID", "animal_id"), TRUE, "endpoint animal column")
-  endpoint_dat <- endpoint_raw %>%
-    transmute(AnimalNum = .data[[endpoint_animal_col]], outcome = suppressWarnings(as.numeric(.data[[outcome_col]]))) %>%
-    group_by(AnimalNum) %>%
-    summarise(outcome = first(na.omit(outcome)), .groups = "drop")
+  endpoint_dat <- collapse_endpoint_by_canonical_animal(
+    endpoint_raw, endpoint_animal_col, outcome_col, paste0("endpoint_file: ", endpoint_file)
+  )
 } else if (outcome_col %in% names(raw_dat)) {
   endpoint_animal_col <- first_existing_col(raw_dat, c("AnimalNum", "Animal", "MouseID", "Mouse", "ID", "RFID", "animal_id"), TRUE, "endpoint animal column")
-  endpoint_dat <- raw_dat %>%
-    group_by(AnimalNum = .data[[endpoint_animal_col]]) %>%
-    summarise(outcome = first(na.omit(suppressWarnings(as.numeric(.data[[outcome_col]])))), .groups = "drop")
+  endpoint_dat <- collapse_endpoint_by_canonical_animal(
+    raw_dat, endpoint_animal_col, outcome_col, paste0("outcome column in input_file: ", input_file)
+  )
 }
 
 if (is.null(endpoint_dat)) {
   stop("No endpoint data found. Set endpoint_file or ensure outcome_col is present in the input file.")
+}
+
+# Endpoint coverage audit. The expected number of animals is dataset-specific
+# and is therefore reported, never hardcoded; set the option below to fail
+# closed when a specific roster size is contractually required.
+endpoint_coverage_by_animal <- tibble(AnimalNum = sort(unique(as.character(feature_wide$AnimalNum)))) %>%
+  mutate(has_finite_outcome = AnimalNum %in% endpoint_dat$AnimalNum[is.finite(endpoint_dat$outcome)])
+n_behavior_animals <- nrow(endpoint_coverage_by_animal)
+n_with_outcome <- sum(endpoint_coverage_by_animal$has_finite_outcome)
+animals_without_outcome <- endpoint_coverage_by_animal$AnimalNum[!endpoint_coverage_by_animal$has_finite_outcome]
+
+write_table(endpoint_coverage_by_animal, file.path(output_dir, "tables", "endpoint_coverage_by_animal.csv"))
+message("Stage 09 endpoint coverage: ", n_with_outcome, "/", n_behavior_animals, " behavioral animals have a finite ", outcome_col, ".")
+if (length(animals_without_outcome) > 0L) {
+  warning(
+    "Stage 09: ", length(animals_without_outcome), " behavioral animal(s) have no finite ", outcome_col,
+    " and are excluded from every primary model: ", paste(animals_without_outcome, collapse = ", "),
+    ". See tables/endpoint_coverage_by_animal.csv.",
+    call. = FALSE
+  )
+}
+expected_endpoint_coverage <- getOption("mmm.stage09_expected_endpoint_coverage", NULL)
+if (!is.null(expected_endpoint_coverage) && n_with_outcome != expected_endpoint_coverage) {
+  stop(
+    "Stage 09 endpoint coverage is ", n_with_outcome, " but the configured contract requires ",
+    expected_endpoint_coverage, ". Missing: ", paste(animals_without_outcome, collapse = ", "),
+    call. = FALSE
+  )
 }
 
 model_dat <- feature_wide %>%
