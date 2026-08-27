@@ -61,12 +61,60 @@ endpoint_file <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS
 endpoint_excel_sheet <- "zScore"  # sheet name for Excel endpoint files; NULL = first sheet
 outcome_col <- "CombZ"
 
-# Primary prospective window: first 12 h active phase after the first cage change.
-early_phase_pattern <- "active|dark|night"
+# Primary prospective window: first 12 h of the ACTIVE phase after the first
+# cage change, at 10-min resolution.
+#
+# Phase selection uses an explicit normalized value set, NOT a permissive
+# regex. The historical implementation used
+#   early_phase_pattern <- "active|dark|night"
+# with str_detect(), which also matches "Inactive" because "inactive" contains
+# the substring "active". Combined with ranking inside group_by(AnimalNum,
+# Phase), that retained 72 Active AND 72 Inactive bins per animal, so the
+# canonical features were computed over ~24 h spanning both phases instead of
+# the declared 12 h active window.
+active_phase_values <- c("active", "dark", "night")
+inactive_phase_values <- c("inactive", "light", "day")
 first_cage_change_only <- TRUE
 early_window_hours <- 12
 bin_size_min <- 10
-max_early_bins_per_animal <- early_window_hours * 60 / bin_size_min
+# Expected bin count is a QC consequence of a complete 10-min sequence across
+# the window, not the definition of the window itself.
+expected_early_bins_per_animal <- early_window_hours * 60 / bin_size_min
+
+bin_seconds <- bin_size_min * 60
+
+normalize_phase_label <- function(x) stringr::str_to_lower(stringr::str_trim(as.character(x)))
+
+is_active_phase <- function(x) {
+  p <- normalize_phase_label(x)
+  # Explicit membership; "inactive" can never satisfy this.
+  p %in% active_phase_values
+}
+
+#' Select the declared primary prospective window.
+#'
+#' The window is the first `window_hours` of ELAPSED time measured from the
+#' start of the FIRST contiguous Active episode present in `dat`. Active
+#' episodes are separated by Inactive bins, so once non-Active rows are
+#' dropped a break in the TimeIndex sequence marks a new episode. The
+#' expected bin count is a QC consequence of a complete sequence, never the
+#' definition of the window, and the window never bridges into a later episode.
+#'
+#' Kept as a standalone function so the window contract is unit-testable.
+select_primary_active_window <- function(dat,
+                                        window_hours = early_window_hours,
+                                        bin_size_seconds = bin_seconds) {
+  dat %>%
+    filter(is_active_phase(Phase)) %>%
+    group_by(AnimalNum) %>%
+    arrange(TimeIndex, .by_group = TRUE) %>%
+    mutate(active_episode_id = cumsum(c(1L, as.integer(diff(TimeIndex) != 1L)))) %>%
+    filter(active_episode_id == 1L) %>%
+    mutate(elapsed_sec_in_window = (TimeIndex - min(TimeIndex)) * bin_size_seconds) %>%
+    filter(elapsed_sec_in_window >= 0, elapsed_sec_in_window < window_hours * 3600) %>%
+    mutate(early_rank = row_number()) %>%
+    ungroup()
+}
 
 # Optional column overrides. Leave NULL for automatic detection by helper functions.
 animal_col <- NULL
@@ -449,6 +497,7 @@ write_output_manifest(
     "tables/primary_feature_group_contrasts_descriptive.csv",
     "tables/readout_dictionary.csv",
     "tables/model_specification_dictionary.csv",
+    "tables/early_window_contract_summary.csv",
     "tables/output_table_catalog.csv"
   ),
   primary_figures = c(
@@ -492,7 +541,9 @@ write_text_file(
     "Interpretation:",
     "The fixed a priori behavior-only registry is the primary prospective evidence.",
     "Its canonical features are Movement_mean, Movement_rmssd, and Entropy_acf1.",
-    "The primary window is the first active 12 h after the first cage change at 10-min resolution.",
+    "The primary window is the first 12 ELAPSED hours of the Active phase after the first cage change, at 10-min resolution.",
+    "Phase selection uses an explicit normalized value set; Inactive bins are never included.",
+    "See tables/early_window_contract_summary.csv and tables/early_window_design_by_animal.csv for the verified window invariants.",
     "Matched ladders separate behavior-only, Sex-adjusted, and Sex + Group-adjusted sensitivity analyses using identical behavior feature sets.",
     "CON/RES/SUS group labels are shown for interpretation and descriptive summaries.",
     "Models containing Group are supplementary/contextual and never enter the canonical primary summary."
@@ -513,41 +564,120 @@ if (first_cage_change_only && "CageChange" %in% names(behav)) {
   first_cc <- "all"
 }
 
-has_active_phase <- any(str_detect(str_to_lower(as.character(behav$Phase)), early_phase_pattern))
-early_dat <- if (has_active_phase) {
-  behav %>% filter(str_detect(str_to_lower(as.character(Phase)), early_phase_pattern))
-} else {
-  behav
+# Enumerate the phase labels actually present so unvalidated aliases cannot be
+# silently dropped or silently admitted.
+observed_phase_labels <- sort(unique(normalize_phase_label(behav$Phase)))
+unknown_phase_labels <- setdiff(observed_phase_labels, c(active_phase_values, inactive_phase_values))
+if (length(unknown_phase_labels) > 0L) {
+  stop(
+    "Unrecognized Phase label(s) in the Stage 09 input: ",
+    paste(unknown_phase_labels, collapse = ", "),
+    ". Classify them explicitly before running the primary window.",
+    call. = FALSE
+  )
+}
+has_active_phase <- any(is_active_phase(behav$Phase))
+if (!has_active_phase) {
+  stop("No Active-phase rows found in the Stage 09 input; the primary prospective window cannot be built.", call. = FALSE)
 }
 
-early_dat <- early_dat %>%
-  group_by(AnimalNum, Phase) %>%
-  arrange(TimeIndex, .by_group = TRUE) %>%
-  mutate(early_rank = row_number()) %>%
-  filter(early_rank <= max_early_bins_per_animal) %>%
-  ungroup() %>%
+# Select the FIRST contiguous Active episode after the first cage change, then
+# keep the first `early_window_hours` of ELAPSED time from that episode's start.
+# Active episodes are separated by Inactive bins, so after filtering to Active
+# rows a break in the TimeIndex sequence marks a new episode.
+early_dat <- select_primary_active_window(behav) %>%
   mutate(BinLevel = bin_level, ProximityInput = proximity_col)
+
+# Production invariants for the declared primary window.
+selected_inactive <- early_dat %>% filter(normalize_phase_label(Phase) %in% inactive_phase_values)
+if (nrow(selected_inactive) > 0L) {
+  stop(
+    "Stage 09 primary window selected ", nrow(selected_inactive),
+    " Inactive row(s); the declared window is Active-phase only.",
+    call. = FALSE
+  )
+}
+if (!all(is_active_phase(early_dat$Phase))) {
+  stop("Stage 09 primary window contains non-Active rows.", call. = FALSE)
+}
+if (n_distinct(early_dat$active_episode_id) != 1L) {
+  stop("Stage 09 primary window spans more than one Active episode.", call. = FALSE)
+}
+max_elapsed_h <- max(early_dat$elapsed_sec_in_window, na.rm = TRUE) / 3600
+if (max_elapsed_h >= early_window_hours) {
+  stop("Stage 09 primary window exceeds ", early_window_hours, " elapsed hours (max ", round(max_elapsed_h, 3), " h).", call. = FALSE)
+}
 
 write_table(early_dat, file.path(output_dir, "tables", "early_window_rows_used.csv"))
 write_table(filter_short_duration_epochs(early_dat, epoch_duration_qc), file.path(output_dir, "tables", "early_window_rows_used_excluding_short_duration.csv"))
 
 window_design_tbl <- early_dat %>%
-  group_by(AnimalNum, Group, Sex, Phase) %>%
+  group_by(AnimalNum, Group, Sex, CageChange, Phase) %>%
   summarise(
-    n_bins = n(),
-    approx_hours = n_bins * bin_size_min / 60,
+    n_selected_bins = n(),
+    n_bins = n_selected_bins,  # retained name for downstream compatibility
     first_time_index = min(TimeIndex, na.rm = TRUE),
     last_time_index = max(TimeIndex, na.rm = TRUE),
+    first_bin_start = suppressWarnings(min(BinStart, na.rm = TRUE)),
+    last_bin_start = suppressWarnings(max(BinStart, na.rm = TRUE)),
+    elapsed_span_hours = (max(elapsed_sec_in_window, na.rm = TRUE) + bin_seconds) / 3600,
+    approx_hours = n_selected_bins * bin_size_min / 60,
     .groups = "drop"
   ) %>%
   mutate(
+    expected_bins = expected_early_bins_per_animal,
+    missing_intended_bins = expected_bins - n_selected_bins,
+    intended_span_slots = (last_time_index - first_time_index) + 1L,
+    interior_gap_bins = intended_span_slots - n_selected_bins,
     BinLevel = bin_level,
     FirstCageChangeOnly = first_cage_change_only,
     FirstCageChange = first_cc,
-    TargetWindowHours = early_window_hours
+    TargetWindowHours = early_window_hours,
+    PrimaryWindowDefinition = "first 12 elapsed hours of Active phase after first cage change",
+    window_contract_status = case_when(
+      !is_active_phase(Phase) ~ "FAIL_non_active_phase",
+      missing_intended_bins == 0L & interior_gap_bins == 0L ~ "OK_complete_12h_active",
+      interior_gap_bins > 0L ~ "WARN_interior_missing_bins",
+      missing_intended_bins > 0L ~ "WARN_short_window",
+      TRUE ~ "WARN_unexpected"
+    )
   )
 
 write_table(window_design_tbl, file.path(output_dir, "tables", "early_window_design_by_animal.csv"))
+
+early_window_contract_summary <- tibble(
+  primary_window_definition = "first 12 elapsed hours of Active phase after first cage change",
+  bin_level = bin_level,
+  bin_size_min = bin_size_min,
+  target_window_hours = early_window_hours,
+  expected_bins_per_animal = expected_early_bins_per_animal,
+  first_cage_change = first_cc,
+  n_animals = n_distinct(early_dat$AnimalNum),
+  n_selected_rows = nrow(early_dat),
+  n_inactive_rows_selected = 0L,
+  observed_phase_labels_in_input = paste(observed_phase_labels, collapse = "; "),
+  selected_phase_labels = paste(sort(unique(as.character(early_dat$Phase))), collapse = "; "),
+  n_animals_complete_72_bins = sum(window_design_tbl$window_contract_status == "OK_complete_12h_active"),
+  n_animals_deviating = sum(window_design_tbl$window_contract_status != "OK_complete_12h_active"),
+  max_elapsed_hours = max(early_dat$elapsed_sec_in_window, na.rm = TRUE) / 3600,
+  all_invariants_pass = all(window_design_tbl$window_contract_status == "OK_complete_12h_active")
+)
+write_table(early_window_contract_summary, file.path(output_dir, "tables", "early_window_contract_summary.csv"))
+
+message(
+  "Stage 09 primary window: ", early_window_contract_summary$n_animals, " animals, ",
+  early_window_contract_summary$n_selected_rows, " rows, phase(s)=",
+  early_window_contract_summary$selected_phase_labels, ", complete-72-bin animals=",
+  early_window_contract_summary$n_animals_complete_72_bins, "/", early_window_contract_summary$n_animals
+)
+if (!early_window_contract_summary$all_invariants_pass) {
+  deviating <- window_design_tbl %>% filter(window_contract_status != "OK_complete_12h_active")
+  warning(
+    "Stage 09 primary window: ", nrow(deviating), " animal(s) deviate from the complete 12 h Active contract: ",
+    paste(deviating$AnimalNum, deviating$window_contract_status, sep = "=", collapse = ", "),
+    call. = FALSE
+  )
+}
 
 # ------------------------------------------------
 # FEATURE EXTRACTION
@@ -2157,7 +2287,8 @@ output_table_catalog <- tribble(
   "tables/primary_prediction_model_registry.csv", "documentation", "Fixed a priori canonical primary and Sex-adjusted model definitions.", "Methods/model specification",
   "tables/model_specification_dictionary.csv", "documentation", "Legacy adjusted LOO ladder predictors and interpretation guardrails.", "Supplementary compatibility",
   "tables/behavior_cv_model_dictionary.csv", "documentation", "Legacy repeated grouped CV model definitions and manuscript-use labels.", "Supplementary compatibility",
-  "tables/early_window_design_by_animal.csv", "design", "Animal-level early-window bin counts, timing, phase, and duration.", "Methods/QC",
+  "tables/early_window_design_by_animal.csv", "design", "Per-animal primary-window audit: selected phase, bin counts, elapsed span, missing intended bins, window contract status.", "Methods/QC",
+  "tables/early_window_contract_summary.csv", "design", "Global primary-window contract: definition, expected bins, phase labels selected, and invariant pass status.", "Methods/QC",
   "tables/early_behavior_features_wide.csv", "features", "Animal-level early-window feature matrix used for prediction.", "Methods/source data",
   "tables/primary_prediction_performance.csv", "models", "Canonical fixed a priori LOAO performance with repeated-CV resampling quantiles.", "Primary model-performance result",
   "tables/primary_prediction_permutation_test.csv", "models", "Outcome-permutation LOAO tests with full refitting for the two non-null primary behavior-only models.", "Primary prediction inference",
