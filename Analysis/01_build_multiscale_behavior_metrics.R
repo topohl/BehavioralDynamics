@@ -59,6 +59,7 @@ suppressPackageStartupMessages({
 if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(.pipeline_setup)
 source_mmm_helper("duration_normalization_helpers.R")
+source_mmm_helper("animalpos_preprocessing_helpers.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -102,8 +103,23 @@ if (!all(requested_bin_labels %in% bin_specs$bin_label)) {
 bin_specs <- bin_specs %>% filter(bin_label %in% requested_bin_labels)
 
 metadata_file <- NULL
-long_gap_threshold_sec <- 3600
-exclude_long_gaps_from_metrics <- TRUE
+
+# Diagnostic-only gap threshold.
+#
+# HISTORY: long_gap_threshold_sec was introduced as a QC flag ("retained but
+# flagged in QC") and two days later silently repurposed into a metric-validity
+# rule -- intervals longer than an hour were dropped from every metric, and
+# position changes separated by more than an hour were not counted as movement.
+# Neither exclusion was ever justified in writing.
+#
+# The exclusion was also provably dead for occupancy: preprocessing used to
+# insert a synthetic row at every half-hour mark, so no interval could exceed
+# 1800 s and the > 3600 s test never fired. Now that synthetic rows are gone,
+# intervals span the real time between reads, so leaving the exclusion active
+# would begin silently deleting genuine occupancy time that was previously
+# retained. The flag is therefore computed for QC only and never filters.
+system_event_gap_threshold_sec <- 3600
+exclude_long_gaps_from_metrics <- FALSE
 
 use_multicore <- getOption("mmm.use_multicore", TRUE)
 n_cores <- getOption("mmm.n_cores", max(1L, parallel::detectCores(logical = TRUE) - 1L))
@@ -428,7 +444,7 @@ make_occupancy_intervals_one_system <- function(dat_sys) {
       IntervalStart = t0,
       IntervalEnd = t1,
       DurationSec = duration_sec,
-      LongGap = duration_sec > long_gap_threshold_sec
+      SystemEventGap = duration_sec > system_event_gap_threshold_sec
     ) %>%
       bind_cols(interval_meta[rep(1, sum(valid)), ])
   }
@@ -443,11 +459,16 @@ make_movement_events <- function(pos_tbl) {
     mutate(
       PrevDateTime = lag(DateTime),
       PrevPositionID = lag(PositionID),
-      TimeSincePrevSec = as.numeric(difftime(DateTime, PrevDateTime, units = "secs")),
+      # Kept as provenance/QC only. It used to gate movement validity via
+      # "<= long_gap_threshold_sec", which deleted every first position change
+      # following a long rest. AnimalPos carries no read-duration field, so a
+      # long interval since the previous position change is not evidence that
+      # the next change is invalid -- it is the expected signature of an animal
+      # that stayed put and then moved.
+      time_since_last_genuine_position_event_sec =
+        as.numeric(difftime(DateTime, PrevDateTime, units = "secs")),
       PositionChanged = is.finite(PrevPositionID) &
-        PositionID != PrevPositionID &
-        is.finite(TimeSincePrevSec) &
-        TimeSincePrevSec <= long_gap_threshold_sec
+        PositionID != PrevPositionID
     ) %>%
     ungroup() %>%
     filter(PositionChanged) %>%
@@ -462,6 +483,7 @@ make_movement_events <- function(pos_tbl) {
       Group,
       Sex,
       EventTime = DateTime,
+      time_since_last_genuine_position_event_sec,
       MovementEvent = 1,
       MovementDistanceEvent = grid_distance
     )
@@ -504,7 +526,7 @@ make_dyadic_intervals_one_system <- function(dat_sys) {
         IntervalStart = t0,
         IntervalEnd = t1,
         DurationSec = duration_sec,
-        LongGap = duration_sec > long_gap_threshold_sec
+        SystemEventGap = duration_sec > system_event_gap_threshold_sec
       ) %>%
       bind_cols(interval_meta[rep(1, nrow(pair_tbl)), ]) %>%
       left_join(pair_distance_lookup, by = c("PositionID_A", "PositionID_B"))
@@ -528,6 +550,83 @@ dyadic_intervals <- all_pos %>%
   group_split() %>%
   map_dfr_parallel(make_dyadic_intervals_one_system, .progress = TRUE)
 
+# ------------------------------------------------
+# AGGREGATION BOUNDARIES
+# ------------------------------------------------
+# Phase is a grouping variable, so an interval spanning 06:30 or 18:30 has to be
+# split there and each piece labelled with the phase it actually falls in.
+# Preprocessing used to guarantee a row at every boundary by inserting synthetic
+# position observations; the boundary is now applied as an interval intersection
+# using the same generic splitter as time binning.
+#
+# Labels come from the phase blocks that carry genuine observations in the same
+# session, so they are exactly the labels preprocessing assigned -- they are not
+# recomputed, because remove_phases() deletes whole phase blocks and recomputing
+# from the surviving timestamps would renumber the survivors.
+#
+# Pieces landing in a phase block with no observations at all are dropped. Those
+# blocks were deliberately removed by remove_phases() (the first Inactive phase,
+# and any phase beyond the fourth), so they lie outside the analysis window.
+# Before this refactor such spans were removed only as a side effect of the
+# > 1 h LongGap exclusion; the exclusion is gone, so the epoch boundary is now
+# enforced on its own terms and reported below rather than inferred from a
+# duration threshold.
+
+phase_block_reference <- all_pos %>%
+  mutate(PhaseBlockIndex = animalpos_phase_block_index(DateTime)) %>%
+  distinct(SourceFile, PhaseBlockIndex, Phase, ConsecActive, ConsecInactive)
+
+.dup_phase_blocks <- phase_block_reference %>%
+  count(SourceFile, PhaseBlockIndex) %>%
+  filter(n > 1)
+if (nrow(.dup_phase_blocks) > 0) {
+  stop("Phase labels are not unique within a session for ", nrow(.dup_phase_blocks),
+       " (SourceFile, PhaseBlockIndex) combinations; phase metadata is inconsistent.",
+       call. = FALSE)
+}
+
+epoch_inclusion_audit <- list()
+
+apply_phase_boundaries <- function(intervals, label) {
+  if (nrow(intervals) == 0) return(intervals)
+  n_before   <- nrow(intervals)
+  sec_before <- sum(intervals$DurationSec, na.rm = TRUE)
+
+  split <- animalpos_split_intervals(intervals, period_sec = NULL, split_phase = TRUE)
+  if (abs(sum(split$DurationSec, na.rm = TRUE) - sec_before) > 1e-3) {
+    stop("Phase splitting did not conserve duration for ", label, call. = FALSE)
+  }
+
+  labelled <- split %>%
+    mutate(PhaseBlockIndex = animalpos_phase_block_index(IntervalStart)) %>%
+    select(-any_of(c("Phase", "ConsecActive", "ConsecInactive"))) %>%
+    left_join(phase_block_reference, by = c("SourceFile", "PhaseBlockIndex"))
+
+  unobserved <- is.na(labelled$Phase)
+  epoch_inclusion_audit[[label]] <<- tibble(
+    interval_table                     = label,
+    n_intervals_before_split           = n_before,
+    n_pieces_after_split               = nrow(split),
+    n_pieces_in_unobserved_phase_block = sum(unobserved),
+    seconds_before_split               = sec_before,
+    seconds_in_unobserved_phase_blocks = sum(labelled$DurationSec[unobserved], na.rm = TRUE),
+    seconds_retained                   = sum(labelled$DurationSec[!unobserved], na.rm = TRUE)
+  )
+  message(sprintf(
+    "  %s: %d intervals -> %d phase-bounded pieces; dropped %d pieces (%.1f h) lying in phase blocks with no observations",
+    label, n_before, nrow(split), sum(unobserved),
+    sum(labelled$DurationSec[unobserved], na.rm = TRUE) / 3600))
+
+  labelled %>%
+    filter(!is.na(Phase)) %>%
+    select(-PhaseBlockIndex)
+}
+
+message("
+Applying phase boundaries to interval tables...")
+occupancy_intervals <- apply_phase_boundaries(occupancy_intervals, "occupancy")
+dyadic_intervals    <- apply_phase_boundaries(dyadic_intervals, "dyadic")
+
 # The bin-level aggregations below reuse the full interval/event tables. Running
 # them through furrr would export those large objects to every worker.
 if (use_multicore && requireNamespace("future", quietly = TRUE)) {
@@ -550,9 +649,15 @@ add_time_bin <- function(dat, time_col, bin_size_sec) {
     )
 }
 
+# Retained as an explicit, auditable no-op so that any future attempt to
+# reintroduce an interval-validity filter has to be a deliberate edit rather
+# than a silent flag flip. SystemEventGap is diagnostic metadata only.
 filter_metric_intervals <- function(dat) {
-  if (exclude_long_gaps_from_metrics && "LongGap" %in% names(dat)) {
-    dat <- dat %>% filter(!LongGap)
+  if (isTRUE(exclude_long_gaps_from_metrics)) {
+    stop("exclude_long_gaps_from_metrics = TRUE would silently drop genuine ",
+         "occupancy time. Excluding intervals by duration is a scientific ",
+         "decision that must be made explicitly, not via this flag.",
+         call. = FALSE)
   }
   dat
 }
@@ -595,36 +700,17 @@ split_intervals_to_bins <- function(dat, bin_size_sec) {
              slice(0))
   }
 
-  interval_start_num <- as.numeric(dat$IntervalStart)
-  interval_end_num <- as.numeric(dat$IntervalEnd)
-  bin_start_num <- floor(interval_start_num / bin_size_sec) * bin_size_sec
-  bin_end_num <- floor((interval_end_num - 1e-7) / bin_size_sec) * bin_size_sec
-  n_bins <- pmax(0L, as.integer((bin_end_num - bin_start_num) / bin_size_sec) + 1L)
-
-  keep <- n_bins > 0
-  if (!all(keep)) {
-    dat <- dat[keep, , drop = FALSE]
-    interval_start_num <- interval_start_num[keep]
-    interval_end_num <- interval_end_num[keep]
-    bin_start_num <- bin_start_num[keep]
-    n_bins <- n_bins[keep]
-  }
-
-  row_idx <- rep(seq_len(nrow(dat)), n_bins)
-  bin_offsets <- sequence(n_bins) - 1L
-  split_bin_start_num <- rep(bin_start_num, n_bins) + bin_offsets * bin_size_sec
-  split_start_num <- pmax(rep(interval_start_num, n_bins), split_bin_start_num)
-  split_end_num <- pmin(rep(interval_end_num, n_bins), split_bin_start_num + bin_size_sec)
-  split_duration_sec <- split_end_num - split_start_num
-
-  out <- dat[row_idx, , drop = FALSE]
-  out$IntervalStart <- as.POSIXct(split_start_num, origin = "1970-01-01", tz = "UTC")
-  out$IntervalEnd <- as.POSIXct(split_end_num, origin = "1970-01-01", tz = "UTC")
-  out$DurationSec <- split_duration_sec
+  # One generic interval/boundary intersection is used for every aggregation
+  # boundary in the pipeline (time bins here, phase boundaries above). The test
+  # suite cross-validates it against both a loop reference and the pre-refactor
+  # Stage 01 binning arithmetic, at every bin size in use.
+  out <- animalpos_split_intervals_one_grid(dat, bin_size_sec, 0)
   out$BinSizeSec <- bin_size_sec
-  out$BinStart <- as.POSIXct(split_bin_start_num, origin = "1970-01-01", tz = "UTC")
-
-  out %>% filter(is.finite(DurationSec), DurationSec > 0)
+  out$BinStart <- as.POSIXct(
+    floor(as.numeric(out$IntervalStart) / bin_size_sec) * bin_size_sec,
+    origin = "1970-01-01", tz = "UTC"
+  )
+  out
 }
 
 make_time_index <- function(dat) {
@@ -1055,6 +1141,66 @@ qc_tbl <- bind_rows(
 )
 
 write_table(qc_tbl, file.path(output_root, "qc", "multiscale_behavior_metrics_qc.csv"))
+
+# ------------------------------------------------
+# PROVENANCE / EPOCH-INCLUSION AUDITS
+# ------------------------------------------------
+# What the phase-boundary intersection did, and how much time fell in phase
+# blocks that carry no observations (and is therefore outside the analysis
+# window). Reported explicitly because it used to be removed silently by the
+# > 1 h interval exclusion.
+if (length(epoch_inclusion_audit) > 0) {
+  write_table(bind_rows(epoch_inclusion_audit),
+              file.path(output_root, "qc", "phase_boundary_epoch_inclusion_audit.csv"))
+}
+
+# Movement provenance. time_since_last_genuine_position_event_sec used to gate
+# movement validity (events with a gap > 1 h were discarded). It is now recorded
+# and never filtered, so this table shows exactly how many events the old rule
+# would have deleted.
+if (nrow(movement_events) > 0) {
+  movement_gap_audit <- movement_events %>%
+    mutate(gap_bucket = cut(
+      time_since_last_genuine_position_event_sec,
+      breaks = c(-Inf, 60, 300, 1800, 3600, 7200, Inf),
+      labels = c("<=1min", "1-5min", "5-30min", "30-60min", "1-2h", ">2h"),
+      right = TRUE)) %>%
+    count(gap_bucket, name = "n_events") %>%
+    mutate(fraction = n_events / sum(n_events))
+  write_table(movement_gap_audit,
+              file.path(output_root, "qc", "movement_event_gap_provenance.csv"))
+
+  n_retired_rule_would_drop <- sum(
+    movement_events$time_since_last_genuine_position_event_sec > system_event_gap_threshold_sec,
+    na.rm = TRUE)
+  movement_rule_audit <- tibble(
+    n_movement_events_total = nrow(movement_events),
+    n_events_retained_by_retiring_gap_rule = n_retired_rule_would_drop,
+    fraction_retained_by_retiring_gap_rule = n_retired_rule_would_drop / nrow(movement_events),
+    system_event_gap_threshold_sec = system_event_gap_threshold_sec,
+    gap_rule_filters_movement = FALSE,
+    exclude_long_gaps_from_metrics = exclude_long_gaps_from_metrics
+  )
+  write_table(movement_rule_audit,
+              file.path(output_root, "qc", "movement_gap_rule_retirement_audit.csv"))
+  message("
+Movement events retained by retiring the > ",
+          system_event_gap_threshold_sec, " s gap rule: ",
+          n_retired_rule_would_drop, " of ", nrow(movement_events),
+          sprintf(" (%.3f%%)", 100 * n_retired_rule_would_drop / nrow(movement_events)))
+}
+
+# Per animal x session count of genuine position events, kept as QC only.
+if (nrow(all_pos) > 0) {
+  position_event_counts <- all_pos %>%
+    group_by(SourceFile, Batch, CageChange, System, AnimalNum, AnimalID) %>%
+    summarise(n_position_events = n(),
+              first_event = min(DateTime, na.rm = TRUE),
+              last_event = max(DateTime, na.rm = TRUE),
+              .groups = "drop")
+  write_table(position_event_counts,
+              file.path(output_root, "qc", "genuine_position_event_counts.csv"))
+}
 
 bad_bin_qc <- qc_tbl %>%
   filter(output != "phase_based", n_rows_observation_seconds_gt_bin > 0)
