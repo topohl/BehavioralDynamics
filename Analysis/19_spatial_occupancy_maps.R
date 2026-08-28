@@ -34,6 +34,16 @@ suppressPackageStartupMessages({
   library(lubridate)
 })
 
+# Shared measurement-event / aggregation-boundary helpers. This script is
+# otherwise standalone, so the repository root is resolved explicitly.
+.mmm_repo <- Sys.getenv("MMM_REPO_DIR", unset = "C:/Users/topohl/Documents/GitHub/MMMSociability")
+.mmm_helper <- file.path(.mmm_repo, "Functions", "animalpos_preprocessing_helpers.R")
+if (!file.exists(.mmm_helper)) {
+  stop("Cannot locate animalpos_preprocessing_helpers.R at ", .mmm_helper,
+       ". Set MMM_REPO_DIR.", call. = FALSE)
+}
+source(.mmm_helper)
+
 # -----------------------------
 # User options
 # -----------------------------
@@ -46,8 +56,16 @@ ASSIGN_UNLISTED_AS_RES <- TRUE
 
 BIN_SIZE_SEC <- 1800
 BIN_LABEL <- "30min"
-LONG_GAP_THRESHOLD_SEC <- 3600
-EXCLUDE_LONG_GAPS <- TRUE
+# Diagnostic-only gap threshold.
+#
+# This was a metric-validity rule: occupancy intervals longer than an hour were
+# dropped. It was inert while preprocessing injected a synthetic position row at
+# every half-hour mark (no interval could exceed 1800 s). With genuine-only
+# input, 1,538 intervals covering 3,528 h (34.1% of observed duration) exceed
+# it, concentrated during rest. AnimalPos has no read-duration field, so wide
+# event spacing is not evidence of dropout. Kept as QC only; never filters.
+SYSTEM_EVENT_GAP_THRESHOLD_SEC <- 3600
+EXCLUDE_LONG_GAPS <- FALSE
 
 MIN_OBSERVATION_SEC_PER_ANIMAL_WINDOW <- 60
 EPS_LOGIT <- 1e-3
@@ -209,7 +227,7 @@ make_occupancy_intervals_one_system <- function(dat_sys) {
       IntervalStart = t0,
       IntervalEnd = t1,
       DurationSec = duration_sec,
-      LongGap = duration_sec > LONG_GAP_THRESHOLD_SEC
+      SystemEventGap = duration_sec > SYSTEM_EVENT_GAP_THRESHOLD_SEC
     ) %>%
       bind_cols(interval_meta[rep(1, sum(valid)), ])
   }
@@ -217,8 +235,20 @@ make_occupancy_intervals_one_system <- function(dat_sys) {
   bind_rows(out)
 }
 
+# Retained as an explicit, auditable guard so that reinstating a duration-based
+# exclusion has to be a deliberate edit rather than a silent flag flip.
+assert_no_gap_exclusion <- function() {
+  if (isTRUE(EXCLUDE_LONG_GAPS)) {
+    stop("EXCLUDE_LONG_GAPS = TRUE would silently drop genuine reconstructed ",
+         "occupancy (34.1% of observed duration in the current dataset). ",
+         "Excluding intervals by event spacing is a scientific decision that ",
+         "must be made explicitly, not via this flag.", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 split_intervals_to_bins <- function(dat, bin_size_sec) {
-  if (EXCLUDE_LONG_GAPS && "LongGap" %in% names(dat)) dat <- dat %>% filter(!LongGap)
+  assert_no_gap_exclusion()
 
   dat <- dat %>%
     filter(!is.na(IntervalStart), !is.na(IntervalEnd), is.finite(DurationSec), DurationSec > 0)
@@ -232,34 +262,16 @@ split_intervals_to_bins <- function(dat, bin_size_sec) {
       slice(0))
   }
 
-  interval_start_num <- as.numeric(dat$IntervalStart)
-  interval_end_num <- as.numeric(dat$IntervalEnd)
-  bin_start_num <- floor(interval_start_num / bin_size_sec) * bin_size_sec
-  bin_end_num <- floor((interval_end_num - 1e-7) / bin_size_sec) * bin_size_sec
-  n_bins <- pmax(0L, as.integer((bin_end_num - bin_start_num) / bin_size_sec) + 1L)
-
-  keep <- n_bins > 0
-  dat <- dat[keep, , drop = FALSE]
-  interval_start_num <- interval_start_num[keep]
-  interval_end_num <- interval_end_num[keep]
-  bin_start_num <- bin_start_num[keep]
-  n_bins <- n_bins[keep]
-
-  row_idx <- rep(seq_len(nrow(dat)), n_bins)
-  bin_offsets <- sequence(n_bins) - 1L
-  split_bin_start_num <- rep(bin_start_num, n_bins) + bin_offsets * bin_size_sec
-  split_start_num <- pmax(rep(interval_start_num, n_bins), split_bin_start_num)
-  split_end_num <- pmin(rep(interval_end_num, n_bins), split_bin_start_num + bin_size_sec)
-  split_duration_sec <- split_end_num - split_start_num
-
-  out <- dat[row_idx, , drop = FALSE]
-  out$IntervalStart <- as.POSIXct(split_start_num, origin = "1970-01-01", tz = "UTC")
-  out$IntervalEnd <- as.POSIXct(split_end_num, origin = "1970-01-01", tz = "UTC")
-  out$DurationSec <- split_duration_sec
+  # Same generic interval/boundary intersection used by Stage 01 and Stage 02;
+  # cross-validated in the test suite against a loop reference and against the
+  # pre-refactor binning arithmetic.
+  out <- animalpos_split_intervals_one_grid(dat, bin_size_sec, 0)
   out$BinSizeSec <- bin_size_sec
-  out$BinStart <- as.POSIXct(split_bin_start_num, origin = "1970-01-01", tz = "UTC")
-
-  out %>% filter(is.finite(DurationSec), DurationSec > 0)
+  out$BinStart <- as.POSIXct(
+    floor(as.numeric(out$IntervalStart) / bin_size_sec) * bin_size_sec,
+    origin = "1970-01-01", tz = "UTC"
+  )
+  out
 }
 
 add_time_index <- function(dat) {
@@ -400,6 +412,70 @@ if (nrow(occupancy_intervals) == 0) {
   stop("No occupancy intervals could be reconstructed. Check DateTime, AnimalID, System, and PositionID columns.", call. = FALSE)
 }
 
+# ------------------------------------------------
+# AGGREGATION BOUNDARIES
+# ------------------------------------------------
+# Phase and PhaseNumber are grouping variables, so an interval spanning 06:30 or
+# 18:30 must be split there and each piece labelled with the phase it actually
+# falls in. Previously an interval inherited Phase from the row preceding its
+# start, which was only safe because preprocessing injected a synthetic position
+# row at every boundary. No synthetic row is created here: the boundary is an
+# interval intersection, and the labels come from the phase blocks that carry
+# genuine observations in the same session.
+
+phase_block_reference <- all_pos %>%
+  mutate(PhaseBlockIndex = animalpos_phase_block_index(DateTime)) %>%
+  distinct(SourceFile, PhaseBlockIndex, Phase, ConsecActive, ConsecInactive)
+
+.dup_blocks <- phase_block_reference %>% count(SourceFile, PhaseBlockIndex) %>% filter(n > 1)
+if (nrow(.dup_blocks) > 0) {
+  stop("Phase labels are not unique within a session for ", nrow(.dup_blocks),
+       " (SourceFile, PhaseBlockIndex) combinations.", call. = FALSE)
+}
+
+.sec_before <- sum(occupancy_intervals$DurationSec, na.rm = TRUE)
+.n_before <- nrow(occupancy_intervals)
+
+occupancy_intervals <- animalpos_split_intervals(occupancy_intervals,
+                                                 period_sec = NULL, split_phase = TRUE)
+if (abs(sum(occupancy_intervals$DurationSec, na.rm = TRUE) - .sec_before) > 1e-3) {
+  stop("Phase splitting did not conserve occupancy interval duration.", call. = FALSE)
+}
+
+occupancy_intervals <- occupancy_intervals %>%
+  mutate(PhaseBlockIndex = animalpos_phase_block_index(IntervalStart)) %>%
+  select(-any_of(c("Phase", "ConsecActive", "ConsecInactive"))) %>%
+  left_join(phase_block_reference, by = c("SourceFile", "PhaseBlockIndex"))
+
+.n_unobs <- sum(is.na(occupancy_intervals$Phase))
+.sec_unobs <- sum(occupancy_intervals$DurationSec[is.na(occupancy_intervals$Phase)], na.rm = TRUE)
+phase_boundary_audit <- tibble(
+  n_intervals_before_split           = .n_before,
+  n_pieces_after_split               = nrow(occupancy_intervals),
+  n_pieces_created_by_phase_split    = nrow(occupancy_intervals) - .n_before,
+  seconds_before_split               = .sec_before,
+  seconds_after_split                = sum(occupancy_intervals$DurationSec, na.rm = TRUE),
+  n_pieces_in_unobserved_phase_block = .n_unobs,
+  seconds_in_unobserved_phase_blocks = .sec_unobs,
+  system_event_gap_threshold_sec     = SYSTEM_EVENT_GAP_THRESHOLD_SEC,
+  exclude_long_gaps                  = EXCLUDE_LONG_GAPS,
+  n_intervals_over_gap_threshold     = sum(occupancy_intervals$SystemEventGap, na.rm = TRUE),
+  seconds_over_gap_threshold         = sum(occupancy_intervals$DurationSec[
+                                             occupancy_intervals$SystemEventGap %in% TRUE], na.rm = TRUE)
+)
+message(sprintf(
+  "  occupancy intervals: %d -> %d phase-bounded pieces; dropped %d pieces (%.1f h) in phase blocks with no observations",
+  .n_before, nrow(occupancy_intervals), .n_unobs, .sec_unobs / 3600))
+
+occupancy_intervals <- occupancy_intervals %>% filter(!is.na(Phase)) %>% select(-PhaseBlockIndex)
+
+.straddle <- sum(animalpos_phase_block_index(occupancy_intervals$IntervalStart) !=
+                 animalpos_phase_block_index(as.POSIXct(as.numeric(occupancy_intervals$IntervalEnd) - 1e-3,
+                                                        origin = "1970-01-01", tz = "UTC")))
+if (.straddle > 0) {
+  stop(.straddle, " occupancy interval piece(s) still span a phase boundary after splitting.", call. = FALSE)
+}
+
 position_occupancy_by_bin <- occupancy_intervals %>%
   split_intervals_to_bins(BIN_SIZE_SEC) %>%
   add_phase_number() %>%
@@ -421,7 +497,7 @@ write_csv2(position_occupancy_by_bin, file.path(DIR_PUBTAB, "all_position_occupa
 
 # Phase-level occupancy for full active/inactive summaries.
 position_occupancy_by_phase <- occupancy_intervals %>%
-  { if (EXCLUDE_LONG_GAPS) filter(., !LongGap) else . } %>%
+  { assert_no_gap_exclusion(); . } %>%
   add_phase_number() %>%
   group_by(SourceFile, Batch, CageChange, System, Phase, PhaseNumber, AnimalNum, AnimalID, Group, Sex, PositionID) %>%
   summarise(PositionSeconds = sum(DurationSec, na.rm = TRUE), .groups = "drop") %>%

@@ -43,6 +43,7 @@ if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", 
 source(.pipeline_setup)
 source_mmm_helper("behavioral_dynamics_stats_helpers.R")
 source_mmm_helper("duration_normalization_helpers.R")
+source_mmm_helper("animalpos_preprocessing_helpers.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -104,15 +105,41 @@ is_active_phase <- function(x) {
 select_primary_active_window <- function(dat,
                                         window_hours = early_window_hours,
                                         bin_size_seconds = bin_seconds) {
-  dat %>%
-    filter(is_active_phase(Phase)) %>%
-    group_by(AnimalNum) %>%
-    arrange(TimeIndex, .by_group = TRUE) %>%
-    mutate(active_episode_id = cumsum(c(1L, as.integer(diff(TimeIndex) != 1L)))) %>%
-    filter(active_episode_id == 1L) %>%
-    mutate(elapsed_sec_in_window = (TimeIndex - min(TimeIndex)) * bin_size_seconds) %>%
+  act <- dat %>% filter(is_active_phase(Phase))
+  if (nrow(act) == 0) {
+    return(act %>% mutate(target_phase_block = integer(0), target_window_start = as.POSIXct(character(0), tz = "UTC"),
+                          target_window_end = as.POSIXct(character(0), tz = "UTC"),
+                          elapsed_sec_in_window = numeric(0), target_slot = integer(0),
+                          active_episode_id = integer(0), early_rank = integer(0)))
+  }
+
+  # The target window is a property of the experimental clock, not of any
+  # animal. It is the FIRST Active phase block present in the session after the
+  # first cage change: 18:30 inclusive to 06:30 exclusive, 12 h, 72 slots. An
+  # animal whose first genuine observation falls at 19:10 is still measured
+  # against a window that starts at 18:30; the window is never shifted later.
+  session_col <- if ("SourceFile" %in% names(act)) "SourceFile" else "Batch"
+  anchors <- act %>%
+    mutate(.blk = animalpos_phase_block_index(BinStart)) %>%
+    group_by(.session = as.character(.data[[session_col]])) %>%
+    summarise(target_phase_block = min(.blk, na.rm = TRUE), .groups = "drop") %>%
+    mutate(target_window_start = as.POSIXct(
+      target_phase_block * ANIMALPOS_PHASE_LENGTH_SEC + ANIMALPOS_INACTIVE_START_SEC,
+      origin = "1970-01-01", tz = "UTC"))
+
+  act %>%
+    mutate(.session = as.character(.data[[session_col]])) %>%
+    left_join(anchors, by = ".session") %>%
+    select(-.session) %>%
+    mutate(
+      target_window_end = target_window_start + window_hours * 3600,
+      elapsed_sec_in_window = as.numeric(difftime(BinStart, target_window_start, units = "secs")),
+      target_slot = as.integer(elapsed_sec_in_window %/% bin_size_seconds) + 1L
+    ) %>%
     filter(elapsed_sec_in_window >= 0, elapsed_sec_in_window < window_hours * 3600) %>%
-    mutate(early_rank = row_number()) %>%
+    group_by(AnimalNum) %>%
+    arrange(target_slot, .by_group = TRUE) %>%
+    mutate(active_episode_id = 1L, early_rank = row_number()) %>%
     ungroup()
 }
 
@@ -600,22 +627,54 @@ if (nrow(selected_inactive) > 0L) {
 if (!all(is_active_phase(early_dat$Phase))) {
   stop("Stage 09 primary window contains non-Active rows.", call. = FALSE)
 }
-if (n_distinct(early_dat$active_episode_id) != 1L) {
-  stop("Stage 09 primary window spans more than one Active episode.", call. = FALSE)
+# Every selected row must lie in the single target Active phase block. This is
+# the structural form of "one Active episode": it is enforced on the clock, not
+# on row contiguity, so it cannot be satisfied by fabricating bins.
+.block_of_row <- animalpos_phase_block_index(early_dat$BinStart)
+if (any(.block_of_row != early_dat$target_phase_block)) {
+  stop("Stage 09 primary window selected ", sum(.block_of_row != early_dat$target_phase_block),
+       " row(s) outside the target Active phase block.", call. = FALSE)
+}
+if (any(early_dat$elapsed_sec_in_window < 0)) {
+  stop("Stage 09 primary window selected row(s) before the target window start.", call. = FALSE)
 }
 max_elapsed_h <- max(early_dat$elapsed_sec_in_window, na.rm = TRUE) / 3600
 if (max_elapsed_h >= early_window_hours) {
   stop("Stage 09 primary window exceeds ", early_window_hours, " elapsed hours (max ", round(max_elapsed_h, 3), " h).", call. = FALSE)
 }
+# Target slots must be unique per animal and inside 1..72.
+.dup_slots <- early_dat %>% count(AnimalNum, target_slot) %>% filter(n > 1L)
+if (nrow(.dup_slots) > 0L) {
+  stop("Stage 09 primary window has ", nrow(.dup_slots),
+       " duplicate (animal, target slot) combination(s).", call. = FALSE)
+}
+if (any(early_dat$target_slot < 1L | early_dat$target_slot > expected_early_bins_per_animal)) {
+  stop("Stage 09 primary window produced target slot indices outside 1..",
+       expected_early_bins_per_animal, ".", call. = FALSE)
+}
+# Time structure must be strictly increasing within each animal.
+.nonmono <- early_dat %>% group_by(AnimalNum) %>%
+  summarise(bad = any(diff(target_slot) <= 0L), .groups = "drop") %>% filter(bad)
+if (nrow(.nonmono) > 0L) {
+  stop("Stage 09 primary window has non-monotonic target slots for ",
+       nrow(.nonmono), " animal(s).", call. = FALSE)
+}
 
 write_table(early_dat, file.path(output_dir, "tables", "early_window_rows_used.csv"))
 write_table(filter_short_duration_epochs(early_dat, epoch_duration_qc), file.path(output_dir, "tables", "early_window_rows_used_excluding_short_duration.csv"))
 
+# Coverage is measured against the FIXED target clock window. Missing slots are
+# reported, never fabricated: leading absence means the animal had not yet been
+# observed, which is a coverage fact, not a methodological failure.
 window_design_tbl <- early_dat %>%
   group_by(AnimalNum, Group, Sex, CageChange, Phase) %>%
   summarise(
     n_selected_bins = n(),
     n_bins = n_selected_bins,  # retained name for downstream compatibility
+    target_window_start = first(target_window_start),
+    target_window_end = first(target_window_end),
+    first_target_slot = min(target_slot, na.rm = TRUE),
+    last_target_slot = max(target_slot, na.rm = TRUE),
     first_time_index = min(TimeIndex, na.rm = TRUE),
     last_time_index = max(TimeIndex, na.rm = TRUE),
     first_bin_start = suppressWarnings(min(BinStart, na.rm = TRUE)),
@@ -625,56 +684,107 @@ window_design_tbl <- early_dat %>%
     .groups = "drop"
   ) %>%
   mutate(
-    expected_bins = expected_early_bins_per_animal,
-    missing_intended_bins = expected_bins - n_selected_bins,
-    intended_span_slots = (last_time_index - first_time_index) + 1L,
-    interior_gap_bins = intended_span_slots - n_selected_bins,
+    expected_target_slots = expected_early_bins_per_animal,
+    expected_bins = expected_target_slots,  # retained name for compatibility
+    observed_target_slots = n_selected_bins,
+    missing_leading_slots = first_target_slot - 1L,
+    missing_trailing_slots = expected_target_slots - last_target_slot,
+    observed_span_slots = (last_target_slot - first_target_slot) + 1L,
+    missing_interior_slots = observed_span_slots - observed_target_slots,
+    missing_target_slots = expected_target_slots - observed_target_slots,
+    missing_intended_bins = missing_target_slots,   # retained name
+    interior_gap_bins = missing_interior_slots,     # retained name
+    coverage_fraction = observed_target_slots / expected_target_slots,
     BinLevel = bin_level,
     FirstCageChangeOnly = first_cage_change_only,
     FirstCageChange = first_cc,
     TargetWindowHours = early_window_hours,
-    PrimaryWindowDefinition = "first 12 elapsed hours of Active phase after first cage change",
+    PrimaryWindowDefinition = "fixed clock window: first Active phase block after first cage change, 18:30 inclusive to 06:30 exclusive",
     window_contract_status = case_when(
-      !is_active_phase(Phase) ~ "FAIL_non_active_phase",
-      missing_intended_bins == 0L & interior_gap_bins == 0L ~ "OK_complete_12h_active",
-      interior_gap_bins > 0L ~ "WARN_interior_missing_bins",
-      missing_intended_bins > 0L ~ "WARN_short_window",
-      TRUE ~ "WARN_unexpected"
-    )
+      !is_active_phase(Phase)                              ~ "FAIL_non_active_phase",
+      missing_target_slots == 0L                           ~ "OK_complete",
+      missing_interior_slots > 0L                          ~ "WARN_interior_missing_bins",
+      missing_trailing_slots > 0L                          ~ "WARN_trailing_missing_bins",
+      missing_leading_slots > 0L                           ~ "OK_missing_leading_observation",
+      TRUE                                                 ~ "WARN_unexpected"
+    ),
+    structural_status_ok = !startsWith(window_contract_status, "FAIL")
   )
 
 write_table(window_design_tbl, file.path(output_dir, "tables", "early_window_design_by_animal.csv"))
 
+# Structural correctness and slot coverage are reported separately. Requiring
+# 72/72 observed slots would implicitly require fabricated state before an
+# animal's first genuine observation, so completeness is QC, not an invariant.
 early_window_contract_summary <- tibble(
-  primary_window_definition = "first 12 elapsed hours of Active phase after first cage change",
+  primary_window_definition = "fixed clock window: first Active phase block after first cage change, 18:30 inclusive to 06:30 exclusive",
   bin_level = bin_level,
   bin_size_min = bin_size_min,
   target_window_hours = early_window_hours,
-  expected_bins_per_animal = expected_early_bins_per_animal,
+  expected_target_slots_per_animal = expected_early_bins_per_animal,
+  expected_bins_per_animal = expected_early_bins_per_animal,  # retained name
   first_cage_change = first_cc,
   n_animals = n_distinct(early_dat$AnimalNum),
   n_selected_rows = nrow(early_dat),
+  n_target_slots_total = n_distinct(early_dat$AnimalNum) * expected_early_bins_per_animal,
   n_inactive_rows_selected = 0L,
   observed_phase_labels_in_input = paste(observed_phase_labels, collapse = "; "),
   selected_phase_labels = paste(sort(unique(as.character(early_dat$Phase))), collapse = "; "),
-  n_animals_complete_72_bins = sum(window_design_tbl$window_contract_status == "OK_complete_12h_active"),
-  n_animals_deviating = sum(window_design_tbl$window_contract_status != "OK_complete_12h_active"),
+  n_animals_complete = sum(window_design_tbl$window_contract_status == "OK_complete"),
+  n_animals_missing_leading_only = sum(window_design_tbl$window_contract_status == "OK_missing_leading_observation"),
+  n_animals_interior_missing = sum(window_design_tbl$window_contract_status == "WARN_interior_missing_bins"),
+  n_animals_trailing_missing = sum(window_design_tbl$window_contract_status == "WARN_trailing_missing_bins"),
+  n_animals_failing = sum(startsWith(window_design_tbl$window_contract_status, "FAIL")),
+  n_animals_complete_72_bins = sum(window_design_tbl$window_contract_status == "OK_complete"),  # retained name
+  n_animals_deviating = sum(window_design_tbl$window_contract_status != "OK_complete"),
+  total_missing_leading_slots = sum(window_design_tbl$missing_leading_slots),
+  total_missing_interior_slots = sum(window_design_tbl$missing_interior_slots),
+  total_missing_trailing_slots = sum(window_design_tbl$missing_trailing_slots),
+  min_coverage_fraction = min(window_design_tbl$coverage_fraction),
+  mean_coverage_fraction = mean(window_design_tbl$coverage_fraction),
   max_elapsed_hours = max(early_dat$elapsed_sec_in_window, na.rm = TRUE) / 3600,
-  all_invariants_pass = all(window_design_tbl$window_contract_status == "OK_complete_12h_active")
+  structural_invariants_pass = all(window_design_tbl$structural_status_ok),
+  all_target_slots_observed = all(window_design_tbl$missing_target_slots == 0L),
+  no_interior_missing_slots = all(window_design_tbl$missing_interior_slots == 0L),
+  no_trailing_missing_slots = all(window_design_tbl$missing_trailing_slots == 0L)
 )
+if (!early_window_contract_summary$structural_invariants_pass) {
+  stop("Stage 09 primary window failed a structural invariant; see early_window_design_by_animal.csv.",
+       call. = FALSE)
+}
 write_table(early_window_contract_summary, file.path(output_dir, "tables", "early_window_contract_summary.csv"))
 
 message(
   "Stage 09 primary window: ", early_window_contract_summary$n_animals, " animals, ",
-  early_window_contract_summary$n_selected_rows, " rows, phase(s)=",
-  early_window_contract_summary$selected_phase_labels, ", complete-72-bin animals=",
+  early_window_contract_summary$n_selected_rows, " of ",
+  early_window_contract_summary$n_target_slots_total, " target slots observed, phase(s)=",
+  early_window_contract_summary$selected_phase_labels, ", structural invariants pass=",
+  early_window_contract_summary$structural_invariants_pass, ", complete-slot animals=",
   early_window_contract_summary$n_animals_complete_72_bins, "/", early_window_contract_summary$n_animals
 )
-if (!early_window_contract_summary$all_invariants_pass) {
-  deviating <- window_design_tbl %>% filter(window_contract_status != "OK_complete_12h_active")
+# Coverage reporting. Leading-only absence is expected and is not a warning:
+# the animal simply had not been observed yet. Interior or trailing absence is
+# flagged because those would sit inside an already-observed record.
+if (!early_window_contract_summary$all_target_slots_observed) {
+  message(
+    "Stage 09 target-slot coverage: ",
+    early_window_contract_summary$n_animals_complete, " complete, ",
+    early_window_contract_summary$n_animals_missing_leading_only, " missing leading observation only, ",
+    early_window_contract_summary$n_animals_interior_missing, " with interior gaps, ",
+    early_window_contract_summary$n_animals_trailing_missing, " with trailing gaps; ",
+    early_window_contract_summary$total_missing_leading_slots, " leading / ",
+    early_window_contract_summary$total_missing_interior_slots, " interior / ",
+    early_window_contract_summary$total_missing_trailing_slots, " trailing slots absent of ",
+    early_window_contract_summary$n_target_slots_total, "."
+  )
+}
+concerning <- window_design_tbl %>%
+  filter(window_contract_status %in% c("WARN_interior_missing_bins", "WARN_trailing_missing_bins", "WARN_unexpected"))
+if (nrow(concerning) > 0L) {
   warning(
-    "Stage 09 primary window: ", nrow(deviating), " animal(s) deviate from the complete 12 h Active contract: ",
-    paste(deviating$AnimalNum, deviating$window_contract_status, sep = "=", collapse = ", "),
+    "Stage 09 primary window: ", nrow(concerning),
+    " animal(s) have interior or trailing missing target slots: ",
+    paste(concerning$AnimalNum, concerning$window_contract_status, sep = "=", collapse = ", "),
     call. = FALSE
   )
 }
@@ -2311,3 +2421,115 @@ write_table(output_table_catalog, file.path(output_dir, "tables", "output_table_
 if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)
 
 message("Early prediction model ladder complete. Tables and publication figures written to: ", output_dir)
+
+
+# ------------------------------------------------
+# TARGET-SLOT COVERAGE SENSITIVITY (QC ONLY)
+# ------------------------------------------------
+# Purpose: demonstrate that the small amount of absent leading coverage is not
+# driving the primary result. These are diagnostics. The primary analysis stays
+# at n = 111 with no completeness threshold, no backward fill and no exclusion.
+
+coverage_tbl <- window_design_tbl %>%
+  select(AnimalNum, observed_target_slots, expected_target_slots, coverage_fraction,
+         missing_leading_slots, missing_interior_slots, missing_trailing_slots,
+         window_contract_status)
+
+coverage_model_dat <- model_dat %>%
+  left_join(coverage_tbl, by = "AnimalNum")
+
+# 1. features versus coverage
+coverage_feature_association <- map_dfr(primary_features, function(f) {
+  v <- coverage_model_dat[[f]]; cv <- coverage_model_dat$coverage_fraction
+  ok <- is.finite(v) & is.finite(cv)
+  tibble(quantity = f, n = sum(ok),
+         pearson_r_vs_coverage = safe_cor(v[ok], cv[ok]),
+         spearman_rho_vs_coverage = safe_cor(v[ok], cv[ok], method = "spearman"))
+})
+
+# 2. outcome versus coverage
+.cv <- coverage_model_dat$coverage_fraction; .out <- coverage_model_dat$outcome
+.ok <- is.finite(.cv) & is.finite(.out)
+coverage_outcome_association <- tibble(
+  quantity = "CombZ",
+  n = sum(.ok),
+  pearson_r_vs_coverage = safe_cor(.out[.ok], .cv[.ok]),
+  spearman_rho_vs_coverage = safe_cor(.out[.ok], .cv[.ok], method = "spearman"),
+  spearman_p = tryCatch(suppressWarnings(stats::cor.test(.out[.ok], .cv[.ok],
+                          method = "spearman", exact = FALSE)$p.value), error = function(e) NA_real_)
+)
+
+# 3. coverage versus Group and Sex
+coverage_by_group_sex <- bind_rows(
+  coverage_model_dat %>% group_by(stratum_type = "Group", stratum = as.character(Group)) %>%
+    summarise(n = n(), mean_coverage = mean(coverage_fraction),
+              min_coverage = min(coverage_fraction),
+              n_complete = sum(observed_target_slots == expected_target_slots),
+              .groups = "drop"),
+  coverage_model_dat %>% group_by(stratum_type = "Sex", stratum = as.character(Sex)) %>%
+    summarise(n = n(), mean_coverage = mean(coverage_fraction),
+              min_coverage = min(coverage_fraction),
+              n_complete = sum(observed_target_slots == expected_target_slots),
+              .groups = "drop")
+)
+coverage_group_test <- tibble(
+  test = c("kruskal_coverage_by_group", "wilcoxon_coverage_by_sex"),
+  p_value = c(
+    tryCatch(stats::kruskal.test(coverage_fraction ~ factor(Group), data = coverage_model_dat)$p.value,
+             error = function(e) NA_real_),
+    tryCatch(suppressWarnings(stats::wilcox.test(coverage_fraction ~ factor(Sex),
+             data = coverage_model_dat, exact = FALSE)$p.value), error = function(e) NA_real_)
+  )
+)
+
+# 4. do animals with absent leading slots differ in the canonical features?
+coverage_complete_flag <- coverage_model_dat %>%
+  mutate(slots_complete = observed_target_slots == expected_target_slots)
+coverage_feature_by_completeness <- map_dfr(primary_features, function(f) {
+  a <- coverage_complete_flag[[f]][coverage_complete_flag$slots_complete]
+  b <- coverage_complete_flag[[f]][!coverage_complete_flag$slots_complete]
+  a <- a[is.finite(a)]; b <- b[is.finite(b)]
+  tibble(feature = f, n_complete = length(a), n_incomplete = length(b),
+         mean_complete = if (length(a)) mean(a) else NA_real_,
+         mean_incomplete = if (length(b)) mean(b) else NA_real_,
+         wilcoxon_p = if (length(a) > 2 && length(b) > 2)
+           tryCatch(suppressWarnings(stats::wilcox.test(a, b, exact = FALSE)$p.value),
+                    error = function(e) NA_real_) else NA_real_)
+})
+
+# 5. sensitivity only: primary association among complete-slot animals
+coverage_complete_case_sensitivity <- map_dfr(primary_features, function(f) {
+  d <- coverage_complete_flag %>% filter(slots_complete)
+  v <- d[[f]]; o <- d$outcome; ok <- is.finite(v) & is.finite(o)
+  ct <- tryCatch(suppressWarnings(stats::cor.test(v[ok], o[ok], method = "spearman", exact = FALSE)),
+                 error = function(e) NULL)
+  tibble(feature = f, analysis = "complete_target_slots_only_SENSITIVITY",
+         n = sum(ok),
+         spearman_rho = if (is.null(ct)) NA_real_ else unname(ct$estimate),
+         spearman_p = if (is.null(ct)) NA_real_ else ct$p.value)
+})
+
+write_table(coverage_tbl, file.path(output_dir, "tables", "target_slot_coverage_by_animal.csv"))
+write_table(bind_rows(coverage_feature_association, coverage_outcome_association),
+            file.path(output_dir, "tables", "target_slot_coverage_associations.csv"))
+write_table(coverage_by_group_sex, file.path(output_dir, "tables", "target_slot_coverage_by_group_sex.csv"))
+write_table(coverage_group_test, file.path(output_dir, "tables", "target_slot_coverage_group_sex_tests.csv"))
+write_table(coverage_feature_by_completeness,
+            file.path(output_dir, "tables", "target_slot_coverage_feature_contrast.csv"))
+write_table(coverage_complete_case_sensitivity,
+            file.path(output_dir, "tables", "target_slot_coverage_complete_case_sensitivity.csv"))
+
+# Interior gaps would let RMSSD and ACF bridge an unobserved span. Verify that
+# the present dataset has none, so the canonical features are computed over
+# contiguous observed slots.
+interior_gap_animals <- window_design_tbl %>% filter(missing_interior_slots > 0L)
+rmssd_acf_contiguity_check <- tibble(
+  n_animals = nrow(window_design_tbl),
+  n_animals_with_interior_gaps = nrow(interior_gap_animals),
+  total_interior_missing_slots = sum(window_design_tbl$missing_interior_slots),
+  rmssd_acf_bridge_an_interior_gap = nrow(interior_gap_animals) > 0L,
+  animals_with_interior_gaps = if (nrow(interior_gap_animals) == 0L) "none"
+                               else paste(interior_gap_animals$AnimalNum, collapse = "; ")
+)
+write_table(rmssd_acf_contiguity_check,
+            file.path(output_dir, "tables", "rmssd_acf_interior_gap_check.csv"))

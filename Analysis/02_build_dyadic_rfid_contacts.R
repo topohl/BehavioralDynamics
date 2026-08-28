@@ -48,6 +48,7 @@ suppressPackageStartupMessages({
 if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(.pipeline_setup)
 source_mmm_helper("duration_normalization_helpers.R")
+source_mmm_helper("animalpos_preprocessing_helpers.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -68,10 +69,20 @@ bin_size_sec <- 600
 # PositionID. Adjacent contact is computed separately using the 2 x 4 cage grid.
 contact_definition <- "same_position"
 
-# Long gaps are retained in the interval-level export, but excluded from the
-# network-ready bin aggregation by default.
-long_gap_threshold_sec <- 3600
-exclude_long_gaps_from_aggregation <- TRUE
+# Diagnostic-only gap threshold.
+#
+# This was previously a metric-validity rule: intervals longer than an hour were
+# dropped from the network-ready aggregation. That was inert while preprocessing
+# inserted a synthetic position row at every half-hour mark, because no interval
+# could then exceed 1800 s. With synthetic rows removed the intervals span the
+# real time between genuine reads, and 1,538 of them (3,528 h, 34.1% of all
+# observed duration) now exceed the threshold, concentrated during rest.
+#
+# AnimalPos carries no RFID read-duration field, so wide event spacing is not
+# evidence of detector dropout; it is the expected signature of a stationary
+# animal. The flag is therefore computed for QC only and never filters.
+system_event_gap_threshold_sec <- 3600
+exclude_long_gaps_from_aggregation <- FALSE
 
 # Parallelize file reading and per-system interval reconstruction. Set
 # use_multicore <- FALSE for easier debugging or very small datasets.
@@ -256,9 +267,9 @@ make_interval_dyads_one_system <- function(dat_sys) {
 
     if (!is.finite(duration_sec) || duration_sec <= 0) next
 
-    # Guard against long gaps caused by acquisition breaks. These intervals are
-    # kept but flagged so they can be excluded later if needed.
-    long_gap <- duration_sec > long_gap_threshold_sec
+    # Descriptive provenance only: how far apart the bracketing genuine system
+    # events were. Never used to admit or reject an interval.
+    system_event_gap <- duration_sec > system_event_gap_threshold_sec
 
     interval_meta <- last_interval_meta_before(dat_sys, t0)
 
@@ -285,7 +296,7 @@ make_interval_dyads_one_system <- function(dat_sys) {
         IntervalStart = t0,
         IntervalEnd = t1,
         DurationSec = duration_sec,
-        LongGap = long_gap
+        SystemEventGap = system_event_gap
       ) %>%
       bind_cols(interval_meta[rep(1, nrow(pair_tbl)), ]) %>%
       left_join(pair_distance_lookup, by = c("PositionID_A", "PositionID_B"))
@@ -294,9 +305,14 @@ make_interval_dyads_one_system <- function(dat_sys) {
   bind_rows(out)
 }
 
+# Retained as an explicit, auditable no-op so that reinstating a duration-based
+# exclusion has to be a deliberate edit rather than a silent flag flip.
 filter_aggregation_intervals <- function(dat) {
-  if (exclude_long_gaps_from_aggregation && "LongGap" %in% names(dat)) {
-    dat <- dat %>% filter(!LongGap)
+  if (isTRUE(exclude_long_gaps_from_aggregation)) {
+    stop("exclude_long_gaps_from_aggregation = TRUE would silently drop genuine ",
+         "reconstructed state (34.1% of observed duration in the current dataset). ",
+         "Excluding intervals by event spacing is a scientific decision that must ",
+         "be made explicitly, not via this flag.", call. = FALSE)
   }
   dat
 }
@@ -319,35 +335,15 @@ split_intervals_to_bins <- function(dat) {
              slice(0))
   }
 
-  interval_start_num <- as.numeric(dat$IntervalStart)
-  interval_end_num <- as.numeric(dat$IntervalEnd)
-  bin_start_num <- floor(interval_start_num / bin_size_sec) * bin_size_sec
-  bin_end_num <- floor((interval_end_num - 1e-7) / bin_size_sec) * bin_size_sec
-  n_bins <- pmax(0L, as.integer((bin_end_num - bin_start_num) / bin_size_sec) + 1L)
-
-  keep <- n_bins > 0
-  if (!all(keep)) {
-    dat <- dat[keep, , drop = FALSE]
-    interval_start_num <- interval_start_num[keep]
-    interval_end_num <- interval_end_num[keep]
-    bin_start_num <- bin_start_num[keep]
-    n_bins <- n_bins[keep]
-  }
-
-  row_idx <- rep(seq_len(nrow(dat)), n_bins)
-  bin_offsets <- sequence(n_bins) - 1L
-  split_bin_start_num <- rep(bin_start_num, n_bins) + bin_offsets * bin_size_sec
-  split_start_num <- pmax(rep(interval_start_num, n_bins), split_bin_start_num)
-  split_end_num <- pmin(rep(interval_end_num, n_bins), split_bin_start_num + bin_size_sec)
-  split_duration_sec <- split_end_num - split_start_num
-
-  out <- dat[row_idx, , drop = FALSE]
-  out$IntervalStart <- as.POSIXct(split_start_num, origin = "1970-01-01", tz = "UTC")
-  out$IntervalEnd <- as.POSIXct(split_end_num, origin = "1970-01-01", tz = "UTC")
-  out$DurationSec <- split_duration_sec
-  out$BinStart <- as.POSIXct(split_bin_start_num, origin = "1970-01-01", tz = "UTC")
-
-  out %>% filter(is.finite(DurationSec), DurationSec > 0)
+  # Same generic interval/boundary intersection the rest of the pipeline uses,
+  # cross-validated in the test suite against a loop reference and against the
+  # pre-refactor binning arithmetic.
+  out <- animalpos_split_intervals_one_grid(dat, bin_size_sec, 0)
+  out$BinStart <- as.POSIXct(
+    floor(as.numeric(out$IntervalStart) / bin_size_sec) * bin_size_sec,
+    origin = "1970-01-01", tz = "UTC"
+  )
+  out
 }
 
 aggregate_dyads_by_bin <- function(interval_tbl) {
@@ -370,7 +366,7 @@ aggregate_dyads_by_bin <- function(interval_tbl) {
       adjacent_seconds = sum(adjacent_seconds, na.rm = TRUE),
       mean_grid_distance = sum(weighted_grid_distance, na.rm = TRUE) / observation_seconds,
       n_intervals = n(),
-      n_long_gaps = sum(LongGap, na.rm = TRUE),
+      n_system_event_gaps = sum(SystemEventGap, na.rm = TRUE),
       Group = first(na.omit(c(Group_Focal, Group_Partner, NA_character_))),
       Sex = first(na.omit(c(Sex_Focal, Sex_Partner, NA_character_))),
       Dataset = collapse_character_annotation(Dataset),
@@ -472,6 +468,76 @@ if (nrow(interval_tbl) == 0) {
   stop("No dyadic intervals could be derived. Check AnimalID/System/PositionID structure.", call. = FALSE)
 }
 
+# ------------------------------------------------
+# AGGREGATION BOUNDARIES
+# ------------------------------------------------
+# Phase is a grouping variable in the bin aggregation, so an interval spanning
+# 06:30 or 18:30 has to be split there and each piece labelled with the phase it
+# actually falls in. Previously an interval inherited Phase from the row that
+# preceded its start, which was safe only because preprocessing injected a
+# synthetic position row at every boundary. Those rows are gone, so an interval
+# 06:20 -> 06:40 would otherwise be labelled Active for its whole length.
+#
+# The boundary is now applied as an interval intersection using the same generic
+# splitter as time binning, and Phase is taken from the phase blocks that carry
+# genuine observations in the same session. No synthetic position row is
+# created, and duration is conserved exactly.
+
+phase_block_reference <- all_pos %>%
+  mutate(PhaseBlockIndex = animalpos_phase_block_index(DateTime)) %>%
+  distinct(SourceFile, PhaseBlockIndex, Phase)
+
+.dup_phase_blocks <- phase_block_reference %>% count(SourceFile, PhaseBlockIndex) %>% filter(n > 1)
+if (nrow(.dup_phase_blocks) > 0) {
+  stop("Phase labels are not unique within a session for ", nrow(.dup_phase_blocks),
+       " (SourceFile, PhaseBlockIndex) combinations; phase metadata is inconsistent.",
+       call. = FALSE)
+}
+
+.sec_before <- sum(interval_tbl$DurationSec, na.rm = TRUE)
+.n_before <- nrow(interval_tbl)
+
+interval_tbl <- animalpos_split_intervals(interval_tbl, period_sec = NULL, split_phase = TRUE)
+if (abs(sum(interval_tbl$DurationSec, na.rm = TRUE) - .sec_before) > 1e-3) {
+  stop("Phase splitting did not conserve dyadic interval duration.", call. = FALSE)
+}
+
+interval_tbl <- interval_tbl %>%
+  mutate(PhaseBlockIndex = animalpos_phase_block_index(IntervalStart)) %>%
+  select(-any_of("Phase")) %>%
+  left_join(phase_block_reference, by = c("SourceFile", "PhaseBlockIndex"))
+
+.n_unobserved <- sum(is.na(interval_tbl$Phase))
+.sec_unobserved <- sum(interval_tbl$DurationSec[is.na(interval_tbl$Phase)], na.rm = TRUE)
+
+phase_boundary_audit <- tibble(
+  n_intervals_before_split           = .n_before,
+  n_pieces_after_split               = nrow(interval_tbl),
+  n_pieces_created_by_phase_split    = nrow(interval_tbl) - .n_before,
+  seconds_before_split               = .sec_before,
+  seconds_after_split                = sum(interval_tbl$DurationSec, na.rm = TRUE),
+  n_pieces_in_unobserved_phase_block = .n_unobserved,
+  seconds_in_unobserved_phase_blocks = .sec_unobserved,
+  system_event_gap_threshold_sec     = system_event_gap_threshold_sec,
+  exclude_long_gaps_from_aggregation = exclude_long_gaps_from_aggregation
+)
+message(sprintf(
+  "  dyadic intervals: %d -> %d phase-bounded pieces; dropped %d pieces (%.1f h) in phase blocks with no observations",
+  .n_before, nrow(interval_tbl), .n_unobserved, .sec_unobserved / 3600))
+
+interval_tbl <- interval_tbl %>% filter(!is.na(Phase)) %>% select(-PhaseBlockIndex)
+
+# No surviving piece may straddle a phase boundary.
+.straddle <- sum(animalpos_phase_block_index(interval_tbl$IntervalStart) !=
+                 animalpos_phase_block_index(as.POSIXct(as.numeric(interval_tbl$IntervalEnd) - 1e-3,
+                                                        origin = "1970-01-01", tz = "UTC")))
+if (.straddle > 0) {
+  stop(.straddle, " dyadic interval piece(s) still span a phase boundary after splitting.", call. = FALSE)
+}
+
+write_table(phase_boundary_audit,
+            file.path(output_dir, "tables", "phase_boundary_and_gap_rule_audit.csv"))
+
 write_table(
   drop_empty_cookiehab_annotations(interval_tbl, keep_cookiehab_annotations),
   file.path(output_dir, "tables", "dyadic_contacts_interval_level.csv")
@@ -528,7 +594,7 @@ network_ready_tbl <- dyad_bin_tbl %>%
     adjacent_seconds_per_hour,
     mean_grid_distance,
     n_intervals,
-    n_long_gaps
+    n_system_event_gaps
   ) %>%
   drop_empty_cookiehab_annotations(keep_cookiehab_annotations)
 
