@@ -44,6 +44,17 @@ if (!file.exists(.mmm_helper)) {
 }
 source(.mmm_helper)
 
+# Canonical animal identity. Stage 19 must use the SAME contract as Stage 01,
+# 03 and 09 rather than an independent normalization rule, otherwise numeric
+# aliases such as 0004 and 4 survive as separate animals with different Group
+# assignments.
+.mmm_identity <- file.path(.mmm_repo, "Functions", "behavioral_dynamics_helpers.R")
+if (!file.exists(.mmm_identity)) {
+  stop("Cannot locate behavioral_dynamics_helpers.R at ", .mmm_identity,
+       ". Set MMM_REPO_DIR.", call. = FALSE)
+}
+source(.mmm_identity)
+
 # -----------------------------
 # User options
 # -----------------------------
@@ -107,13 +118,12 @@ message2 <- function(...) message(sprintf(...))
 safe_divide <- function(num, den) ifelse(is.finite(den) & den > 0, num / den, NA_real_)
 safe_logit <- function(x, eps = EPS_LOGIT) qlogis(pmin(pmax(x, eps), 1 - eps))
 
-normalize_animal_id <- function(x) {
-  x %>%
-    as.character() %>%
-    stringr::str_trim() %>%
-    stringr::str_replace_all("\\s+", "") %>%
-    toupper()
-}
+# Retained only so that any remaining caller routes through the shared
+# contract. canonical_animal_id() additionally strips leading zeros from
+# purely numeric IDs, which is what collapses 0003/3 and 0004/4 to one
+# animal each. Reference ID lists are normalized the same way, so a list
+# entry written as 0004 still matches a raw row written as 4.
+normalize_animal_id <- function(x) canonical_animal_id(x)
 
 read_animal_id_list <- function(path, label) {
   if (is.null(path) || !file.exists(path)) {
@@ -155,8 +165,9 @@ read_preprocessed_position_file <- function(path) {
   dat %>%
     mutate(
       DateTime = suppressWarnings(as.POSIXct(DateTime, tz = "UTC")),
-      AnimalID = as.character(AnimalID),
-      AnimalNum = AnimalID,
+      AnimalID_source = as.character(AnimalID),
+      AnimalNum = canonical_animal_id(AnimalID),
+      AnimalID = AnimalNum,
       System = as.character(System),
       PositionID = suppressWarnings(as.integer(PositionID)),
       SourceFile = basename(path),
@@ -372,8 +383,8 @@ if (length(overlap) > 0) {
 
 all_pos <- all_pos %>%
   mutate(
-    AnimalID_raw = AnimalID,
-    AnimalID_norm = normalize_animal_id(AnimalID),
+    AnimalID_raw = AnimalID_source,
+    AnimalID_norm = canonical_animal_id(AnimalID),
     Batch_norm = toupper(str_trim(Batch)),
     ReferenceGroup = case_when(
       AnimalID_norm %in% sus_animals ~ "SUS",
@@ -394,6 +405,69 @@ metadata_qc <- all_pos %>%
   distinct(AnimalID_raw, AnimalID_norm, Batch, CageChange, System, Sex, Group, ReferenceGroup, ReferenceSex, SourceFile) %>%
   arrange(Batch, CageChange, System, AnimalID_norm)
 write_csv2(metadata_qc, file.path(DIR_DERIVED, "raw_position_metadata_assignment_qc.csv"))
+
+# ------------------------------------------------
+# CANONICAL ANIMAL IDENTITY CONTRACT
+# ------------------------------------------------
+# Aliases such as 0004 and 4 refer to one animal. Before canonicalization
+# Stage 19 carried them as separate identities, and because the SUS reference
+# list stores 0004 the bare spelling fell through to the unlisted default and
+# was labelled RES. The contract below fails closed rather than silently
+# averaging or splitting an animal.
+
+identity_conflicts <- all_pos %>%
+  distinct(AnimalNum, Group, Sex, Batch_norm) %>%
+  group_by(AnimalNum) %>%
+  summarise(
+    n_groups = dplyr::n_distinct(as.character(Group)),
+    n_sexes = dplyr::n_distinct(as.character(Sex)),
+    n_batches = dplyr::n_distinct(Batch_norm),
+    groups_seen = paste(sort(unique(as.character(Group))), collapse = '|'),
+    sexes_seen = paste(sort(unique(as.character(Sex))), collapse = '|'),
+    batches_seen = paste(sort(unique(Batch_norm)), collapse = '|'),
+    .groups = 'drop'
+  ) %>%
+  filter(n_groups > 1 | n_sexes > 1 | n_batches > 1)
+write_csv2(identity_conflicts, file.path(DIR_DERIVED, 'canonical_identity_conflicts.csv'))
+if (nrow(identity_conflicts) > 0) {
+  stop('Canonical animal identity conflict for ', nrow(identity_conflicts),
+       ' animal(s): ', paste(identity_conflicts$AnimalNum, collapse = ', '),
+       '. Aliases that map to one canonical animal must agree on Group, Sex and Batch.',
+       call. = FALSE)
+}
+
+alias_merge_qc <- all_pos %>%
+  distinct(AnimalNum, AnimalID_source) %>%
+  group_by(AnimalNum) %>%
+  summarise(n_raw_spellings = dplyr::n(),
+            raw_spellings = paste(sort(unique(AnimalID_source)), collapse = '|'),
+            .groups = 'drop')
+write_csv2(alias_merge_qc, file.path(DIR_DERIVED, 'canonical_identity_alias_merge.csv'))
+
+identity_roster <- all_pos %>% distinct(AnimalNum, Group, Sex)
+identity_summary <- tibble::tibble(
+  n_canonical_animals = dplyr::n_distinct(all_pos$AnimalNum),
+  n_raw_spellings = dplyr::n_distinct(all_pos$AnimalID_source),
+  n_aliases_merged = dplyr::n_distinct(all_pos$AnimalID_source) - dplyr::n_distinct(all_pos$AnimalNum),
+  n_animals_with_multiple_spellings = sum(alias_merge_qc$n_raw_spellings > 1),
+  n_CON = sum(identity_roster$Group == 'CON', na.rm = TRUE),
+  n_RES = sum(identity_roster$Group == 'RES', na.rm = TRUE),
+  n_SUS = sum(identity_roster$Group == 'SUS', na.rm = TRUE),
+  n_Female = sum(identity_roster$Sex == 'Female', na.rm = TRUE),
+  n_Male = sum(identity_roster$Sex == 'Male', na.rm = TRUE),
+  identity_conflicts = nrow(identity_conflicts)
+)
+write_csv2(identity_summary, file.path(DIR_DERIVED, 'canonical_identity_summary.csv'))
+message('Stage 19 canonical identity: ', identity_summary$n_canonical_animals,
+        ' animals from ', identity_summary$n_raw_spellings, ' raw spellings (',
+        identity_summary$n_aliases_merged, ' merged); ',
+        identity_summary$n_CON, ' CON / ', identity_summary$n_RES, ' RES / ',
+        identity_summary$n_SUS, ' SUS; ', identity_summary$n_Female, ' Female / ',
+        identity_summary$n_Male, ' Male.')
+
+if (nrow(identity_roster) != identity_summary$n_canonical_animals) {
+  stop('Canonical roster is not one row per animal after identity resolution.', call. = FALSE)
+}
 
 if (any(is.na(all_pos$Group))) warning("Some rows have missing Group after reference assignment.", call. = FALSE)
 if (any(is.na(all_pos$Sex))) warning("Some rows have missing Sex after batch-based assignment.", call. = FALSE)
