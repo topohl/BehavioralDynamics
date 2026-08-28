@@ -86,6 +86,7 @@ PRIMARY_WINDOW_H <- 12
 PRIMARY_PHASE_NUMBER <- 1L
 
 GROUP_LEVELS <- c("CON", "RES", "SUS")
+SEX_LEVELS <- c("Female", "Male")
 
 POSITION_MAP <- tibble::tibble(
   PositionID = 1:8,
@@ -220,8 +221,11 @@ make_occupancy_intervals_one_system <- function(dat_sys) {
       for (j in seq_len(nrow(updates))) {
         a <- updates$AnimalID[j]
         current_pos[a] <- updates$PositionID[j]
-        if (!is.na(updates$Group[j])) current_group[a] <- updates$Group[j]
-        if (!is.na(updates$Sex[j])) current_sex[a] <- updates$Sex[j]
+        # as.character() is required: current_group is a character vector, and
+        # assigning a factor element into it would store the integer code
+        # ("RES" -> "2"), which later factor() calls map to NA.
+        if (!is.na(updates$Group[j])) current_group[a] <- as.character(updates$Group[j])
+        if (!is.na(updates$Sex[j])) current_sex[a] <- as.character(updates$Sex[j])
       }
     }
 
@@ -395,8 +399,8 @@ all_pos <- all_pos %>%
     ReferenceSex = assign_batch_sex(Batch),
     Group = coalesce(ReferenceGroup, Group),
     Sex = coalesce(ReferenceSex, Sex),
-    Group = factor(Group, levels = GROUP_LEVELS),
-    Sex = factor(Sex),
+    Group = factor(as.character(Group), levels = GROUP_LEVELS),
+    Sex = factor(as.character(Sex), levels = SEX_LEVELS),
     PhaseClass = factor(Phase, levels = c("Active", "Inactive")),
     CageChangeIndex = suppressWarnings(as.integer(str_extract(CageChange, "\\d+")))
   )
@@ -614,7 +618,7 @@ occ_animal_bin <- position_occupancy_by_bin %>%
     occupancy_fraction_logit = safe_logit(occupancy_fraction),
     low_read_window = observation_seconds < MIN_OBSERVATION_SEC_PER_ANIMAL_WINDOW,
     PositionID = factor(PositionID, levels = POSITION_MAP$PositionID),
-    Group = factor(Group, levels = GROUP_LEVELS)
+    Group = factor(as.character(Group), levels = GROUP_LEVELS)
   )
 
 occ_animal_phase <- position_occupancy_by_phase %>%
@@ -630,13 +634,62 @@ occ_animal_phase <- position_occupancy_by_phase %>%
     occupancy_fraction_logit = safe_logit(occupancy_fraction),
     low_read_window = observation_seconds < MIN_OBSERVATION_SEC_PER_ANIMAL_WINDOW,
     PositionID = factor(PositionID, levels = POSITION_MAP$PositionID),
-    Group = factor(Group, levels = GROUP_LEVELS)
+    Group = factor(as.character(Group), levels = GROUP_LEVELS)
   )
 
 occ_animal <- bind_rows(
   occ_animal_bin %>% filter(!is.na(Window)),
   occ_animal_phase
 )
+
+# ------------------------------------------------
+# GROUP / SEX LABEL CONTRACT
+# ------------------------------------------------
+# Group and Sex must still be semantic labels here. They previously arrived as
+# integer factor codes carried through the interval builder, which every
+# downstream factor() call then turned into NA, emptying the animal-level and
+# group-level summaries. Fail closed rather than publish empty strata.
+
+label_contract <- function(dat, label) {
+  g <- as.character(dat$Group); s <- as.character(dat$Sex)
+  bad_g <- setdiff(unique(g[!is.na(g)]), GROUP_LEVELS)
+  bad_s <- setdiff(unique(s[!is.na(s)]), SEX_LEVELS)
+  if (length(bad_g) > 0) {
+    stop(label, ': Group holds non-semantic value(s): ', paste(bad_g, collapse = ', '),
+         '. Expected only ', paste(GROUP_LEVELS, collapse = '/'), '.', call. = FALSE)
+  }
+  if (length(bad_s) > 0) {
+    stop(label, ': Sex holds non-semantic value(s): ', paste(bad_s, collapse = ', '),
+         '. Expected only ', paste(SEX_LEVELS, collapse = '/'), '.', call. = FALSE)
+  }
+  if (any(is.na(g))) stop(label, ': ', sum(is.na(g)), ' row(s) have a missing Group.', call. = FALSE)
+  if (any(is.na(s))) stop(label, ': ', sum(is.na(s)), ' row(s) have a missing Sex.', call. = FALSE)
+  invisible(TRUE)
+}
+label_contract(occ_animal, 'occ_animal')
+
+label_roster <- occ_animal %>% distinct(AnimalNum, Group, Sex)
+label_contract_summary <- tibble::tibble(
+  n_animals = dplyr::n_distinct(occ_animal$AnimalNum),
+  n_CON = sum(as.character(label_roster$Group) == 'CON'),
+  n_RES = sum(as.character(label_roster$Group) == 'RES'),
+  n_SUS = sum(as.character(label_roster$Group) == 'SUS'),
+  n_Female = sum(as.character(label_roster$Sex) == 'Female'),
+  n_Male = sum(as.character(label_roster$Sex) == 'Male'),
+  group_values = paste(sort(unique(as.character(label_roster$Group))), collapse = '|'),
+  sex_values = paste(sort(unique(as.character(label_roster$Sex))), collapse = '|'),
+  n_rows_missing_group = sum(is.na(occ_animal$Group)),
+  n_rows_missing_sex = sum(is.na(occ_animal$Sex))
+)
+write_csv2(label_contract_summary, file.path(DIR_DERIVED, 'group_sex_label_contract.csv'))
+message('Stage 19 label contract: ', label_contract_summary$n_animals, ' animals; ',
+        label_contract_summary$n_CON, ' CON / ', label_contract_summary$n_RES, ' RES / ',
+        label_contract_summary$n_SUS, ' SUS; ', label_contract_summary$n_Female,
+        ' Female / ', label_contract_summary$n_Male, ' Male.')
+
+if (nrow(label_roster) != label_contract_summary$n_animals) {
+  stop('Group/Sex labels are not one row per animal.', call. = FALSE)
+}
 
 primary_window_label <- if (any(occ_animal$Window == "CC1_active1_first12h")) "CC1_active1_first12h" else "CC1_active1_fullphase"
 
@@ -866,8 +919,8 @@ run_lmer_occupancy <- function(dat, label) {
       CageChangeIndex = factor(CageChangeIndex),
       AnimalNum = factor(AnimalNum),
       Batch = factor(Batch),
-      Sex = factor(Sex),
-      Group = factor(Group, levels = GROUP_LEVELS),
+      Sex = factor(as.character(Sex), levels = SEX_LEVELS),
+      Group = factor(as.character(Group), levels = GROUP_LEVELS),
       PhaseClass = factor(PhaseClass, levels = c("Active", "Inactive"))
     ) %>%
     filter(!is.na(occupancy_fraction_logit), !is.na(Group), !is.na(Sex), !is.na(PositionID)) %>%
