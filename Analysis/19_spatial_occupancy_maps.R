@@ -469,6 +469,9 @@ message(sprintf(
 
 occupancy_intervals <- occupancy_intervals %>% filter(!is.na(Phase)) %>% select(-PhaseBlockIndex)
 
+write_csv2(phase_boundary_audit,
+           file.path(DIR_DERIVED, "phase_boundary_and_gap_rule_audit.csv"))
+
 .straddle <- sum(animalpos_phase_block_index(occupancy_intervals$IntervalStart) !=
                  animalpos_phase_block_index(as.POSIXct(as.numeric(occupancy_intervals$IntervalEnd) - 1e-3,
                                                         origin = "1970-01-01", tz = "UTC")))
