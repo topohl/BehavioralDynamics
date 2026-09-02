@@ -431,7 +431,8 @@ standardize_behavior_columns <- function(dat,
 
   out <- dat %>%
     mutate(
-      AnimalNum = .data[[animal_col]],
+      AnimalID_raw = as.character(.data[[animal_col]]),
+      AnimalNum = canonical_animal_id(AnimalID_raw),
       TimeIndex = .data[[time_col]],
       Movement = suppressWarnings(as.numeric(.data[[movement_col]])),
       Entropy = suppressWarnings(as.numeric(.data[[entropy_col]])),

@@ -14,13 +14,13 @@ This folder is organized as a staged, reviewer-safe pipeline. The scripts remain
 | 05 | `05_behavioral_state_space.R` | Behavioral state-space features | Stage 01 metrics | State diversity and switching tables |
 | 06 | `06_dynamic_social_networks.R` | Dynamic social network features | Stage 02 dyadic contacts, with metric fallback | Animal-level social dynamics and network summaries |
 | 07 | `07_gamm_trajectory_features.R` | GAMM trajectory-derived features | Stage 01 metrics | Trajectory feature tables |
-| 08 | `08_hmm_behavioral_states_optional.R` | Optional HMM state model | Stage 01 metrics | HMM state assignments and transition summaries |
+| 08 | `08_hmm_behavioral_states_optional.R` | Optional HMM state model with canonical identity and explicit 10-min primary / 5-min sensitivity | Stage 01 metrics plus the current canonical Stage 01 roster | HMM state assignments, transitions, occupancy, identity/sequence-quality/model-fit provenance |
 | 09 | `09_early_prediction_model_ladder.R` | Primary early prediction model ladder: first active 12 h after the first cage change, using 10-min bins | Stage 01 metrics plus endpoint table | Fixed a priori early behavior prediction tables, permutation tests, and figures |
 | 10 | `10_systems_feature_prediction_ladder.R` | Secondary systems-extension prediction ladder | Stage 09 plus optional downstream features | Domain-wise systems prediction comparison |
 | 11 | `11_behavioral_adaptation_kinetics.R` | Adaptation/recovery kinetics | Stage 01 metrics | Recovery and stabilization feature tables |
 | 12 | `12_sleep_like_quiescence_metrics.R` | Sleep-like quiescence metrics | Stage 01 metrics | Inactivity bout and quiescence summaries |
 | 13 | `13_ethological_phase_organization.R` | Ethological phase organization | Stage 01 metrics | Phase contrast, timing, fragmentation, and recovery features |
-| 14 | `14_systems_neuroscience_summary_dashboard.R` | Integrated systems neuroscience dashboard | Stages 01, 04-13, optional proteomics | Feature matrix, audits, scorecards, dashboard panels |
+| 14 | `14_systems_neuroscience_summary_dashboard.R` | Integrated systems neuroscience dashboard; HMM-domain heatmap uses animal-level g and repeated-measures contrasts | Stages 01, 04-13, optional proteomics | Feature matrix, audits, scorecards, dashboard panels, HMM-resolution sensitivity |
 | 15 | `15_behavior_proteomics_integration.R` | Optional behavior-proteomics integration | Behavioral feature tables plus proteomics module data | Behavior-proteomics bridge tables and figures |
 | 16 | `16_manuscript_behavior_report.R` | Export-only manuscript reporting layer | Canonical Stage 09 tables plus selected Stage 03/QC tables | Typed results, animal/prediction/movement source data, provenance, validation, and one source-data workbook |
 
@@ -35,6 +35,32 @@ The fixed a priori behavior-only models are the mean-only intercept baseline, `M
 `03_primary_raw_movement_phase_stats.R` is the active secondary phenotype/group-characterization script for broad raw movement. Its displayed CON/RES/SUS pairwise comparisons are Holm-adjusted within each prespecified three-contrast panel. With `export_global_family_corrections = FALSE`, no wider global family-wise correction is exported or claimed. The wider Stage 03 scan is secondary/descriptive and does not replace the Stage 09 prospective analysis. The older `18_raw_movement_publication_trajectory.R` and `18b_raw_movement_broad_phase_stats.R` are archived.
 
 `16_manuscript_behavior_report.R` is a thin assembly layer. It reads existing Stage 09, Stage 03, and QC tables and writes the canonical manuscript package to `analysis_ready/manuscript/behavior/`. The entry point is `Behavioral_Source_Data.xlsx`; compact CSV companions provide primary results, supplementary results, animal-level source data, held-out prediction source data, movement-phase source data, provenance, validation, and a SHA-256 manifest. It does not fit models or recalculate statistics. Stage 10/14 predictive claims, HMM/state, manifold, nonlinear, systems-composite, and behavior-proteomics outputs remain exploratory and are not promoted to the primary registry.
+
+## Stage 08 HMM and Stage 14 state-architecture contract
+
+Stage 08 reads the current Stage 01 `all_behavior_metrics.csv`, canonicalizes
+`AnimalNum` with the shared `canonical_animal_id()` helper before sequence
+construction, and inherits Group/Sex only from the current canonical Stage 01
+roster. Alias phenotype conflicts, roster mismatches, and unknown animals fail
+closed. The configured primary HMM is `10min_based`; `5min_based` is always run
+as the required sensitivity. Exact inputs, code hashes, fit starts, identity
+aliases/conflicts, sequence-quality exclusions, and resolution roles are
+written beside each HMM output.
+
+Stage 14 imports only those exact configured artifacts. Its ordered semantic
+mapping is audited and remains operational rather than ethologically validated.
+The historical state-architecture composite is computed after z-scaling within
+`Sex x PhaseClass x CageChangeIndex`. If no social state is identified, the
+social fraction is reported as zero and the composite reduction is stated
+explicitly; no social state is forced.
+
+For `Fig_sis_active_inactive_domain_heatmap`, heatmap color is animal-level
+Hedges g after averaging each animal across included cage changes. Significance
+comes from `DomainScore ~ Group * Sex + factor(CageChangeIndex) + (1 | AnimalNum)`
+and `emmeans` contrasts within Sex. BH families comprise all estimable displayed
+Domain x three Group contrasts within Sex x Phase x resolution. The sensitivity
+table/figure compares 5- and 10-min model estimates, uncertainty, animal-level
+effect sizes, and FDR results.
 
 ## Output Layout
 

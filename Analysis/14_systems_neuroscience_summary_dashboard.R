@@ -58,6 +58,7 @@ if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", 
 source(.pipeline_setup)
 source_mmm_helper("behavioral_dynamics_stats_helpers.R")
 source_mmm_helper("duration_normalization_helpers.R")
+source_mmm_helper("hmm_stage14_helpers.R")
 
 # ------------------------------------------------
 # USER CONFIGURATION
@@ -72,6 +73,14 @@ repo_root <- MMM_REPO_ROOT
 primary_bin_level <- "5min_based"
 sensitivity_bin_levels <- c("10sec_based", "5min_based", "10min_based", "30min_based")
 optional_import_bin_levels <- unique(c(sensitivity_bin_levels, "1min_based"))
+
+# HMM provenance is independent of the raw-dashboard backbone. The HMM
+# producer and the original HMM-domain routing both prespecified 10-minute
+# bins; 5-minute bins are the explicit sensitivity. Never infer this choice
+# from whichever files happen to exist.
+hmm_primary_bin_level <- getOption("mmm.hmm.primary_bin_level", "10min_based")
+hmm_sensitivity_bin_levels <- getOption("mmm.hmm.sensitivity_bin_levels", "5min_based")
+hmm_analysis_bin_levels <- unique(c(hmm_primary_bin_level, hmm_sensitivity_bin_levels))
 
 # Systems integration is intentionally multi-scale. The primary bin controls
 # the raw dashboard backbone; specialized domains can prefer biologically
@@ -290,6 +299,13 @@ write_output_manifest(
     "tables/systems_interpretation_guide.csv",
     "tables/systems_visualization_guide.csv",
     "stats_tables/systems_group_contrasts.csv",
+    "stats_tables/systems_sis_domain_effect_summary.csv",
+    "stats_tables/systems_sis_hmm_resolution_sensitivity.csv",
+    "tables/systems_stage14_hmm_coverage_audit.csv",
+    "tables/systems_stage14_hmm_epoch_coverage_detail.csv",
+    "tables/systems_hmm_resolution_provenance.csv",
+    "tables/systems_hmm_semantic_category_audit.csv",
+    "tables/systems_hmm_composite_component_audit.csv",
     "tables/duration_sensitivity_audit.csv"
   ),
   primary_figures = c(
@@ -307,7 +323,9 @@ write_output_manifest(
     "figures/qc/Fig_batch_system_feature_bias.svg",
     "figures/qc/Fig_group_balance_by_batch_system.svg",
     "figures/qc/Fig_primary_feature_robustness.svg",
-    "figures/publication_panels/Fig_systems_prediction_ladder.svg"
+    "figures/publication_panels/Fig_systems_prediction_ladder.svg",
+    "figures/publication_panels/Fig_sis_active_inactive_domain_heatmap.svg",
+    "figures/publication_panels/Fig_sis_hmm_resolution_sensitivity.svg"
   ),
   notes = c("This is the publication-facing integration layer; use systems_visualization_guide.csv to choose panels.")
 )
@@ -431,19 +449,11 @@ sig_label <- function(p) {
 }
 
 standardize_id_columns <- function(dat) {
-  normalize_animal_id <- function(x) {
-    x %>%
-      as.character() %>%
-      str_trim() %>%
-      str_replace_all("\\s+", "") %>%
-      str_to_upper()
-  }
-
   animal_col <- first_existing_col(dat, c("AnimalNum", "Animal", "AnimalID", "MouseID", "Mouse", "ID", "RFID", "animal_id"), TRUE, "animal ID")
   group_col <- first_existing_col(dat, c("Group", "Phenotype", "Condition", "Treatment", "StressGroup"), FALSE, "group")
   sex_col <- first_existing_col(dat, c("Sex", "sex"), FALSE, "sex")
 
-  out <- dat %>% mutate(AnimalNum = normalize_animal_id(.data[[animal_col]]))
+  out <- dat %>% mutate(AnimalNum = canonical_animal_id(.data[[animal_col]]))
   out$Group <- if (!is.na(group_col)) as.character(dat[[group_col]]) else NA_character_
   out$Sex <- if (!is.na(sex_col)) as.character(dat[[sex_col]]) else NA_character_
   out %>%
@@ -612,7 +622,7 @@ paths <- tibble(
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", primary_bin_level, "tables"),
     stage09_early_prediction_primary$path,
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", primary_bin_level, "tables"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", primary_bin_level, "tables"),
+    file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", hmm_primary_bin_level, "tables"),
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", primary_bin_level, "tables"),
     file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", primary_bin_level, "derived_data"),
     file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", primary_bin_level, "tables"),
@@ -663,6 +673,7 @@ if (is.null(base_raw)) {
 }
 
 base <- standardize_id_columns(base_raw)
+canonical_stage01_roster <- build_canonical_identity_roster(base, "Stage 14 canonical Stage 01 base")
 
 phase_col <- first_existing_col(base, c("Phase", "phase"), FALSE, "phase")
 cage_col <- first_existing_col(base, c("CageChange", "CC", "CageChangeNum", "Regrouping"), FALSE, "cage-change")
@@ -1146,6 +1157,20 @@ load_hmm_system_features <- function(scale_label = primary_bin_level) {
   state_summary <- read_any_table(file.path(hmm_dir, "hmm_state_summary.csv"))
   if (is.null(occ) && is.null(dwell) && is.null(trans)) return(tibble())
 
+  reconcile_optional_hmm_table <- function(dat, table_name) {
+    if (is.null(dat) || nrow(dat) == 0) return(dat)
+    audit <- audit_hmm_identity(
+      dat,
+      canonical_stage01_roster,
+      paste0("Stage 14 optional HMM feature import ", scale_label, " ", table_name)
+    )
+    assert_hmm_identity_audit(audit)
+    audit$data
+  }
+  occ <- reconcile_optional_hmm_table(occ, "occupancy")
+  dwell <- reconcile_optional_hmm_table(dwell, "dwell")
+  trans <- reconcile_optional_hmm_table(trans, "transition_probability")
+
   inactive_state <- dominant_state_by_profile(state_summary, "inactive")
   explore_state <- dominant_state_by_profile(state_summary, "explore")
   burst_state <- dominant_state_by_profile(state_summary, "burst")
@@ -1363,7 +1388,7 @@ optional_long <- pmap_dfr(optional_files, function(source_label, domain_label, p
   load_optional_animal_table(path, source_label, domain_label)
 }) %>%
   bind_rows(
-    map_dfr(optional_import_bin_levels, load_hmm_system_features),
+    map_dfr(hmm_analysis_bin_levels, load_hmm_system_features),
     map_dfr(optional_import_bin_levels, load_gamm_shape_features),
     map_dfr(optional_import_bin_levels, load_graph_period_features),
     map_dfr(optional_import_bin_levels, load_nextgen_selective_features)
@@ -1930,7 +1955,7 @@ integration_audit_registry <- tibble(
     ),
     stage09_early_prediction_primary$tried,
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables/animal_level_social_dynamics.csv"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", domain_bin_preference("hmm"), "tables/hmm_state_occupancy.csv"),
+    file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", hmm_primary_bin_level, "tables/hmm_state_occupancy.csv"),
     c(
       file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", domain_bin_preference("adaptive_recovery"), "tables/combined_gamm_features.csv"),
       file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_features", domain_bin_preference("adaptive_recovery"), "tables/combined_gamm_features.csv")
@@ -3093,47 +3118,105 @@ if (nrow(network_long) > 0) {
 # MODERN INTERPRETABILITY VISUALS: HMM FLOW, SOCIAL MAPS, TRAJECTORY ADAPTATION
 # ------------------------------------------------
 
-hmm_candidate_bin_levels <- domain_bin_preference("hmm")
-hmm_candidate_dirs <- file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", hmm_candidate_bin_levels, "tables")
-hmm_dir <- hmm_candidate_dirs[file.exists(file.path(hmm_candidate_dirs, "hmm_state_occupancy.csv"))][1]
-if (is.na(hmm_dir)) hmm_dir <- file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", primary_bin_level, "tables")
-hmm_bin_level_used <- basename(dirname(hmm_dir))
-hmm_path_audit <- tibble(
-  requested_primary_bin_level = primary_bin_level,
-  available_candidate_bin_level = hmm_candidate_bin_levels,
-  candidate_dir = hmm_candidate_dirs,
-  occupancy_file_exists = file.exists(file.path(hmm_candidate_dirs, "hmm_state_occupancy.csv")),
-  used_for_hmm_visuals = hmm_candidate_dirs == hmm_dir
+hmm_required_filenames <- c(
+  state_summary = "hmm_state_summary.csv",
+  transition_prob = "hmm_transition_probabilities.csv",
+  dwell = "hmm_state_dwell_times.csv",
+  occupancy = "hmm_state_occupancy.csv"
 )
-write_table(hmm_path_audit, file.path(output_dir, "tables/systems_hmm_path_audit.csv"))
+hmm_artifact_registry <- crossing(
+  resolution = hmm_analysis_bin_levels,
+  table_name = names(hmm_required_filenames)
+) %>%
+  mutate(
+    filename = unname(hmm_required_filenames[table_name]),
+    path = map2_chr(resolution, filename, ~ resolve_configured_hmm_artifact(project_root, .x, .y, required = FALSE)$path),
+    file_exists = file.exists(path),
+    resolution_role = if_else(resolution == hmm_primary_bin_level, "primary", "sensitivity"),
+    configured_primary = resolution == hmm_primary_bin_level
+  )
+if (any(!hmm_artifact_registry$file_exists)) {
+  missing_hmm <- hmm_artifact_registry %>% filter(!file_exists)
+  stop(
+    "Configured HMM artifacts are missing; Stage 14 will not switch resolutions by file existence:\n",
+    paste(utils::capture.output(print(missing_hmm, n = Inf)), collapse = "\n"),
+    call. = FALSE
+  )
+}
+write_table(hmm_artifact_registry, file.path(output_dir, "tables/systems_hmm_path_audit.csv"))
 
-hmm_state_summary <- read_any_table(file.path(hmm_dir, "hmm_state_summary.csv"))
-hmm_transition_prob <- read_any_table(file.path(hmm_dir, "hmm_transition_probabilities.csv"))
-hmm_dwell <- read_any_table(file.path(hmm_dir, "hmm_state_dwell_times.csv"))
-hmm_occupancy <- read_any_table(file.path(hmm_dir, "hmm_state_occupancy.csv"))
-
-state_label_tbl <- if (!is.null(hmm_state_summary) && nrow(hmm_state_summary) > 0) {
-  hmm_state_summary %>%
-    mutate(
-      State = as.character(State),
-      Movement_z = safe_numeric(Movement_z),
-      Entropy_z = safe_numeric(Entropy_z),
-      Proximity_z = safe_numeric(Proximity_z),
-      SemanticState = case_when(
-        Movement_z <= median(Movement_z, na.rm = TRUE) & Entropy_z <= median(Entropy_z, na.rm = TRUE) ~ "inactive/low-exploration",
-        Proximity_z >= quantile(Proximity_z, 0.67, na.rm = TRUE) ~ "social",
-        Movement_z >= quantile(Movement_z, 0.67, na.rm = TRUE) ~ "burst/high-movement",
-        Entropy_z >= quantile(Entropy_z, 0.67, na.rm = TRUE) ~ "exploratory",
-        TRUE ~ "mixed"
-      ),
-      StateLabel = paste0("S", State, "\n", SemanticState)
-    ) %>%
-    distinct(State, StateLabel, SemanticState)
-} else {
-  tibble(State = character(), StateLabel = character(), SemanticState = character())
+load_hmm_resolution_bundle <- function(resolution) {
+  paths_for_resolution <- hmm_artifact_registry %>% filter(.data$resolution == .env$resolution)
+  tables <- set_names(
+    map(paths_for_resolution$path, read_any_table),
+    paths_for_resolution$table_name
+  )
+  identity_audits <- imap(
+    tables[c("transition_prob", "dwell", "occupancy")],
+    ~ audit_hmm_identity(.x, canonical_stage01_roster, paste0("Stage 14 ", resolution, " ", .y))
+  )
+  walk(identity_audits, assert_hmm_identity_audit)
+  tables$transition_prob <- identity_audits$transition_prob$data
+  tables$dwell <- identity_audits$dwell$data
+  tables$occupancy <- identity_audits$occupancy$data
+  tables$identity_audits <- identity_audits
+  tables
 }
 
-write_table(state_label_tbl, file.path(output_dir, "tables/systems_hmm_state_semantic_labels.csv"))
+hmm_bundles <- map(set_names(hmm_analysis_bin_levels), load_hmm_resolution_bundle)
+hmm_bin_level_used <- hmm_primary_bin_level
+hmm_dir <- dirname(resolve_configured_hmm_artifact(project_root, hmm_primary_bin_level)$path)
+hmm_state_summary <- hmm_bundles[[hmm_primary_bin_level]]$state_summary
+hmm_transition_prob <- hmm_bundles[[hmm_primary_bin_level]]$transition_prob
+hmm_dwell <- hmm_bundles[[hmm_primary_bin_level]]$dwell
+hmm_occupancy <- hmm_bundles[[hmm_primary_bin_level]]$occupancy
+
+hmm_identity_alias_audit <- imap_dfr(hmm_bundles, function(bundle, resolution) {
+  imap_dfr(bundle$identity_audits, ~ mutate(.x$alias_audit, resolution = resolution, table_name = .y, .before = 1))
+})
+hmm_identity_conflicts <- imap_dfr(hmm_bundles, function(bundle, resolution) {
+  imap_dfr(bundle$identity_audits, ~ mutate(.x$identity_conflicts, resolution = resolution, table_name = .y, .before = 1))
+})
+hmm_identity_concordance <- imap_dfr(hmm_bundles, function(bundle, resolution) {
+  imap_dfr(bundle$identity_audits, ~ mutate(.x$concordance, resolution = resolution, table_name = .y, .before = 1))
+})
+hmm_identity_summary <- imap_dfr(hmm_bundles, function(bundle, resolution) {
+  imap_dfr(bundle$identity_audits, ~ mutate(.x$summary, resolution = resolution, table_name = .y, .before = 1))
+})
+write_table(hmm_identity_alias_audit, file.path(output_dir, "tables/systems_hmm_identity_alias_audit.csv"))
+write_table(hmm_identity_conflicts, file.path(output_dir, "tables/systems_hmm_identity_conflicts.csv"))
+write_table(hmm_identity_concordance, file.path(output_dir, "tables/systems_hmm_group_sex_concordance.csv"))
+write_table(hmm_identity_summary, file.path(output_dir, "tables/systems_hmm_identity_summary.csv"))
+
+state_label_tables <- imap(
+  hmm_bundles,
+  ~ annotate_hmm_semantic_states(.x$state_summary, .y)
+)
+hmm_semantic_mapping <- bind_rows(state_label_tables)
+hmm_semantic_category_audit <- imap_dfr(
+  state_label_tables,
+  ~ audit_hmm_semantic_categories(.x, .y)
+)
+state_label_tbl <- state_label_tables[[hmm_primary_bin_level]] %>%
+  select(State, StateLabel, SemanticState)
+write_table(hmm_semantic_mapping, file.path(output_dir, "tables/systems_hmm_state_semantic_labels.csv"))
+write_table(hmm_semantic_category_audit, file.path(output_dir, "tables/systems_hmm_semantic_category_audit.csv"))
+
+hmm_stage14_provenance <- hmm_artifact_registry %>%
+  mutate(
+    selected_for_primary_heatmap = resolution == hmm_primary_bin_level,
+    primary_choice_basis = if_else(
+      resolution == hmm_primary_bin_level,
+      "10-minute HMM producer configuration and HMM-domain routing were explicit before this correction",
+      "prespecified 5-minute sensitivity"
+    ),
+    HMM_code = "Analysis/08_hmm_behavioral_states_optional.R",
+    Stage14_code = "Analysis/14_systems_neuroscience_summary_dashboard.R",
+    standardization_context = paste(hmm_standardization_context, collapse = " x "),
+    inferential_model = "DomainScore ~ Group * Sex + factor(CageChangeIndex) + (1 | AnimalNum)",
+    FDR_family = "all displayed Domain x 3 contrasts within Sex x Phase, separately by HMM resolution"
+  )
+write_table(hmm_stage14_provenance, file.path(output_dir, "tables/systems_hmm_resolution_provenance.csv"))
 
 if (!is.null(hmm_transition_prob) && nrow(hmm_transition_prob) > 0) {
   hmm_transition_plot_tbl <- hmm_transition_prob %>%
@@ -3577,7 +3660,7 @@ sis_dependency_audit <- tibble(
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables")),
     resolve_stage09_early_prediction_artifact(project_root, "primary_prediction_performance.csv", domain_bin_preference("early_prediction"))$path,
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables")),
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", domain_bin_preference("hmm"), "tables")),
+    file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", hmm_primary_bin_level, "tables"),
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", domain_bin_preference("adaptive_recovery"), "tables")),
     first_existing_path(file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", domain_bin_preference("nonlinear_systems"))),
     first_existing_path(file.path(project_root, "analysis_ready/14_nextgen_behavioral_phenotyping", domain_bin_preference("nonlinear_systems"), "tables")),
@@ -5037,10 +5120,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
 # domain-level scores to avoid letting locomotion dominate the dashboard.
 
 standardize_within_context <- function(dat, value_col, group_cols = c("Sex", "PhaseClass", "CageChangeIndex")) {
-  dat %>%
-    group_by(across(any_of(group_cols))) %>%
-    mutate("{value_col}_z" := safe_scale(safe_numeric(.data[[value_col]]))) %>%
-    ungroup()
+  strict_standardize_within_context(dat, value_col, group_cols)
 }
 
 score_mean <- function(dat, cols) {
@@ -5289,45 +5369,47 @@ sis_epoch_scores <- sis_epoch_score_base %>%
     )
   )
 
-hmm_epoch_scores <- if (!is.null(hmm_occupancy) && nrow(hmm_occupancy) > 0) {
-  state_summary_for_arch <- state_label_tbl
-  hmm_occupancy %>%
-    standardize_id_columns() %>%
-    mutate(
-      PhaseClass = case_when(
-        str_detect(str_to_lower(as.character(Phase)), "\\binactive\\b|\\blight\\b|\\bday\\b") ~ "Inactive",
-        str_detect(str_to_lower(as.character(Phase)), "\\bactive\\b|\\bdark\\b|\\bnight\\b") ~ "Active",
-        TRUE ~ as.character(Phase)
-      ),
-      CageChange = as.character(CageChange),
-      CageChangeIndex = parse_cage_change_index(CageChange),
-      State = as.character(State),
-      frac_time = safe_numeric(frac_time)
-    ) %>%
-    left_join(state_summary_for_arch %>% select(State, SemanticState), by = "State") %>%
-    group_by(AnimalNum, CageChange, CageChangeIndex, PhaseClass) %>%
-    summarise(
-      state_occupancy_entropy = feature_entropy(frac_time / sum(frac_time, na.rm = TRUE)),
-      inactive_state_fraction = sum(frac_time[SemanticState == "inactive/low-exploration"], na.rm = TRUE),
-      social_state_fraction = sum(frac_time[SemanticState == "social"], na.rm = TRUE),
-      .groups = "drop"
-    ) %>%
-    standardize_within_context("state_occupancy_entropy") %>%
-    standardize_within_context("inactive_state_fraction") %>%
-    standardize_within_context("social_state_fraction") %>%
-    mutate(`Behavioral state architecture` = score_mean(pick(everything()), c("state_occupancy_entropy_z", "social_state_fraction_z")) - coalesce(inactive_state_fraction_z, 0)) %>%
-    select(AnimalNum, CageChange, CageChangeIndex, PhaseClass, `Behavioral state architecture`)
-} else {
-  tibble()
+hmm_epoch_results <- imap(
+  hmm_bundles,
+  ~ build_hmm_epoch_scores(.x$occupancy, state_label_tables[[.y]], canonical_stage01_roster, .y)
+)
+hmm_epoch_scores_by_resolution <- imap_dfr(hmm_epoch_results, ~ mutate(.x$scores, resolution = .y))
+hmm_component_audit <- map_dfr(hmm_epoch_results, "component_audit")
+hmm_standardization_context_audit <- map_dfr(hmm_epoch_results, "context_audit")
+hmm_coverage_audit <- imap_dfr(
+  hmm_epoch_results,
+  ~ audit_hmm_coverage(sis_epoch_raw, .x$scores, .y)
+)
+hmm_epoch_coverage_detail <- imap_dfr(
+  hmm_epoch_results,
+  ~ audit_hmm_coverage_detail(sis_epoch_raw, .x$scores, .y)
+)
+write_table(hmm_epoch_scores_by_resolution, file.path(output_dir, "tables/systems_hmm_epoch_scores_by_resolution.csv"))
+write_table(hmm_component_audit, file.path(output_dir, "tables/systems_hmm_composite_component_audit.csv"))
+write_table(hmm_standardization_context_audit, file.path(output_dir, "tables/systems_hmm_standardization_context_audit.csv"))
+write_table(hmm_coverage_audit, file.path(output_dir, "tables/systems_stage14_hmm_coverage_audit.csv"))
+write_table(
+  hmm_epoch_coverage_detail,
+  file.path(output_dir, "tables/systems_stage14_hmm_epoch_coverage_detail.csv")
+)
+if (any(hmm_coverage_audit$unexpected_identity_loss)) {
+  warning(
+    "Stage 14 HMM coverage has missing canonical animals. See systems_stage14_hmm_coverage_audit.csv; ",
+    "these losses must be supported by HMM data-quality exclusions and are not treated as ID formatting loss.",
+    call. = FALSE
+  )
 }
 
-if (nrow(hmm_epoch_scores) > 0) {
-  sis_epoch_scores <- sis_epoch_scores %>%
-    left_join(hmm_epoch_scores, by = c("AnimalNum", "CageChange", "CageChangeIndex", "PhaseClass"))
-} else {
-  sis_epoch_scores <- sis_epoch_scores %>%
-    mutate(`Behavioral state architecture` = score_mean(pick(everything()), c("Behavioral flexibility / predictability", "Behavioral volatility / fragmentation")))
-}
+hmm_epoch_scores <- hmm_epoch_results[[hmm_primary_bin_level]]$scores %>%
+  select(
+    AnimalNum, Group, Sex, CageChange, CageChangeIndex, PhaseClass,
+    `Behavioral state architecture`
+  )
+sis_epoch_scores <- sis_epoch_scores %>%
+  left_join(
+    hmm_epoch_scores,
+    by = c("AnimalNum", "Group", "Sex", "CageChange", "CageChangeIndex", "PhaseClass")
+  )
 
 sis_domain_cols <- c(
   "Early adaptation / prediction",
@@ -5819,29 +5901,157 @@ sis_group_summary <- sis_domain_scores %>%
   )
 write_table(sis_group_summary, file.path(output_dir, "stats_tables/systems_sis_domain_group_summary.csv"))
 
-domain_effect_summary <- sis_domain_scores %>%
-  group_by(Domain, PhaseClass, Sex) %>%
-  group_modify(~{
-    d <- .x
-    map_dfr(contrast_pairs, function(pair) {
-      ref <- pair[1]; comp <- pair[2]
-      x <- d$DomainScore[as.character(d$Group) == ref]
-      y <- d$DomainScore[as.character(d$Group) == comp]
-      tibble(
-        contrast = paste0(comp, "-", ref),
-        n_ref = sum(is.finite(x)),
-        n_comp = sum(is.finite(y)),
-        hedges_g = hedges_g(x, y),
-        mean_difference = mean(y, na.rm = TRUE) - mean(x, na.rm = TRUE),
-        p.value = tryCatch(t.test(y, x)$p.value, error = function(e) NA_real_)
-      )
-    })
-  }) %>%
-  ungroup() %>%
-  group_by(PhaseClass, Sex) %>%
-  mutate(p_fdr = p.adjust(p.value, method = "BH")) %>%
-  ungroup()
-write_table(domain_effect_summary, file.path(output_dir, "stats_tables/systems_sis_domain_effect_summary.csv"))
+sis_heatmap_domains <- c(
+  "Active-phase adaptation/exploration",
+  "Inactive-phase rest/circadian regulation",
+  "Behavioral flexibility / predictability",
+  "Social spatial organization",
+  "Behavioral state architecture",
+  "Behavioral volatility / fragmentation",
+  "Psychomotor activation"
+)
+
+domain_effect_path <- file.path(output_dir, "stats_tables/systems_sis_domain_effect_summary.csv")
+pre_fix_effect_path <- file.path(output_dir, "stats_tables/systems_sis_domain_effect_summary_pre_hmm_identity_fix.csv")
+if (file.exists(domain_effect_path) && !file.exists(pre_fix_effect_path)) {
+  file.copy(domain_effect_path, pre_fix_effect_path, overwrite = FALSE)
+}
+
+non_hmm_domain_scores <- sis_domain_scores %>%
+  filter(Domain != "Behavioral state architecture")
+hmm_resolution_domain_scores <- imap(hmm_epoch_results, function(result, resolution) {
+  hmm_domain <- result$scores %>%
+    transmute(
+      AnimalNum,
+      Group = factor(as.character(Group), levels = group_levels),
+      Sex = factor(as.character(Sex), levels = sex_levels),
+      CageChange,
+      CageChangeIndex,
+      PhaseClass,
+      Domain = "Behavioral state architecture",
+      DomainScore = `Behavioral state architecture`
+    ) %>%
+    filter(is.finite(DomainScore)) %>%
+    left_join(sis_domain_interpretation, by = "Domain")
+  bind_rows(non_hmm_domain_scores, hmm_domain) %>%
+    mutate(resolution = resolution)
+})
+
+hmm_resolution_model_results <- imap(
+  hmm_resolution_domain_scores,
+  ~ analyze_repeated_measures_heatmap(.x, sis_heatmap_domains, .y)
+)
+all_resolution_domain_effects <- map_dfr(hmm_resolution_model_results, "contrasts")
+all_resolution_interactions <- map_dfr(hmm_resolution_model_results, "interactions")
+domain_effect_summary <- all_resolution_domain_effects %>%
+  filter(resolution == hmm_primary_bin_level)
+write_table(domain_effect_summary, domain_effect_path)
+write_table(
+  all_resolution_interactions,
+  file.path(output_dir, "stats_tables/systems_sis_domain_group_sex_interactions_by_hmm_resolution.csv")
+)
+
+hmm_resolution_sensitivity <- all_resolution_domain_effects %>%
+  filter(Domain == "Behavioral state architecture") %>%
+  transmute(
+    resolution,
+    Domain,
+    Sex,
+    Phase = PhaseClass,
+    contrast,
+    n_ref_animals,
+    n_comp_animals,
+    animal_level_hedges_g,
+    mixed_model_estimate,
+    mixed_model_SE,
+    mixed_model_p,
+    FDR_q,
+    n_tests_in_family,
+    FDR_family_id,
+    model_formula,
+    model_engine,
+    model_status,
+    model_warnings,
+    effect_size_method,
+    significance_method
+  )
+write_table(
+  hmm_resolution_sensitivity,
+  file.path(output_dir, "stats_tables/systems_sis_hmm_resolution_sensitivity.csv")
+)
+
+p_hmm_resolution_sensitivity <- hmm_resolution_sensitivity %>%
+  mutate(
+    resolution = factor(resolution, levels = hmm_analysis_bin_levels),
+    contrast = factor(contrast, levels = c("RES-CON", "SUS-CON", "SUS-RES")),
+    model_ci_low = mixed_model_estimate - 1.96 * mixed_model_SE,
+    model_ci_high = mixed_model_estimate + 1.96 * mixed_model_SE,
+    effect_label = paste0("g=", formatC(animal_level_hedges_g, format = "f", digits = 2))
+  ) %>%
+  ggplot(aes(resolution, mixed_model_estimate, colour = contrast, group = contrast)) +
+  geom_hline(yintercept = 0, linewidth = 0.22, colour = "grey65") +
+  geom_errorbar(aes(ymin = model_ci_low, ymax = model_ci_high), width = 0.08, linewidth = 0.34) +
+  geom_line(linewidth = 0.38) +
+  geom_point(size = 1.35) +
+  geom_text(aes(label = effect_label), nudge_x = 0.08, size = 1.7, show.legend = FALSE) +
+  facet_grid(Sex ~ Phase) +
+  scale_colour_manual(values = c("RES-CON" = "#3d3b6e", "SUS-CON" = "#e63947", "SUS-RES" = "#8A817C")) +
+  labs(
+    title = "HMM-resolution sensitivity of behavioral state architecture",
+    subtitle = "Points/95% CI: repeated-measures model contrast; labels: animal-level Hedges g",
+    x = "Prespecified HMM resolution",
+    y = "Mixed-model group contrast",
+    colour = "Contrast"
+  ) +
+  make_nature_theme(base_size = 5.5) +
+  theme(legend.position = "top")
+save_plot_svg_pdf(
+  p_hmm_resolution_sensitivity,
+  file.path(output_dir, "figures/publication_panels/Fig_sis_hmm_resolution_sensitivity"),
+  width = 165,
+  height = 105
+)
+
+old_broken_state_architecture <- if (file.exists(pre_fix_effect_path)) {
+  read_any_table(pre_fix_effect_path) %>%
+    filter(Domain == "Behavioral state architecture", PhaseClass == "Active", Sex == "Female") %>%
+    transmute(
+      analysis_version = "old_broken_stage14",
+      resolution = "file-existence-selected_10min_based",
+      contrast,
+      g = safe_numeric(hedges_g),
+      p = safe_numeric(p.value),
+      q = safe_numeric(p_fdr),
+      n_ref = safe_numeric(n_ref),
+      n_comp = safe_numeric(n_comp),
+      n_unit = "animal x cage-change rows (invalid independence assumption)"
+    )
+} else {
+  tibble()
+}
+corrected_state_architecture <- bind_rows(
+  hmm_resolution_sensitivity %>%
+    filter(resolution == hmm_primary_bin_level, Sex == "Female", Phase == "Active") %>%
+    mutate(analysis_version = "corrected_primary"),
+  hmm_resolution_sensitivity %>%
+    filter(Sex == "Female", Phase == "Active") %>%
+    mutate(analysis_version = paste0("corrected_", resolution, "_sensitivity"))
+) %>%
+  transmute(
+    analysis_version,
+    resolution,
+    contrast,
+    g = animal_level_hedges_g,
+    p = mixed_model_p,
+    q = FDR_q,
+    n_ref = n_ref_animals,
+    n_comp = n_comp_animals,
+    n_unit = "independent animals"
+  )
+write_table(
+  bind_rows(old_broken_state_architecture, corrected_state_architecture),
+  file.path(output_dir, "stats_tables/systems_sis_female_active_state_architecture_before_after.csv")
+)
 
 plot_domain_trajectory <- function(domain_name, phase = "Active", title, subtitle, y_lab = "Domain score") {
   plot_tbl <- sis_domain_scores %>%
@@ -5949,9 +6159,9 @@ p_sis_repeated_adaptation <- plot_domain_trajectory(
 save_plot_svg_pdf(p_sis_repeated_adaptation, file.path(output_dir, "figures/publication_panels/Fig_sis_repeated_active_phase_adaptation"), width = 140, height = 82)
 
 p_sis_phase_heatmap <- domain_effect_summary %>%
-  filter(Domain %in% c("Active-phase adaptation/exploration", "Inactive-phase rest/circadian regulation", "Behavioral flexibility / predictability", "Social spatial organization", "Behavioral state architecture", "Behavioral volatility / fragmentation", "Psychomotor activation")) %>%
+  filter(Domain %in% sis_heatmap_domains) %>%
   mutate(
-    Domain = factor(Domain, levels = rev(c("Active-phase adaptation/exploration", "Inactive-phase rest/circadian regulation", "Behavioral flexibility / predictability", "Social spatial organization", "Behavioral state architecture", "Behavioral volatility / fragmentation", "Psychomotor activation"))),
+    Domain = factor(Domain, levels = rev(sis_heatmap_domains)),
     contrast = factor(contrast, levels = c("RES-CON", "SUS-CON", "SUS-RES"))
   ) %>%
   ggplot(aes(contrast, Domain, fill = hedges_g)) +
@@ -5961,10 +6171,11 @@ p_sis_phase_heatmap <- domain_effect_summary %>%
   scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
   labs(
     title = "C. Active and inactive phase organization",
-    subtitle = "Domain-level Hedges g; active/inactive phases are distinct biological regimes",
+    subtitle = paste0("Animal-level Hedges g; symbols use repeated-measures model BH q; HMM primary: ", hmm_primary_bin_level),
     x = NULL,
     y = NULL,
-    fill = "g"
+    fill = "animal-level g",
+    caption = "Color: Hedges g from one mean per animal. Significance: lmerTest/emmeans contrast; BH within Sex x Phase across all displayed Domain x 3 contrasts."
   ) +
   make_nature_theme(base_size = 5.5) +
   theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right")
@@ -6192,6 +6403,16 @@ sis_dashboard_visualization_rows <- tibble(
     "Entropy direction is context-dependent.",
     "Proximity is not equivalent to sociability.",
     "Do not claim EEG sleep or fixed ethological HMM states."
+  )
+)
+
+sis_dashboard_visualization_rows <- bind_rows(
+  sis_dashboard_visualization_rows,
+  tibble(
+    Figure = "Fig_sis_hmm_resolution_sensitivity",
+    PrimaryQuestion = "Are behavioral-state architecture effect directions, magnitudes and uncertainty stable between the prespecified 10-min primary and 5-min sensitivity HMMs?",
+    ManuscriptUse = "Required HMM-resolution sensitivity panel",
+    Caution = "Points and intervals are repeated-measures model contrasts; text labels are animal-level Hedges g. Compare magnitude and uncertainty, not significance categories alone."
   )
 )
 
@@ -6668,6 +6889,32 @@ stats_reporting_guide <- tibble(
     "Main biological construct table and raincloud-style figure",
     "Reviewer-facing duration confound check",
     "Feature architecture and redundancy-control reporting"
+  )
+)
+
+stats_reporting_guide <- bind_rows(
+  stats_reporting_guide,
+  tibble(
+    Output = c(
+      "systems_sis_domain_effect_summary.csv",
+      "systems_sis_hmm_resolution_sensitivity.csv",
+      "systems_hmm_resolution_provenance.csv"
+    ),
+    PrimaryStatistic = c(
+      "Animal-level Hedges g for color; lmerTest/emmeans repeated-measures Group contrasts within Sex for p/q symbols",
+      "5-min and 10-min animal-level Hedges g plus repeated-measures estimates, SE, p and BH q",
+      "Exact HMM paths/resolution roles, code identity, contextual standardization, model formula and FDR family"
+    ),
+    MultipleTesting = c(
+      "BH across all estimable displayed Domain x three contrasts within Sex x Phase at the configured primary HMM resolution",
+      "BH across all estimable displayed Domain x three contrasts within Sex x Phase separately by HMM resolution",
+      "Not applicable; machine-readable provenance"
+    ),
+    ManuscriptUse = c(
+      "Primary source table for the active/inactive domain heatmap; n values are independent animals",
+      "Required resolution-sensitivity source table and compact panel",
+      "Audit trail for exact reconstruction of HMM-dependent tiles"
+    )
   )
 )
 

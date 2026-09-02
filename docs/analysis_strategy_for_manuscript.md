@@ -277,6 +277,66 @@ The active optional HMM script is:
 Analysis/08_hmm_behavioral_states_optional.R
 ```
 
+The Stage 14 `Behavioral state architecture` domain has the following exact
+provenance chain:
+
+```text
+Stage 01 canonical behavior metrics
+  -> canonical AnimalNum / current Stage 01 Group and Sex roster
+  -> Stage 08 Gaussian HMM sequence construction and fitting
+  -> hmm_state_summary.csv + hmm_state_occupancy.csv
+  -> Stage 14 ordered semantic-state annotation
+  -> animal x cage-change x phase occupancy entropy and semantic fractions
+  -> z-scaling within Sex x PhaseClass x CageChangeIndex
+  -> mean(z(state_occupancy_entropy), z(social_state_fraction))
+       - z(inactive_state_fraction)
+  -> animal-level mean Hedges g for heatmap color
+  -> Group * Sex repeated-measures model contrasts for p/q symbols
+```
+
+The HMM resolution is prespecified in code and provenance, never selected from
+the first file that happens to exist. The primary HMM resolution is
+`10min_based`, preserving the explicit Stage 08 HMM choice in repository
+history. `5min_based` is the required resolution sensitivity. Both are rebuilt
+from current canonical Stage 01 inputs and are reported in
+`systems_sis_hmm_resolution_sensitivity.csv`.
+
+Every HMM input and output identifier uses the shared `canonical_animal_id()`
+contract. Group and Sex are inherited from the current Stage 01 roster after
+fail-closed checks for alias conflicts and roster disagreement. The HMM and
+Stage 14 exports include machine-readable identity, coverage, model-fit,
+semantic-state, component-variance, standardization-context, inferential-model,
+FDR-family, and input/code provenance audits.
+
+The semantic-state classifier is an ordered, data-derived operational mapping;
+its labels are not independently validated ethological states. A fitted state
+is not forced into a missing semantic category. In particular, when no state is
+classified as `social`, `social_state_fraction` is zero, its contextual z score
+is zero, and the historical composite reduces mathematically to:
+
+```text
+0.5 * z(state_occupancy_entropy) - z(inactive_state_fraction)
+```
+
+In that case the result must not be described as containing independent
+social-state occupancy evidence. The historical formula is retained for
+provenance; any future construct change requires a separate scientific plan.
+
+For the broad active/inactive domain heatmap, color is Hedges g calculated from
+one mean per biological animal across the included cage changes. Inferential
+p-values come from, for each Domain x Phase:
+
+```text
+DomainScore ~ Group * Sex + factor(CageChangeIndex) + (1 | AnimalNum)
+```
+
+with `lmerTest` and `emmeans` Group contrasts within Sex. No pooled
+animal-by-cage-change Welch test is permitted as a fallback. The formal
+Group-by-Sex interaction is exported separately. BH correction is performed
+over all estimable displayed Domain x three-contrast tests within each Sex x
+Phase x HMM-resolution family; the family identifier and size are exported with
+every tile.
+
 HMM, manifold, recurrence, attractor, energy-landscape, and advanced nonlinear analyses should currently be treated as:
 
 ```text
