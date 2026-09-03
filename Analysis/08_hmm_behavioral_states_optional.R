@@ -120,7 +120,9 @@ initialize_hmm_from_kmeans <- function(mod, hmm_dat, n_states, seed, sd_floor = 
       )
     }
   }
-  sequence_id <- as.character(hmm_dat$SequenceID)
+  # Gap-aware: initial-state priors and empirical transition starts are taken
+  # within contiguous BLOCKS, matching the ntimes factorization handed to depmix.
+  sequence_id <- as.character(hmm_dat$SequenceBlockID)
   sequence_starts <- !duplicated(sequence_id)
   initial_counts <- tabulate(km$cluster[sequence_starts], nbins = n_states) + 1
   mod@init[1, ] <- initial_counts / sum(initial_counts)
@@ -193,7 +195,9 @@ run_hmm_resolution <- function(bin_level) {
       "tables/hmm_identity_summary.csv",
       "tables/hmm_sequence_quality_audit.csv",
       "tables/hmm_epoch_data_quality_exclusions.csv",
-      "tables/hmm_input_provenance.csv"
+      "tables/hmm_input_provenance.csv",
+      "tables/hmm_gap_segmentation_audit.csv",
+      "tables/hmm_sequence_design.csv"
     ),
     primary_figures = "figures/hmm_state_occupancy.svg",
     notes = c(
@@ -272,15 +276,107 @@ run_hmm_resolution <- function(bin_level) {
     arrange(AnimalNum, CageChange, Phase, TimeIndex) %>%
     mutate(SequenceID = interaction(AnimalNum, CageChange, Phase, drop = TRUE, sep = "__"))
 
-  sequence_tbl <- hmm_dat %>%
+  # Epoch-level data-quality contract is unchanged: an Animal x CageChange x Phase
+  # epoch needs at least 4 complete Movement/Entropy/Proximity bins to be modelled.
+  epoch_tbl <- hmm_dat %>%
     count(SequenceID, AnimalNum, Group, Sex, CageChange, Phase, name = "n_bins") %>%
     arrange(AnimalNum, CageChange, Phase) %>%
     filter(n_bins >= 4)
 
   hmm_dat <- hmm_dat %>%
-    semi_join(sequence_tbl %>% select(SequenceID), by = "SequenceID") %>%
-    mutate(SequenceID = factor(SequenceID, levels = sequence_tbl$SequenceID)) %>%
+    semi_join(epoch_tbl %>% select(SequenceID), by = "SequenceID") %>%
+    mutate(SequenceID = factor(SequenceID, levels = epoch_tbl$SequenceID)) %>%
     arrange(SequenceID, TimeIndex)
+
+  # ----------------------------------------------------------------------------
+  # GAP-AWARE SEQUENCE SEGMENTATION
+  # ----------------------------------------------------------------------------
+  # An "Active" epoch is a concatenation of several dark blocks separated by the
+  # intervening light phase, which is NOT observed for that epoch. Treating the
+  # epoch as one contiguous chain invents a transition across each ~12 h gap and
+  # merges the dwell bouts on either side of it. Blocks are therefore cut on
+  # PHYSICAL time from BinStart against the known BinSizeSec, never on an
+  # interval estimated from observed spacings.
+  if (!"BinStart" %in% names(hmm_dat)) {
+    stop("Gap-aware HMM segmentation requires a BinStart timestamp column in the Stage 01 input.",
+         call. = FALSE)
+  }
+  declared_bin_size_sec <- if ("BinSizeSec" %in% names(hmm_dat)) {
+    v <- unique(suppressWarnings(as.numeric(hmm_dat$BinSizeSec)))
+    v <- v[is.finite(v) & v > 0]
+    if (length(v) != 1L) {
+      stop("Inconsistent BinSizeSec metadata for ", bin_level, ": ",
+           paste(v, collapse = ", "), ". Expected exactly one declared bin width.", call. = FALSE)
+    }
+    v
+  } else {
+    stop("Gap-aware HMM segmentation requires declared BinSizeSec metadata.", call. = FALSE)
+  }
+
+  hmm_dat <- hmm_dat %>%
+    group_by(SequenceID) %>%
+    arrange(TimeIndex, .by_group = TRUE) %>%
+    mutate(
+      delta_sec = as.numeric(difftime(BinStart, lag(BinStart), units = "secs")),
+      .new_block = !is.na(delta_sec) & delta_sec > 1.5 * declared_bin_size_sec,
+      SequenceBlock = cumsum(coalesce(.new_block, FALSE)) + 1L
+    ) %>%
+    ungroup() %>%
+    mutate(SequenceBlockID = paste(as.character(SequenceID), SequenceBlock, sep = "__blk"))
+
+  # Fail closed on non-monotonic time: a negative delta means the epoch ordering
+  # and the timestamps disagree, which would corrupt every temporal metric.
+  backwards <- hmm_dat %>% filter(is.finite(delta_sec), delta_sec <= 0)
+  if (nrow(backwards) > 0L) {
+    stop("Time moves backwards or repeats within ", n_distinct(backwards$SequenceID),
+         " HMM sequence(s) for ", bin_level,
+         "; BinStart and TimeIndex are inconsistent. First offender: ",
+         backwards$SequenceID[1], call. = FALSE)
+  }
+
+  sequence_tbl <- hmm_dat %>%
+    count(SequenceBlockID, SequenceID, AnimalNum, Group, Sex, CageChange, Phase,
+          SequenceBlock, name = "n_bins") %>%
+    arrange(AnimalNum, CageChange, Phase, SequenceBlock)
+
+  # No minimum-block rule is imposed. A 1-bin block contributes a valid emission
+  # and simply no transition, so dropping it would discard real observations; the
+  # only retention rule remains the epoch-level >= 4 complete bins above.
+  hmm_dat <- hmm_dat %>%
+    mutate(SequenceBlockID = factor(SequenceBlockID, levels = sequence_tbl$SequenceBlockID)) %>%
+    arrange(SequenceBlockID, TimeIndex)
+
+  gap_segmentation_audit <- sequence_tbl %>%
+    group_by(SequenceID, AnimalNum, Group, Sex, CageChange, Phase) %>%
+    summarise(
+      n_blocks = n(),
+      epoch_bins = sum(n_bins),
+      min_block_bins = min(n_bins),
+      max_block_bins = max(n_bins),
+      n_blocks_lt_4_bins = sum(n_bins < 4L),
+      .groups = "drop"
+    ) %>%
+    left_join(
+      hmm_dat %>% group_by(SequenceID) %>%
+        summarise(
+          max_gap_sec = suppressWarnings(max(delta_sec, na.rm = TRUE)),
+          n_gaps = sum(is.finite(delta_sec) & delta_sec > 1.5 * declared_bin_size_sec),
+          .groups = "drop"
+        ),
+      by = "SequenceID"
+    ) %>%
+    mutate(
+      BinLevel = bin_level,
+      declared_bin_size_sec = declared_bin_size_sec,
+      gap_rule = paste0("new SequenceBlock where BinStart delta > 1.5 * ", declared_bin_size_sec, " s"),
+      max_gap_hours = if_else(is.finite(max_gap_sec), max_gap_sec / 3600, NA_real_),
+      # Transitions/bouts that the pre-correction contiguous contract created or merged.
+      transitions_no_longer_bridged = n_blocks - 1L,
+      bouts_no_longer_merged = n_blocks - 1L,
+      .before = 1
+    )
+  write_table(gap_segmentation_audit,
+              file.path(output_dir, "tables", "hmm_gap_segmentation_audit.csv"))
 
   data_quality_exclusions <- canonical_roster %>%
     anti_join(sequence_tbl %>% distinct(AnimalNum), by = "AnimalNum") %>%
@@ -297,7 +393,20 @@ run_hmm_resolution <- function(bin_level) {
     metric_source = "08_hmm_behavioral_states_optional",
     bin_size_sec = infer_bin_size_sec(hmm_dat)
   )
+  # ntimes is now the GAP-AWARE block lengths, so depmixS4 never estimates a
+  # transition across an unobserved light phase.
   ntimes <- sequence_tbl$n_bins
+  if (sum(ntimes) != nrow(hmm_dat)) {
+    stop("Gap-aware ntimes does not partition the HMM data: sum(ntimes) = ", sum(ntimes),
+         " but nrow(hmm_dat) = ", nrow(hmm_dat), ".", call. = FALSE)
+  }
+  # Every ntimes boundary must coincide exactly with a SequenceBlockID boundary.
+  block_runs <- rle(as.character(hmm_dat$SequenceBlockID))
+  if (!identical(block_runs$lengths, as.integer(ntimes)) ||
+      !identical(block_runs$values, as.character(sequence_tbl$SequenceBlockID))) {
+    stop("ntimes boundaries do not correspond to SequenceBlockID boundaries; ",
+         "the HMM data ordering and the sequence table disagree.", call. = FALSE)
+  }
   if (nrow(hmm_dat) < n_states * 10) {
     stop("Too few usable rows for HMM. Use a finer bin level or fewer states.", call. = FALSE)
   }
@@ -387,7 +496,14 @@ run_hmm_resolution <- function(bin_level) {
     n_animals = n_distinct(hmm_dat$AnimalNum),
     n_expected_animals = n_distinct(canonical_roster$AnimalNum),
     n_data_quality_exclusions = nrow(data_quality_exclusions),
+    n_epochs = n_distinct(hmm_dat$SequenceID),
     n_sequences = length(ntimes),
+    sequence_contract = "gap_aware_contiguous_blocks",
+    declared_bin_size_sec = declared_bin_size_sec,
+    gap_rule = paste0("BinStart delta > 1.5 * ", declared_bin_size_sec, " s starts a new block"),
+    n_blocks_lt_4_bins = sum(sequence_tbl$n_bins < 4L),
+    transitions_no_longer_bridged = length(ntimes) - n_distinct(hmm_dat$SequenceID),
+    bouts_no_longer_merged = length(ntimes) - n_distinct(hmm_dat$SequenceID),
     min_sequence_bins = min(ntimes),
     median_sequence_bins = median(ntimes),
     max_sequence_bins = max(ntimes),
@@ -401,7 +517,7 @@ run_hmm_resolution <- function(bin_level) {
   write_table(hmm_qc, file.path(output_dir, "tables", "hmm_model_qc.csv"))
   write_table(
     hmm_dat %>%
-      select(BinLevel, ProximityInput, SequenceID, AnimalNum, Group, Sex, Phase, CageChange, TimeIndex, Movement_z, Entropy_z, Proximity_z, State),
+      select(BinLevel, ProximityInput, SequenceID, SequenceBlockID, SequenceBlock, AnimalNum, Group, Sex, Phase, CageChange, TimeIndex, BinStart, delta_sec, Movement_z, Entropy_z, Proximity_z, State),
     file.path(output_dir, "tables", "hmm_state_assignments.csv")
   )
 
@@ -416,10 +532,13 @@ run_hmm_resolution <- function(bin_level) {
     )
   write_table(state_summary, file.path(output_dir, "tables", "hmm_state_summary.csv"))
 
+  # Gap-aware: lead() is taken WITHIN SequenceBlockID, so no transition is
+  # counted across an unobserved light phase.
   transition_tbl <- hmm_dat %>%
-    group_by(BinLevel, ProximityInput, Group, Sex, Phase, CageChange, AnimalNum) %>%
+    group_by(BinLevel, ProximityInput, Group, Sex, Phase, CageChange, AnimalNum, SequenceBlockID) %>%
     arrange(TimeIndex, .by_group = TRUE) %>%
     mutate(NextState = lead(State)) %>%
+    ungroup() %>%
     filter(!is.na(NextState)) %>%
     count(BinLevel, ProximityInput, Group, Sex, Phase, CageChange, AnimalNum, State, NextState, name = "Transitions") %>%
     join_duration_qc(epoch_duration_qc) %>%
@@ -432,11 +551,14 @@ run_hmm_resolution <- function(bin_level) {
     ungroup()
   write_table(transition_prob_tbl, file.path(output_dir, "tables", "hmm_transition_probabilities.csv"))
 
+  # Gap-aware: runs are cut at SequenceBlockID boundaries, so a bout is never
+  # merged across an unobserved light phase.
   dwell_tbl <- hmm_dat %>%
-    group_by(BinLevel, ProximityInput, Group, Sex, Phase, CageChange, AnimalNum) %>%
+    group_by(BinLevel, ProximityInput, Group, Sex, Phase, CageChange, AnimalNum, SequenceBlockID) %>%
     arrange(TimeIndex, .by_group = TRUE) %>%
     mutate(StateRun = cumsum(State != lag(State, default = first(State))) + 1L) %>%
-    group_by(BinLevel, ProximityInput, Group, Sex, Phase, CageChange, AnimalNum, State, StateRun) %>%
+    ungroup() %>%
+    group_by(BinLevel, ProximityInput, Group, Sex, Phase, CageChange, AnimalNum, SequenceBlockID, State, StateRun) %>%
     summarise(dwell_bins = n(), .groups = "drop") %>%
     group_by(BinLevel, ProximityInput, Group, Sex, Phase, CageChange, AnimalNum, State) %>%
     summarise(
@@ -476,9 +598,15 @@ run_hmm_resolution <- function(bin_level) {
     code_md5 = c(NA_character_, NA_character_, unname(tools::md5sum(hmm_script_path))),
     generated_utc = format(Sys.time(), tz = "UTC", usetz = TRUE),
     model_specification = paste0(
-      n_states, "-state regularized Gaussian HMM: Movement_z + Entropy_z + Proximity_z; sequences = AnimalNum x CageChange x Phase; ",
+      n_states, "-state regularized Gaussian HMM: Movement_z + Entropy_z + Proximity_z; ",
+      "sequences = AnimalNum x CageChange x Phase x GAP-AWARE contiguous block ",
+      "(new block where BinStart delta > 1.5 * declared BinSizeSec = ", declared_bin_size_sec, " s); ",
+      "block boundaries govern depmix ntimes, Viterbi transition counting, ",
+      "self-transition, switch rate, transition entropy and dwell runs alike; ",
+      "no minimum-block rule, so 1-bin blocks contribute an emission and no transition; ",
       "deterministic starts=", paste(hmm_fit_seeds, collapse = "|"),
-      "; selected highest converged logLik; EM tolerance=", hmm_em_tolerance,
+      "; selected highest converged logLik WITHIN this sequence contract ",
+      "(logLik is NOT comparable across sequence factorizations); EM tolerance=", hmm_em_tolerance,
       "; max iterations=", hmm_em_max_iterations,
       "; Gaussian emission SD floor (z units)=", hmm_emission_sd_floor
     )
