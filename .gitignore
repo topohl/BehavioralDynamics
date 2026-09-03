@@ -1,0 +1,12 @@
+# Rendered manuscript figure outputs. These are regenerated from tracked source
+# (manuscript/Fig1_behavior_candidates/build_fig1_candidates.R and
+# manuscript/BehavioralDynamics_schema/R/), so the builders are versioned but
+# their staged SVG/PDF/PNG products are not. The schema rendered/ directory
+# alone is ~4.9 MB of PNG.
+#
+# This replaces a blanket `/manuscript` rule, which also ignored the tracked
+# source files under manuscript/Fig1_behavior_candidates/ -- blocking `git add`
+# on them -- and hid the manuscript verification scripts under
+# manuscript/BehavioralDynamics_schema/R/ from version control entirely.
+manuscript/Fig1_behavior_candidates/rendered/
+manuscript/BehavioralDynamics_schema/rendered/

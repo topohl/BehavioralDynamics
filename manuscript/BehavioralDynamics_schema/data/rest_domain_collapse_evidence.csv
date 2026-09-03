@@ -1,0 +1,8 @@
+"check","value"
+"rest_as_written_vs_collapsed_max_abs_diff",2.35546921834033
+"rest_exported_vs_collapsed_max_abs_diff",2.35546921834033
+"n_inactive_epochs",444
+"quiescence_inputs_available_inactive",0
+"volatility_inputs_used_inactive",3
+"volatility_inputs_used_active_with_stage12",5
+"volatility_inputs_used_active_without_stage12",3

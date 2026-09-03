@@ -1,0 +1,2 @@
+"AnimalNum","Group","Sex","CageChange","PhaseClass","n_bins","Proximity_mean","Proximity_rmssd","Proximity_acf1","Proximity_mean_z","Proximity_rmssd_z","Proximity_acf1_z","Social spatial organization"
+"1545","SUS","Female","CC1","Active",575,0.170998797102579,0.16760332601562,0.602230435303893,-1.81327970629058,-0.509611187713115,-0.745145035550724,-0.769601183207538

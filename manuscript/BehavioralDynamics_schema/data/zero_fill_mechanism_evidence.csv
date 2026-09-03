@@ -1,0 +1,8 @@
+"finding","value"
+"quiescence_raw_nonNA_inactive",0
+"quiescence_z_all_exactly_zero_inactive",1
+"rest_row_equals_(Movement_acf1_z-Movement_rmssd_z)/3",1
+"rest_max_abs_diff_vs_exported",1.11022302462516e-16
+"volatility_inactive_shrink_factor",0.6
+"sd_volatility_active",0.567349824375674
+"sd_volatility_inactive",0.515737957338019
