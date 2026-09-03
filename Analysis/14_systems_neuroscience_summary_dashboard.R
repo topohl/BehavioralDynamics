@@ -59,6 +59,11 @@ source(.pipeline_setup)
 source_mmm_helper("behavioral_dynamics_stats_helpers.R")
 source_mmm_helper("duration_normalization_helpers.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("phase_classification_helpers.R")
+source_mmm_helper("animalpos_preprocessing_helpers.R")
+source_mmm_helper("first_night_window_helpers.R")
+source_mmm_helper("first_night_domain_helpers.R")
+source_mmm_helper("first_night_domain_driver.R")
 
 # ------------------------------------------------
 # USER CONFIGURATION
@@ -956,39 +961,27 @@ base_phase_features <- base %>%
   map_dfr(~ calc_feature_set(.x, paste0("phase_", unique(.x$Phase)[1])))
 
 first_cage_change <- get_first_cage_change(base$CageChange)
-early_window_bins <- case_when(
-  primary_bin_level == "10sec_based" ~ 12 * 60 * 6,
-  primary_bin_level == "5min_based" ~ 12 * 60 / 5,
-  primary_bin_level == "10min_based" ~ 12 * 60 / 10,
-  primary_bin_level == "30min_based" ~ 12 * 60 / 30,
-  TRUE ~ 144
+
+# Clock-anchored first-night selection, shared with canonical Stage 09. The
+# previous row-count rule (`local_bin <= early_window_bins`) consumed a fixed
+# NUMBER of bins, so whenever night-1 bins were missing it reached into the
+# second dark block; it matched this window for only 50/111 animals at 10-min
+# and 33/111 at 5-min bins. There is no row-count fallback: if the window cannot
+# be built the selector fails closed rather than silently substituting one.
+first_active <- mmm_select_first_night_window(
+  base,
+  bin_size_sec = infer_bin_size_sec(base),
+  first_cage_change = first_cage_change
 )
-
-first_active <- base %>%
-  filter(
-    as.character(CageChange) == first_cage_change,
-    PhaseClass == "Active" | str_detect(str_to_lower(Phase), "\\bactive\\b|\\bdark\\b|\\bnight\\b")
-  ) %>%
-  group_by(AnimalNum, Phase) %>%
-  arrange(TimeIndex, .by_group = TRUE) %>%
-  mutate(local_bin = row_number()) %>%
-  filter(local_bin <= early_window_bins) %>%
-  ungroup()
-
-if (nrow(first_active) == 0) {
-  first_active <- base %>%
-    filter(as.character(CageChange) == first_cage_change) %>%
-    group_by(AnimalNum, Phase) %>%
-    arrange(TimeIndex, .by_group = TRUE) %>%
-    mutate(local_bin = row_number()) %>%
-    filter(local_bin <= early_window_bins) %>%
-    ungroup()
-}
+write_table(mmm_first_night_window_qc(first_active) %>% mutate(bin_level = primary_bin_level),
+            file.path(output_dir, "tables/systems_first_active_window_qc.csv"))
 
 if (nrow(first_active) > 0) {
   first_active_plot_tbl <- first_active %>%
     mutate(
-      local_hour = (local_bin - 1) * infer_bin_size_sec(base) / 3600,
+      # Real elapsed clock time, so missing bins leave genuine temporal gaps
+      # instead of being closed up by row rank.
+      local_hour = elapsed_hours_in_window,
       AnimalNum = factor(AnimalNum)
     )
   first_active_summary_tbl <- first_active_plot_tbl %>%
@@ -5593,301 +5586,135 @@ write_table(first_active_prediction_table, file.path(output_dir, "stats_tables/s
 # CC1 first-active perturbation signature. This panel is deliberately narrower
 # than the broad phase heatmap: every included feature must be filterable to the
 # first regrouping and active/dark phase before animal-level scoring.
-cc1_first_active_domains <- c(
-  "Psychomotor activation",
-  "Behavioral volatility / fragmentation",
-  "Behavioral state architecture",
-  "Social spatial organization",
-  "Behavioral flexibility / predictability",
-  "Active-phase adaptation/exploration"
-)
+# ------------------------------------------------
+# DEDICATED FIRST-NIGHT PANEL (CC1, first Active 12 h)
+# ------------------------------------------------
+# Resolution-scoped SUBANALYSIS. It loads its own Stage 01 inputs and does NOT
+# change Stage 14's global 5-min backbone (`primary_bin_level` above).
+#
+# 10 min is primary for this panel so its temporal resolution and clock window
+# match canonical Stage 09, which owns the first-12-h prospective question. This
+# is NOT a claim that these Stage 14 domain endpoints were historically
+# prespecified at 10 min, and the choice is unrelated to any p or q value.
+#
+# All window selection, feature construction, scoring, completeness and inference
+# live in Functions/first_night_domain_helpers.R and
+# Functions/first_night_domain_driver.R. The three historical row-count window
+# constructions and the generic equal-weight inventory scorer are gone: the
+# former mis-selected the window for most animals, the latter did not reproduce
+# the declared domain formulas.
+#
+# No HMM-derived row appears in this panel. First-night mean_dwell_minutes is not
+# reproducible across equally-good 10-min HMM partitions, and the Stage 08
+# occupancy/dwell/transition tables are summarized at Animal x CageChange x Phase
+# level, so filtering them to CC1 + Active spans ~48 h across four dark blocks and
+# does NOT reconstruct the first 12 h. Those HMM analyses remain HMM-specific
+# supplementary material.
 
-cc1_first_active_score_specs <- tibble(
-  Domain = cc1_first_active_domains,
-  ScoreColumn = paste0(
-    "sis_CC1_first_active_score__",
-    c(
-      "psychomotor_activation",
-      "behavioral_volatility_fragmentation",
-      "behavioral_state_architecture",
-      "social_spatial_organization",
-      "behavioral_flexibility_predictability",
-      "active_phase_adaptation_exploration"
-    )
+first_night_primary_bin_level <- getOption("mmm.first_night.primary_bin_level", "10min_based")
+first_night_sensitivity_bin_level <- getOption("mmm.first_night.sensitivity_bin_level", "5min_based")
+first_night_bin_levels <- c(first_night_primary_bin_level, first_night_sensitivity_bin_level)
+first_night_roles <- c("primary", "sensitivity")
+
+first_night_results <- map2(first_night_bin_levels, first_night_roles, function(bl, role) {
+  build_first_night_domain_analysis(
+    bin_level = bl,
+    project_root = project_root,
+    output_dir = file.path(output_dir, "first_night", bl),
+    canonical_roster = canonical_stage01_roster,
+    resolution_role = role
   )
-)
+})
+names(first_night_results) <- first_night_bin_levels
 
-cc1_active_phase_filter <- function(dat) {
-  if (is.null(dat) || nrow(dat) == 0) return(tibble())
-  dat <- standardize_id_columns(dat)
-  if (!"CageChangeIndex" %in% names(dat)) {
-    dat <- dat %>% mutate(CageChangeIndex = if ("CageChange" %in% names(.)) parse_cage_change_index(CageChange) else NA_real_)
-  }
-  phase_chr <- if ("PhaseClass" %in% names(dat)) {
-    as.character(dat$PhaseClass)
-  } else if ("Phase" %in% names(dat)) {
-    as.character(dat$Phase)
-  } else {
-    rep(NA_character_, nrow(dat))
-  }
-  dat %>%
-    mutate(
-      CageChange = if ("CageChange" %in% names(.)) as.character(CageChange) else as.character(CageChangeIndex),
-      PhaseClass = if_else(str_detect(str_to_lower(phase_chr), "\\bactive\\b|\\bdark\\b|\\bnight\\b"), "Active", phase_chr),
-      CageChangeIndex = safe_numeric(CageChangeIndex)
-    ) %>%
-    filter(CageChangeIndex == 1, PhaseClass == "Active")
+first_night_primary <- first_night_results[[first_night_primary_bin_level]]
+
+# Combined, resolution-labelled exports at the Stage 14 level.
+write_table(map_dfr(first_night_results, "window_contract"),
+            file.path(output_dir, "tables/sis_first_night_window_contract.csv"))
+write_table(map_dfr(first_night_results, "window_qc"),
+            file.path(output_dir, "tables/sis_first_night_animal_window_qc.csv"))
+write_table(map_dfr(first_night_results, "raw_features"),
+            file.path(output_dir, "tables/sis_first_night_raw_features.csv"))
+write_table(map_dfr(first_night_results, "scores"),
+            file.path(output_dir, "tables/sis_first_night_domain_scores.csv"))
+write_table(map_dfr(first_night_results, "contributor_qc"),
+            file.path(output_dir, "tables/sis_first_night_domain_contributor_qc.csv"))
+write_table(map_dfr(first_night_results, "contrasts"),
+            file.path(output_dir, "stats_tables/sis_first_night_group_contrasts.csv"))
+write_table(map_dfr(first_night_results, "interactions"),
+            file.path(output_dir, "stats_tables/sis_first_night_group_sex_interactions.csv"))
+write_table(map_dfr(first_night_results, "full_family"),
+            file.path(output_dir, "stats_tables/sis_first_night_full_raw_candidate_family_sensitivity.csv"))
+
+# Per-domain complete-case n by Sex x Group, for the strict-completeness report.
+first_night_domain_n <- map_dfr(first_night_results, "scores") %>%
+  filter(.data$displayed) %>%
+  group_by(bin_level, Domain, Sex, Group) %>%
+  summarise(n_animals_scored = sum(is.finite(DomainScore)),
+            n_animals_present = dplyr::n(),
+            n_incomplete = sum(!complete_contributors), .groups = "drop")
+write_table(first_night_domain_n, file.path(output_dir, "tables/sis_first_night_domain_n_by_sex_group.csv"))
+
+# Backward-compatible wide matrix under the historical filename, restricted to
+# the five displayed domains. The HMM "behavioral_state_architecture" column is
+# intentionally absent: it was never a first-12-h quantity.
+first_night_score_column <- function(x) {
+  paste0("sis_CC1_first_active_score__",
+         x %>% str_to_lower() %>% str_replace_all("[^a-z0-9]+", "_") %>% str_replace_all("^_|_$", ""))
 }
-
-cc1_first_active_raw <- cc1_active_phase_filter(base) %>%
-  group_by(AnimalNum, Group, Sex) %>%
-  arrange(TimeIndex, .by_group = TRUE) %>%
-  mutate(local_bin = row_number()) %>%
-  filter(local_bin <= early_window_bins) %>%
-  summarise(
-    cc1_raw__Movement_mean = mean(Movement, na.rm = TRUE),
-    cc1_raw__Movement_rmssd = if (sum(is.finite(Movement)) >= 3) sqrt(mean(diff(Movement[is.finite(Movement)])^2, na.rm = TRUE)) else NA_real_,
-    cc1_raw__Movement_acf1 = if (sum(is.finite(Movement)) >= 4) safe_cor(Movement[is.finite(Movement)][-sum(is.finite(Movement))], Movement[is.finite(Movement)][-1], "pearson") else NA_real_,
-    cc1_raw__Entropy_mean = mean(Entropy, na.rm = TRUE),
-    cc1_raw__Entropy_rmssd = if (sum(is.finite(Entropy)) >= 3) sqrt(mean(diff(Entropy[is.finite(Entropy)])^2, na.rm = TRUE)) else NA_real_,
-    cc1_raw__Entropy_acf1 = if (sum(is.finite(Entropy)) >= 4) safe_cor(Entropy[is.finite(Entropy)][-sum(is.finite(Entropy))], Entropy[is.finite(Entropy)][-1], "pearson") else NA_real_,
-    cc1_raw__Proximity_mean = mean(Proximity, na.rm = TRUE),
-    cc1_raw__Proximity_rmssd = if (sum(is.finite(Proximity)) >= 3) sqrt(mean(diff(Proximity[is.finite(Proximity)])^2, na.rm = TRUE)) else NA_real_,
-    cc1_raw__Proximity_acf1 = if (sum(is.finite(Proximity)) >= 4) safe_cor(Proximity[is.finite(Proximity)][-sum(is.finite(Proximity))], Proximity[is.finite(Proximity)][-1], "pearson") else NA_real_,
-    cc1_raw__n_bins = n(),
-    .groups = "drop"
-  )
-
-cc1_hmm_exclusion_qc <- tibble()
-cc1_hmm_features <- tibble()
-cc1_hmm_files <- tibble(
-  table_name = c("hmm_state_occupancy", "hmm_state_dwell_times", "hmm_transition_probabilities"),
-  path = file.path(hmm_dir, c("hmm_state_occupancy.csv", "hmm_state_dwell_times.csv", "hmm_transition_probabilities.csv"))
-)
-cc1_hmm_tables <- list(
-  hmm_state_occupancy = read_any_table(cc1_hmm_files$path[cc1_hmm_files$table_name == "hmm_state_occupancy"]),
-  hmm_state_dwell_times = read_any_table(cc1_hmm_files$path[cc1_hmm_files$table_name == "hmm_state_dwell_times"]),
-  hmm_transition_probabilities = read_any_table(cc1_hmm_files$path[cc1_hmm_files$table_name == "hmm_transition_probabilities"])
-)
-
-cc1_has_epoch_metadata <- function(dat) {
-  !is.null(dat) && nrow(dat) > 0 &&
-    any(c("Phase", "PhaseClass") %in% names(dat)) &&
-    any(c("CageChange", "CageChangeIndex") %in% names(dat))
-}
-
-for (tbl_name in names(cc1_hmm_tables)) {
-  dat <- cc1_hmm_tables[[tbl_name]]
-  if (!cc1_has_epoch_metadata(dat)) {
-    cc1_hmm_exclusion_qc <- bind_rows(
-      cc1_hmm_exclusion_qc,
-      tibble(
-        SourceScript = "08_hmm_behavioral_states_optional.R",
-        source_table = tbl_name,
-        feature = tbl_name,
-        Domain = "Behavioral state architecture",
-        reason = "no CC1 active metadata; would mix epochs"
-      )
-    )
-  }
-}
-
-if (cc1_has_epoch_metadata(cc1_hmm_tables$hmm_state_occupancy)) {
-  occ_cc1 <- cc1_active_phase_filter(cc1_hmm_tables$hmm_state_occupancy) %>%
-    mutate(State = as.character(State), frac_time = safe_numeric(frac_time)) %>%
-    left_join(state_label_tbl %>% select(State, SemanticState), by = "State") %>%
-    group_by(AnimalNum, Group, Sex) %>%
-    summarise(
-      cc1_hmm__state_occupancy_entropy = feature_entropy(frac_time / sum(frac_time, na.rm = TRUE)),
-      cc1_hmm__social_state_fraction = sum(frac_time[SemanticState == "social"], na.rm = TRUE),
-      cc1_hmm__inactive_state_fraction = sum(frac_time[SemanticState == "inactive/low-exploration"], na.rm = TRUE),
-      .groups = "drop"
-    )
-  cc1_hmm_features <- if (nrow(cc1_hmm_features) == 0) occ_cc1 else full_join(cc1_hmm_features, occ_cc1, by = c("AnimalNum", "Group", "Sex"))
-}
-
-if (cc1_has_epoch_metadata(cc1_hmm_tables$hmm_state_dwell_times)) {
-  dwell_cc1 <- cc1_active_phase_filter(cc1_hmm_tables$hmm_state_dwell_times) %>%
-    mutate(State = as.character(State)) %>%
-    group_by(AnimalNum, Group, Sex) %>%
-    summarise(
-      cc1_hmm__mean_dwell_time_per_state = mean(safe_numeric(mean_dwell_bins), na.rm = TRUE),
-      cc1_hmm__max_dwell_time_per_state = max(safe_numeric(max_dwell_bins), na.rm = TRUE),
-      .groups = "drop"
-    )
-  cc1_hmm_features <- if (nrow(cc1_hmm_features) == 0) dwell_cc1 else full_join(cc1_hmm_features, dwell_cc1, by = c("AnimalNum", "Group", "Sex"))
-}
-
-if (cc1_has_epoch_metadata(cc1_hmm_tables$hmm_transition_probabilities)) {
-  trans_cc1 <- cc1_active_phase_filter(cc1_hmm_tables$hmm_transition_probabilities) %>%
-    mutate(
-      State = as.character(State),
-      NextState = as.character(NextState),
-      TransitionProbability = safe_numeric(TransitionProbability)
-    ) %>%
-    group_by(AnimalNum, Group, Sex) %>%
-    summarise(
-      cc1_hmm__self_transition_probability = mean(TransitionProbability[State == NextState], na.rm = TRUE),
-      cc1_hmm__transition_entropy = feature_entropy(TransitionProbability / sum(TransitionProbability, na.rm = TRUE)),
-      cc1_hmm__state_switch_rate = sum(safe_numeric(Transitions)[State != NextState], na.rm = TRUE) / sum(safe_numeric(Transitions), na.rm = TRUE),
-      .groups = "drop"
-    )
-  cc1_hmm_features <- if (nrow(cc1_hmm_features) == 0) trans_cc1 else full_join(cc1_hmm_features, trans_cc1, by = c("AnimalNum", "Group", "Sex"))
-}
-
-cc1_first_active_feature_parts <- list(cc1_first_active_raw, cc1_hmm_features) %>%
-  keep(~ nrow(.x) > 0)
-cc1_first_active_feature_matrix <- if (length(cc1_first_active_feature_parts) > 0) {
-  reduce(cc1_first_active_feature_parts, full_join, by = c("AnimalNum", "Group", "Sex"))
-} else {
-  systems_features %>% select(AnimalNum, Group, Sex)
-}
-
-cc1_feature_inventory <- tribble(
-  ~feature, ~Domain, ~Metric, ~Statistic, ~Context, ~BinLevel, ~direction,
-  "cc1_raw__Movement_mean", "Psychomotor activation", "Movement", "mean", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Movement_rmssd", "Behavioral volatility / fragmentation", "Movement", "RMSSD", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Entropy_rmssd", "Behavioral volatility / fragmentation", "Entropy", "RMSSD", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Proximity_rmssd", "Behavioral volatility / fragmentation", "Proximity", "RMSSD", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Entropy_mean", "Behavioral flexibility / predictability", "Entropy", "mean", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Entropy_rmssd", "Behavioral flexibility / predictability", "Entropy", "RMSSD", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Entropy_acf1", "Behavioral flexibility / predictability", "Entropy", "ACF1", "CC1 first active 12h", primary_bin_level, -1,
-  "cc1_raw__Proximity_mean", "Social spatial organization", "Proximity", "mean", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Proximity_rmssd", "Social spatial organization", "Proximity", "RMSSD", "CC1 first active 12h", primary_bin_level, -1,
-  "cc1_raw__Proximity_acf1", "Social spatial organization", "Proximity", "ACF1", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Movement_mean", "Active-phase adaptation/exploration", "Movement", "mean", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Entropy_mean", "Active-phase adaptation/exploration", "Entropy", "mean", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Proximity_mean", "Active-phase adaptation/exploration", "Proximity", "mean", "CC1 first active 12h", primary_bin_level, 1,
-  "cc1_raw__Movement_acf1", "Active-phase adaptation/exploration", "Movement", "ACF1", "CC1 first active 12h", primary_bin_level, -1,
-  "cc1_raw__Entropy_acf1", "Active-phase adaptation/exploration", "Entropy", "ACF1", "CC1 first active 12h", primary_bin_level, -1,
-  "cc1_hmm__state_occupancy_entropy", "Behavioral state architecture", "HMM state occupancy", "entropy", "CC1 first active", hmm_bin_level_used, 1,
-  "cc1_hmm__social_state_fraction", "Behavioral state architecture", "HMM social state", "fraction", "CC1 first active", hmm_bin_level_used, 1,
-  "cc1_hmm__inactive_state_fraction", "Behavioral state architecture", "HMM inactive/rest-like state", "fraction", "CC1 first active", hmm_bin_level_used, -1,
-  "cc1_hmm__self_transition_probability", "Behavioral state architecture", "HMM self-transition", "probability", "CC1 first active", hmm_bin_level_used, -1,
-  "cc1_hmm__transition_entropy", "Behavioral state architecture", "HMM transitions", "entropy", "CC1 first active", hmm_bin_level_used, 1,
-  "cc1_hmm__state_switch_rate", "Behavioral state architecture", "HMM transitions", "switch_rate", "CC1 first active", hmm_bin_level_used, 1
-) %>%
-  mutate(
-    SourceScript = if_else(str_starts(feature, "cc1_hmm__"), "08_hmm_behavioral_states_optional.R", "14_systems_neuroscience_summary_dashboard.R"),
-    BinLevel = as.character(BinLevel),
-    SourceObject = if_else(str_starts(feature, "cc1_hmm__"), "HMM tables filtered to CC1 active before animal summarization", "base / first_active-derived raw behavior"),
-    Included = feature %in% names(cc1_first_active_feature_matrix)
-  ) %>%
-  group_by(feature, Domain) %>%
-  mutate(
-    n_finite = if_else(Included, sum(is.finite(cc1_first_active_feature_matrix[[dplyr::first(feature)]])), 0L),
-    missing_fraction = if_else(Included, mean(!is.finite(cc1_first_active_feature_matrix[[dplyr::first(feature)]])), 1)
-  ) %>%
-  ungroup() %>%
-  filter(Included, n_finite >= 4, missing_fraction <= 0.50) %>%
-  select(SourceScript, feature, Domain, Metric, Statistic, Context, BinLevel, SourceObject, direction, n_finite, missing_fraction)
-
-cc1_excluded_from_inventory <- tribble(
-  ~SourceScript, ~source_table, ~feature, ~Domain, ~reason,
-  "14_systems_neuroscience_summary_dashboard.R", "base", "inactive/light/day-only features", "Inactive-phase rest/circadian regulation", "inactive/light/day-only features excluded from CC1 first-active panel",
-  "14_systems_neuroscience_summary_dashboard.R", "systems_features", "all-phase/global/all-epoch summaries", "all domains", "all-phase/global/all-epoch summaries excluded",
-  "14_systems_neuroscience_summary_dashboard.R", "systems_features", "later cage-change summaries", "all domains", "later cage changes excluded",
-  "14_systems_neuroscience_summary_dashboard.R", "systems_features", "endpoint/CombZ/post-endpoint variables", "all domains", "endpoint-derived, CombZ-derived, phenotype-defining, or post-endpoint variables excluded",
-  "06_dynamic_social_networks.R", "group graph-period network tables", "group_level_network_metrics", "Social spatial organization", "graph-period group-level network features cannot be assigned to individual animals without duplication"
-)
-cc1_feature_missing_qc <- tribble(
-  ~feature, ~Domain, ~reason,
-  "cc1_raw__Movement_mean", "Psychomotor activation", "candidate feature absent or insufficient finite animal-level values",
-  "cc1_raw__Movement_rmssd", "Behavioral volatility / fragmentation", "candidate feature absent or insufficient finite animal-level values",
-  "cc1_raw__Movement_acf1", "Active-phase adaptation/exploration", "candidate feature absent or insufficient finite animal-level values",
-  "cc1_raw__Entropy_mean", "Behavioral flexibility / predictability", "candidate feature absent or insufficient finite animal-level values",
-  "cc1_raw__Entropy_rmssd", "Behavioral volatility / fragmentation", "candidate feature absent or insufficient finite animal-level values",
-  "cc1_raw__Entropy_acf1", "Behavioral flexibility / predictability", "candidate feature absent or insufficient finite animal-level values",
-  "cc1_raw__Proximity_mean", "Social spatial organization", "candidate feature absent or insufficient finite animal-level values",
-  "cc1_raw__Proximity_rmssd", "Social spatial organization", "candidate feature absent or insufficient finite animal-level values",
-  "cc1_raw__Proximity_acf1", "Social spatial organization", "candidate feature absent or insufficient finite animal-level values"
-) %>%
-  filter(!feature %in% cc1_feature_inventory$feature) %>%
-  mutate(SourceScript = "14_systems_neuroscience_summary_dashboard.R", source_table = "base")
-
-cc1_first_active_domain_exclusion_qc <- bind_rows(
-  cc1_hmm_exclusion_qc,
-  cc1_excluded_from_inventory,
-  cc1_feature_missing_qc %>% select(SourceScript, source_table, feature, Domain, reason)
-) %>%
-  distinct()
-
-cc1_make_domain_score <- function(dat, inventory, domain_name, score_name) {
-  score_features <- inventory %>%
-    filter(Domain == domain_name, feature %in% names(dat), n_finite >= 4, missing_fraction <= 0.50)
-  if (nrow(score_features) == 0) {
-    return(dat %>% select(AnimalNum) %>% mutate("{score_name}" := NA_real_))
-  }
-  mat <- map2(score_features$feature, score_features$direction, function(fc, direction) {
-    safe_scale(safe_numeric(dat[[fc]])) * direction
-  }) %>%
-    do.call(cbind, .)
-  tibble(AnimalNum = dat$AnimalNum, "{score_name}" := rowMeans(mat, na.rm = TRUE)) %>%
-    mutate("{score_name}" := ifelse(is.nan(.data[[score_name]]), NA_real_, .data[[score_name]]))
-}
-
-cc1_domain_score_parts <- map2(
-  cc1_first_active_score_specs$Domain,
-  cc1_first_active_score_specs$ScoreColumn,
-  ~ cc1_make_domain_score(cc1_first_active_feature_matrix, cc1_feature_inventory, .x, .y)
-)
-
-cc1_first_active_domain_score_matrix <- reduce(cc1_domain_score_parts, left_join, by = "AnimalNum") %>%
-  left_join(cc1_first_active_feature_matrix %>% select(AnimalNum, Group, Sex), by = "AnimalNum") %>%
+cc1_first_active_domain_score_matrix <- first_night_primary$scores %>%
+  filter(.data$displayed) %>%
+  mutate(ScoreColumn = first_night_score_column(.data$Domain)) %>%
+  select(AnimalNum, Group, Sex, ScoreColumn, DomainScore) %>%
+  pivot_wider(names_from = ScoreColumn, values_from = DomainScore) %>%
   relocate(AnimalNum, Group, Sex)
+write_table(cc1_first_active_domain_score_matrix,
+            file.path(output_dir, "tables/sis_CC1_first_active_domain_heatmap_data.csv"))
 
-cc1_domain_scores_long <- cc1_first_active_domain_score_matrix %>%
-  pivot_longer(starts_with("sis_CC1_first_active_score__"), names_to = "ScoreColumn", values_to = "DomainScore") %>%
-  left_join(cc1_first_active_score_specs, by = "ScoreColumn")
+cc1_domain_effect_summary <- first_night_primary$contrasts %>%
+  transmute(Domain, Sex, contrast, group_ref, group_comp, contrast_orientation,
+            n_ref, n_comp, mean_ref, mean_comp, mean_difference = mean_comp - mean_ref,
+            hedges_g, estimate, SE, df, ci_low, ci_high, ci_method,
+            p.value = raw_p, p_fdr = q, family_id, n_tests_in_family,
+            model_formula, model_engine, model_status,
+            test_method = "lm(DomainScore ~ Group * Sex) with emmeans contrasts within Sex",
+            bin_level, resolution_role, inferential_unit, interpretation_guard)
+write_table(cc1_domain_effect_summary,
+            file.path(output_dir, "tables/sis_CC1_first_active_domain_contrasts.csv"))
 
-cc1_domain_effect_summary <- cc1_domain_scores_long %>%
-  group_by(Domain, Sex) %>%
-  group_modify(~{
-    d <- .x
-    map_dfr(contrast_pairs, function(pair) {
-      ref <- pair[1]
-      comp <- pair[2]
-      x <- d$DomainScore[as.character(d$Group) == ref]
-      y <- d$DomainScore[as.character(d$Group) == comp]
-      n_ref <- sum(is.finite(x))
-      n_comp <- sum(is.finite(y))
-      tt <- if (n_ref >= min_n_per_group && n_comp >= min_n_per_group) try(t.test(y, x), silent = TRUE) else "low_n"
-      wt <- if (n_ref >= min_n_per_group && n_comp >= min_n_per_group) try(wilcox.test(y, x, exact = FALSE), silent = TRUE) else "low_n"
-      tibble(
-        contrast = paste0(comp, "-", ref),
-        n_ref = n_ref,
-        n_comp = n_comp,
-        mean_ref = if (n_ref > 0) mean(x, na.rm = TRUE) else NA_real_,
-        mean_comp = if (n_comp > 0) mean(y, na.rm = TRUE) else NA_real_,
-        mean_difference = if (n_ref > 0 && n_comp > 0) mean(y, na.rm = TRUE) - mean(x, na.rm = TRUE) else NA_real_,
-        hedges_g = hedges_g(x, y),
-        p.value = if (inherits(tt, "try-error") || identical(tt, "low_n")) NA_real_ else tt$p.value,
-        wilcox_p = if (inherits(wt, "try-error") || identical(wt, "low_n")) NA_real_ else wt$p.value,
-        test_method = "Welch two-sample t-test; Wilcoxon rank-sum sensitivity"
-      )
-    })
-  }) %>%
-  ungroup() %>%
-  group_by(Sex) %>%
-  mutate(p_fdr = p.adjust(p.value, method = "BH")) %>%
-  ungroup()
-
-cc1_first_active_documentation <- tibble(
-  topic = c("panel_scope", "relationship_to_phase_heatmap", "hmm_state_rule", "inferential_unit", "group_label_caveat"),
+first_night_documentation <- tibble(
+  topic = c("panel_scope", "window", "resolution", "rows", "no_hmm_row", "scoring",
+            "completeness", "inference", "multiplicity", "group_label_caveat",
+            "relationship_to_phase_heatmap", "figure_status"),
   text = c(
-    "This panel is the early perturbation signature: first cage change/regrouping, active phase only, summarized to one row per animal before contrasts.",
-    "It complements, but does not replace, the broader active/inactive domain heatmap because later cage changes and inactive-phase biology are intentionally excluded.",
-    "HMM/state features are included only when the source tables contain phase and cage-change metadata that allow CC1 active filtering before animal-level summarization.",
-    "The inferential unit remains animal; repeated bins, states, and transitions are never tested as independent observations.",
-    "RES/SUS contrasts are descriptive because groups are defined from later CombZ; included behavioral features are restricted to the first active phase after first cage change."
+    "First encounter with social instability: first cage change, first Active phase, first 12 h, summarized to one value per animal before any contrast.",
+    paste0("Clock-anchored 18:30 inclusive to 06:30 exclusive, exactly 12 h, per-session anchor. Selected by ",
+           "Functions/first_night_window_helpers.R, which Testing/test_first_night_window_parity.R asserts is ",
+           "identical to the canonical Stage 09 selector. Never a row count: the historical local_bin rule ",
+           "matched this window for only 50/111 animals at 10-min and 33/111 at 5-min bins."),
+    paste0("Primary ", first_night_primary_bin_level, ", sensitivity ", first_night_sensitivity_bin_level,
+           ". Chosen to match canonical Stage 09's resolution and window for the first-12-h question, not ",
+           "because these Stage 14 endpoints were historically prespecified at 10 min, and not from any p/q value."),
+    paste(MMM_FIRST_NIGHT_DISPLAYED_DOMAINS, collapse = "; "),
+    paste0("No HMM-derived row. First-night mean_dwell_minutes is not reproducible across equally-good ",
+           "10-min HMM partitions, and the Stage 08 occupancy/dwell/transition tables are Animal x ",
+           "CageChange x Phase summaries spanning ~48 h across four dark blocks, so filtering them to ",
+           "CC1 + Active does not reconstruct the first 12 h."),
+    "Exact audited formulas with declared weights; the generic equal-weight inventory scorer is no longer used because it mis-weighted flexibility, social organization and adaptation.",
+    "Strict contributor completeness: a domain is finite only if every contributor its formula requires is finite. No animal is scored on a re-weighted formula.",
+    "lm(DomainScore ~ Group * Sex) with model-based contrasts within Sex, oriented comp - ref; Hedges g shares that orientation and sign agreement is asserted.",
+    paste0("Primary: ", length(MMM_FIRST_NIGHT_DISPLAYED_DOMAINS), " domains x 3 contrasts = ",
+           length(MMM_FIRST_NIGHT_DISPLAYED_DOMAINS) * 3, " tests per Sex, BH with an explicitly declared family size. ",
+           "Interactions: ", length(MMM_FIRST_NIGHT_DISPLAYED_DOMAINS), " Group:Sex tests. A non-primary ",
+           "transparency sensitivity covers all 8 raw-RFID candidates considered before pruning."),
+    "RES/SUS derive from LATER CombZ, so these contrasts are phenotype characterization of the early response, not prospective validation. Stage 09 remains the prospective analysis.",
+    "Distinct from the longitudinal domain heatmap: first 12 h != all CC1 Active (~48 h, four dark blocks) != repeated CC1-CC4 organization.",
+    "SUPPLEMENTARY. Effect size and CI carry the interpretation; a significance star does not."
   )
 )
-
-write_table(cc1_first_active_domain_score_matrix, file.path(output_dir, "tables/sis_CC1_first_active_domain_heatmap_data.csv"))
-write_table(cc1_domain_effect_summary, file.path(output_dir, "tables/sis_CC1_first_active_domain_contrasts.csv"))
-write_table(cc1_feature_inventory, file.path(output_dir, "tables/sis_CC1_first_active_domain_feature_inventory.csv"))
-write_table(cc1_first_active_domain_exclusion_qc, file.path(output_dir, "tables/sis_CC1_first_active_domain_exclusion_qc.csv"))
-write_table(cc1_first_active_documentation, file.path(output_dir, "tables/sis_CC1_first_active_domain_documentation.csv"))
+write_table(first_night_documentation,
+            file.path(output_dir, "tables/sis_first_night_documentation.csv"))
 
 sis_group_summary <- sis_domain_scores %>%
   group_by(Domain, PhaseClass, CageChangeIndex, Sex, Group) %>%
@@ -6181,28 +6008,62 @@ p_sis_phase_heatmap <- domain_effect_summary %>%
   theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right")
 save_plot_svg_pdf(p_sis_phase_heatmap, file.path(output_dir, "figures/publication_panels/Fig_sis_active_inactive_domain_heatmap"), width = 165, height = 102)
 
-p_sis_CC1_first_active_heatmap <- cc1_domain_effect_summary %>%
-  filter(Domain %in% cc1_first_active_domains) %>%
-  mutate(
-    Domain = factor(Domain, levels = rev(cc1_first_active_domains)),
-    contrast = factor(contrast, levels = c("RES-CON", "SUS-CON", "SUS-RES"))
-  ) %>%
-  ggplot(aes(contrast, Domain, fill = hedges_g)) +
-  geom_tile(colour = "white", linewidth = 0.22) +
-  geom_text(aes(label = sig_label(p_fdr)), size = 1.7) +
-  facet_grid(Sex ~ .) +
-  scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
-  labs(
-    title = "CC1 first active phase systems signature",
-    subtitle = "Domain-level Hedges g from early pre-endpoint animal-level features only",
-    x = NULL,
-    y = NULL,
-    fill = "g",
-    caption = "Symbols: . q<0.10, * q<0.05, ** q<0.01, *** q<0.001; no symbol = q>=0.10 (BH FDR within sex). Exact statistics exported."
-  ) +
-  make_nature_theme(base_size = 5.5) +
-  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right")
-save_plot_svg_pdf(p_sis_CC1_first_active_heatmap, file.path(output_dir, "figures/publication_panels/Fig_sis_CC1_first_active_domain_heatmap"), width = 132, height = 84)
+first_night_sig_label <- function(q) {
+  dplyr::case_when(!is.finite(q) ~ "", q < 0.001 ~ "***", q < 0.01 ~ "**", q < 0.05 ~ "*", TRUE ~ "")
+}
+
+plot_first_night_heatmap <- function(res, panel_role) {
+  ct <- res$contrasts %>%
+    mutate(
+      Domain = factor(.data$Domain, levels = rev(MMM_FIRST_NIGHT_DISPLAYED_DOMAINS)),
+      contrast = factor(.data$contrast, levels = c("RES-CON", "SUS-CON", "SUS-RES")),
+      Sex = factor(.data$Sex, levels = c("Female", "Male")),
+      tile_label = paste0(formatC(.data$hedges_g, format = "f", digits = 2),
+                          first_night_sig_label(.data$q))
+    )
+  lim <- max(abs(ct$hedges_g[is.finite(ct$hedges_g)]), na.rm = TRUE)
+  n_tests <- unique(ct$n_tests_in_family)[1]
+  ggplot(ct, aes(contrast, Domain, fill = hedges_g)) +
+    geom_tile(colour = "white", linewidth = 0.22) +
+    geom_text(aes(label = tile_label), size = 1.75) +
+    facet_grid(Sex ~ .) +
+    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]],
+                         high = mmm_diverging_colors[["high"]], midpoint = 0,
+                         limits = c(-lim, lim), na.value = "grey90") +
+    labs(
+      title = "First response to social instability",
+      subtitle = paste0(
+        "CC1 · first Active phase · clock-anchored 18:30–06:30 (12 h) · ",
+        res$bin_level, " (", panel_role, ") · one value per animal\n",
+        "Behaviour during the first social-instability encounter, by later phenotype · ",
+        "fill = animal-level Hedges g · stars = BH q within Sex (", n_tests, " tests)"
+      ),
+      x = NULL, y = NULL, fill = "Hedges g",
+      caption = paste0(
+        "Stars: * q<0.05, ** q<0.01, *** q<0.001 (BH within Sex across ", n_tests,
+        " domain × contrast tests). Tile values are Hedges g, oriented comparison minus reference. ",
+        "RES/SUS are later CombZ-derived phenotype labels, so these are descriptive associations with ",
+        "later phenotype, not prospective prediction; Stage 09 owns the predictive question."
+      )
+    ) +
+    make_nature_theme(base_size = 5.5) +
+    theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right")
+}
+
+# Primary panel keeps the historical figure filename so manuscript candidate
+# staging (manuscript/Fig1_behavior_candidates) continues to resolve it.
+p_sis_CC1_first_active_heatmap <- plot_first_night_heatmap(first_night_primary, "primary")
+save_plot_svg_pdf(p_sis_CC1_first_active_heatmap,
+                  file.path(output_dir, "figures/publication_panels/Fig_sis_CC1_first_active_domain_heatmap"),
+                  width = 150, height = 92)
+
+# Fixed-row sensitivity at the other resolution. Rows never change between
+# resolutions and no domain is added or removed for significance.
+p_first_night_sensitivity <- plot_first_night_heatmap(
+  first_night_results[[first_night_sensitivity_bin_level]], "resolution sensitivity")
+save_plot_svg_pdf(p_first_night_sensitivity,
+                  file.path(output_dir, "figures/publication_panels/Fig_sis_first_night_domain_heatmap_5min_sensitivity"),
+                  width = 150, height = 92)
 
 p_sis_flexibility <- plot_domain_trajectory(
   "Behavioral flexibility / predictability",
