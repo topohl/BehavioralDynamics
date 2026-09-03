@@ -113,6 +113,58 @@ legacy_normalize_animal_id <- function(x) {
 
 normalize_animal_id <- function(x) canonical_animal_id(x)
 
+# ---------------------------------------------------------------------------
+# EXPLICIT VALIDATED BEHAVIOUR <-> PROTEOMICS CROSSWALK
+# ---------------------------------------------------------------------------
+# The two ID spaces genuinely differ and canonicalizing both sides does NOT
+# join them:
+#   behaviour roster: 83 alphanumeric (OQ*/OR*) + 28 bare numeric, e.g. "OR111"
+#   proteomics:       zero-padded 4-digit numerics, e.g. "0111"
+# canonical_animal_id() maps "0111" -> "111", which is not "OR111", so a naive
+# canonical join matches almost nothing. The legacy trailing-digit rule happened
+# to bridge this, but silently and without any uniqueness guarantee.
+#
+# The crosswalk below makes that bridge explicit and validates it: the trailing
+# digit run is used ONLY as a lookup key into the canonical roster, the roster
+# itself must be unambiguous under that key, and every external id must resolve
+# to exactly one canonical animal. It fails closed on an ambiguous roster, an
+# unresolvable external id, or a many-to-one collapse.
+mmm_digit_lookup_key <- function(x) {
+  d <- stringr::str_extract(as.character(x), "[0-9]+$")
+  sub("^0+(?=.)", "", d, perl = TRUE)
+}
+
+build_behavior_proteomics_crosswalk <- function(external_ids, roster, source_label = "proteomics") {
+  rk <- tibble::tibble(canonical_id = roster$AnimalNum,
+                       lookup_key = mmm_digit_lookup_key(roster$AnimalNum))
+  ambiguous <- rk %>% dplyr::count(.data$lookup_key) %>% dplyr::filter(.data$n > 1L)
+  if (nrow(ambiguous) > 0L) {
+    stop("The canonical behaviour roster is AMBIGUOUS under the trailing-digit lookup key, so an ",
+         "id crosswalk cannot be validated. Offending keys: ",
+         paste(ambiguous$lookup_key, collapse = ", "),
+         ". Supply an explicit id mapping table instead.", call. = FALSE)
+  }
+  ext <- unique(as.character(external_ids[!is.na(external_ids)]))
+  xw <- tibble::tibble(external_id = ext, lookup_key = mmm_digit_lookup_key(ext)) %>%
+    dplyr::left_join(rk, by = "lookup_key") %>%
+    dplyr::mutate(source = source_label,
+                  resolved = !is.na(.data$canonical_id),
+                  external_canonicalized = canonical_animal_id(.data$external_id),
+                  requires_crosswalk = .data$resolved &
+                    .data$external_canonicalized != .data$canonical_id)
+  unresolved <- xw %>% dplyr::filter(!.data$resolved)
+  if (nrow(unresolved) > 0L) {
+    stop(source_label, ": ", nrow(unresolved), " id(s) do not resolve to any canonical behaviour ",
+         "animal: ", paste(unresolved$external_id, collapse = ", "), call. = FALSE)
+  }
+  collapsed <- xw %>% dplyr::count(.data$canonical_id) %>% dplyr::filter(.data$n > 1L)
+  if (nrow(collapsed) > 0L) {
+    stop(source_label, ": crosswalk collapses multiple external ids onto one canonical animal: ",
+         paste(collapsed$canonical_id, collapse = ", "), call. = FALSE)
+  }
+  xw
+}
+
 #' Audit the legacy identity rule against the canonical contract and fail closed.
 #'
 #' Fails on a legacy many-to-one collapse (two distinct canonical animals mapped
@@ -1573,13 +1625,32 @@ for (proteomics_file in proteomics_files) {
     "proteomics animal column"
   )
 
+  # Behaviour side: canonical contract, unchanged.
   beh <- beh %>%
     rename(AnimalNum = all_of(beh_animal_col)) %>%
     mutate(AnimalNum = normalize_animal_id(AnimalNum))
 
+  # Proteomics side: map onto canonical behaviour ids through the EXPLICIT
+  # validated crosswalk rather than by canonicalizing an id from a different
+  # namespace. Fails closed on an ambiguous roster, an unresolvable id or a
+  # many-to-one collapse.
+  prot <- prot %>% rename(AnimalNum = all_of(prot_animal_col))
+  prot_crosswalk <- build_behavior_proteomics_crosswalk(
+    prot$AnimalNum,
+    tibble(AnimalNum = sort(unique(beh$AnimalNum))),
+    source_label = paste0("proteomics:", proteomics_label)
+  )
   prot <- prot %>%
-    rename(AnimalNum = all_of(prot_animal_col)) %>%
-    mutate(AnimalNum = normalize_animal_id(AnimalNum))
+    mutate(proteomics_source_id = as.character(.data$AnimalNum)) %>%
+    left_join(prot_crosswalk %>% select(external_id, canonical_id),
+              by = c("proteomics_source_id" = "external_id")) %>%
+    mutate(AnimalNum = .data$canonical_id) %>%
+    select(-canonical_id)
+  readr::write_csv(prot_crosswalk,
+                   file.path(output_dir, "tables", "behavior_proteomics_id_crosswalk.csv"))
+  cat("\nID crosswalk: ", nrow(prot_crosswalk), " proteomics ids resolved; ",
+      sum(prot_crosswalk$requires_crosswalk),
+      " required a namespace crosswalk (canonicalization alone would have failed).\n", sep = "")
 
   matched_ids <- sort(intersect(beh$AnimalNum, prot$AnimalNum))
 
