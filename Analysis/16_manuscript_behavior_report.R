@@ -60,6 +60,22 @@ artifact_paths <- c(
 canonical_features <- c("Movement_mean", "Movement_rmssd", "Entropy_acf1")
 generated_at <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
 
+# Entropy_acf1 reporting contract, defined ONCE.
+#
+# The wording used to be "BH-supported; bootstrap CI narrowly includes zero" and
+# was hard-coded in five separate places, so the manuscript text, the assembled
+# registry, the audit row and two export checks could only agree by hand. That
+# claim no longer matches the canonical Stage 09 result: Entropy_acf1 is
+# rho = -0.175, raw p = 0.0667, BH p = 0.0667 and bootstrap CI
+# [-0.351, +0.017]. It is NOT BH-supported, and the interval includes zero, so
+# the association is consistently null rather than significant-but-fragile.
+#
+# The contract below is still a real guard: it fails if Entropy_acf1 ever
+# becomes BH-significant or its bootstrap interval stops covering zero. Keeping
+# the wording in one constant means all five consumers move together.
+entropy_robustness_wording <- "Not BH-supported; bootstrap CI includes zero"
+entropy_contract_expectation <- "BH p >= 0.05 with a bootstrap interval that includes zero"
+
 source_registry <- tribble(
   ~source_id, ~stage, ~required, ~source_script, ~artifact, ~canonical_path, ~legacy_path, ~role, ~source_notes,
   "s09_associations", "09", TRUE, "Analysis/09_early_prediction_model_ladder.R", "primary_movement_entropyacf1_associations.csv", file.path(stage09_dir, "tables/primary_movement_entropyacf1_associations.csv"), file.path(legacy_stage09_dir, "tables/statistics/primary_movement_entropyacf1_associations.csv"), "canonical statistical result", "Three canonical feature associations.",
@@ -365,12 +381,19 @@ feature_labels <- feature_dictionary_raw %>%
 entropy_assoc_source <- assoc %>% filter(feature == "Entropy_acf1")
 if (
   nrow(entropy_assoc_source) != 1L ||
-  !is.finite(entropy_assoc_source$spearman_p_bh) || entropy_assoc_source$spearman_p_bh >= 0.05 ||
+  !is.finite(entropy_assoc_source$spearman_p_bh) || entropy_assoc_source$spearman_p_bh < 0.05 ||
   !is.finite(entropy_assoc_source$spearman_boot_ci_low) || entropy_assoc_source$spearman_boot_ci_low > 0 ||
   !is.finite(entropy_assoc_source$spearman_boot_ci_high) || entropy_assoc_source$spearman_boot_ci_high < 0
 ) {
   stop(
-    "Entropy_acf1 reporting contract changed: expected BH p < 0.05 with a bootstrap interval that includes zero.",
+    "Entropy_acf1 reporting contract changed: expected ", entropy_contract_expectation,
+    ". Observed BH p = ",
+    if (nrow(entropy_assoc_source) == 1L) signif(entropy_assoc_source$spearman_p_bh, 4) else NA,
+    ", bootstrap CI [",
+    if (nrow(entropy_assoc_source) == 1L) signif(entropy_assoc_source$spearman_boot_ci_low, 4) else NA, ", ",
+    if (nrow(entropy_assoc_source) == 1L) signif(entropy_assoc_source$spearman_boot_ci_high, 4) else NA,
+    "]. If the canonical Stage 09 result genuinely changed, update ",
+    "entropy_robustness_wording and entropy_contract_expectation together.",
     call. = FALSE
   )
 }
@@ -399,11 +422,11 @@ primary_associations <- assoc %>%
     multiplicity_family = "Three canonical primary feature associations",
     validation_scheme = "Animal-level association; not cross-validated",
     robustness_status = case_when(
-      feature == "Entropy_acf1" ~ "BH-supported; bootstrap CI narrowly includes zero",
+      feature == "Entropy_acf1" ~ entropy_robustness_wording,
       TRUE ~ Evidence
     ),
     source_script = "Analysis/09_early_prediction_model_ladder.R",
-    source_table = "tables/statistics/primary_movement_entropyacf1_associations.csv",
+    source_table = "tables/primary_movement_entropyacf1_associations.csv",
     notes = case_when(
       feature == "Movement_mean" ~ "Primary prospective predictor association.",
       TRUE ~ "Supporting association feature; not demonstrated as an independent predictive contributor."
@@ -948,9 +971,10 @@ if (!identical(primary_association_rows$source_row_key, canonical_features)) {
 entropy_primary_row <- primary_association_rows %>% filter(source_row_key == "Entropy_acf1")
 if (
   nrow(entropy_primary_row) != 1L ||
-  entropy_primary_row$robustness_status != "BH-supported; bootstrap CI narrowly includes zero"
+  entropy_primary_row$robustness_status != entropy_robustness_wording
 ) {
-  stop("Entropy_acf1 robustness wording is not the required BH/CI-qualified description.", call. = FALSE)
+  stop("Entropy_acf1 robustness wording is not the required qualified description: expected \"",
+       entropy_robustness_wording, "\".", call. = FALSE)
 }
 if (any(primary_results$source_row_key == "Movement_x_EntropyACF1", na.rm = TRUE)) {
   stop("Movement_x_EntropyACF1 must not enter the PRIMARY manuscript registry.", call. = FALSE)
@@ -1034,7 +1058,7 @@ validation <- tribble(
   "group_excluded_primary_prediction", "scientific_contract", "PASS", "No primary predictor contains Group", "FALSE", "Group remains descriptive metadata only in source-data sheets.", "s09_model_registry",
   "movement_mean_headline", "scientific_contract", "PASS", "Movement_mean labelled main prospective prediction", "PASS", "The headline-model wording is unchanged.", "s09_prediction_performance",
   "permutation_display", "scientific_contract", "PASS", "1/1001", paste(unique(permutation_display_check), collapse = "; "), "Exact empirical numerator/denominator retained.", "s09_permutation",
-  "entropy_wording", "scientific_contract", "PASS", "BH-supported; bootstrap CI narrowly includes zero", entropy_primary_row$robustness_status, "Required qualified Entropy_acf1 wording retained.", "s09_associations",
+  "entropy_wording", "scientific_contract", "PASS", entropy_robustness_wording, entropy_primary_row$robustness_status, "Required qualified Entropy_acf1 wording retained.", "s09_associations",
   "resolution_sensitivity_status", "availability", "PASS", "Unavailable for canonical export unless corrected Stage 09 source exists", declared_sensitivity_status$robustness_status[declared_sensitivity_status$claim_id == "STATUS_S09_5MIN"], "Legacy 5-min output is not promoted.", "s09_prediction_performance",
   "duration_sensitivity_status", "availability", "PASS", "Not promoted from the legacy larger ladder", declared_sensitivity_status$robustness_status[declared_sensitivity_status$claim_id == "STATUS_S09_DURATION"], "Primary-model duration sensitivity remains explicitly unavailable.", "s09_prediction_performance",
   "required_source_availability", "lineage", "PASS", as.character(sum(source_registry$required)), as.character(sum(source_registry$required & source_registry$exists)), "All required Stage 03/09 sources resolved.", NA_character_,
@@ -1945,7 +1969,7 @@ entropy_export_check <- primary_xlsx_check %>%
   filter(claim_id == entropy_primary_row$claim_id)
 if (
   nrow(entropy_export_check) != 1L ||
-  entropy_export_check$robustness_status != "BH-supported; bootstrap CI narrowly includes zero"
+  entropy_export_check$robustness_status != entropy_robustness_wording
 ) {
   stop("Primary_results did not preserve the Entropy_acf1 BH/CI robustness wording.", call. = FALSE)
 }

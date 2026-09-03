@@ -267,9 +267,18 @@ optional_sources <- tribble(
   ~panel_id, ~source_base, ~status, ~note,
   "cc1_systems_signature", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_CC1_first_active_domain_heatmap"), "optional_after_rerun", "Useful alternative if the early multiscale signature adds interpretable information beyond movement.",
   "social_spatial_organization", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_social_spatial_organization"), "optional_after_rerun", "Potentially more manipulation-proximal than another locomotor panel; promote only if robust.",
-  "repeated_adaptation", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_repeated_active_phase_adaptation"), "blocked_pending_phase_classifier_fix_and_rerun", "Do not stage for manuscript use until Stage 11/12/shared phase classification is fixed and affected outputs are regenerated.",
-  "active_inactive_systems", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_active_inactive_domain_heatmap"), "blocked_pending_phase_classifier_fix_and_rerun", "Contains phase-specific domains; do not stage until the classifier issue is fixed and outputs are regenerated.",
-  "rest_state_architecture", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_rest_or_state_architecture"), "blocked_pending_phase_classifier_fix_and_rerun", "Rest/quiescence interpretation is especially sensitive to the classifier issue."
+  # The phase-classifier gate on the three panels below is now CLEARED: the
+  # permissive substring classifier was replaced by exact membership
+  # (Functions/phase_classification_helpers.R), Stage 11/12 and the shared
+  # duration helper were fixed, and Stages 11, 12 and 14 were regenerated. The
+  # defect was total, not marginal -- every Inactive row had been relabelled
+  # Active (79,920 of 191,445 rows at 10-min), so these phase-specific panels
+  # were previously built on a collapsed phase variable. They are now built on
+  # corrected data. See Testing/test_phase_classification.R and
+  # Testing/audit_phase_bug_impact.R.
+  "repeated_adaptation", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_repeated_active_phase_adaptation"), "optional_after_rerun", "Phase-classifier gate cleared; regenerated on corrected Stage 11/12 outputs. Promote only if it adds interpretable information beyond movement.",
+  "active_inactive_systems", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_active_inactive_domain_heatmap"), "optional_after_rerun", "Phase-classifier gate cleared; regenerated on corrected Stage 11/12 outputs. Inactive-phase domains remain caveated: they are not separable from RFID read density (Spearman rho 0.64-0.87 with mean movement), pending the phase-aware inactive-QC audit.",
+  "rest_state_architecture", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_rest_or_state_architecture"), "blocked_pending_inactive_qc_audit", "Phase-classifier gate cleared and regenerated, but rest/quiescence interpretation stays blocked on the separate phase-aware inactive-QC redesign: inactive-phase observed_fraction is confounded with genuine rest (median 0.149 vs 1.000 in Active; 95.7% of inactive epochs below 0.50), so hard_dropout_signature cannot currently distinguish chip loss from rest."
 )
 
 for (i in seq_len(nrow(optional_sources))) {
