@@ -19,6 +19,20 @@ suppressPackageStartupMessages({
 
 if (!exists("%||%")) `%||%` <- function(x, y) if (is.null(x) || length(x) == 0 || all(is.na(x))) y else x
 
+# Exact phase classification is a hard dependency: duration attribution must
+# never credit an Inactive epoch to active_duration_hours.
+if (!exists("mmm_is_active_phase", mode = "function", inherits = TRUE)) {
+  if (exists("source_mmm_helper", mode = "function", inherits = TRUE)) {
+    source_mmm_helper("phase_classification_helpers.R")
+  } else {
+    stop(
+      "duration_normalization_helpers.R requires phase_classification_helpers.R. ",
+      "Source Analysis/_pipeline_setup.R first.",
+      call. = FALSE
+    )
+  }
+}
+
 duration_safe_num <- function(x) suppressWarnings(as.numeric(x))
 
 duration_first_existing_col <- function(dat, candidates, required = TRUE, label = "column") {
@@ -87,9 +101,12 @@ calculate_observation_duration <- function(dat,
       total_observation_duration_sec = sum(.bin_seconds, na.rm = TRUE),
       total_observation_duration_hours = total_observation_duration_sec / 3600,
       regrouping_exposure_dose_hours = total_observation_duration_hours,
-      active_duration_hours = if_else(str_detect(str_to_lower(first(Phase)), "active|dark|night"),
+      # Exact phase membership: "inactive" contains the substring "active", so a
+      # permissive str_detect() here credited every Inactive epoch's duration to
+      # active_duration_hours as well. See Functions/phase_classification_helpers.R.
+      active_duration_hours = if_else(mmm_is_active_phase(first(Phase)),
                                       total_observation_duration_hours, 0),
-      inactive_duration_hours = if_else(str_detect(str_to_lower(first(Phase)), "inactive|light|day"),
+      inactive_duration_hours = if_else(mmm_is_inactive_phase(first(Phase)),
                                         total_observation_duration_hours, 0),
       dyadic_observation_duration_hours = sum(.dyad_seconds, na.rm = TRUE) / 3600,
       .groups = "drop"

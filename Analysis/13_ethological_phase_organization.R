@@ -60,11 +60,10 @@ if (!proximity_col %in% names(raw_dat)) proximity_col <- "Proximity"
 behav <- standardize_behavior_columns(raw_dat, proximity_col = proximity_col) %>%
   mutate(
     Group = factor(as.character(Group), levels = unique(c(mmm_group_levels, sort(unique(as.character(Group)))))),
-    PhaseClass = case_when(
-      str_detect(str_to_lower(as.character(Phase)), "inactive|light|day") ~ "Inactive",
-      str_detect(str_to_lower(as.character(Phase)), "active|dark|night") ~ "Active",
-      TRUE ~ as.character(Phase)
-    ),
+    # Stage 13 was already ordered safely (Inactive tested before Active), so this
+    # is a no-op on current labels; migrated to the shared exact classifier so the
+    # correctness no longer depends on branch order. See phase_classification_helpers.R.
+    PhaseClass = mmm_phase_class(Phase, unmatched = "keep"),
     CageChangeIndex = suppressWarnings(as.integer(str_extract(as.character(CageChange), "\\d+"))),
     CageChangeIndex = if_else(is.finite(CageChangeIndex), CageChangeIndex, dense_rank(as.character(CageChange))),
     BinLevel = bin_level

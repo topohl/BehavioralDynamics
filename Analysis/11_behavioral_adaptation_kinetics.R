@@ -83,11 +83,10 @@ if (!proximity_col %in% names(raw_dat)) proximity_col <- "Proximity"
 behav <- standardize_behavior_columns(raw_dat, proximity_col = proximity_col) %>%
   mutate(
     Group = factor(as.character(Group), levels = unique(c(mmm_group_levels, sort(unique(as.character(Group)))))),
-    PhaseClass = case_when(
-      str_detect(str_to_lower(as.character(Phase)), "active|dark|night") ~ "Active",
-      str_detect(str_to_lower(as.character(Phase)), "inactive|light|day") ~ "Inactive",
-      TRUE ~ as.character(Phase)
-    ),
+    # Exact phase membership. The previous substring pattern tested
+    # "active|dark|night" FIRST, and because "inactive" contains "active" every
+    # Inactive epoch was relabelled Active. See phase_classification_helpers.R.
+    PhaseClass = mmm_phase_class(Phase, unmatched = "keep"),
     CageChangeIndex = suppressWarnings(as.integer(str_extract(as.character(CageChange), "\\d+"))),
     CageChangeIndex = if_else(is.finite(CageChangeIndex), CageChangeIndex, dense_rank(as.character(CageChange))),
     BinLevel = bin_level
