@@ -1532,6 +1532,30 @@ message(
 # 6) Run once per proteomics file
 # ------------------------------------------------
 
+# Output-directory identity is resolved ONCE, here, for the whole discovered
+# dataset set. The label taken verbatim from the source filename produced a
+# 264-character deepest figure path for the sensitivity dataset, over the legacy
+# Windows MAX_PATH of 260, which surfaced only as an opaque graphics-device
+# "cannot open file". The directory now carries a short deterministic slug; the
+# FULL label continues to travel in the ProteomicsLabel column of every table,
+# in figure subtitles and in provenance, so no scientific identifier is shortened.
+proteomics_label_all <- stringr::str_remove(
+  tools::file_path_sans_ext(basename(proteomics_files)), "^module_scores_")
+proteomics_slug_all <- mmm_output_dir_slug(proteomics_label_all)
+mmm_assert_unique_output_slugs(proteomics_label_all, proteomics_slug_all,
+                               "Stage 15 proteomics datasets")
+proteomics_output_dir_map <- tibble(
+  proteomics_file = basename(proteomics_files),
+  proteomics_label = proteomics_label_all,
+  output_dir_slug = proteomics_slug_all,
+  output_dir = file.path(base_output_dir, paste0("proteomics_", proteomics_slug_all)),
+  slug_role = "filesystem label only; the full proteomics_label is the semantic identifier",
+  path_budget_chars = MMM_MAX_OUTPUT_PATH_CHARS
+)
+ensure_dir(base_output_dir)
+readr::write_csv(proteomics_output_dir_map,
+                 file.path(base_output_dir, "proteomics_integration_output_dir_map.csv"))
+
 for (proteomics_file in proteomics_files) {
 
   proteomics_file_base <- tools::file_path_sans_ext(basename(proteomics_file))
@@ -1541,9 +1565,11 @@ for (proteomics_file in proteomics_files) {
     "^module_scores_"
   )
 
+  proteomics_dir_slug <- mmm_output_dir_slug(proteomics_label)
+
   output_dir <- file.path(
     base_output_dir,
-    paste0("proteomics_integration_", proteomics_label)
+    paste0("proteomics_", proteomics_dir_slug)
   )
 
   message("\n========================================")

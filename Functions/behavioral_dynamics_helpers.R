@@ -62,6 +62,93 @@ canonicalize_behavior_output_path <- function(path) {
 
 .mmm_output_write_registry <- new.env(parent = emptyenv())
 
+# ---------------------------------------------------------------------------
+# OUTPUT-DIRECTORY SLUGS AND PATH-LENGTH BUDGET
+# ---------------------------------------------------------------------------
+# Legacy Windows APIs cap a full path at 260 characters (MAX_PATH). A dataset
+# label taken verbatim from a source filename can push a deep figure path past
+# that, and the failure surfaces far downstream as an opaque "cannot open file"
+# from the graphics device rather than as a path problem.
+#
+# The budget below is deliberately well under 260 so that adding a longer
+# filename later cannot silently walk the tree back to the boundary. It is
+# enforced centrally, at the point where output-directory identity is defined,
+# and asserted by Testing/test_output_path_length.R.
+#
+# A slug is a FILESYSTEM label only. Any scientifically meaningful identifier
+# must continue to travel in table columns, figure captions and provenance --
+# never be recovered by parsing a directory name.
+MMM_MAX_OUTPUT_PATH_CHARS <- 240L
+MMM_MAX_OUTPUT_SLUG_CHARS <- 22L
+
+# Readable short slugs for known long dataset labels. The full label is
+# preserved verbatim in provenance and in the semantic columns of every table,
+# so nothing scientific depends on this mapping.
+MMM_OUTPUT_SLUG_DICTIONARY <- c(
+  "m_neuron_neuropil_primary_all_replicates" = "mnn_primary",
+  "m_neuron_neuropil_sensitivity_flagged_replicates_removed" = "mnn_sensitivity"
+)
+
+#' Deterministic filesystem slug for an output directory label.
+#'
+#' Labels within budget are returned unchanged. Known long labels map through
+#' the dictionary. Anything else is abbreviated token-wise (4 characters per
+#' underscore-separated token, assembled up to the budget on token boundaries)
+#' so a new dataset cannot reintroduce an over-long path. The result depends
+#' only on the label itself, so paths stay deterministic.
+mmm_output_dir_slug <- function(label,
+                                max_chars = MMM_MAX_OUTPUT_SLUG_CHARS,
+                                dictionary = MMM_OUTPUT_SLUG_DICTIONARY) {
+  label <- as.character(label)
+  vapply(label, function(one) {
+    if (is.na(one) || !nzchar(one)) return(NA_character_)
+    if (one %in% names(dictionary)) return(unname(dictionary[[one]]))
+    if (nchar(one) <= max_chars) return(one)
+    toks <- strsplit(one, "_", fixed = TRUE)[[1]]
+    toks <- toks[nzchar(toks)]
+    toks <- substr(toks, 1, 4)
+    slug <- toks[1]
+    for (tok in toks[-1]) {
+      candidate <- paste(slug, tok, sep = "_")
+      if (nchar(candidate) > max_chars) break
+      slug <- candidate
+    }
+    substr(slug, 1, max_chars)
+  }, character(1), USE.NAMES = FALSE)
+}
+
+#' Fail closed if slugs collide, so two datasets can never share a directory.
+mmm_assert_unique_output_slugs <- function(labels, slugs, source_label = "output slugs") {
+  map <- data.frame(label = as.character(labels), slug = as.character(slugs),
+                    stringsAsFactors = FALSE)
+  collapsed <- stats::aggregate(label ~ slug, data = unique(map), FUN = length)
+  bad <- collapsed[collapsed$label > 1L, , drop = FALSE]
+  if (nrow(bad) > 0L) {
+    stop(source_label, ": output-directory slug collision. Slug(s) ",
+         paste(bad$slug, collapse = ", "),
+         " are produced by more than one dataset label. Extend ",
+         "MMM_OUTPUT_SLUG_DICTIONARY with distinct short slugs.", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Assert a set of intended output paths stays inside the path-length budget.
+mmm_assert_output_path_budget <- function(paths,
+                                          max_chars = MMM_MAX_OUTPUT_PATH_CHARS,
+                                          source_label = "output paths") {
+  paths <- as.character(paths)
+  n <- nchar(paths)
+  if (any(n > max_chars)) {
+    worst <- order(n, decreasing = TRUE)[1]
+    stop(source_label, ": ", sum(n > max_chars), " intended output path(s) exceed the ",
+         max_chars, "-character budget (legacy Windows MAX_PATH is 260). Longest is ",
+         n[worst], " chars:\n  ", paths[worst],
+         "\nShorten the output-directory slug rather than an analysis identifier.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 mmm_group_levels <- c("CON", "RES", "SUS")
 mmm_group_colors <- c("CON" = "#3d3b6e", "RES" = "#C6C3BB", "SUS" = "#e63947", "All" = "grey55")
 mmm_pair_colors <- c("RES-CON" = "#3d3b6e", "SUS-CON" = "#e63947", "SUS-RES" = "#8A817C")
