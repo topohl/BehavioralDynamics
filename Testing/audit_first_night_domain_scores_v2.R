@@ -1068,6 +1068,67 @@ cat("Longitudinal reference (10min, Female, Active, context-z, CC1-CC4 repeated 
 cat("  mean_dwell SUS-CON +0.639 (p 0.015); occupancy_entropy SUS-CON -0.138 (p 0.562, null).\n")
 cat("  The first-night value above is the CC1-only, clock-window, Sex-standardized analogue.\n")
 
+## ==========================================================================
+hr("STEP 10. How much did superseding the v1 count rule actually change the raw domains?")
+## ==========================================================================
+## Rebuild the five raw domains on Stage 14's `local_bin <= 12h/bin` COUNT rule (what v1 used)
+## and compare, animal by animal, against the clock-window scores. This quantifies the defect;
+## the count-rule scores are NOT written as a domain and are NOT displayed anywhere.
+v1_cmp <- map_dfr(RESOLUTIONS, function(res) {
+  bs <- BIN_SEC[[res]]; expected_slots <- WINDOW_HOURS * 3600 / bs
+  d <- read_csv(file.path(DERIV, res, "all_behavior_metrics.csv"),
+                col_types = cols(AnimalNum = col_character(), BinStart = col_datetime(), .default = col_guess()),
+                progress = FALSE) %>%
+    mutate(AnimalNum = canonical_animal_id(AnimalNum)) %>% semi_join(roster, by = "AnimalNum") %>%
+    mutate(Movement = safe_numeric(Movement), Entropy = safe_numeric(Entropy),
+           Proximity = safe_numeric(ProximityFraction), TimeIndex = safe_numeric(TimeIndex))
+  first_cc <- get_first_cage_change(d$CageChange)
+  lb <- d %>% filter(as.character(CageChange) == first_cc, is_active_phase(Phase)) %>%
+    group_by(AnimalNum, Phase) %>% arrange(TimeIndex, .by_group = TRUE) %>%
+    mutate(local_bin = row_number()) %>% filter(local_bin <= expected_slots) %>% ungroup()
+  ## how far past the window does the count rule reach?
+  reach <- lb %>% left_join(win_store[[res]] %>% distinct(AnimalNum, target_window_end), by = "AnimalNum") %>%
+    group_by(AnimalNum) %>% summarise(max_BinStart = max(BinStart), win_end = first(target_window_end),
+                                      overshoot_hours = as.numeric(difftime(max(BinStart) + bs, first(target_window_end), units = "hours")),
+                                      .groups = "drop")
+  f <- lb %>% group_by(AnimalNum) %>% arrange(TimeIndex, .by_group = TRUE) %>%
+    summarise(Movement_mean = f_mean(Movement), Movement_rmssd = f_rmssd(Movement), Movement_acf1 = f_acf1(Movement),
+              Entropy_mean = f_mean(Entropy), Entropy_rmssd = f_rmssd(Entropy), Entropy_acf1 = f_acf1(Entropy),
+              Proximity_mean = f_mean(Proximity), Proximity_rmssd = f_rmssd(Proximity), Proximity_acf1 = f_acf1(Proximity),
+              .groups = "drop") %>% left_join(roster %>% select(AnimalNum, Sex), by = "AnimalNum")
+  fz <- reduce(c("Movement_mean","Movement_rmssd","Movement_acf1","Entropy_mean","Entropy_rmssd",
+                 "Entropy_acf1","Proximity_mean","Proximity_rmssd","Proximity_acf1"), zsex, .init = f) %>%
+    mutate(`Psychomotor activation` = Movement_mean_z,
+           `Behavioral flexibility / predictability` = score_mean(pick(everything()), c("Entropy_mean_z","Entropy_rmssd_z")) - coalesce(Entropy_acf1_z, 0),
+           `Social spatial organization` = score_mean(pick(everything()), c("Proximity_mean_z","Proximity_acf1_z")) - coalesce(Proximity_rmssd_z, 0),
+           `Behavioral volatility / fragmentation` = score_mean(pick(everything()), c("Movement_rmssd_z","Entropy_rmssd_z","Proximity_rmssd_z")),
+           `Active-phase adaptation/exploration` = score_mean(pick(everything()), c("Movement_mean_z","Entropy_mean_z","Proximity_mean_z")) -
+             score_mean(pick(everything()), c("Movement_acf1_z","Entropy_acf1_z"))) %>%
+    select(AnimalNum, all_of(setdiff(RAW_DOMS, "Early adaptation / prediction"))) %>%
+    pivot_longer(-AnimalNum, names_to = "Domain", values_to = "score_countrule_v1")
+  cat(sprintf("  %s: count rule reaches past the window end for %d/111 animals; max overshoot %.2f h (median overshoot among those %.2f h)\n",
+              res, sum(reach$overshoot_hours > 0), max(reach$overshoot_hours),
+              median(reach$overshoot_hours[reach$overshoot_hours > 0])))
+  scores %>% filter(bin_resolution == res, feature_origin == "raw_RFID",
+                    Domain != "Early adaptation / prediction") %>%
+    select(AnimalNum, Domain, score_clock_v2 = DomainScore) %>%
+    inner_join(fz, by = c("AnimalNum", "Domain")) %>%
+    group_by(Domain) %>%
+    summarise(bin_resolution = res, n = sum(is.finite(score_clock_v2) & is.finite(score_countrule_v1)),
+              n_animals_score_changed = sum(abs(score_clock_v2 - score_countrule_v1) > 1e-9, na.rm = TRUE),
+              max_abs_diff = max(abs(score_clock_v2 - score_countrule_v1), na.rm = TRUE),
+              median_abs_diff = median(abs(score_clock_v2 - score_countrule_v1), na.rm = TRUE),
+              pearson_r = safe_cor(score_clock_v2, score_countrule_v1),
+              spearman_rho = safe_cor(score_clock_v2, score_countrule_v1, "spearman"),
+              .groups = "drop")
+}) %>% mutate(note = "score_countrule_v1 reproduces what Testing/audit_first_night_domain_scores.R used (Stage 14 local_bin <= 12h/bin). It is NOT a displayed domain; shown only to quantify the defect that v2 corrects.")
+write_csv(v1_cmp, file.path(OUT, "first_night_v1_countrule_vs_v2_clockwindow.csv"))
+sec("Clock window (v2, shipped) vs count rule (v1, superseded) -- raw domains")
+print(as.data.frame(v1_cmp %>% transmute(res = bin_resolution, Domain = str_trunc(Domain, 38), n,
+                                         changed = n_animals_score_changed, max_d = r4(max_abs_diff),
+                                         med_d = r4(median_abs_diff), r = r4(pearson_r),
+                                         rho = r4(spearman_rho)) %>% arrange(res, desc(max_d))), row.names = FALSE)
+
 hr("DONE. Files written to OUT")
 print(basename(c(file.path(OUT, "first_night_domain_source_classification.csv"),
                  file.path(OUT, "first_night_domain_scores.csv"),
@@ -1083,4 +1144,5 @@ print(basename(c(file.path(OUT, "first_night_domain_source_classification.csv"),
                  file.path(OUT, "first_night_duplicate_domain_check_v2.csv"),
                  file.path(OUT, "first_night_locomotion_dominance_v2.csv"),
                  file.path(OUT, "first_night_cross_resolution_stability_v2.csv"),
-                 file.path(OUT, "first_night_hmm_coverage_v2.csv"))))
+                 file.path(OUT, "first_night_hmm_coverage_v2.csv"),
+                 file.path(OUT, "first_night_v1_countrule_vs_v2_clockwindow.csv"))))
