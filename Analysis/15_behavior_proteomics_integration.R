@@ -25,11 +25,42 @@ source(.pipeline_setup)
 # 1) Paths
 # ------------------------------------------------
 
-behavior_file <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/early_prediction/5min_based/tables/early_behavior_features.csv"
-
+# project_root must be defined BEFORE any resolver call. The previous ordering
+# hard-coded an absolute behaviour path above this line.
 project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 
 analysis_ready_dir <- file.path(project_root, "analysis_ready")
+
+# Source-specific resolutions. These are deliberately NOT one global setting:
+# each upstream stage owns its own primary resolution.
+#
+# Stage 09 (early prediction) is canonically 10-min; the legacy
+# 06_behavioral_dynamics/early_prediction/5min_based tree was written by the
+# ARCHIVED 08_early_prediction_models.R and is contract-violating (113 animals,
+# zero-padded ids, Active+Inactive rows, all four cage changes, a 4-bin window).
+# It must never be used. No new 5-min Stage 09 run is created merely because
+# this stage historically pointed at 5 min.
+early_prediction_bin_level <- "10min_based"
+
+# Stage 08 declares 10min_based as the HMM primary and 5min_based as the HMM
+# sensitivity, so HMM-derived features are taken at the HMM PRIMARY resolution,
+# not at this stage's generic behaviour resolution.
+hmm_bin_level <- getOption("mmm.hmm.primary_bin_level", "10min_based")
+
+# HMM-derived features are EXCLUDED from the primary composite behavioural axes.
+# Rationale from the completed HMM stability audit, not from any proteomics
+# association: the 4-state fit has multiple materially different optima at
+# equal likelihood, and first-night mean_dwell_minutes was not reproducible
+# across them (animal-level r 0.08 between two fits at identical logLik). An
+# HMM-inclusive sensitivity is retained so the contribution stays visible.
+include_hmm_in_primary_axes <- getOption("mmm.stage15.include_hmm_in_primary_axes", FALSE)
+
+behavior_file <- resolve_stage09_early_prediction_artifact(
+  project_root,
+  "early_behavior_features_wide.csv",
+  early_prediction_bin_level,
+  required = TRUE
+)$path
 
 proteomics_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/proteomics"
 
@@ -61,19 +92,57 @@ if (length(proteomics_files) == 0) {
 # 2) Helpers
 # ------------------------------------------------
 
-normalize_animal_id <- function(x) {
+# Stage 15 previously carried its own identity rule that extracted TRAILING
+# DIGITS and zero-padded them to four characters. That is NOT the canonical
+# behavioural identity contract and is unsafe for alphanumeric ids:
+#
+#   legacy: "OR413" -> "0413"   canonical: "OR413" -> "OR413"
+#   legacy: "413"   -> "0413"   canonical: "413"   -> "413"
+#
+# so the legacy rule silently STRIPS the prefix and collides distinct animals
+# onto one key. Identity now delegates to canonical_animal_id(); the legacy rule
+# is retained only so the migration can be audited and reported.
+legacy_normalize_animal_id <- function(x) {
   x <- as.character(x)
   x <- stringr::str_trim(x)
   x <- stringr::str_replace(x, "\\.0$", "")
-
-  digits <- stringr::str_extract(x, "\\d+$")
+  digits <- stringr::str_extract(x, "[0-9]+$")
   digits_num <- suppressWarnings(as.integer(digits))
+  dplyr::if_else(!is.na(digits_num), sprintf("%04d", digits_num), x)
+}
 
-  dplyr::if_else(
-    !is.na(digits_num),
-    sprintf("%04d", digits_num),
-    x
-  )
+normalize_animal_id <- function(x) canonical_animal_id(x)
+
+#' Audit the legacy identity rule against the canonical contract and fail closed.
+#'
+#' Fails on a legacy many-to-one collapse (two distinct canonical animals mapped
+#' onto one legacy key) and on Group/Sex disagreement against the Stage 01
+#' canonical roster.
+audit_stage15_identity <- function(ids, roster, source_label) {
+  ids <- unique(as.character(ids[!is.na(ids)]))
+  map <- tibble::tibble(
+    raw_id = ids,
+    canonical_id = canonical_animal_id(ids),
+    legacy_id = legacy_normalize_animal_id(ids)
+  ) %>%
+    dplyr::mutate(
+      rule_agrees = .data$canonical_id == .data$legacy_id,
+      prefix_stripped = grepl("[A-Za-z]", .data$raw_id) & !grepl("[A-Za-z]", .data$legacy_id),
+      in_canonical_roster = .data$canonical_id %in% roster$AnimalNum,
+      source = source_label
+    )
+  collisions <- map %>%
+    dplyr::group_by(.data$legacy_id) %>%
+    dplyr::summarise(n_canonical = dplyr::n_distinct(.data$canonical_id),
+                     canonical_ids = paste(sort(unique(.data$canonical_id)), collapse = "|"),
+                     .groups = "drop") %>%
+    dplyr::filter(.data$n_canonical > 1L)
+  if (nrow(collisions) > 0L) {
+    stop(source_label, ": the legacy identity rule collapses distinct canonical animals onto one key:\n",
+         paste(utils::capture.output(print(as.data.frame(collisions))), collapse = "\n"),
+         call. = FALSE)
+  }
+  list(map = map, collisions = collisions)
 }
 
 standardize_sex <- function(x) {
@@ -696,8 +765,15 @@ build_behavior_feature_matrix <- function() {
     }
   )
 
+  # HMM-derived features are taken at the Stage 08 HMM PRIMARY resolution only,
+  # not across this stage's generic behaviour resolutions, and by default they do
+  # not enter the primary composite axes (see include_hmm_in_primary_axes above).
+  hmm_feature_long <- load_hmm_summary_features(hmm_bin_level) %>%
+    mutate(feature_stability_class = "hmm_multi_optimum_unstable",
+           in_primary_axes = include_hmm_in_primary_axes)
   feature_long <- map_dfr(loaded, "features") %>%
-    bind_rows(map_dfr(optional_behavior_bin_levels, load_hmm_summary_features))
+    mutate(feature_stability_class = "stable_source", in_primary_axes = TRUE) %>%
+    bind_rows(hmm_feature_long)
 
   inventory <- map_dfr(loaded, "inventory") %>%
     bind_rows(tibble(
