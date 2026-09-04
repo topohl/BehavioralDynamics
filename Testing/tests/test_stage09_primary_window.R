@@ -17,8 +17,21 @@ suppressPackageStartupMessages({
 })
 
 # The clock-anchored window selector depends on the shared phase-block helpers.
-source(file.path(Sys.getenv("MMM_REPO_DIR", unset = "C:/Users/topohl/Documents/GitHub/MMMSociability"),
-                 "Functions", "animalpos_preprocessing_helpers.R"))
+# Repo root: honour MMM_REPO_DIR when set, otherwise discover it by walking up
+# from the working directory, exactly as Analysis/_pipeline_setup.R does. The
+# previous fallback was a hard-coded Windows clone path, which made this test
+# fail anywhere else, including CI.
+repo <- Sys.getenv("MMM_REPO_DIR", unset = NA_character_)
+if (is.na(repo) || !nzchar(repo)) {
+  repo <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+  while (!(file.exists(file.path(repo, "Functions", "behavioral_dynamics_helpers.R")) &&
+           dir.exists(file.path(repo, "Analysis")))) {
+    parent <- dirname(repo)
+    if (identical(parent, repo)) stop("Could not locate the repository root.", call. = FALSE)
+    repo <- parent
+  }
+}
+source(file.path(repo, "Functions", "animalpos_preprocessing_helpers.R"))
 
 fail <- function(msg) stop("FAIL: ", msg, call. = FALSE)
 check <- function(cond, msg) if (!isTRUE(cond)) fail(msg) else invisible(TRUE)

@@ -20,7 +20,20 @@
 suppressPackageStartupMessages({
   library(dplyr); library(tibble); library(readr); library(stringr); library(purrr); library(tidyr)
 })
-repo <- Sys.getenv("MMM_REPO_DIR", unset = "C:/Users/topohl/Documents/GitHub/MMMSociability")
+# Repo root: honour MMM_REPO_DIR when set, otherwise discover it by walking up
+# from the working directory, exactly as Analysis/_pipeline_setup.R does. The
+# previous fallback was a hard-coded Windows clone path, which made this test
+# fail anywhere else, including CI.
+repo <- Sys.getenv("MMM_REPO_DIR", unset = NA_character_)
+if (is.na(repo) || !nzchar(repo)) {
+  repo <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+  while (!(file.exists(file.path(repo, "Functions", "behavioral_dynamics_helpers.R")) &&
+           dir.exists(file.path(repo, "Analysis")))) {
+    parent <- dirname(repo)
+    if (identical(parent, repo)) stop("Could not locate the repository root.", call. = FALSE)
+    repo <- parent
+  }
+}
 setwd(repo)
 source(file.path(repo, "Functions", "behavioral_dynamics_helpers.R"))
 source(file.path(repo, "Functions", "animalpos_preprocessing_helpers.R"))
