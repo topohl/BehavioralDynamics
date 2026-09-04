@@ -29,11 +29,28 @@ What exists instead is an honest inventory:
 - `docs/package_versions.csv` — package, whether installed, resolved version
 - `docs/sessionInfo.txt` — full `sessionInfo()` from the validated environment
 
-**`renv` adoption is pending** and is the recommended next reproducibility step.
-The correct sequence is: install `renv` in a scratch library, `renv::init()` with
-`bare = TRUE`, `renv::snapshot()` against the inventory above, then verify the
-portable suite still passes. Do not run `renv::restore()` against the current
-library.
+**`renv` adoption is pending** and remains the recommended next reproducibility
+step. It was re-assessed for RC1 and deliberately deferred to RC2.
+
+Assessment: a clean lockfile CAN be produced without restoring packages, without
+changing any analysis package version, and without touching scientific output --
+but only if `renv` is installed into a SEPARATE library so the analysis library
+is not modified:
+
+```r
+dir.create("~/renv-bootstrap", showWarnings = FALSE)
+.libPaths(c("~/renv-bootstrap", .libPaths()))
+install.packages("renv", lib = "~/renv-bootstrap")
+renv::snapshot(type = "all", lockfile = "renv.lock", prompt = FALSE)
+```
+
+`renv::snapshot()` only READS the installed library, so no version moves and no
+stage is re-run. Verify afterwards that the portable suite is still 19/19 and
+that the canonical artifact hashes are unchanged, then commit `renv.lock` for
+RC2.
+
+Do NOT run `renv::restore()` against the current library: that is the one
+operation that would change installed versions under a frozen analysis.
 
 One dependency is genuinely optional: `randomForest` is absent from the
 validated environment. Stage 10 guards it with `requireNamespace()` and skips its
