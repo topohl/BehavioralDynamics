@@ -1,0 +1,101 @@
+name: Portable tests
+
+# Runs ONLY the portable regression/contract suite in Testing/tests/.
+#
+# The data-dependent scientific audits in Testing/audits/ are deliberately NOT
+# run here. They require the E9 dataset on the private S: project root, which is
+# not available to CI and must not be. See Testing/README.md and
+# docs/REPRODUCIBILITY.md.
+
+on:
+  push:
+    branches: [main, 'publication/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.5.1'
+          use-public-rspm: true
+
+      # Exactly what the portable suite reaches, determined empirically by
+      # re-running all 17 tests with candidate packages masked at
+      # loadNamespace(). The full analysis stack -- lme4, lmerTest, emmeans,
+      # readxl, mgcv, depmixS4, glmnet, igraph, openxlsx, lubridate,
+      # data.table -- is deliberately NOT installed: masking all of those still
+      # gives 17/17 PASS, because no portable test fits a model, reads an Excel
+      # file or writes a workbook.
+      #
+      # ggplot2 IS required, even though nothing here plots: it is a top-level
+      # library() call in Functions/behavioral_dynamics_helpers.R, which
+      # Analysis/_pipeline_setup.R sources unconditionally.
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::dplyr
+            any::tidyr
+            any::readr
+            any::purrr
+            any::stringr
+            any::tibble
+            any::ggplot2
+
+      - name: Parse every active R script
+        shell: bash
+        run: |
+          set -euo pipefail
+          Rscript - <<'EOF'
+          files <- list.files(c("Analysis", "Functions", "Formatting",
+                                "Testing/tests", "manuscript"),
+                              pattern = "[.][Rr]$", recursive = TRUE,
+                              full.names = TRUE)
+          files <- files[!grepl("_archive|/legacy/", files)]
+          bad <- character(0)
+          for (f in files) {
+            ok <- tryCatch({ parse(f); TRUE },
+                           error = function(e) { message(f, ": ", conditionMessage(e)); FALSE })
+            if (!ok) bad <- c(bad, f)
+          }
+          cat(sprintf("parsed %d active R scripts, %d failed\n", length(files), length(bad)))
+          if (length(bad)) quit(status = 1)
+          EOF
+
+      - name: Run portable test suite
+        shell: bash
+        run: |
+          set -uo pipefail
+          fail=0
+          total=0
+          for f in Testing/tests/test_*.R; do
+            total=$((total + 1))
+            echo "::group::$f"
+            if Rscript "$f"; then
+              echo "PASS $f"
+            else
+              echo "::error file=$f::portable test failed"
+              fail=$((fail + 1))
+            fi
+            echo "::endgroup::"
+          done
+          echo "portable suite: $((total - fail))/$total passed"
+          [ "$fail" -eq 0 ]
+
+      - name: Report skipped data-dependent audits
+        if: always()
+        shell: bash
+        run: |
+          n=$(ls Testing/audits/*.R 2>/dev/null | wc -l)
+          echo "Skipped $n data-dependent audits in Testing/audits/ (require the E9 dataset; not available in CI)." >> "$GITHUB_STEP_SUMMARY"
+          echo "Skipped $(ls Testing/legacy/*.R Testing/legacy/*.r 2>/dev/null | wc -l) legacy scripts in Testing/legacy/ (historical provenance; not maintained)." >> "$GITHUB_STEP_SUMMARY"
