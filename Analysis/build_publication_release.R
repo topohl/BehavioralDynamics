@@ -136,9 +136,11 @@ FIRSTNIGHT <- file.path(ANALYSIS_READY, "12_systems_neuroscience_summary", "5min
                         "first_night", "10min_based")
 QC <- file.path(ANALYSIS_READY, "00_qc_tracking_integrity", "tables")
 
-a <- function(artifact_id, source_path, bundle_subdir, required = TRUE, role = "") {
+a <- function(artifact_id, source_path, bundle_subdir, required = TRUE, role = "",
+              dest_name = NULL) {
   tibble(artifact_id = artifact_id, source_path = source_path,
-         bundle_subdir = bundle_subdir, required = required, role = role)
+         bundle_subdir = bundle_subdir, required = required, role = role,
+         dest_name = if (is.null(dest_name)) basename(source_path) else dest_name)
 }
 
 plan <- bind_rows(
@@ -152,6 +154,7 @@ plan <- bind_rows(
   a("s09_sex_stratified",        file.path(S09, "primary_movement_entropyacf1_correlations_by_sex.csv"), "tables/supplementary", TRUE, "Descriptive sex-stratified"),
   a("s09_model_input",           file.path(S09, "model_ladder_input.csv"),                        "source_data",     TRUE,  "Animal-level model input"),
   a("s09_predictions",           file.path(S09, "primary_prediction_predictions.csv"),            "source_data",     TRUE,  "Held-out predictions"),
+  a("s09_window_contract",      file.path(S09, "early_window_contract_summary.csv"),           "provenance",      TRUE,  "PRIMARY 10-min window contract", dest_name = "stage09_10min_early_window_contract_summary.csv"),
 
   # ---- secondary: Stage 03 tables
   a("s03_animal_endpoints",      file.path(S03, "raw_movement_animal_level_endpoints.csv"),       "source_data",     TRUE,  "SECONDARY movement source data"),
@@ -178,9 +181,9 @@ plan <- bind_rows(
   a("s16_animal_source",         file.path(MANU, "animal_level_source_data.csv"),                 "source_data",     TRUE,  "Animal-level source data"),
   a("s16_prediction_source",     file.path(MANU, "prediction_source_data.csv"),                   "source_data",     TRUE,  "Held-out prediction source data"),
   a("s16_movement_source",       file.path(MANU, "movement_phase_source_data.csv"),               "source_data",     TRUE,  "Movement-phase source data"),
-  a("s16_provenance",            file.path(MANU, "provenance.csv"),                               "provenance",      TRUE,  "Upstream provenance and hashes"),
-  a("s16_validation",            file.path(MANU, "validation.csv"),                               "provenance",      TRUE,  "Stage 16 validation results"),
-  a("s16_manifest",              file.path(MANU, "manifest.csv"),                                 "provenance",      TRUE,  "Stage 16 output manifest"),
+  a("s16_provenance",            file.path(MANU, "provenance.csv"),                               "provenance",      TRUE,  "Upstream provenance and hashes", dest_name = "stage16_provenance.csv"),
+  a("s16_validation",            file.path(MANU, "validation.csv"),                               "provenance",      TRUE,  "Stage 16 validation results", dest_name = "stage16_validation.csv"),
+  a("s16_manifest",              file.path(MANU, "manifest.csv"),                                 "provenance",      TRUE,  "Stage 16 output manifest", dest_name = "stage16_manifest.csv"),
 
   # ---- QC
 
@@ -188,7 +191,7 @@ plan <- bind_rows(
   a("s09sens_associations",   file.path(S09_SENS, "primary_movement_entropyacf1_associations.csv"), "tables/supplementary", TRUE, "SENSITIVITY 5-min feature associations"),
   a("s09sens_performance",    file.path(S09_SENS, "primary_prediction_performance.csv"),           "tables/supplementary", TRUE, "SENSITIVITY 5-min prediction performance"),
   a("s09sens_permutation",    file.path(S09_SENS, "primary_prediction_permutation_test.csv"),      "tables/supplementary", TRUE, "SENSITIVITY 5-min permutation"),
-  a("s09sens_window",         file.path(S09_SENS, "early_window_contract_summary.csv"),            "provenance",           TRUE, "SENSITIVITY 5-min window contract"),
+  a("s09sens_window",         file.path(S09_SENS, "early_window_contract_summary.csv"),            "provenance",           TRUE, "SENSITIVITY 5-min window contract", dest_name = "stage09_5min_early_window_contract_summary.csv"),
   a("s09sens_comparison",     file.path(S09_SENS_AUDIT, "stage09_resolution_sensitivity_comparison.csv"), "provenance",     TRUE, "10-min versus 5-min comparison of the same fixed analysis"),
   a("qc_by_animal",              file.path(QC, "tracking_qc_by_animal.csv"),                      "qc",              FALSE, "Tracking integrity"),
   a("qc_manual_review",          file.path(QC, "suggested_animals_for_manual_tracking_review.csv"), "qc",            FALSE, "Manual-review suggestions"),
@@ -246,6 +249,24 @@ if (nrow(missing_optional) > 0) {
 }
 
 to_copy <- resolved %>% filter(exists)
+
+# Two artifacts must never land on the same bundle path, and no copied artifact
+# may collide with a file this builder writes itself.
+.planned <- file.path(to_copy$bundle_subdir, to_copy$dest_name)
+if (anyDuplicated(.planned)) {
+  stop("Release aborted: two artifacts resolve to the same bundle path:\n  ",
+       paste(unique(.planned[duplicated(.planned)]), collapse = "\n  "), call. = FALSE)
+}
+.builder_writes <- c("provenance/artifact_manifest.csv", "provenance/upstream_hashes.csv",
+                     "provenance/validation.csv", "provenance/analysis_registry.csv",
+                     "provenance/stage16_upstream_crosscheck.csv",
+                     "code/git_sha.txt", "code/sessionInfo.txt", "code/package_versions.csv",
+                     "README.md", "SHA256SUMS.txt")
+if (any(.planned %in% .builder_writes)) {
+  stop("Release aborted: a copied artifact would be overwritten by a file the builder writes:\n  ",
+       paste(intersect(.planned, .builder_writes), collapse = "\n  "), call. = FALSE)
+}
+
 message("Resolved ", nrow(to_copy), " artifacts (",
         sum(to_copy$required), " required, ", sum(!to_copy$required), " optional), ",
         format(sum(to_copy$bytes, na.rm = TRUE) / 1024^2, digits = 4), " MB")
@@ -313,7 +334,7 @@ for (d in unique(c(to_copy$bundle_subdir, "code", "provenance", "figures/main",
 manifest <- to_copy %>%
   rowwise() %>%
   mutate(
-    bundle_path = file.path(bundle_subdir, basename(source_path)),
+    bundle_path = file.path(bundle_subdir, dest_name),
     dest        = file.path(RELEASE_ROOT, bundle_path),
     copied      = file.copy(source_path, dest, overwrite = FALSE, copy.date = TRUE),
     copied_sha256 = if (isTRUE(copied) && file.exists(dest)) sha256_file(dest) else NA_character_,
