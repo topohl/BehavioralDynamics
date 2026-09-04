@@ -125,6 +125,10 @@ if (nrow(registry) == 0) stop("Manuscript analysis registry is empty.", call. = 
 # any p-value. `required = TRUE` means a missing file aborts the build.
 S09 <- behavior_stage_tables(PROJECT_ROOT, "09", "early_prediction", "10min")
 S03 <- behavior_stage_tables(PROJECT_ROOT, "03", "movement_phase_stats", "10min")
+# Declared 5-min resolution sensitivity for the primary Stage 09 question.
+# Supplementary evidence only; "10min" above stays the canonical primary.
+S09_SENS <- behavior_stage_tables(PROJECT_ROOT, "09", "early_prediction", "5min")
+S09_SENS_AUDIT <- file.path(behavior_stage_dir(PROJECT_ROOT, "09", "early_prediction", "5min"), "audit")
 S09_FIG <- file.path(behavior_stage_dir(PROJECT_ROOT, "09", "early_prediction", "10min"), "figures")
 S03_FIG <- file.path(behavior_stage_dir(PROJECT_ROOT, "03", "movement_phase_stats", "10min"), "figures")
 MANU <- behavior_manuscript_dir(PROJECT_ROOT, "behavior")
@@ -179,6 +183,13 @@ plan <- bind_rows(
   a("s16_manifest",              file.path(MANU, "manifest.csv"),                                 "provenance",      TRUE,  "Stage 16 output manifest"),
 
   # ---- QC
+
+  # ---- supplementary: Stage 09 5-min resolution sensitivity
+  a("s09sens_associations",   file.path(S09_SENS, "primary_movement_entropyacf1_associations.csv"), "tables/supplementary", TRUE, "SENSITIVITY 5-min feature associations"),
+  a("s09sens_performance",    file.path(S09_SENS, "primary_prediction_performance.csv"),           "tables/supplementary", TRUE, "SENSITIVITY 5-min prediction performance"),
+  a("s09sens_permutation",    file.path(S09_SENS, "primary_prediction_permutation_test.csv"),      "tables/supplementary", TRUE, "SENSITIVITY 5-min permutation"),
+  a("s09sens_window",         file.path(S09_SENS, "early_window_contract_summary.csv"),            "provenance",           TRUE, "SENSITIVITY 5-min window contract"),
+  a("s09sens_comparison",     file.path(S09_SENS_AUDIT, "stage09_resolution_sensitivity_comparison.csv"), "provenance",     TRUE, "10-min versus 5-min comparison of the same fixed analysis"),
   a("qc_by_animal",              file.path(QC, "tracking_qc_by_animal.csv"),                      "qc",              FALSE, "Tracking integrity"),
   a("qc_manual_review",          file.path(QC, "suggested_animals_for_manual_tracking_review.csv"), "qc",            FALSE, "Manual-review suggestions"),
 
