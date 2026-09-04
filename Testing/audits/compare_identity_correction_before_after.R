@@ -13,7 +13,7 @@
 #
 # Baseline root resolution (first match wins; there is no hardcoded default):
 #   1. the `baseline_root` argument to run_identity_correction_comparison()
-#   2. Rscript Testing/compare_identity_correction_before_after.R --baseline-root=<path>
+#   2. Rscript Testing/audits/compare_identity_correction_before_after.R --baseline-root=<path>
 #   3. options(mmm.identity_baseline_root = "<path>")
 #   4. Sys.setenv(MMM_IDENTITY_BASELINE_ROOT = "<path>")
 #
@@ -158,7 +158,7 @@ run_identity_correction_comparison <- function(baseline_root = NULL,
     stop(
       "No identity-correction baseline root was supplied; refusing to guess. Provide one via:\n",
       "  - run_identity_correction_comparison(baseline_root = \"<path>\"),\n",
-      "  - Rscript Testing/compare_identity_correction_before_after.R --baseline-root=<path>,\n",
+      "  - Rscript Testing/audits/compare_identity_correction_before_after.R --baseline-root=<path>,\n",
       "  - options(mmm.identity_baseline_root = \"<path>\"), or\n",
       "  - Sys.setenv(MMM_IDENTITY_BASELINE_ROOT = \"<path>\").\n",
       "There is no default baseline; a pre-identity-correction snapshot must be preserved explicitly before rebuilding.",

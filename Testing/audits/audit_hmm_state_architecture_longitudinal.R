@@ -2,7 +2,7 @@
 # AUDIT (read-only) -- deliverable 4: LONGITUDINAL follow-up for the Stage 14
 # construct `Behavioral state architecture` and its implicated components.
 #
-# Testing/audit_hmm_state_architecture_longitudinal.R
+# Testing/audits/audit_hmm_state_architecture_longitudinal.R
 #
 # The PRIMARY average-effect model
 #     DomainScore ~ Group * Sex + factor(CageChangeIndex) + (1 | AnimalNum)

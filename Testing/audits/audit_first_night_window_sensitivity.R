@@ -58,7 +58,7 @@ HMM     <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
 DERIV   <- file.path(PROJ, "analysis_ready/03_derived_metrics")
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
-THIS_SCRIPT  <- "Testing/audit_first_night_window_sensitivity.R"
+THIS_SCRIPT  <- "Testing/audits/audit_first_night_window_sensitivity.R"
 GROUP_LEVELS <- c("CON", "RES", "SUS")
 SEX_LEVELS   <- c("Female", "Male")
 WINDOW_HOURS <- 12

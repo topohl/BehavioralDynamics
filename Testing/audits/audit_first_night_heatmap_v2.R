@@ -3,7 +3,7 @@
 ## FIRST-NIGHT (CC1, canonical experimental-CLOCK window) inference + figures.
 ##
 ## CONSUMES (does not rebuild) the v2 score/feature tables written by
-##   Testing/audit_first_night_domain_scores_v2.R
+##   Testing/audits/audit_first_night_domain_scores_v2.R
 ## which are themselves built on THE ONE canonical window:
 ##   * first cage change (CC1) only
 ##   * Phase EXACTLY in c("active","dark","night") after lower+trim (never a substring
@@ -63,8 +63,8 @@ PROD_CC1 <- file.path(STAGE14, "tables/sis_CC1_first_active_domain_contrasts.csv
 COMBZ_XLSX <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
-THIS_SCRIPT <- "Testing/audit_first_night_heatmap_v2.R"
-UPSTREAM    <- "Testing/audit_first_night_domain_scores_v2.R"
+THIS_SCRIPT <- "Testing/audits/audit_first_night_heatmap_v2.R"
+UPSTREAM    <- "Testing/audits/audit_first_night_domain_scores_v2.R"
 GROUP_LEVELS <- c("CON", "RES", "SUS")
 SEX_LEVELS   <- c("Female", "Male")
 RESOLUTIONS  <- c("10min_based", "5min_based")
@@ -500,7 +500,7 @@ comp_res <- comp_res %>% left_join(agree, by = c("component", "Sex", "contrast")
          interpretation = DESCRIPTIVE,
          source_table = file.path(OUT, "first_night_hmm_component_features_v2.csv"),
          upstream_script = UPSTREAM, script = THIS_SCRIPT,
-         supersedes = paste0("Testing/audit_first_night_hmm_components.R wrote an earlier ",
+         supersedes = paste0("Testing/audits/audit_first_night_hmm_components.R wrote an earlier ",
                              "first_night_hmm_component_results.csv on the first-contiguous-block window; ",
                              "this v2 run supersedes it, adds the resolution-agreement columns and the ",
                              "explicit exploratory FDR bookkeeping")) %>%

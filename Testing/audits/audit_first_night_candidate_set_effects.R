@@ -8,7 +8,7 @@
 ##   (4) resolution agreement (10min primary vs 5min sensitivity) and locomotion dominance.
 ##
 ## INPUT (built and verified upstream; NOT recomputed here):
-##   OUT/first_night_10domain_scores.csv  <- Testing/audit_first_night_candidate_set_scores.R
+##   OUT/first_night_10domain_scores.csv  <- Testing/audits/audit_first_night_candidate_set_scores.R
 ##   That script owns the window derivation, the phase rule, the nine raw z-features, the
 ##   z-within-SEX-ONLY standardization contract and the score_mean()/coalesce(x,0) semantics.
 ##   This script performs NO feature engineering: it only models the delivered per-animal scores.
@@ -57,8 +57,8 @@ OUT     <- file.path(STAGE14, "audit_hmm_state_architecture/first_night_domain_h
 DERIV   <- file.path(PROJ, "analysis_ready/03_derived_metrics")
 stopifnot(dir.exists(OUT))
 
-THIS_SCRIPT  <- "Testing/audit_first_night_candidate_set_effects.R"
-UPSTREAM     <- "Testing/audit_first_night_candidate_set_scores.R"
+THIS_SCRIPT  <- "Testing/audits/audit_first_night_candidate_set_effects.R"
+UPSTREAM     <- "Testing/audits/audit_first_night_candidate_set_scores.R"
 SCORES_CSV   <- file.path(OUT, "first_night_10domain_scores.csv")
 GROUP_LEVELS <- c("CON", "RES", "SUS")
 SEX_LEVELS   <- c("Female", "Male")

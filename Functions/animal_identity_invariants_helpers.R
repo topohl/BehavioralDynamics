@@ -3,7 +3,7 @@
 # MMMSociability
 # ================================================================
 # Pure validation engine for the post-Stage-01 identity invariants. No file
-# I/O happens here; Testing/validate_cross_scale_animal_identity.R does the
+# I/O happens here; Testing/audits/validate_cross_scale_animal_identity.R does the
 # reading and calls into this file, which keeps this logic testable with
 # synthetic tempdir/in-memory fixtures.
 # ================================================================

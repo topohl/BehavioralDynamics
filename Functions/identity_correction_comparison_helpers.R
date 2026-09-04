@@ -3,7 +3,7 @@
 # MMMSociability
 # ================================================================
 # Pure comparison engine plus the Stage 03 / Stage 09 table registry used by
-# Testing/compare_identity_correction_before_after.R. No file I/O or other
+# Testing/audits/compare_identity_correction_before_after.R. No file I/O or other
 # side effects happen at source() time, so this can be sourced directly in
 # portable unit tests against synthetic tempdir fixtures.
 # ================================================================

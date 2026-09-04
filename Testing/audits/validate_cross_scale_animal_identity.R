@@ -21,7 +21,7 @@
 # This script requires the S: drive and real pipeline outputs; it is NOT part
 # of the portable contract-test suite. The pure invariant-checking logic it
 # calls into (Functions/animal_identity_invariants_helpers.R) is covered
-# separately by Testing/test_animal_identity_invariants_engine.R using
+# separately by Testing/tests/test_animal_identity_invariants_engine.R using
 # tempdir()/in-memory fixtures.
 # ================================================================
 

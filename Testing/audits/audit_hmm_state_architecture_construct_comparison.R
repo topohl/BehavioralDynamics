@@ -2,7 +2,7 @@
 # AUDIT (read-only): three-way construct comparison for `Behavioral state
 # architecture`
 #
-# Testing/audit_hmm_state_architecture_construct_comparison.R
+# Testing/audits/audit_hmm_state_architecture_construct_comparison.R
 #
 # Compares, side by side:
 #   A  HISTORICAL construct exactly as written in build_hmm_epoch_scores():
@@ -11,7 +11,7 @@
 #   B  its ACTUAL REDUCED FORM given social variance = 0:
 #        0.5 * z(state_occupancy_entropy) - z(inactive_state_fraction)
 #   C  the LABEL-FREE candidate PROPOSED BY THE REDUNDANCY DELIVERABLE
-#      (Testing/audit_hmm_state_architecture_redundancy.R, section 8c,
+#      (Testing/audits/audit_hmm_state_architecture_redundancy.R, section 8c,
 #      "latent_state_flexibility"), adopted here unchanged:
 #        0.5 * z(occupancy_entropy) + 0.5 * z(state_switch_rate)
 #   C_alt  an alternative label-free construct derived here, reported alongside
@@ -407,7 +407,7 @@ cat("SECTION C0: derivation of the label-free candidate C\n")
 cat("================================================================\n")
 cat("
 C IS INHERITED, NOT INVENTED. The redundancy deliverable
-(Testing/audit_hmm_state_architecture_redundancy.R, section 8c) proposes the
+(Testing/audits/audit_hmm_state_architecture_redundancy.R, section 8c) proposes the
 label-free construct 'latent_state_flexibility':
 
     C := 0.5 * z(occupancy_entropy) + 0.5 * z(state_switch_rate)
@@ -1024,7 +1024,7 @@ comparison_csv <- contrast_rows %>%
     shipped_reduction_documented = reduction_documented,
     shipped_reduction_text = "0.5 * z(state_occupancy_entropy) - z(inactive_state_fraction); social component contributes zero",
     standardization_context = paste(hmm_standardization_context, collapse = " x "),
-    candidate_C_provenance = "C inherited verbatim from Testing/audit_hmm_state_architecture_redundancy.R section 8c (latent_state_flexibility); C_alt derived here as an orthogonality robustness reference",
+    candidate_C_provenance = "C inherited verbatim from Testing/audits/audit_hmm_state_architecture_redundancy.R section 8c (latent_state_flexibility); C_alt derived here as an orthogonality robustness reference",
     selection_guard = "constructs were not selected on p-value; C is reported even where it separates groups less than A/B"
   ) %>%
   select(
@@ -1098,7 +1098,7 @@ md <- c(
   "# `Behavioral state architecture`: three-way construct comparison",
   "",
   paste0(
-    "`Testing/audit_hmm_state_architecture_construct_comparison.R` (read-only audit). Contrasts from the ",
+    "`Testing/audits/audit_hmm_state_architecture_construct_comparison.R` (read-only audit). Contrasts from the ",
     "repo's `fit_repeated_measures_domain_contrasts()` unchanged: 882 epochs / 111 animals per resolution, ",
     "`AnimalNum` random intercept, CC1-CC4 retained."
   ),

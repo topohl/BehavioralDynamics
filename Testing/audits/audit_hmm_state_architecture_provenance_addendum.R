@@ -102,7 +102,7 @@ consumed <- tribble(
   "epoch_duration_qc.csv", "08:294",
   "not read by the heatmap path", FALSE,
   "hmm_model_qc.csv", "08:401",
-  "not read by the heatmap path (used by Testing/test_hmm_stage14_contract.R:196-207)", FALSE
+  "not read by the heatmap path (used by Testing/tests/test_hmm_stage14_contract.R:196-207)", FALSE
 )
 write_csv(consumed, file.path(audit_out, "audit_doc_v7_artifact_consumption_map.csv"))
 print(consumed)

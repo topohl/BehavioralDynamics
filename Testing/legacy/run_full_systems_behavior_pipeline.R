@@ -1,5 +1,5 @@
 scripts_to_run <- c(
-  "Testing/check_behavioral_dynamics_structure.R",
+  "Testing/legacy/check_behavioral_dynamics_structure.R",
   "Analysis/06_burstiness_temporal_instability.R",
   "Analysis/07_behavioral_state_space.R",
   "Analysis/08_early_prediction_models.R",

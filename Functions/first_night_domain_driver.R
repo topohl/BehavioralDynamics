@@ -80,7 +80,7 @@ build_first_night_domain_analysis <- function(bin_level,
     source_table = input_file,
     source_script = "Analysis/14_systems_neuroscience_summary_dashboard.R",
     selector = "Functions/first_night_window_helpers.R :: mmm_select_first_night_window",
-    selector_parity = "Testing/test_first_night_window_parity.R asserts equality with Stage 09",
+    selector_parity = "Testing/tests/test_first_night_window_parity.R asserts equality with Stage 09",
     resolution_rationale = paste0(
       "10 min is primary for THIS panel so its temporal resolution and clock window match ",
       "canonical Stage 09, which owns the first-12-h question. Not a claim that these Stage 14 ",

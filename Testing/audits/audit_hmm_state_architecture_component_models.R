@@ -4,7 +4,7 @@
 # into its individual HMM latent-state components, each fitted with the repo's
 # own corrected repeated-measures estimator.
 #
-# Testing/audit_hmm_state_architecture_component_models.R   (deliverable 2)
+# Testing/audits/audit_hmm_state_architecture_component_models.R   (deliverable 2)
 #
 # WHAT THIS DOES
 #   Instead of chasing one composite, this script runs the SAME corrected
@@ -40,7 +40,7 @@
 #   resolutions). No state is renamed "social".
 #
 # Reads : AUDIT_OUT/hmm_architecture_component_epoch_metrics.csv
-#         (built by Testing/audit_hmm_state_architecture_components.R v2)
+#         (built by Testing/audits/audit_hmm_state_architecture_components.R v2)
 #         Stage 08 hmm_state_summary.csv (label-free top-proximity check only)
 # Writes: AUDIT_OUT/hmm_architecture_component_results.csv
 #         AUDIT_OUT/hmm_architecture_component_interactions.csv
@@ -120,7 +120,7 @@ cat("[1] canonical roster animals:", nrow(canonical_roster), "\n\n")
 comp_path <- file.path(audit_out, "hmm_architecture_component_epoch_metrics.csv")
 if (!file.exists(comp_path)) {
   stop("Foundation component table is missing. Run ",
-    "Testing/audit_hmm_state_architecture_components.R first: ", comp_path, call. = FALSE)
+    "Testing/audits/audit_hmm_state_architecture_components.R first: ", comp_path, call. = FALSE)
 }
 epochs_raw <- readr::read_csv(
   comp_path,

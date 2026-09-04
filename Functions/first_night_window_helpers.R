@@ -18,7 +18,7 @@
 # This mirrors the validated selector in
 # Analysis/09_early_prediction_model_ladder.R :: select_primary_active_window().
 # Stage 09 itself is deliberately left untouched so its validated artifacts do
-# not become stale for a refactor; Testing/test_first_night_window_parity.R
+# not become stale for a refactor; Testing/tests/test_first_night_window_parity.R
 # asserts byte-for-byte agreement between the two implementations by evaluating
 # Stage 09's real function definition out of its source file.
 #

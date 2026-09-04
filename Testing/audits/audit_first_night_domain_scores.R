@@ -44,7 +44,7 @@ PH_INACT <- "\\binactive\\b|\\blight\\b|\\bday\\b"
 PH_ACT   <- "\\bactive\\b|\\bdark\\b|\\bnight\\b"
 GROUP_LEVELS <- c("CON", "RES", "SUS")
 SEX_LEVELS   <- c("Female", "Male")
-THIS_SCRIPT  <- "Testing/audit_first_night_domain_scores.R"
+THIS_SCRIPT  <- "Testing/audits/audit_first_night_domain_scores.R"
 
 hr  <- function(x) cat("\n", strrep("=", 78), "\n", x, "\n", strrep("=", 78), "\n", sep = "")
 sec <- function(x) cat("\n--- ", x, " ---\n", sep = "")
@@ -87,7 +87,7 @@ add_block_id <- function(ti) {
 }
 
 ## Viterbi-sequence metrics: identical estimator to
-## Testing/audit_hmm_state_architecture_temporal_components.R
+## Testing/audits/audit_hmm_state_architecture_temporal_components.R
 seq_metrics <- function(s, K) {
   s <- as.integer(s); n <- length(s)
   occ <- tabulate(s, nbins = K) / n

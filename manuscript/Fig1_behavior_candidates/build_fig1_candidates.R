@@ -274,8 +274,8 @@ optional_sources <- tribble(
   # defect was total, not marginal -- every Inactive row had been relabelled
   # Active (79,920 of 191,445 rows at 10-min), so these phase-specific panels
   # were previously built on a collapsed phase variable. They are now built on
-  # corrected data. See Testing/test_phase_classification.R and
-  # Testing/audit_phase_bug_impact.R.
+  # corrected data. See Testing/tests/test_phase_classification.R and
+  # Testing/audits/audit_phase_bug_impact.R.
   "repeated_adaptation", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_repeated_active_phase_adaptation"), "optional_after_rerun", "Phase-classifier gate cleared; regenerated on corrected Stage 11/12 outputs. Promote only if it adds interpretable information beyond movement.",
   "active_inactive_systems", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_active_inactive_domain_heatmap"), "optional_after_rerun", "Phase-classifier gate cleared; regenerated on corrected Stage 11/12 outputs. Inactive-phase domains remain caveated: they are not separable from RFID read density (Spearman rho 0.64-0.87 with mean movement), pending the phase-aware inactive-QC audit.",
   "rest_state_architecture", file.path(stage14_dir, "figures", "publication_panels", "Fig_sis_rest_or_state_architecture"), "blocked_pending_inactive_qc_audit", "Phase-classifier gate cleared and regenerated, but rest/quiescence interpretation stays blocked on the separate phase-aware inactive-QC redesign: inactive-phase observed_fraction is confounded with genuine rest (median 0.149 vs 1.000 in Active; 95.7% of inactive epochs below 0.50), so hard_dropout_signature cannot currently distinguish chip loss from rest."

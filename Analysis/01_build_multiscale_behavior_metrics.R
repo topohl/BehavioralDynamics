@@ -24,7 +24,7 @@
 #   phase_based from scratch. There is no supported in-place repair of a single
 #   existing derived-metrics file. A forensic/testing-only single-file repair
 #   helper (never equivalent to a full rebuild) lives in
-#   Testing/repair_existing_metrics_identity_utility.R.
+#   Testing/audits/repair_existing_metrics_identity_utility.R.
 #
 # Key definitions:
 #   Movement                  = number of RFID position transitions per animal/bin

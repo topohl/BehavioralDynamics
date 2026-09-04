@@ -6,7 +6,7 @@ This note documents how `Analysis/01_build_multiscale_behavior_metrics.R` maps o
 
 - `Functions/E9_SIS_AnimalPos-functions.R`
 - `Analysis/E9_SIS_AnimalPos-analyzing.R`
-- `Testing/E9_SIS_AnimalPos-analyzing v.2.0.0.R`
+- `Testing/legacy/E9_SIS_AnimalPos-analyzing v.2.0.0.R`
 - `Analysis/02_build_dyadic_rfid_contacts.R`
 - `Analysis/E9_SIS_AnimalPos-analyzing-shannon v.1.0.1.r`
 

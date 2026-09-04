@@ -5690,7 +5690,7 @@ first_night_documentation <- tibble(
   text = c(
     "First encounter with social instability: first cage change, first Active phase, first 12 h, summarized to one value per animal before any contrast.",
     paste0("Clock-anchored 18:30 inclusive to 06:30 exclusive, exactly 12 h, per-session anchor. Selected by ",
-           "Functions/first_night_window_helpers.R, which Testing/test_first_night_window_parity.R asserts is ",
+           "Functions/first_night_window_helpers.R, which Testing/tests/test_first_night_window_parity.R asserts is ",
            "identical to the canonical Stage 09 selector. Never a row count: the historical local_bin rule ",
            "matched this window for only 50/111 animals at 10-min and 33/111 at 5-min bins."),
     paste0("Primary ", first_night_primary_bin_level, ", sensitivity ", first_night_sensitivity_bin_level,

@@ -1,7 +1,7 @@
 ## audit_first_night_domain_scores_v2.R
 ## ===========================================================================
 ## FIRST-NIGHT (CC1, canonical CLOCK window) domain matrix -- v2, SUPERSEDES
-## Testing/audit_first_night_domain_scores.R.
+## Testing/audits/audit_first_night_domain_scores.R.
 ##
 ## WHY v2 EXISTS
 ##   v1 built the five RAW domains on Stage 14's production rule
@@ -53,7 +53,7 @@ HMM     <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
 DERIV   <- file.path(PROJ, "analysis_ready/03_derived_metrics")
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
-THIS_SCRIPT  <- "Testing/audit_first_night_domain_scores_v2.R"
+THIS_SCRIPT  <- "Testing/audits/audit_first_night_domain_scores_v2.R"
 GROUP_LEVELS <- c("CON", "RES", "SUS")
 SEX_LEVELS   <- c("Female", "Male")
 WINDOW_HOURS <- 12
@@ -107,7 +107,7 @@ add_block_id <- function(ti) {
 f_mean  <- function(x) mean(x, na.rm = TRUE)
 f_rmssd <- function(x) { xf <- x[is.finite(x)]; if (length(xf) >= 3) sqrt(mean(diff(xf)^2, na.rm = TRUE)) else NA_real_ }
 f_acf1  <- function(x) { xf <- x[is.finite(x)]; n <- length(xf); if (n >= 4) safe_cor(xf[-n], xf[-1], "pearson") else NA_real_ }
-## Viterbi-sequence metrics (same estimator as Testing/audit_hmm_state_architecture_temporal_components.R)
+## Viterbi-sequence metrics (same estimator as Testing/audits/audit_hmm_state_architecture_temporal_components.R)
 seq_metrics <- function(s, K) {
   s <- as.integer(s); n <- length(s)
   occ <- tabulate(s, nbins = K) / n
@@ -779,7 +779,7 @@ scores <- map_dfr(RESOLUTIONS, function(res) {
            window_start_rule = "Stage 09 select_primary_active_window: per-session min(animalpos_phase_block_index(BinStart)) over CC1 rows whose Phase is EXACTLY in c('active','dark','night'); start = block*43200 + 23400; keep elapsed in [0, 43200)",
            window_hours = WINDOW_HOURS,
            script = THIS_SCRIPT,
-           supersedes = "Testing/audit_first_night_domain_scores.R (raw domains built on Stage 14 local_bin<=12h/bin count rule)",
+           supersedes = "Testing/audits/audit_first_night_domain_scores.R (raw domains built on Stage 14 local_bin<=12h/bin count rule)",
            interpretation_guard = case_when(
              Domain == "Social spatial organization" ~ "RFID proximity = social-spatial CO-LOCATION proxy, never sociability",
              Domain == "Latent-state occupancy organization" ~ "occupancy composition carries NO temporal-order information; never 'temporal flexibility'",
@@ -1121,7 +1121,7 @@ v1_cmp <- map_dfr(RESOLUTIONS, function(res) {
               pearson_r = safe_cor(score_clock_v2, score_countrule_v1),
               spearman_rho = safe_cor(score_clock_v2, score_countrule_v1, "spearman"),
               .groups = "drop")
-}) %>% mutate(note = "score_countrule_v1 reproduces what Testing/audit_first_night_domain_scores.R used (Stage 14 local_bin <= 12h/bin). It is NOT a displayed domain; shown only to quantify the defect that v2 corrects.")
+}) %>% mutate(note = "score_countrule_v1 reproduces what Testing/audits/audit_first_night_domain_scores.R used (Stage 14 local_bin <= 12h/bin). It is NOT a displayed domain; shown only to quantify the defect that v2 corrects.")
 write_csv(v1_cmp, file.path(OUT, "first_night_v1_countrule_vs_v2_clockwindow.csv"))
 sec("Clock window (v2, shipped) vs count rule (v1, superseded) -- raw domains")
 print(as.data.frame(v1_cmp %>% transmute(res = bin_resolution, Domain = str_trunc(Domain, 38), n,

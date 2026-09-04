@@ -8,7 +8,7 @@
 ## RELATION TO EXISTING AUDIT SCRIPTS
 ##   Window code, phase rule, feature estimators, score_mean()/coalesce() semantics and the
 ##   z-within-SEX-ONLY standardization contract are reused VERBATIM from
-##   Testing/audit_first_night_domain_scores_v2.R (which supersedes v1's local_bin <= 12h/bin
+##   Testing/audits/audit_first_night_domain_scores_v2.R (which supersedes v1's local_bin <= 12h/bin
 ##   COUNT rule -- that rule matches the canonical clock window for only 50/111 animals at
 ##   10 min and 33/111 at 5 min). Nothing in Analysis/ or Functions/ is modified or re-run.
 ##
@@ -59,7 +59,7 @@ HMM     <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
 DERIV   <- file.path(PROJ, "analysis_ready/03_derived_metrics")
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
-THIS_SCRIPT  <- "Testing/audit_first_night_candidate_set_scores.R"
+THIS_SCRIPT  <- "Testing/audits/audit_first_night_candidate_set_scores.R"
 GROUP_LEVELS <- c("CON", "RES", "SUS")
 SEX_LEVELS   <- c("Female", "Male")
 WINDOW_HOURS <- 12
@@ -394,7 +394,7 @@ STANDARDIZATION <- paste0(
   "z within SEX ONLY via strict_standardize_within_context(group_cols='Sex'). ",
   "Inside a single CC1 Active epoch there is no Sex x PhaseClass x CageChangeIndex context left, ",
   "so the longitudinal 3-way context collapses to Sex. Contract identical to Analysis/14:5541 and ",
-  "to Testing/audit_first_night_domain_scores_v2.R.")
+  "to Testing/audits/audit_first_night_domain_scores_v2.R.")
 COALESCE_DOC <- paste0(
   "Stage 14 semantics reproduced EXACTLY: score_mean() is a row-mean with na.rm=TRUE (so a domain ",
   "can be computed from FEWER sub-features when some are NA), and every SUBTRACTED SINGLE term is ",

@@ -67,10 +67,10 @@ tables_base <- paste0("/tables/", ifelse(exclude_homecage, "noHomeCage", "withHo
 # Source required functions. Prefer the matching Testing file, then fall back
 # to project-level locations so the script works from the lab drive and repo.
 function_file_candidates <- c(
-  paste0(working_directory, "/Testing/E9_SIS_AnimalPos-functions v.2.0.0.R"),
+  paste0(working_directory, "/Testing/legacy/E9_SIS_AnimalPos-functions v.2.0.0.R"),
   paste0(working_directory, "/Functions/E9_SIS_AnimalPos-functions.R"),
   paste0(working_directory, "/E9_SIS_AnimalPos-functions.R"),
-  "Testing/E9_SIS_AnimalPos-functions v.2.0.0.R",
+  "Testing/legacy/E9_SIS_AnimalPos-functions v.2.0.0.R",
   "Functions/E9_SIS_AnimalPos-functions.R"
 )
 functions_file <- function_file_candidates[file.exists(function_file_candidates)][1]

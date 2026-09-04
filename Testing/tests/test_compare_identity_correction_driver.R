@@ -1,5 +1,5 @@
 # Portable regression tests for the identity-correction comparison DRIVER
-# (Testing/compare_identity_correction_before_after.R): baseline resolution,
+# (Testing/audits/compare_identity_correction_before_after.R): baseline resolution,
 # fail-closed behavior, and the never-compare-a-file-with-itself guard. Runs
 # entirely against tempdir() fixtures; no S: drive access required.
 
@@ -10,7 +10,7 @@ suppressPackageStartupMessages({
 Sys.unsetenv("MMM_IDENTITY_BASELINE_ROOT")
 options(mmm.identity_baseline_root = NULL)
 
-source("Testing/compare_identity_correction_before_after.R")
+source("Testing/audits/compare_identity_correction_before_after.R")
 
 fail <- function(msg) stop("FAIL: ", msg, call. = FALSE)
 check <- function(cond, msg) if (!isTRUE(cond)) fail(msg) else invisible(TRUE)

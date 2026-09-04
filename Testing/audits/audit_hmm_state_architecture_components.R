@@ -2,7 +2,7 @@
 # AUDIT (read-only): foundation component-metric table for the Stage 14 construct
 #   `Behavioral state architecture`
 #
-# Testing/audit_hmm_state_architecture_components.R
+# Testing/audits/audit_hmm_state_architecture_components.R
 #
 # Purpose
 #   Build ONE canonical per-epoch (animal x CageChange x PhaseClass x resolution)

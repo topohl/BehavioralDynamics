@@ -41,11 +41,21 @@ script_path <- tryCatch({
   if (length(f) > 0) normalizePath(f[[1]], winslash = "/", mustWork = FALSE) else NA_character_
 }, error = function(e) NA_character_)
 
-repo_root <- if (!is.na(script_path)) {
-  dirname(dirname(script_path))
-} else {
-  "C:/Users/topohl/Documents/GitHub/MMMSociability"
-}
+# Walk up from the script until Analysis/_pipeline_setup.R appears, rather than
+# assuming a fixed nesting depth. The previous dirname(dirname(script_path))
+# assumed this file sat directly in Testing/; it now lives in Testing/audits/.
+repo_root <- local({
+  fallback <- Sys.getenv("MMM_REPO_DIR",
+                         unset = "C:/Users/topohl/Documents/GitHub/MMMSociability")
+  if (is.na(script_path)) return(fallback)
+  current <- dirname(script_path)
+  repeat {
+    if (file.exists(file.path(current, "Analysis", "_pipeline_setup.R"))) return(current)
+    parent <- dirname(current)
+    if (identical(parent, current)) return(fallback)
+    current <- parent
+  }
+})
 
 source(file.path(repo_root, "Analysis", "_pipeline_setup.R"))
 source_mmm_helper("hmm_stage14_helpers.R")

@@ -2,7 +2,7 @@
 # AUDIT (read-only): redundancy / independent-information decomposition of the
 #   candidate label-free components of `Behavioral state architecture`
 #
-# Testing/audit_hmm_state_architecture_redundancy.R      (deliverable 3)
+# Testing/audits/audit_hmm_state_architecture_redundancy.R      (deliverable 3)
 #
 # Purpose
 #   (1) Pairwise Pearson + Spearman redundancy among all candidate components, at
@@ -28,7 +28,7 @@
 # high-co-occupancy state. No state is renamed "social".
 #
 # Column provenance note: every metric consumed here is read from the foundation
-# table written by Testing/audit_hmm_state_architecture_components.R (v2) and was
+# table written by Testing/audits/audit_hmm_state_architecture_components.R (v2) and was
 # independently reproduced from hmm_state_assignments.csv by the verification pass
 # (max abs deviation <= 2.9e-14 on every metric). Two verifier caveats are handled
 # explicitly rather than silently:

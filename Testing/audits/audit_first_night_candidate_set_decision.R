@@ -57,7 +57,7 @@ STAGE14 <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_
 OUT     <- file.path(STAGE14, "audit_hmm_state_architecture/first_night_domain_heatmap")
 stopifnot(dir.exists(OUT))
 
-THIS_SCRIPT <- "Testing/audit_first_night_candidate_set_decision.R"
+THIS_SCRIPT <- "Testing/audits/audit_first_night_candidate_set_decision.R"
 PRIMARY_RES <- "10min_based"
 SENS_RES    <- "5min_based"
 WINDOW_TXT  <- "CC1, first Active phase, clock-anchored 18:30 (incl.) -> 06:30 (excl.), exactly 12 h, per-session anchor over 6 sessions (B1-B6)"

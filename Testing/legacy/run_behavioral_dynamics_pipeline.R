@@ -9,7 +9,7 @@
 #   4) early prediction modeling
 #
 # Recommended workflow:
-#   source("Testing/run_behavioral_dynamics_pipeline.R")
+#   source("Testing/legacy/run_behavioral_dynamics_pipeline.R")
 # ================================================================
 
 cat("\n================================================\n")
@@ -17,7 +17,7 @@ cat("MMMSociability behavioral dynamics pipeline\n")
 cat("================================================\n\n")
 
 scripts_to_run <- c(
-  "Testing/check_behavioral_dynamics_structure.R",
+  "Testing/legacy/check_behavioral_dynamics_structure.R",
   "Analysis/06_burstiness_temporal_instability.R",
   "Analysis/07_behavioral_state_space.R",
   "Analysis/08_early_prediction_models.R"

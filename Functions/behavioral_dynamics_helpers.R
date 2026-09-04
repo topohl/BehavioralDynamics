@@ -73,7 +73,7 @@ canonicalize_behavior_output_path <- function(path) {
 # The budget below is deliberately well under 260 so that adding a longer
 # filename later cannot silently walk the tree back to the boundary. It is
 # enforced centrally, at the point where output-directory identity is defined,
-# and asserted by Testing/test_output_path_length.R.
+# and asserted by Testing/tests/test_output_path_length.R.
 #
 # A slug is a FILESYSTEM label only. Any scientifically meaningful identifier
 # must continue to travel in table columns, figure captions and provenance --
