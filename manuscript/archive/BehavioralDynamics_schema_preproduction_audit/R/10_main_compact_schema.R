@@ -13,7 +13,7 @@
 # reproduces the exported DomainScore exactly (max |exported - recomputed| = 0).
 # ==============================================================================
 
-ROOT <- "C:/Users/topohl/Documents/GitHub/MMMSociability/manuscript/BehavioralDynamics_schema"
+ROOT <- "C:/Users/topohl/Documents/GitHub/MMMSociability/manuscript/archive/BehavioralDynamics_schema_preproduction_audit"
 source(file.path(ROOT, "R", "schema_toolkit.R"))
 
 W <- 125; H <- 262

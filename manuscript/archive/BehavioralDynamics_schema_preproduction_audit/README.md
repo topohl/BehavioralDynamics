@@ -1,3 +1,34 @@
+> ## HISTORICAL PROVENANCE ARTIFACT — NOT THE CURRENT ANALYSIS CONTRACT
+>
+> **This schema documents the pipeline state that motivated subsequent
+> production corrections. It is retained for forensic provenance and is not the
+> current manuscript analysis contract.**
+>
+> Everything below was accurate when written and the numerical verification it
+> reports was genuine. Several of the defects it describes as live have since
+> been fixed in production, so the document must be read as a record of *why*
+> those fixes were made, not as a description of the pipeline today:
+>
+> | Finding below | Status now |
+> |---|---|
+> | **W1** — `12_sleep_like_quiescence_metrics.R` and `11_behavioral_adaptation_kinetics.R` test `"active\|dark\|night"` with unanchored `str_detect`, so every `Inactive` epoch is relabelled `Active` | **Fixed.** Replaced by exact membership in `Functions/phase_classification_helpers.R`; Stages 11, 12 and 14 were regenerated. Locked by `Testing/tests/test_phase_classification.R`; impact quantified by `Testing/audits/audit_phase_bug_impact.R`. |
+> | **W2** — the *Inactive-phase rest/circadian regulation* row carries no quiescence information because `safe_scale` turns total absence into an exact `0` | **Superseded** as a live defect, since it was a downstream consequence of W1. The inactive-phase *interpretation* nevertheless remains unpromoted for a different and still-open reason: inactive-phase read density is not separable from genuine rest. See `docs/KNOWN_LIMITATIONS.md`. |
+> | The closing statement that `figure_manifest.csv` marks the panel `blocked_pending_phase_classifier_fix_and_rerun` | **Stale.** That gate was cleared and the manifest vocabulary was reconciled with the builder. See `manuscript/Fig1_behavior_candidates/README.md`. |
+> | The heatmap symbols come from a Welch test treating CC1–CC4 as independent (**W4**), with the recommendation to move to a repeated-measures model | **Adopted** for the canonical first-night panel, which uses `DomainScore ~ Group * Sex` with emmeans contrasts and an explicitly declared BH family. See `Functions/first_night_domain_helpers.R`. |
+>
+> Findings **W3, W5, W6, W7, W8 and W9** are not re-litigated here; treat every
+> statement below as describing the pre-correction system unless the table above
+> says otherwise.
+>
+> The current manuscript analysis contract is
+> [`manuscript/README.md`](../../README.md) and
+> [`docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv`](../../../docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv).
+>
+> The scripts in `R/` still run: their `ROOT` was repointed to this archived
+> location. Nothing in `data/` was altered.
+
+---
+
 # BehavioralDynamics — explanatory provenance schema
 
 Two figures that explain, end to end, how the panel

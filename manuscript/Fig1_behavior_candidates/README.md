@@ -17,7 +17,29 @@ The existing experimental-design schematic can remain upstream of these panels; 
 
 The core candidate set uses canonical Stage 03, Stage 09, Stage 16 outputs and the Stage 14 first-active raw movement trajectory. Run the current pipeline before staging so the folder reflects the corrected Stage 09 active-only window and complete endpoint identity matching.
 
-The broader Stage 14 systems candidates (repeated adaptation, active/inactive systems heatmap, rest/quiescence architecture) are listed in `figure_manifest.csv` but are **not copied by default**. Active Stages 11 and 12 and the shared duration helper still contain permissive `active|dark|night` matching that can classify `Inactive` as active. Those panels should only be staged after that classifier is fixed and the affected stages are rerun.
+The broader Stage 14 systems candidates (repeated adaptation, active/inactive systems heatmap, social spatial organization, rest/quiescence architecture) are listed in `figure_manifest.csv` but are **not copied by default**.
+
+The phase-classifier gate on these panels is **cleared**. The permissive
+`active|dark|night` substring matching in Stages 11 and 12 and the shared
+duration helper was replaced by exact membership in
+`Functions/phase_classification_helpers.R`, and Stages 11, 12 and 14 were
+regenerated. The defect had been total rather than marginal — every `Inactive`
+row was relabelled `Active` (79,920 of 191,445 rows at 10 min) — so these panels
+were previously built on a collapsed phase variable and are now built on
+corrected data. See `Testing/tests/test_phase_classification.R` and
+`Testing/audits/audit_phase_bug_impact.R`.
+
+One panel remains gated for an unrelated and still-open reason:
+`rest_state_architecture` is `blocked_pending_inactive_qc_audit`. Inactive-phase
+`observed_fraction` is confounded with genuine rest (median 0.149 versus 1.000 in
+Active; 95.7 % of inactive epochs below 0.50), so `hard_dropout_signature` cannot
+currently distinguish chip loss from rest. The redesign is specified but not
+implemented — `chip_loss_qc_mode` is still `annotate_only`. See
+`docs/KNOWN_LIMITATIONS.md`.
+
+`active_inactive_systems` is stageable but its inactive-phase domains carry the
+same measurement caveat: they are not separable from RFID read density
+(Spearman rho 0.64–0.87 with mean movement).
 
 ## Build
 
@@ -57,3 +79,40 @@ A `staging_status.csv` is written alongside them so missing or stale upstream pr
 - `06_longitudinal_movement.*` — Stage 03 cage-change x phase raw movement characterization.
 
 The final manuscript assembly should use only the subset that makes one coherent claim; this folder deliberately keeps alternatives available for comparison.
+
+---
+
+## Status vocabulary
+
+There is one status vocabulary, and `build_fig1_candidates.R` is its source of
+truth. `figure_manifest.csv` records the *declared* status of each candidate;
+the builder records the *observed* status of each staging attempt into
+`rendered/core/staging_status.csv`. The two use the same terms:
+
+| Status | Meaning |
+|---|---|
+| `core` | Part of the default core candidate set; copied on every build. |
+| `analysis_ready` | Upstream product resolved and staged successfully. |
+| `optional_after_rerun` | Not copied by default. No open scientific gate; promote only if it adds interpretable information beyond movement. |
+| `blocked_pending_inactive_qc_audit` | Not copied. Blocked on the phase-aware inactive-QC redesign, which is specified but not implemented. |
+| `missing_upstream` | The declared source artifact did not resolve at build time. |
+
+`blocked_pending_phase_classifier_fix_and_rerun` is **retired**. It appears only
+in the archived pre-production audit under `manuscript/archive/`, where it is
+correctly labelled as a historical statement.
+
+## Known path caveat
+
+The builder resolves Stage 03 panels through
+
+```r
+file.path(stage03_dir, "figures", "publication_panels", "Fig18c_...")
+```
+
+but the canonical migrated Stage 03 tree writes figures directly to
+`pipeline/03_movement_phase_stats/10min/figures/` — the `publication_panels/`
+level exists only in the pre-migration tree. The panel therefore resolves via the
+documented legacy fallback rather than the canonical path. This is visible rather
+than silent: it is recorded in `staging_status.csv`. It was left unchanged during
+the publication restructuring because altering artifact resolution is a
+behavioural change, not a documentation fix. See `docs/KNOWN_LIMITATIONS.md`.

@@ -7,7 +7,7 @@
 
 suppressPackageStartupMessages({ library(dplyr) })
 
-ROOT <- "C:/Users/topohl/Documents/GitHub/MMMSociability/manuscript/BehavioralDynamics_schema"
+ROOT <- "C:/Users/topohl/Documents/GitHub/MMMSociability/manuscript/archive/BehavioralDynamics_schema_preproduction_audit"
 DATA <- "C:/Users/topohl/AppData/Local/Temp/claude/c--Users-topohl-Documents-GitHub/77f6ce3c-a76b-4ee2-89c5-d1210af23338/scratchpad/data"
 SRC  <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based"
 

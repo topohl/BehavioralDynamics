@@ -13,7 +13,7 @@
 #   R/01_verify_rest_domain_collapse.R and R/02_verify_zero_fill_mechanism.R
 # ==============================================================================
 
-ROOT <- "C:/Users/topohl/Documents/GitHub/MMMSociability/manuscript/BehavioralDynamics_schema"
+ROOT <- "C:/Users/topohl/Documents/GitHub/MMMSociability/manuscript/archive/BehavioralDynamics_schema_preproduction_audit"
 source(file.path(ROOT, "R", "schema_toolkit.R"))
 
 W <- 297; H <- 420
