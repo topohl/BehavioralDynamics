@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+title: >-
+  BehavioralDynamics: multiscale behavioral analysis of automated homecage RFID
+  tracking data
+message: >-
+  If you use this software, please cite it using the metadata in this file.
+type: software
+authors:
+  - given-names: Tobias
+    family-names: Pohl
+    email: tobias.pohl@mdc-berlin.de
+    affiliation: >-
+      Max Delbrück Center for Molecular Medicine in the Helmholtz Association
+      (MDC), Berlin, Germany; Hörnberg Lab
+repository-code: 'https://github.com/topohl/BehavioralDynamics'
+url: 'https://github.com/topohl/BehavioralDynamics'
+abstract: >-
+  An R analysis workflow for longitudinal homecage behavioral tracking data from
+  automated RFID position systems. It moves from preprocessed RFID position data
+  to manuscript-facing behavioral metrics, statistics, prospective prediction
+  models and QC summaries, with an emphasis on the temporal organization of
+  behavior rather than summary means alone. Analyses cover tracking-integrity QC,
+  multiscale movement, entropy and co-location metrics, cage-change and circadian
+  phase annotation, dyadic contact and social network features, temporal
+  instability, behavioral state-space and optional hidden Markov state models,
+  GAMM trajectory features, prospective early prediction of later stress burden,
+  and optional behavior-proteomics integration. Developed for a mouse social
+  instability stress experiment; several components are reusable, but the
+  repository is not a general-purpose package.
+keywords:
+  - behavioral neuroscience
+  - homecage monitoring
+  - RFID tracking
+  - mouse behavior
+  - social instability stress
+  - stress resilience
+  - longitudinal behavioral phenotyping
+  - hidden Markov model
+  - reproducible research
+  - R

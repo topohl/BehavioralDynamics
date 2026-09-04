@@ -4,21 +4,23 @@
 
 Multiscale behavioral analysis pipeline for automated homecage RFID tracking data in mouse social behavior and social instability stress experiments.
 
-Maintainer: [Tobias Pohl](https://github.com/topohl)  
+Maintainer: [Tobias Pohl](https://github.com/topohl)
 Institutional context: Max Delbrück Center for Molecular Medicine (MDC), Berlin; Hörnberg Lab.
+
+Repository: <https://github.com/topohl/BehavioralDynamics>
 
 ---
 
 ## Overview
 
-`BehavioralDynamics` contains an R-based analysis workflow for longitudinal homecage behavioral tracking data. The repository was developed for RFID/position-based analysis of mouse social behavior, with a particular focus on social instability stress (SIS), cage-change aligned dynamics, early behavioral predictors, and systems-level behavioral phenotyping.
+`BehavioralDynamics` contains an R analysis workflow for longitudinal homecage behavioral tracking data, moving from preprocessed RFID position data to manuscript-facing metrics, statistics, prediction models and QC summaries.
 
-The pipeline is designed to move from raw or preprocessed RFID position data to manuscript-facing behavioral metrics, statistics, prediction models, and QC-Summaries.
+**Scope, honestly stated.** This repository was developed for one experiment: the E9 social instability stress (SIS) RFID study. The staged pipeline, the phase and cage-change conventions, the group vocabulary and the endpoint definitions are all specific to that design. Several components are reusable — the preprocessing helpers, the phase classifier, the window selectors, the output-path and provenance infrastructure, the identity contract — but the repository as a whole is not a general-purpose package and is not currently packaged, parameterised or tested for other datasets.
 
-Core analytical themes include:
+Core analytical themes:
 
 - tracking integrity and RFID/position QC
-- multiscale movement, entropy, and proximity metrics
+- multiscale movement, entropy and proximity metrics
 - cage-change and circadian phase annotation
 - dyadic contact and social network features
 - temporal instability and behavioral state-space analyses
@@ -30,11 +32,24 @@ Core analytical themes include:
 
 ---
 
-## Biological Use Case
+## Start here
 
-The main use case is longitudinal analysis of mouse behavior during social instability stress and related homecage paradigms.
+| If you want to | Read |
+|---|---|
+| Understand the manuscript claims | [`manuscript/README.md`](manuscript/README.md) |
+| See the machine-readable analysis map | [`docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv`](docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv) |
+| Re-run the pipeline | [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) |
+| Know what the caveats are | [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md) |
+| Find the data and outputs | [`docs/DATA_AND_OUTPUTS.md`](docs/DATA_AND_OUTPUTS.md) |
+| Freeze a release | [`docs/PUBLICATION_RELEASE.md`](docs/PUBLICATION_RELEASE.md) |
+| Understand the stage-by-stage pipeline | [`Analysis/README_pipeline.md`](Analysis/README_pipeline.md) |
+| Know what every file is for | [`docs/REPOSITORY_FILE_CLASSIFICATION.csv`](docs/REPOSITORY_FILE_CLASSIFICATION.csv) |
 
-Typical experimental groups:
+---
+
+## Biological use case
+
+Longitudinal analysis of mouse behavior during social instability stress and related homecage paradigms.
 
 | Group | Meaning |
 |---|---|
@@ -42,7 +57,7 @@ Typical experimental groups:
 | `RES` | Resilient |
 | `SUS` | Susceptible |
 
-Typical behavioral domains:
+> `RES` and `SUS` are **derived from the downstream `CombZ` composite**, not independently assigned. Every group comparison is therefore phenotype characterization rather than independent validation. See [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md).
 
 | Domain | Examples |
 |---|---|
@@ -53,328 +68,176 @@ Typical behavioral domains:
 | Behavioral states | state-space summaries, optional HMM states |
 | Systems-level integration | feature ladders, dashboards, behavior-physiology/proteomics bridges |
 
-The repository is not limited to SIS, but the active scripts and naming conventions are currently optimized around this experimental design.
+---
+
+## Repository structure
+
+```text
+BehavioralDynamics/
+├── Analysis/          Active staged pipeline (Stages 00-16, 19), runners, and _archive/
+├── Functions/         Shared helpers: identity, preprocessing, windows, first-night, stats, HMM, output
+├── Formatting/        Raw preprocessing and raw-level QC, upstream of the pipeline, plus _archive/
+├── Testing/
+│   ├── tests/         17 portable regression/contract checks (CI-eligible)
+│   ├── audits/        42 data-dependent scientific validations
+│   └── legacy/        11 historical development scripts
+├── manuscript/
+│   ├── README.md      Authoritative current publication architecture
+│   ├── Fig1_behavior_candidates/
+│   └── archive/       Historical/forensic provenance, explicitly not current
+├── docs/              Reproducibility, data/outputs, limitations, release process, registries
+├── .github/workflows/ CI for the portable suite only
+├── CITATION.cff
+└── README.md
+```
+
+Each of `Analysis/`, `Functions/`, `Formatting/`, `Testing/` and `manuscript/` has its own README.
 
 ---
 
-## Repository Structure
+## Active analysis pipeline
 
-```text
-MMMSociability/
-├── Analysis/        # Active staged analysis pipeline and archived legacy scripts
-├── Functions/       # Reusable helper functions for behavior metrics, statistics, plotting, and manifests
-├── Formatting/      # Older/raw formatting and preprocessing scripts
-├── Testing/         # Development, testing, and legacy exploratory scripts
-├── docs/            # Manuscript/analysis strategy notes
-└── README.md        # Top-level project documentation
+```r
+source("Analysis/run_all_analysis.R")
 ```
 
-The active manuscript-facing workflow is in `Analysis/`.
-
-For the detailed stage-by-stage pipeline documentation, see:
-
-```text
-Analysis/README_pipeline.md
-```
-
----
-
-## Active Analysis Pipeline
-
-The active staged pipeline is defined in:
-
-```text
-Analysis/run_all_analysis.R
-```
-
-The runner sources the shared setup script:
-
-```text
-Analysis/_pipeline_setup.R
-```
-
-and then executes the active stage scripts in order.
+The runner sources `Analysis/_pipeline_setup.R` and executes Stages 00–15:
 
 | Stage | Script | Role |
 |---:|---|---|
 | 00 | `00_qc_tracking_integrity.R` | Non-destructive RFID/tracking integrity QC |
 | 01 | `01_build_multiscale_behavior_metrics.R` | Canonical multiscale behavior metrics |
-| 02 | `02_build_dyadic_rfid_contacts.R` | Dyadic RFID contact table and network-ready edge data |
-| 03 | `03_primary_raw_movement_phase_stats.R` | Primary raw movement broad-phase statistics |
+| 02 | `02_build_dyadic_rfid_contacts.R` | Dyadic RFID contact and network-ready edge data |
+| 03 | `03_primary_raw_movement_phase_stats.R` | Secondary phenotype characterization: raw movement by phase |
 | 04 | `04_temporal_instability.R` | Temporal instability and burstiness features |
 | 05 | `05_behavioral_state_space.R` | Behavioral state-space features |
 | 06 | `06_dynamic_social_networks.R` | Dynamic social network features |
 | 07 | `07_gamm_trajectory_features.R` | GAMM trajectory-derived features |
-| 08 | `08_hmm_behavioral_states_optional.R` | Optional HMM behavioral state modeling |
-| 09 | `09_early_prediction_model_ladder.R` | Primary early prediction model ladder |
+| 08 | `08_hmm_behavioral_states_optional.R` | Optional gap-aware HMM behavioral state modeling |
+| 09 | `09_early_prediction_model_ladder.R` | **Primary** prospective early prediction ladder |
 | 10 | `10_systems_feature_prediction_ladder.R` | Secondary systems-extension prediction ladder |
 | 11 | `11_behavioral_adaptation_kinetics.R` | Adaptation and recovery kinetics |
 | 12 | `12_sleep_like_quiescence_metrics.R` | Sleep-like quiescence and inactivity metrics |
 | 13 | `13_ethological_phase_organization.R` | Ethological phase organization |
-| 14 | `14_systems_neuroscience_summary_dashboard.R` | Integrated systems neuroscience dashboard |
+| 14 | `14_systems_neuroscience_summary_dashboard.R` | Systems dashboard; canonical first-night five-domain analysis |
 | 15 | `15_behavior_proteomics_integration.R` | Optional behavior-proteomics integration |
 
-Archived scripts are retained under `Analysis/_archive/` for provenance but should not be treated as the current primary workflow unless explicitly needed.
+**Run outside the runner**, deliberately:
+
+| Stage | Script | Why separate |
+|---:|---|---|
+| 16 | `16_manuscript_behavior_report.R` | Manuscript export layer; must run after canonical Stage 03/09 outputs exist |
+| 19 | `19_spatial_occupancy_maps.R` | Secondary/spatial; not part of the manuscript package |
+| — | `Formatting/E9_SIS_AnimalPos-preprocessing_parallell.r` | Rewrites Stage 01's canonical input; must be deliberate |
+
+Optional stages are controlled by options before sourcing the runner:
+
+```r
+options(
+  mmm.run_optional_hmm        = FALSE,
+  mmm.run_systems_extension   = TRUE,
+  mmm.run_behavior_proteomics = FALSE,
+  mmm.continue_on_error       = FALSE
+)
+source("Analysis/run_all_analysis.R")
+```
 
 ---
 
-## Primary vs Secondary Analyses
+## Manuscript architecture
 
-### Primary behavioral statistics
+The authoritative statement is [`manuscript/README.md`](manuscript/README.md). In brief:
 
-The main raw movement broad-phase analysis is:
-
-```text
-Analysis/03_primary_raw_movement_phase_stats.R
-```
-
-This is the active replacement for older archived raw movement scripts.
-
-### Primary early prediction analysis
-
-The main conservative prediction analysis is:
-
-```text
-Analysis/09_early_prediction_model_ladder.R
-```
-
-This script is intended to test whether early behavior predicts later stress burden without making group labels the primary explanatory variable.
-
-### Secondary systems-extension analysis
-
-The broader systems feature model ladder is:
-
-```text
-Analysis/10_systems_feature_prediction_ladder.R
-```
-
-This should be interpreted as a secondary extension or sensitivity analysis rather than a replacement for the primary early prediction model.
-
-### Optional analyses
-
-Optional stages include:
-
-```text
-Analysis/08_hmm_behavioral_states_optional.R
-Analysis/15_behavior_proteomics_integration.R
-```
-
-These depend on whether appropriate upstream tables and optional external data are available.
+| Tier | Content |
+|---|---|
+| **Primary** | Stage 09 prospective prediction — does behavior in the first active 12 h after the first cage change predict later `CombZ`? Fixed a priori features `Movement_mean`, `Movement_rmssd`, `Entropy_acf1`; `Group` excluded. |
+| **Secondary** | Stage 03 raw longitudinal movement; the first-night five-domain panel. |
+| **Supplementary / conditional** | Active longitudinal HMM persistence, conditional on stating the identifiability caveats. |
+| **Not promoted** | Inactive HMM / rest interpretation (measurement validity); occupancy entropy (sign-unstable); first-night HMM persistence (unstable across refits); Stage 10/14 systems, nonlinear and behavior-proteomics layers. |
+| **Export layer** | Stage 16 writes the canonical manuscript package and source data. |
 
 ---
 
 ## Inputs
 
-The repository expects preprocessed RFID/position data and associated animal metadata. Exact filenames can vary depending on the experiment and local data organization, but active scripts generally expect tables containing animal identity, time, phase/cage-change information, and behavioral measurements or position-derived metrics.
-
-Common fields include:
+The repository expects preprocessed RFID position data and animal metadata. Common fields:
 
 | Field | Meaning |
 |---|---|
-| `AnimalNum` | Animal identifier |
-| `Group` | Experimental group, e.g. `CON`, `RES`, `SUS` |
+| `AnimalNum` | Animal identifier (canonicalized; zero-padding stripped) |
+| `Group` | `CON`, `RES`, `SUS` |
 | `Sex` | Biological sex |
-| `Phase` | Light/dark or active/inactive phase annotation |
-| `CageChange` | Cage-change index or cage-change-aligned period |
-| `Timestamp` / time column | Time of RFID/position measurement |
-| `Movement` | Movement-derived metric |
-| `Entropy` | Spatial or behavioral entropy metric |
-| `Proximity` | Social proximity metric |
-| `X`, `Y` | Position coordinates where available |
-
-Some scripts can use fallback input discovery, but for reproducible analyses it is better to keep inputs in a stable project folder and document the selected input file for each analysis run.
+| `Phase` | Active/Inactive annotation, matched by **exact membership** |
+| `CageChange` | Cage-change index |
+| `BinStart` | Bin start timestamp |
+| `Movement` | PositionID transitions |
+| `Entropy` | Occupancy entropy |
+| `Proximity` | Same-position dyadic seconds / dyadic observation seconds (a **co-location proxy**, not direct sociability) |
 
 ---
 
 ## Outputs
 
-Active scripts use a standardized output layout where possible.
-
-Typical output folders include:
+Outputs are written to the local project root, never into the repository. Canonical migrated stages use:
 
 ```text
-tables/
-stats_tables/
-figures/publication_panels/
-figures/supplementary/
-figures/qc/
-manifest/
-logs/
+analysis_ready/pipeline/<stage_id>_<stage_name>/<resolution>/{tables,figures,audit}/
 ```
 
-The helper infrastructure writes manifest files to improve reproducibility, including input/output manifests where implemented.
+The manuscript entry point is:
 
-Important generated outputs may include:
+```text
+analysis_ready/manuscript/behavior/Behavioral_Source_Data.xlsx
+```
 
-- multiscale behavioral metric tables
-- dyadic contact tables
-- animal-level feature matrices
-- model comparison tables
-- pairwise statistics and planned contrasts
-- QC summaries
-- publication panels
-- supplementary figures
-- integrated dashboard outputs
+Readers resolve canonical paths first and a single documented legacy path second; any fallback is warned and recorded in provenance. See [`docs/DATA_AND_OUTPUTS.md`](docs/DATA_AND_OUTPUTS.md).
 
 ---
 
-## Running the Pipeline
+## Verification
 
-Run from the repository root:
-
-```r
-source("Analysis/run_all_analysis.R")
+```bash
+# portable suite (no experimental data required) - this is what CI runs
+for f in Testing/tests/test_*.R; do Rscript "$f" || echo "FAILED: $f"; done
 ```
 
-or from inside the `Analysis/` folder:
-
-```r
-source("run_all_analysis.R")
-```
-
-Optional stages are controlled through R options before sourcing the runner:
-
-```r
-options(
-  mmm.run_optional_hmm = TRUE,
-  mmm.run_systems_extension = TRUE,
-  mmm.run_behavior_proteomics = FALSE,
-  mmm.continue_on_error = FALSE
-)
-
-source("Analysis/run_all_analysis.R")
-```
-
-Recommended default for manuscript-facing core behavior analyses:
-
-```r
-options(
-  mmm.run_optional_hmm = FALSE,
-  mmm.run_systems_extension = TRUE,
-  mmm.run_behavior_proteomics = FALSE,
-  mmm.continue_on_error = FALSE
-)
-
-source("Analysis/run_all_analysis.R")
-```
+Data-dependent scientific audits live in `Testing/audits/` and require the E9 dataset. See [`Testing/README.md`](Testing/README.md).
 
 ---
 
 ## Dependencies
 
-The codebase is written in R.
+R 4.5.1 was used for validation. Declared dependencies and the versions present in the validated environment are in [`docs/package_versions.csv`](docs/package_versions.csv); the full session is in [`docs/sessionInfo.txt`](docs/sessionInfo.txt).
 
-Core package families used across the workflow include:
+Principal packages: `tidyverse`, `data.table`, `readr`, `readxl`, `openxlsx`, `lme4`, `lmerTest`, `emmeans`, `mgcv`, `glmnet`, `depmixS4`, `igraph`, `ggplot2`, `patchwork`, `pheatmap`, `zoo`, `digest`.
 
-```r
-# Data handling
-library(tidyverse)
-library(data.table)
-library(readr)
-library(readxl)
-library(openxlsx)
-
-# Statistics and modeling
-library(lme4)
-library(lmerTest)
-library(emmeans)
-library(mgcv)
-
-# Plotting
-library(ggplot2)
-library(patchwork)
-library(pheatmap)
-
-# Utilities
-library(zoo)
-```
-
-Not every package is required for every stage. Optional stages may require additional packages, depending on the enabled analysis modules.
-
-A future improvement would be to add an `renv.lock` file for exact environment reconstruction.
-
----
-
-## Reproducibility Notes
-
-The current active pipeline already separates staged scripts and uses shared helper infrastructure. To keep analyses reproducible:
-
-1. Run scripts from the repository root when possible.
-2. Keep raw data separate from derived outputs.
-3. Do not manually edit intermediate result tables.
-4. Preserve `manifest/` and `logs/` outputs for each run.
-5. Treat archived scripts as historical provenance, not as primary analysis scripts.
-6. Document any non-default R options used for a run.
-7. Prefer vector output formats such as SVG or PDF for manuscript figures.
-
----
-
-## Interpretation Philosophy
-
-The pipeline is built around the idea that homecage behavior should not be reduced only to simple means.
-
-The analysis therefore emphasizes:
-
-- magnitude of behavior
-- temporal organization
-- circadian/phase structure
-- cage-change adaptation
-- social network dynamics
-- behavioral state transitions
-- early predictors of later physiological or behavioral stress outcomes
-
-This allows testing whether stress alters not only how much animals move or interact, but also how behavior is structured over time.
-
----
-
-## Legacy and Archived Scripts
-
-Older exploratory or deprecated scripts are retained in:
-
-```text
-Analysis/_archive/
-Testing/
-Formatting/
-```
-
-These files are useful for provenance and method development history. For new analyses, prefer the active staged scripts listed above and the run order in `Analysis/README_pipeline.md`.
-
----
-
-## Suggested Future Improvements
-
-Useful repository-level improvements would include:
-
-- adding `renv.lock` for package version control
-- adding a central configuration file, e.g. `config.yaml`
-- adding a formal workflow engine such as `targets`
-- adding a machine-readable input/output manifest for every script
-- adding small example/demo data for testing pipeline integrity
-- adding GitHub Actions checks for script parsing and basic linting
-- adding a dependency graph showing which outputs feed into which scripts
+`renv` is **not yet in use** and no `renv.lock` exists. This is stated rather than papered over — see [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) for why and for the recommended adoption path.
 
 ---
 
 ## Citation
 
-If this code is used in a manuscript, cite the associated publication or preprint and reference this repository.
-
-Suggested repository citation format:
+Citation metadata is in [`CITATION.cff`](CITATION.cff).
 
 ```text
-Pohl T. BehavioralDynamics: multiscale behavioral analysis of automated homecage RFID tracking data. GitHub repository: https://github.com/topohl/MMMSociability
+Pohl T. BehavioralDynamics: multiscale behavioral analysis of automated homecage
+RFID tracking data. GitHub repository: https://github.com/topohl/BehavioralDynamics
 ```
+
+No DOI or associated publication is recorded yet; those will be added when they exist.
 
 ---
 
 ## License
 
-No explicit license is currently declared in this README.
+**No license file is currently present, so default copyright applies and external reuse is not yet permitted.**
 
-Before reuse by external users, add a repository license file, for example:
+A license must be chosen before the repository is shared for reuse. Options are laid out neutrally in [`docs/LICENSE_DECISION_REQUIRED.md`](docs/LICENSE_DECISION_REQUIRED.md); the choice is deliberately left to the maintainer.
 
-- MIT License
-- GNU GPLv3
-- Apache License 2.0
+---
 
-Choose the license according to the intended level of openness and reuse.
+## Interpretation philosophy
+
+The pipeline is built on the premise that homecage behavior should not be reduced to simple means. It emphasizes magnitude, temporal organization, circadian and phase structure, cage-change adaptation, social spatial organization, state transitions, and early predictors of later stress burden — so that one can ask whether stress alters not only how much animals move, but how their behavior is organized over time.
+
+That ambition is deliberately paired with conservative reporting: several analytically interesting layers in this repository are explicitly **not** promoted to manuscript claims because they do not currently meet the robustness or measurement-validity bar. Those decisions, and their evidence, are recorded in [`docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv`](docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv) and [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md).

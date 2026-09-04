@@ -13,7 +13,7 @@
 suppressPackageStartupMessages({ library(dplyr) })
 
 DATA <- "C:/Users/topohl/AppData/Local/Temp/claude/c--Users-topohl-Documents-GitHub/77f6ce3c-a76b-4ee2-89c5-d1210af23338/scratchpad/data"
-OUT  <- "C:/Users/topohl/Documents/GitHub/MMMSociability/manuscript/BehavioralDynamics_schema/data"
+OUT  <- "C:/Users/topohl/Documents/GitHub/MMMSociability/manuscript/archive/BehavioralDynamics_schema_preproduction_audit/data"
 
 raw    <- read.csv(file.path(DATA, "systems_sis_raw_phase_epoch_features.csv"), check.names = FALSE)
 scores <- read.csv(file.path(DATA, "systems_sis_domain_scores.csv"), check.names = FALSE)
