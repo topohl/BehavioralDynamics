@@ -199,6 +199,7 @@ These require a human decision and are deliberately not defaulted:
    relative read-density classification before submission, which determines
    whether any inactive-phase result can be promoted. See
    `docs/KNOWN_LIMITATIONS.md` item 3.
-4. **Stage 09 resolution sensitivity.** Whether to rerun Stage 09 at 5 min under
-   the current contract so the declared sensitivity stops being unavailable.
+4. **Stage 09 duration sensitivity.** The 5-min *resolution* sensitivity is now
+   complete and exported; see `docs/KNOWN_LIMITATIONS.md` item 7. Duration
+   sensitivity for the primary model is still recorded as unavailable.
 5. **`renv` adoption.** See `docs/REPRODUCIBILITY.md`.

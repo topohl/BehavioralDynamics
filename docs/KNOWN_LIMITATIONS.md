@@ -127,22 +127,56 @@ generalisation beyond this cohort and paradigm.
 
 ---
 
-## 7. Resolution sensitivity for the primary model is unresolved
+## 7. Resolution sensitivity: resolved, with a construct caveat
 
-The canonical Stage 09 resolution is 10-min bins, with 5-min declared as a
-resolution sensitivity. That sensitivity is **not currently available as a clean
-canonical artifact**: Stage 16 records
-`resolution_sensitivity_status = "Unavailable for this export"` and deliberately
-does not promote the legacy 5-min output, which predates the current identity and
-window contracts. Duration sensitivity for the primary model is likewise recorded
-as unavailable rather than silently omitted.
+The canonical Stage 09 resolution is 10-min bins, with 5-min declared as the
+resolution sensitivity. That sensitivity has now been **run and exported**:
+`analysis_ready/pipeline/09_early_prediction/5min/`, with a direct comparison in
+`5min/audit/stage09_resolution_sensitivity_comparison.csv`. Stage 16 reports it
+as supplementary evidence and `resolution_sensitivity_status` now reads
+*Available*. The 10-min analysis remains the primary and its values are
+unchanged.
 
-**Forbids:** stating that the primary result is robust to bin resolution. It is
-currently untested at the canonical standard.
+The headline result is resolution-stable:
 
-This is an honest gap, explicitly marked in the validation table rather than
-hidden. Closing it requires rerunning Stage 09 at 5 min under the current
-contract.
+| | 10 min | 5 min |
+|---|---|---|
+| `Movement_mean` rho vs CombZ | -0.3903 | -0.3896 |
+| `Movement_mean` LOAO R2 | 0.1594 | 0.1600 |
+| permutation p | 1/1001 | 1/1001 |
+| mean-only baseline R2 | -0.0183 | -0.0183 |
+
+**The remaining caveat is about construct, not availability.** `calc_rmssd()` uses
+`diff(x)` and `calc_acf1()` uses `lag.max = 1`, so both express their lag in
+**bins**, not minutes. At 5 min, `Movement_rmssd` and `Entropy_acf1` therefore
+measure volatility and persistence at a **5-minute** lag rather than the
+10-minute lag of the primary. For those two features the 5-min run is a partly
+different quantity, not simply a finer-grained estimate of the same one.
+`Movement_mean` has no lag and is directly comparable, which is why the headline
+comparison above is the meaningful one.
+
+This matters most for `Entropy_acf1`, which is **not** BH-supported at 10 min
+(q = 0.0667) but **is** at 5 min (q = 0.0012, rho -0.3141 versus -0.1747).
+
+**Forbids:** using the 5-min result to reinterpret or promote the primary
+`Entropy_acf1` finding. The primary reporting wording is unchanged and remains
+qualified. Direction is stable for every feature and every model at both
+resolutions, so the sensitivity is informative regardless of which side of a
+threshold any individual q-value falls.
+
+Two further mechanical differences, neither a defect:
+
+- `Movement` is an extensive per-bin count, so its absolute scale roughly halves
+  at 5 min. Rank correlations are unaffected; regression coefficients and figure
+  axes are not comparable across resolutions.
+- Window completeness differs by construction: 50 of 111 animals have a complete
+  window at 10 min versus 33 of 111 at 5 min, because a finer grid resolves the
+  same post-18:30 entry delay into more missing *leading* slots. Interior and
+  trailing gaps are **zero at both resolutions**, so no gap is bridged by the
+  non-adjacency-aware estimators at either.
+
+Duration sensitivity for the primary model remains recorded as unavailable
+rather than silently omitted, and is unchanged by this work.
 
 ---
 

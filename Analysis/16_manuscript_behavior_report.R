@@ -36,6 +36,10 @@ stage09_dir <- behavior_stage_dir(base_dir, "09", "early_prediction", bin_level)
 legacy_stage09_dir <- file.path(
   analysis_ready_dir, "06_behavioral_dynamics", "early_prediction_model_ladder", legacy_bin_level
 )
+# Declared resolution sensitivity for the primary Stage 09 question. Reported
+# as supplementary evidence only; it never enters the primary registry.
+sensitivity_bin_level <- "5min"
+stage09_sensitivity_dir <- behavior_stage_dir(base_dir, "09", "early_prediction", sensitivity_bin_level)
 stage03_dir <- behavior_stage_dir(base_dir, "03", "movement_phase_stats", bin_level)
 legacy_stage03_dir <- file.path(
   analysis_ready_dir, "03_primary_raw_movement_phase_stats", legacy_bin_level
@@ -95,6 +99,9 @@ source_registry <- tribble(
   "s03_correlations_phase", "03", FALSE, "Analysis/03_primary_raw_movement_phase_stats.R", "raw_movement_combz_correlations_by_sex_phase.csv", file.path(stage03_dir, "tables/raw_movement_combz_correlations_by_sex_phase.csv"), file.path(legacy_stage03_dir, "stats_tables/raw_movement_combz_correlations_by_sex_phase.csv"), "supplementary statistical result", "Descriptive phase associations.",
   "s03_correlations_cagechange", "03", FALSE, "Analysis/03_primary_raw_movement_phase_stats.R", "raw_movement_combz_correlations_cagechange_phase.csv", file.path(stage03_dir, "tables/raw_movement_combz_correlations_cagechange_phase.csv"), file.path(legacy_stage03_dir, "stats_tables/raw_movement_combz_correlations_cagechange_phase.csv"), "supplementary statistical result", "Descriptive cage-change/phase associations.",
   "s03_filter_qc", "03", FALSE, "Analysis/03_primary_raw_movement_phase_stats.R", "raw_movement_phase_filter_qc.csv", file.path(stage03_dir, "tables/raw_movement_phase_filter_qc.csv"), file.path(legacy_stage03_dir, "tables/raw_movement_phase_filter_qc.csv"), "diagnostic/QC", "Minimum-bin retention counts.",
+  "s09_sens5_associations", "09", FALSE, "Analysis/09_early_prediction_model_ladder.R", "primary_movement_entropyacf1_associations.csv", file.path(stage09_sensitivity_dir, "tables/primary_movement_entropyacf1_associations.csv"), NA_character_, "resolution sensitivity", "Declared 5-min resolution sensitivity; supplementary only.",
+  "s09_sens5_prediction_performance", "09", FALSE, "Analysis/09_early_prediction_model_ladder.R", "primary_prediction_performance.csv", file.path(stage09_sensitivity_dir, "tables/primary_prediction_performance.csv"), NA_character_, "resolution sensitivity", "Declared 5-min resolution sensitivity; supplementary only.",
+  "s09_sens5_comparison", "09", FALSE, "Analysis/09_early_prediction_model_ladder.R", "stage09_resolution_sensitivity_comparison.csv", file.path(stage09_sensitivity_dir, "audit/stage09_resolution_sensitivity_comparison.csv"), NA_character_, "resolution sensitivity", "Direct 10-min versus 5-min comparison of the same fixed analysis.",
   "qc_animal_summary", "00", FALSE, "Analysis/00_qc_tracking_integrity.R", "tracking_qc_by_animal.csv", file.path(qc_dir, "tables/tracking_qc_by_animal.csv"), NA_character_, "diagnostic/QC", "Tracking integrity summary.",
   "qc_manual_review", "00", FALSE, "Analysis/00_qc_tracking_integrity.R", "suggested_animals_for_manual_tracking_review.csv", file.path(qc_dir, "tables/suggested_animals_for_manual_tracking_review.csv"), NA_character_, "diagnostic/QC", "Manual-review suggestions only."
 ) %>%
@@ -115,6 +122,12 @@ source_registry <- tribble(
       TRUE ~ "missing_optional"
     )
   )
+
+# Is the declared 5-min resolution sensitivity actually available as a
+# canonical artifact? Stage 16 only reads; it never refits at any resolution.
+sens5_ids <- c("s09_sens5_associations", "s09_sens5_prediction_performance")
+sens5_available <- all(source_registry$exists[source_registry$source_id %in% sens5_ids]) &&
+  length(sens5_ids) == sum(source_registry$source_id %in% sens5_ids)
 
 legacy_sources_used <- source_registry %>% filter(path_resolution == "legacy_fallback")
 if (nrow(legacy_sources_used) > 0L) {
@@ -800,6 +813,77 @@ supplementary_parts$s03_cor_cc <- map_stage03_correlations(
   function(dat) paste(dat$CageChange, dat$PhaseClass)
 )
 
+# Declared resolution sensitivity, read verbatim from the canonical 5-min
+# Stage 09 tables. Assembly only: no model is refitted and no value is
+# recomputed. These rows are SUPPLEMENTARY and never enter primary_results.
+sens5_rows <- NULL
+if (isTRUE(sens5_available)) {
+  .sa <- read_source("s09_sens5_associations")
+  .sp <- read_source("s09_sens5_prediction_performance")
+  sens5_rows <- bind_rows(
+    tibble(
+      claim_id = paste0("S09_SENS5MIN_ASSOC_", .sa$feature),
+      reporting_role = "SUPPLEMENTARY",
+      analysis_domain = "Stage 09 resolution sensitivity: prospective feature association",
+      endpoint = "CombZ",
+      time_window = "First active 12 h after first cage change",
+      bin_level = sensitivity_bin_level,
+      biological_unit = "Animal",
+      n_animals = as.integer(.sa$n),
+      sex = "Pooled",
+      contrast_or_model = paste0(.sa$feature, " association with later CombZ (5-min sensitivity)"),
+      estimate = as.numeric(.sa$spearman_rho),
+      effect_size_type = "Spearman rho",
+      effect_size = as.numeric(.sa$spearman_rho),
+      ci_low = as.numeric(.sa$spearman_boot_ci_low),
+      ci_high = as.numeric(.sa$spearman_boot_ci_high),
+      p_raw = as.numeric(.sa$spearman_p),
+      p_adjusted = as.numeric(.sa$spearman_p_bh),
+      adjustment_method = "Benjamini-Hochberg",
+      multiplicity_family = "Three canonical primary feature associations, 5-min sensitivity",
+      robustness_status = .sa$Evidence,
+      source_script = "Analysis/09_early_prediction_model_ladder.R",
+      source_table = source_registry$path[source_registry$source_id == "s09_sens5_associations"],
+      source_row_key = .sa$feature,
+      notes = "Declared resolution sensitivity. NOT primary evidence. Movement_rmssd and Entropy_acf1 are lag-1-bin statistics and therefore measure a 5-min lag here, not the 10-min lag of the primary analysis."
+    ),
+    tibble(
+      claim_id = paste0("S09_SENS5MIN_PRED_", .sp$model_id),
+      reporting_role = "SUPPLEMENTARY",
+      analysis_domain = "Stage 09 resolution sensitivity: prospective prediction",
+      endpoint = "CombZ",
+      time_window = "First active 12 h after first cage change",
+      bin_level = sensitivity_bin_level,
+      biological_unit = "Animal",
+      n_animals = as.integer(.sp$n_animals),
+      sex = "Pooled",
+      contrast_or_model = .sp$model_label,
+      estimate = as.numeric(.sp$cv_r2),
+      effect_size_type = "LOAO out-of-sample R2 versus training-fold mean",
+      effect_size = as.numeric(.sp$cv_r2),
+      ci_low = as.numeric(.sp$cv_r2_q025),
+      ci_high = as.numeric(.sp$cv_r2_q975),
+      p_raw = as.numeric(.sp$permutation_p),
+      adjustment_method = "None; empirical full-refit outcome permutation",
+      multiplicity_family = "Model-specific full-refit outcome permutation, 5-min sensitivity",
+      validation_scheme = .sp$validation_scheme,
+      robustness_status = "Declared resolution sensitivity; supplementary only",
+      source_script = "Analysis/09_early_prediction_model_ladder.R",
+      source_table = source_registry$path[source_registry$source_id == "s09_sens5_prediction_performance"],
+      source_row_key = .sp$model_id,
+      model_id = .sp$model_id,
+      model_label = .sp$model_label,
+      predictors = .sp$predictors,
+      rmse = as.numeric(.sp$rmse),
+      repeated_cv_mean_r2 = as.numeric(.sp$repeated_cv_mean_r2),
+      cv_r2_q025 = as.numeric(.sp$cv_r2_q025),
+      cv_r2_q975 = as.numeric(.sp$cv_r2_q975),
+      notes = "Declared resolution sensitivity. NOT primary evidence. The 10-min analysis remains the primary."
+    )
+  ) %>% conform_results()
+  supplementary_parts <- c(supplementary_parts, list(sens5_rows))
+}
+
 supplementary_results <- bind_rows(supplementary_parts) %>%
   arrange(analysis_domain, claim_id)
 
@@ -896,24 +980,59 @@ optional_status_rows <- source_registry %>%
   ) %>%
   conform_results()
 
+sens5_status_text <- if (isTRUE(sens5_available)) {
+  "Available; completed under the corrected canonical Stage 09 implementation"
+} else {
+  "Unavailable for this export"
+}
+sens5_status_note <- if (isTRUE(sens5_available)) {
+  paste0("The declared 5-min resolution sensitivity was run with the same fixed window, ",
+         "feature family, model registry and resampling contract as the 10-min primary, ",
+         "and is reported as supplementary evidence only. The 10-min analysis remains ",
+         "the primary. Movement_rmssd and Entropy_acf1 are lag-1-bin statistics, so at ",
+         "5 min they measure a 5-min lag rather than the 10-min lag of the primary; ",
+         "Movement_mean is lag-free and directly comparable.")
+} else {
+  "No canonical 5-min Stage 09 source exists; nothing was substituted for the 10-min primary."
+}
+
 declared_sensitivity_status <- tribble(
   ~claim_id, ~reporting_role, ~analysis_domain, ~endpoint, ~time_window, ~bin_level, ~biological_unit, ~n_animals, ~sex, ~contrast_or_model, ~estimate, ~effect_size_type, ~effect_size, ~ci_low, ~ci_high, ~p_raw, ~p_adjusted, ~adjustment_method, ~multiplicity_family, ~validation_scheme, ~robustness_status, ~source_script, ~source_table, ~notes,
-  "STATUS_S09_5MIN", "STATUS", "Predefined resolution sensitivity availability", "CombZ", "First active 12 h after first cage change", "5min", "Animal", NA_integer_, "Pooled", "Corrected Stage 09 canonical models at 5-min resolution", NA_real_, NA_character_, NA_real_, NA_real_, NA_real_, NA_real_, NA_real_, NA_character_, NA_character_, NA_character_, "Unavailable for this export", "Analysis/09_early_prediction_model_ladder.R", behavior_stage_dir(base_dir, "09", "early_prediction", "5min"), "A legacy 5-min output directory exists, but it was not regenerated under the corrected canonical Stage 09 implementation and is not exported as manuscript evidence.",
+  "STATUS_S09_5MIN", "STATUS", "Predefined resolution sensitivity availability", "CombZ", "First active 12 h after first cage change", "5min", "Animal", NA_integer_, "Pooled", "Corrected Stage 09 canonical models at 5-min resolution", NA_real_, NA_character_, NA_real_, NA_real_, NA_real_, NA_real_, NA_real_, NA_character_, NA_character_, NA_character_, sens5_status_text, "Analysis/09_early_prediction_model_ladder.R", behavior_stage_dir(base_dir, "09", "early_prediction", "5min"), sens5_status_note,
   "STATUS_S09_DURATION", "STATUS", "Predefined duration sensitivity availability", "CombZ", "First active phase after first cage change", bin_level, "Animal", NA_integer_, "Pooled", "Canonical primary model duration sensitivity", NA_real_, NA_character_, NA_real_, NA_real_, NA_real_, NA_real_, NA_real_, NA_character_, NA_character_, NA_character_, "Unavailable as a clean canonical primary-model table", "Analysis/09_early_prediction_model_ladder.R", "tables/model_ladder_performance_duration_sensitivity.csv", "The available duration table belongs to the legacy larger ladder and is not promoted into the clean primary registry."
 ) %>%
   conform_results()
 
-source_id_lookup <- source_registry %>%
+# Two resolutions can legitimately produce the same filename -- the 10-min
+# primary and the 5-min sensitivity both write
+# primary_prediction_performance.csv -- so the artifact BASENAME is no longer a
+# unique key. Resolve by full path first, and fall back to the basename only
+# for names that are still unambiguous (this keeps STATUS rows, whose
+# source_table is a directory or a relative path, behaving exactly as before).
+source_id_by_path <- source_registry %>% distinct(path, source_id)
+if (anyDuplicated(source_id_by_path$path)) {
+  stop("Provenance paths do not resolve uniquely to source_id values.", call. = FALSE)
+}
+# The basename fallback deliberately EXCLUDES the resolution-sensitivity rows.
+# Existing primary rows carry a RELATIVE source_table (e.g.
+# "tables/models/primary_prediction_performance.csv") and can only be matched by
+# basename; excluding the 5-min duplicates keeps that mapping exactly as unique
+# as it was before the sensitivity was added.
+source_id_by_artifact <- source_registry %>%
+  filter(!grepl("^s09_sens5_", source_id)) %>%
   distinct(artifact, source_id)
-if (anyDuplicated(source_id_lookup$artifact)) {
+if (anyDuplicated(source_id_by_artifact$artifact)) {
   stop("Provenance artifact names do not resolve uniquely to source_id values.", call. = FALSE)
 }
 
 add_source_id <- function(dat) {
   dat %>%
+    left_join(source_id_by_path, by = c("source_table" = "path")) %>%
     mutate(.source_artifact = basename(source_table)) %>%
-    left_join(source_id_lookup, by = c(".source_artifact" = "artifact")) %>%
-    select(-.source_artifact)
+    left_join(source_id_by_artifact, by = c(".source_artifact" = "artifact"),
+              suffix = c("", ".by_artifact")) %>%
+    mutate(source_id = dplyr::coalesce(.data$source_id, .data$source_id.by_artifact)) %>%
+    select(-.source_artifact, -source_id.by_artifact)
 }
 
 primary_results <- add_source_id(primary_results)
@@ -1059,7 +1178,7 @@ validation <- tribble(
   "movement_mean_headline", "scientific_contract", "PASS", "Movement_mean labelled main prospective prediction", "PASS", "The headline-model wording is unchanged.", "s09_prediction_performance",
   "permutation_display", "scientific_contract", "PASS", "1/1001", paste(unique(permutation_display_check), collapse = "; "), "Exact empirical numerator/denominator retained.", "s09_permutation",
   "entropy_wording", "scientific_contract", "PASS", entropy_robustness_wording, entropy_primary_row$robustness_status, "Required qualified Entropy_acf1 wording retained.", "s09_associations",
-  "resolution_sensitivity_status", "availability", "PASS", "Unavailable for canonical export unless corrected Stage 09 source exists", declared_sensitivity_status$robustness_status[declared_sensitivity_status$claim_id == "STATUS_S09_5MIN"], "Legacy 5-min output is not promoted.", "s09_prediction_performance",
+  "resolution_sensitivity_status", "availability", "PASS", if (isTRUE(sens5_available)) "Available and reported as supplementary resolution sensitivity" else "Unavailable for canonical export unless corrected Stage 09 source exists", declared_sensitivity_status$robustness_status[declared_sensitivity_status$claim_id == "STATUS_S09_5MIN"], if (isTRUE(sens5_available)) "5-min Stage 09 exists and is exported as supplementary evidence; the 10-min primary is unchanged." else "Legacy 5-min output is not promoted.", "s09_prediction_performance",
   "duration_sensitivity_status", "availability", "PASS", "Not promoted from the legacy larger ladder", declared_sensitivity_status$robustness_status[declared_sensitivity_status$claim_id == "STATUS_S09_DURATION"], "Primary-model duration sensitivity remains explicitly unavailable.", "s09_prediction_performance",
   "required_source_availability", "lineage", "PASS", as.character(sum(source_registry$required)), as.character(sum(source_registry$required & source_registry$exists)), "All required Stage 03/09 sources resolved.", NA_character_,
   # An empty vector would paste() to "", and an empty string does not round-trip
