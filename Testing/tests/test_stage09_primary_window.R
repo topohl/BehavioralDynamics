@@ -41,10 +41,15 @@ check <- function(cond, msg) if (!isTRUE(cond)) fail(msg) else invisible(TRUE)
 # production code, not a copy that could silently drift from it.
 STAGE09 <- "Analysis/09_early_prediction_model_ladder.R"
 .prod <- new.env(parent = globalenv())
-.wanted <- c("active_phase_values", "inactive_phase_values", "normalize_phase_label",
+.wanted <- c("bin_level", "active_phase_values", "inactive_phase_values", "normalize_phase_label",
              "is_active_phase", "early_window_hours", "bin_size_min",
              "expected_early_bins_per_animal", "bin_seconds",
              "select_primary_active_window")
+# Stage 09 now derives bin_size_min from bin_level, and bin_level honours
+# MMM_STAGE09_BIN_LEVEL. These assertions are about the COMMITTED CANONICAL
+# DEFAULT, so the override is cleared before parsing; otherwise the result
+# would depend on ambient environment.
+Sys.unsetenv("MMM_STAGE09_BIN_LEVEL")
 for (e in parse(STAGE09)) {
   if (is.call(e) && length(e) >= 3 && as.character(e[[1]]) %in% c("<-", "=")) {
     nm <- tryCatch(as.character(e[[2]]), error = function(err) "")

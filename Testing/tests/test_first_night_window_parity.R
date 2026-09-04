@@ -25,8 +25,13 @@ check <- function(cond, msg) if (!isTRUE(cond)) fail(msg) else invisible(TRUE)
 # ---------------------------------------------------------------- Stage 09 ref
 stage09_file <- "Analysis/09_early_prediction_model_ladder.R"
 check(file.exists(stage09_file), "Stage 09 source must be present")
+# Stage 09 now derives bin_size_min from bin_level, and bin_level honours
+# MMM_STAGE09_BIN_LEVEL. These assertions are about the COMMITTED CANONICAL
+# DEFAULT, so the override is cleared before parsing; otherwise the result
+# would depend on ambient environment.
+Sys.unsetenv("MMM_STAGE09_BIN_LEVEL")
 stage09_exprs <- parse(stage09_file)
-wanted <- c("active_phase_values", "inactive_phase_values", "early_window_hours",
+wanted <- c("bin_level", "active_phase_values", "inactive_phase_values", "early_window_hours",
             "bin_size_min", "bin_seconds", "normalize_phase_label", "is_active_phase",
             "select_primary_active_window", "get_first_cage_change")
 ref_env <- new.env(parent = globalenv())

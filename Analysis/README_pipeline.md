@@ -120,7 +120,7 @@ Stage 16 may read existing legacy Stage 03/09 outputs during the transition, but
 | `12_behavior_proteomics_integration.R` | `15_behavior_proteomics_integration.R` |
 | `04_gamm_movement_proximity_phase_and_early_window.R` | `_archive/04_gamm_movement_proximity_phase_and_early_window.R` |
 | `08_early_prediction_models.R` | `_archive/08_early_prediction_models.R` |
-| `13_nonlinear_systems_dynamics.R` | `_archive/13_nonlinear_systems_dynamics.R` |
-| `14_nextgen_behavioral_phenotyping.R` | `_archive/14_nextgen_behavioral_phenotyping.R` |
+| `13_nonlinear_systems_dynamics.R` | `_supporting/13_nonlinear_systems_dynamics.R` |
+| `14_nextgen_behavioral_phenotyping.R` | `_supporting/14_nextgen_behavioral_phenotyping.R` |
 | `18_raw_movement_publication_trajectory.R` | `_archive/18_raw_movement_publication_trajectory.R` |
 | `18b_raw_movement_broad_phase_stats.R` | `_archive/18b_raw_movement_broad_phase_stats.R` |

@@ -155,9 +155,13 @@ cat("Gap-rule retirement checks (4-5): PASS\n")
 # ---------------------------------------------------------------------------
 # 7-12. Stage 09 fixed target clock window.
 # ---------------------------------------------------------------------------
+# Stage 09 derives bin_size_min from bin_level, so bin_level must be evaluated
+# too. The override is cleared: these assertions are about the committed
+# canonical 10-min default.
+Sys.unsetenv("MMM_STAGE09_BIN_LEVEL")
 s09 <- load_defs(
   "Analysis/09_early_prediction_model_ladder.R",
-  c("active_phase_values", "inactive_phase_values", "early_window_hours",
+  c("bin_level", "active_phase_values", "inactive_phase_values", "early_window_hours",
     "bin_size_min", "bin_seconds", "expected_early_bins_per_animal",
     "normalize_phase_label", "is_active_phase", "select_primary_active_window")
 )

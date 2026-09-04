@@ -49,8 +49,8 @@ source_mmm_helper("animalpos_preprocessing_helpers.R")
 # USER INPUT
 # ------------------------------------------------
 
-bin_level <- "10min_based"
-base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+bin_level <- Sys.getenv("MMM_STAGE09_BIN_LEVEL", unset = "10min_based")
+base_dir <- Sys.getenv("MMM_BEHAVIOR_PROJECT_ROOT", unset = "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID")
 input_file <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
 output_dir <- behavior_stage_dir(
   base_dir, "09", "early_prediction", resolution = bin_level
@@ -77,12 +77,34 @@ active_phase_values <- c("active", "dark", "night")
 inactive_phase_values <- c("inactive", "light", "day")
 first_cage_change_only <- TRUE
 early_window_hours <- 12
-bin_size_min <- 10
+# Derived from bin_level so a resolution sensitivity cannot silently disagree
+# with the data it loaded. At the canonical default "10min_based" this is 10,
+# exactly as the previous literal.
+bin_size_min <- suppressWarnings(as.numeric(sub("^([0-9.]+)min.*$", "\\1", bin_level)))
+if (!is.finite(bin_size_min) || bin_size_min <= 0) {
+  stop("Stage 09 could not derive a bin size from bin_level=", bin_level, call. = FALSE)
+}
 # Expected bin count is a QC consequence of a complete 10-min sequence across
 # the window, not the definition of the window itself.
 expected_early_bins_per_animal <- early_window_hours * 60 / bin_size_min
 
 bin_seconds <- bin_size_min * 60
+
+# Resolution provenance for exported figures. NULL at the canonical 10-min
+# primary, so those panels are unchanged; a sensitivity run stamps every
+# panel so a supplementary figure can never be mistaken for the primary.
+stage09_is_primary_resolution <- identical(bin_level, "10min_based")
+stage09_resolution_caption <- if (stage09_is_primary_resolution) NULL else paste0(
+  "Resolution sensitivity: ", bin_size_min, "-min bins. Primary analysis is 10-min. ",
+  "Movement_rmssd and Entropy_acf1 are lag-1-bin statistics, so they measure a ",
+  bin_size_min, "-min lag here rather than the 10-min lag of the primary.")
+
+save_stage09_plot <- function(plot, filename_base, ...) {
+  if (!is.null(stage09_resolution_caption)) {
+    plot <- plot + ggplot2::labs(caption = stage09_resolution_caption)
+  }
+  save_plot_svg_pdf(plot, filename_base, ...)
+}
 
 normalize_phase_label <- function(x) stringr::str_to_lower(stringr::str_trim(as.character(x)))
 
@@ -568,7 +590,7 @@ write_text_file(
     "Interpretation:",
     "The fixed a priori behavior-only registry is the primary prospective evidence.",
     "Its canonical features are Movement_mean, Movement_rmssd, and Entropy_acf1.",
-    "The primary window is the first 12 ELAPSED hours of the Active phase after the first cage change, at 10-min resolution.",
+    paste0("The primary window is the first ", early_window_hours, " ELAPSED hours of the Active phase after the first cage change, at ", bin_size_min, "-min resolution."),
     "Phase selection uses an explicit normalized value set; Inactive bins are never included.",
     "See tables/early_window_contract_summary.csv and tables/early_window_design_by_animal.csv for the verified window invariants.",
     "Matched ladders separate behavior-only, Sex-adjusted, and Sex + Group-adjusted sensitivity analyses using identical behavior feature sets.",
@@ -579,6 +601,15 @@ write_text_file(
 )
 
 epoch_duration_qc <- write_epoch_duration_qc(behav, output_dir, metric_source = "08b_early_prediction_model_ladder", bin_size_sec = infer_bin_size_sec(behav))
+
+# The declared resolution must match the data actually loaded. Without this,
+# declaring a finer bin than the input provides degrades silently into a
+# coverage warning instead of failing.
+.observed_bin_sec <- infer_bin_size_sec(behav)
+if (!is.finite(.observed_bin_sec) || abs(.observed_bin_sec - bin_seconds) > 1e-6) {
+  stop("Stage 09 bin-size mismatch: bin_level=", bin_level, " declares ", bin_seconds,
+       " s but the loaded data have ", .observed_bin_sec, " s.", call. = FALSE)
+}
 
 # ------------------------------------------------
 # EARLY WINDOW: FIRST CAGE CHANGE, FIRST 12 h ACTIVE PHASE
@@ -2121,7 +2152,7 @@ p_primary <- model_dat %>%
   make_publication_theme(base_size = 6) +
   theme(legend.box.spacing = unit(0.5, "mm"), aspect.ratio = 1)
 
-save_plot_svg_pdf(p_primary, file.path(output_dir, "figures", "primary_movement_entropyacf1_vs_combz"), width = 183, height = 125)
+save_stage09_plot(p_primary, file.path(output_dir, "figures", "primary_movement_entropyacf1_vs_combz"), width = 183, height = 125)
 
 p_ladder <- ladder_performance %>%
   mutate(
@@ -2146,7 +2177,7 @@ p_ladder <- ladder_performance %>%
   make_publication_theme(base_size = 7) +
   theme(panel.grid.major.y = element_blank())
 
-save_plot_svg_pdf(p_ladder, file.path(output_dir, "figures", "model_ladder_cv_r2"), width = 89, height = 82)
+save_stage09_plot(p_ladder, file.path(output_dir, "figures", "model_ladder_cv_r2"), width = 89, height = 82)
 
 make_matched_ladder_plot <- function(perf_tbl, adjustment_filter = NULL, title = "Prediction ladder", subtitle = NULL, facet = FALSE) {
   plot_tbl <- perf_tbl %>%
@@ -2183,7 +2214,7 @@ p_matched_behavior_only <- make_matched_ladder_plot(
   title = "Legacy behavior-only prediction ladder",
   subtitle = "Compatibility output; canonical a priori models are reported in primary_prediction_performance.csv"
 )
-save_plot_svg_pdf(p_matched_behavior_only, file.path(output_dir, "figures", "matched_ladder_behavior_only_cv_r2"), width = 89, height = 82)
+save_stage09_plot(p_matched_behavior_only, file.path(output_dir, "figures", "matched_ladder_behavior_only_cv_r2"), width = 89, height = 82)
 
 p_matched_behavior_sex <- make_matched_ladder_plot(
   matched_ladder_performance,
@@ -2191,7 +2222,7 @@ p_matched_behavior_sex <- make_matched_ladder_plot(
   title = "Legacy Sex-adjusted prediction ladder",
   subtitle = "Supplementary compatibility output"
 )
-save_plot_svg_pdf(p_matched_behavior_sex, file.path(output_dir, "figures", "matched_ladder_behavior_plus_sex_cv_r2"), width = 89, height = 82)
+save_stage09_plot(p_matched_behavior_sex, file.path(output_dir, "figures", "matched_ladder_behavior_plus_sex_cv_r2"), width = 89, height = 82)
 
 p_matched_behavior_sex_group <- make_matched_ladder_plot(
   matched_ladder_performance,
@@ -2199,7 +2230,7 @@ p_matched_behavior_sex_group <- make_matched_ladder_plot(
   title = "Sex + group-adjusted prediction ladder",
   subtitle = "Contextual only: Group is endpoint-derived and not primary prospective evidence"
 )
-save_plot_svg_pdf(p_matched_behavior_sex_group, file.path(output_dir, "figures", "matched_ladder_behavior_plus_sex_group_cv_r2"), width = 89, height = 82)
+save_stage09_plot(p_matched_behavior_sex_group, file.path(output_dir, "figures", "matched_ladder_behavior_plus_sex_group_cv_r2"), width = 89, height = 82)
 
 p_matched_ladder_combined <- make_matched_ladder_plot(
   matched_ladder_performance,
@@ -2208,7 +2239,7 @@ p_matched_ladder_combined <- make_matched_ladder_plot(
   facet = TRUE
 ) +
   theme(legend.position = "top")
-save_plot_svg_pdf(p_matched_ladder_combined, file.path(output_dir, "figures", "matched_ladder_covariate_comparison_cv_r2"), width = 183, height = 82)
+save_stage09_plot(p_matched_ladder_combined, file.path(output_dir, "figures", "matched_ladder_covariate_comparison_cv_r2"), width = 183, height = 82)
 
 p_behavior_cv <- repeated_cv_performance_all %>%
   filter(DurationAnalysisSet == "full") %>%
@@ -2234,7 +2265,7 @@ p_behavior_cv <- repeated_cv_performance_all %>%
   make_publication_theme(base_size = 7) +
   theme(panel.grid.major.y = element_blank(), legend.position = "none")
 
-save_plot_svg_pdf(p_behavior_cv, file.path(output_dir, "figures", "behavior_only_repeated_cv_ladder"), width = 183, height = 82)
+save_stage09_plot(p_behavior_cv, file.path(output_dir, "figures", "behavior_only_repeated_cv_ladder"), width = 183, height = 82)
 
 primary_display_model_id <- "primary_behavior_family"
 primary_display_pred <- primary_prediction_predictions %>% filter(Model == primary_display_model_id)
@@ -2259,7 +2290,7 @@ p_pred <- primary_display_pred %>%
   make_publication_theme(base_size = 7)
 
 # Legacy filename retained for compatibility; the plotted model is fixed a priori.
-save_plot_svg_pdf(p_pred, file.path(output_dir, "figures", "best_model_observed_vs_predicted"), width = 89, height = 78)
+save_stage09_plot(p_pred, file.path(output_dir, "figures", "best_model_observed_vs_predicted"), width = 89, height = 78)
 
 ladder_prediction_plot_tbl <- ladder_predictions %>%
   left_join(
@@ -2308,7 +2339,7 @@ p_ladder_prediction_correlations <- ladder_prediction_plot_tbl %>%
   make_publication_theme(base_size = 6) +
   theme(legend.position = "top")
 
-save_plot_svg_pdf(p_ladder_prediction_correlations, file.path(output_dir, "figures", "model_ladder_prediction_correlations"), width = 183, height = 112)
+save_stage09_plot(p_ladder_prediction_correlations, file.path(output_dir, "figures", "model_ladder_prediction_correlations"), width = 183, height = 112)
 
 matched_prediction_plot_tbl <- matched_ladder_predictions %>%
   left_join(
@@ -2359,7 +2390,7 @@ p_matched_prediction_correlations <- matched_prediction_plot_tbl %>%
   make_publication_theme(base_size = 5.5) +
   theme(legend.position = "top")
 
-save_plot_svg_pdf(p_matched_prediction_correlations, file.path(output_dir, "figures", "matched_ladder_prediction_correlations"), width = 183, height = 132)
+save_stage09_plot(p_matched_prediction_correlations, file.path(output_dir, "figures", "matched_ladder_prediction_correlations"), width = 183, height = 132)
 
 # ------------------------------------------------
 # TEXT SUMMARY FOR RESULTS WRITING
