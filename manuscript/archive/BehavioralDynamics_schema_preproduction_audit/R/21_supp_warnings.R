@@ -1,4 +1,19 @@
 # ==============================================================================
+# HISTORICAL ARTIFACT -- renders the PRE-CORRECTION warning text.
+#
+# The warning strings below describe the pipeline as it was before the
+# phase-classifier, Stage 11/12 and Stage 14 corrections. Several of them are no
+# longer true of production:
+#   * W1's permissive "active|dark|night" matching was replaced by exact
+#     membership in Functions/phase_classification_helpers.R, and Stages 11, 12
+#     and 14 were regenerated;
+#   * W2's rest-domain collapse followed from W1 and went with it;
+#   * the figure_manifest.csv status quoted below
+#     (blocked_pending_phase_classifier_fix_and_rerun) is retired.
+# The text is preserved verbatim because this renders a historical figure. Do
+# not treat a re-render as a current statement, and do not use it to justify a
+# current claim. See this folder's README banner and docs/KNOWN_LIMITATIONS.md.
+# ==============================================================================
 # 21_supp_warnings.R
 # Right-column continuation of the supplementary provenance schema: the
 # critical implementation warnings and the recommended manuscript inference.
