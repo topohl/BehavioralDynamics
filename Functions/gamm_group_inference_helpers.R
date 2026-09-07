@@ -44,6 +44,35 @@ if (!exists("%||%")) `%||%` <- function(x, y) if (is.null(x) || length(x) == 0 |
 MMM_GAMM_K <- 6L
 MMM_GAMM_METHOD <- "fREML"
 
+# The three planned group contrasts, in a fixed order, shared by every stage.
+MMM_GROUP_PAIRS <- list(c("RES", "CON"), c("SUS", "CON"), c("SUS", "RES"))
+
+# Batch marginalization policy for MANUSCRIPT-FACING population predictions.
+# Batch is an experimental blocking factor with approximately balanced planned
+# n, so the target estimand is "an average experimental batch", not "the average
+# animal in the realised cohort". Count weighting is retained as a sensitivity.
+# Batch composition is effectively common to all groups within a Sex, so this
+# choice cancels in every pairwise contrast and moves only group-level levels.
+MMM_BATCH_WEIGHTING <- "equal"
+
+#' Stamp an inference-status flag onto every row of a result table.
+#'
+#' Used to mark Inactive-phase Gaussian-log1p results as
+#' MODEL_INADEQUATE__DO_NOT_INTERPRET so no downstream reader can pick a
+#' q-value out of a CSV without the caveat travelling with it.
+mmm_stamp_status <- function(x, status, reason = NA_character_) {
+  if (is.null(x) || nrow(x) == 0L) return(x)
+  x %>% mutate(inference_status = status, inference_status_reason = reason)
+}
+
+#' Batch marginalization weights under a named scheme.
+mmm_batch_weights <- function(d, scheme = c("equal", "count")) {
+  scheme <- match.arg(scheme)
+  counts <- table(dplyr::distinct(d, AnimalNum, Batch)$Batch)
+  counts <- counts[counts > 0]
+  if (scheme == "equal") stats::setNames(rep(1, length(counts)), names(counts)) else counts
+}
+
 #' Ordered interaction factor for identifiable difference smooths.
 #'
 #' @param ... factors to cross. The first level of the crossed factor is the

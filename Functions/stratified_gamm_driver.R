@@ -1,27 +1,37 @@
 # ================================================================
-# Shared driver for the two SECONDARY stratified Active-window GAMMs
+# Shared driver for the stratified Active/Inactive GAMM stages
 # MMMSociability
 # ================================================================
-# Both secondary analyses have the same shape: one Active-window dataset that
-# is stratified by a repeated factor, fitted separately within Sex, with a
-# formal Group x Stratum interaction.
+# Stages 21/22 (Active) and 24/25 (Inactive) all have the same shape: one
+# phase-window dataset stratified by a repeated factor, fitted within Sex, with
+# a formal Group x Stratum interaction.
 #
-#   Analysis/21  stratum = ActiveNight  (nights 1..N inside CC1)
-#   Analysis/22  stratum = CageChange   (acute window after CC1..CC4)
+# TWO SHAPE STRUCTURES ARE FITTED, both prespecified.
 #
-# Model (identifiable form, see gamm_group_inference_helpers.R for why the
-# obvious bs="sz" spelling is not used):
+#   PRIMARY - additive shape decomposition (parsimonious)
+#     resp ~ [Batch +] Group * Stratum
+#            + s(Time, k)                      overall acute-response shape
+#            + s(Time, by = GroupOrd, k)       stable phenotype shape difference
+#            + s(Time, by = StratumOrd, k)     shape change across repeats,
+#                                              shared across phenotypes
+#            + s(AnimalNum, bs = "re")
 #
-#   response ~ [Batch +] Group * Stratum
-#              + s(Time, k = 6, bs = "tp")
-#              + s(Time, by = ordered(Group x Stratum), k = 6, bs = "tp")
-#              + s(AnimalNum, bs = "re")
-#   fREML, discrete, two-stage AR1 with block-correct AR.start.
+#   SECONDARY - full shape interaction (the previous primary, retained)
+#     ... + s(Time, by = ordered(Group x Stratum), k) ...
+#     which allows a separate curve shape for all 3 x 4 = 12 cells per Sex.
 #
-# The driver returns tidy tables only. Multiplicity is NOT applied here: each
-# calling stage declares its own family explicitly, so the two secondary
-# families can never be silently merged with each other or with the PRIMARY
-# six-test first-night family.
+# The primary answers "does the overall acute response change across repeats,
+# and does that change differ by phenotype". The secondary answers the stronger
+# and much more flexible "does exact within-window curve SHAPE depend jointly
+# on phenotype and repeat". The secondary is kept as a declared sensitivity, not
+# deleted, and the two are compared on AIC/edf and on CC1 predictions.
+#
+# All factor smooths use ORDERED factors, which give centred difference smooths
+# and therefore stay identifiable beside the parametric interaction. An
+# unordered `bs="sz"` interaction carries per-level constants and makes the
+# parametric table rank-deficient (measured: Group 1 df instead of 2).
+#
+# Multiplicity is NOT applied here. Each stage declares its own families.
 # ================================================================
 
 suppressPackageStartupMessages({
@@ -32,36 +42,25 @@ suppressPackageStartupMessages({
   library(mgcv)
 })
 
-if (!exists("mmm_fit_gamm_ar1", mode = "function", inherits = TRUE)) {
-  if (exists("source_mmm_helper", mode = "function", inherits = TRUE)) {
-    source_mmm_helper("gamm_group_inference_helpers.R")
-  } else {
-    stop("stratified_gamm_driver.R requires gamm_group_inference_helpers.R", call. = FALSE)
+for (.h in c("gamm_group_inference_helpers.R", "gamm_auc_helpers.R", "gamm_diagnostics_helpers.R")) {
+  .probe <- switch(.h,
+    "gamm_group_inference_helpers.R" = "mmm_fit_gamm_ar1",
+    "gamm_auc_helpers.R" = "mmm_auc_cvec",
+    "gamm_diagnostics_helpers.R" = "mmm_traj_ci_width")
+  if (!exists(.probe, mode = "function", inherits = TRUE)) {
+    if (exists("source_mmm_helper", mode = "function", inherits = TRUE)) source_mmm_helper(.h)
+    else stop("stratified_gamm_driver.R requires ", .h, call. = FALSE)
   }
 }
+rm(.h, .probe)
 
-MMM_GROUP_PAIRS <- list(c("RES", "CON"), c("SUS", "CON"), c("SUS", "RES"))
+# MMM_GROUP_PAIRS is defined in gamm_group_inference_helpers.R.
 
-#' Run one stratified Active-window GAMM analysis across Sex and model variants.
-#'
-#' @param dat Selected window rows. Must carry AnimalNum, Batch, Group, Sex,
-#'   Movement, the time column and the stratum column.
-#' @param stratum_col Name of the repeated factor ("ActiveNight" / "CageChange").
-#' @param time_col Name of the within-window clock axis, in hours.
-#' @param ar_block_cols Block keys for AR1 restarts, in addition to AnimalNum.
-#' @param window_hours Axis length for the prediction grid.
-#' @param grid_n Prediction grid resolution.
-#' @return Named list of tidy tibbles.
-mmm_run_stratified_gamm <- function(dat,
-                                    stratum_col,
-                                    time_col,
-                                    ar_block_cols,
-                                    window_hours = 12,
-                                    grid_n = 100L) {
+#' Prepare a stratified window dataset for modelling.
+mmm_prepare_stratified <- function(dat, stratum_col, time_col) {
   stopifnot(all(c("AnimalNum", "Batch", "Group", "Sex", "Movement",
                   stratum_col, time_col) %in% names(dat)))
-
-  base <- dat %>%
+  dat %>%
     filter(!is.na(.data$Movement)) %>%
     mutate(
       y_log = log1p(.data$Movement),
@@ -72,28 +71,65 @@ mmm_run_stratified_gamm <- function(dat,
       Stratum = factor(as.character(.data[[stratum_col]])),
       TimeAxis = as.numeric(.data[[time_col]])
     ) %>%
-    mutate(Cross = mmm_ordered_cross(.data$Group, .data$Stratum))
+    mutate(
+      GroupOrd = factor(.data$Group, levels = levels(.data$Group), ordered = TRUE),
+      StratumOrd = factor(.data$Stratum, levels = levels(.data$Stratum), ordered = TRUE),
+      Cross = mmm_ordered_cross(.data$Group, .data$Stratum)
+    )
+}
+
+#' Model formula for either shape structure.
+mmm_stratified_formula <- function(response, with_batch, shape = c("parsimonious", "full_interaction"),
+                                   k = MMM_GAMM_K) {
+  shape <- match.arg(shape)
+  shape_terms <- if (shape == "parsimonious") {
+    paste0(" + s(TimeAxis, by = GroupOrd, k = ", k, ", bs = 'tp')",
+           " + s(TimeAxis, by = StratumOrd, k = ", k, ", bs = 'tp')")
+  } else {
+    paste0(" + s(TimeAxis, by = Cross, k = ", k, ", bs = 'tp')")
+  }
+  stats::as.formula(paste0(
+    response, " ~ ", if (with_batch) "Batch + " else "", "Group * Stratum",
+    " + s(TimeAxis, k = ", k, ", bs = 'tp')", shape_terms,
+    " + s(AnimalNum, bs = 're')"
+  ))
+}
+
+#' Prediction grid carrying every factor either shape structure needs.
+mmm_stratified_grid <- function(d, group, stratum, window_hours = 12, grid_n = 100L) {
+  tibble(TimeAxis = seq(0, window_hours, length.out = grid_n)) %>%
+    mutate(
+      Group = factor(group, levels = levels(d$Group)),
+      Stratum = factor(stratum, levels = levels(d$Stratum)),
+      GroupOrd = factor(group, levels = levels(d$GroupOrd), ordered = TRUE),
+      StratumOrd = factor(stratum, levels = levels(d$StratumOrd), ordered = TRUE),
+      Cross = factor(paste(group, stratum, sep = "."), levels = levels(d$Cross), ordered = TRUE)
+    )
+}
+
+#' Run one stratified analysis across Sex, shape structure and model variant.
+#'
+#' @return list of tidy tibbles plus `fits`, a named list of
+#'   list(fit, data, formula, batch_weights, animal_ref, strata, groups).
+mmm_run_stratified_gamm <- function(dat, stratum_col, time_col, ar_block_cols,
+                                    window_hours = 12, grid_n = 100L,
+                                    k_sensitivity = 8L) {
+  base <- mmm_prepare_stratified(dat, stratum_col, time_col)
 
   variants <- tibble::tribble(
-    ~key,        ~response, ~with_batch, ~role,
-    "primary",   "y_log",   TRUE,        "PRIMARY",
-    "no_batch",  "y_log",   FALSE,       "SENSITIVITY_batch",
-    "raw_scale", "y_raw",   TRUE,        "SENSITIVITY_response_scale"
+    ~key,          ~response, ~with_batch, ~shape,             ~k,           ~role,
+    "primary",     "y_log",   TRUE,        "parsimonious",     MMM_GAMM_K,   "PRIMARY",
+    "no_batch",    "y_log",   FALSE,       "parsimonious",     MMM_GAMM_K,   "SENSITIVITY_batch",
+    "raw_scale",   "y_raw",   TRUE,        "parsimonious",     MMM_GAMM_K,   "SENSITIVITY_response_scale",
+    "k8",          "y_log",   TRUE,        "parsimonious",     k_sensitivity, "SENSITIVITY_k",
+    "full_shape",  "y_log",   TRUE,        "full_interaction", MMM_GAMM_K,   "SECONDARY_SHAPE_INTERACTION_SENSITIVITY"
   )
-
-  build_formula <- function(response, with_batch) {
-    stats::as.formula(paste0(
-      response, " ~ ", if (with_batch) "Batch + " else "",
-      "Group * Stratum",
-      " + s(TimeAxis, k = ", MMM_GAMM_K, ", bs = 'tp')",
-      " + s(TimeAxis, by = Cross, k = ", MMM_GAMM_K, ", bs = 'tp')",
-      " + s(AnimalNum, bs = 're')"
-    ))
-  }
 
   out <- list(contrasts = list(), stratum_avg = list(), trajectory = list(),
               pointwise = list(), spec = list(), parametric = list(),
-              smooth = list(), ar1 = list())
+              smooth = list(), ar1 = list(), diagnostics = list(),
+              k_check = list(), acf = list())
+  fits <- list()
 
   for (sx in sort(unique(as.character(base$Sex)))) {
     dsex <- base %>% filter(.data$Sex == sx)
@@ -105,92 +141,100 @@ mmm_run_stratified_gamm <- function(dat,
 
       d <- mmm_order_for_ar1(dsex, block_cols = ar_block_cols) %>% droplevels()
       d$.ar_start <- mmm_build_ar_start(d, block_cols = ar_block_cols)
-      form <- build_formula(v$response, v$with_batch)
+      form <- mmm_stratified_formula(v$response, v$with_batch, v$shape, v$k)
       fit <- mmm_fit_gamm_ar1(form, d)
       m <- fit$model
-      cat(" rho=", round(fit$rho, 3), " ar1=", fit$ar1_applied, "\n", sep = "")
+      cat(" rho=", round(fit$rho, 3), " ar1=", fit$ar1_applied,
+          " edf=", round(sum(m$edf), 1), "\n", sep = "")
 
-      batch_w <- table(distinct(d, AnimalNum, Batch)$Batch)
-      batch_w <- batch_w[batch_w > 0]
+      # Manuscript-facing predictions marginalize EQUALLY over batches; the
+      # count-weighted version is retained as a sensitivity (see the stage
+      # runner's batch_weighting_diagnostic output).
+      batch_w <- mmm_batch_weights(d, MMM_BATCH_WEIGHTING)
+      batch_w_count <- mmm_batch_weights(d, "count")
       animal_ref <- levels(d$AnimalNum)[1]
       strata <- levels(d$Stratum)
-      tgrid <- seq(0, window_hours, length.out = grid_n)
+      groups <- levels(d$Group)
+      gr <- function(g, s) mmm_stratified_grid(d, g, s, window_hours, grid_n)
+      tag <- function(x) x %>% mutate(Sex = sx, variant = v$key, shape = v$shape,
+                                      model_label = label, .before = 1)
 
-      # Grid rows carry Group, Stratum and the ordered cross level explicitly,
-      # so a contrast can be averaged across strata as well as across time.
-      make_grid <- function(g, s) {
-        tibble(TimeAxis = tgrid) %>%
-          mutate(
-            Group = factor(g, levels = levels(d$Group)),
-            Stratum = factor(s, levels = levels(d$Stratum)),
-            Cross = factor(paste(g, s, sep = "."), levels = levels(d$Cross), ordered = TRUE)
-          )
-      }
-      stack_grid <- function(g) purrr::map_dfr(strata, ~ make_grid(g, .x))
+      fits[[label]] <- list(fit = fit, data = d, formula = form, batch_weights = batch_w,
+                            batch_weights_count = batch_w_count,
+                            batch_weighting = MMM_BATCH_WEIGHTING,
+                            animal_ref = animal_ref, strata = strata, groups = groups,
+                            grid_fun = gr, Sex = sx, variant = v$key, shape = v$shape,
+                            window_hours = window_hours)
 
-      tag <- function(x) x %>% mutate(Sex = sx, variant = v$key, model_label = label, .before = 1)
-
-      # --- per-stratum planned contrasts
+      # per-stratum planned contrasts, exact AUC-based
       out$contrasts[[label]] <- purrr::map_dfr(strata, function(s) {
         purrr::map_dfr(MMM_GROUP_PAIRS, function(pp) {
-          mmm_gamm_avg_contrast_grids(m, make_grid(pp[1], s), make_grid(pp[2], s),
-                                      batch_w, animal_ref) %>%
-            mutate(stratum = s, contrast = paste0(pp[1], "-", pp[2]),
-                   group_comp = pp[1], group_ref = pp[2], .before = 1)
+          avg <- mmm_gamm_avg_contrast_grids(m, gr(pp[1], s), gr(pp[2], s), batch_w, animal_ref)
+          auc <- mmm_gamm_auc_contrast(m, gr(pp[1], s), gr(pp[2], s), batch_w, animal_ref,
+                                       "TimeAxis", window_hours)
+          bind_cols(
+            tibble(stratum = s, contrast = paste0(pp[1], "-", pp[2]),
+                   group_comp = pp[1], group_ref = pp[2]),
+            avg %>% dplyr::select("estimate", "se", "ci_low", "ci_high", "statistic", "p_raw"),
+            auc %>% dplyr::select("AUC_diff_log1p", "AUC_diff_SE", "AUC_diff_CI_low",
+                                  "AUC_diff_CI_high", "AUC_diff_p", "AUC_diff_per_hour")
+          )
         })
       }) %>% tag()
 
-      # --- contrasts averaged over the whole stratified period
       out$stratum_avg[[label]] <- purrr::map_dfr(MMM_GROUP_PAIRS, function(pp) {
-        mmm_gamm_avg_contrast_grids(m, stack_grid(pp[1]), stack_grid(pp[2]),
-                                    batch_w, animal_ref) %>%
+        g1 <- purrr::map_dfr(strata, ~ gr(pp[1], .x))
+        g0 <- purrr::map_dfr(strata, ~ gr(pp[2], .x))
+        mmm_gamm_avg_contrast_grids(m, g1, g0, batch_w, animal_ref) %>%
           mutate(contrast = paste0(pp[1], "-", pp[2]),
                  group_comp = pp[1], group_ref = pp[2], .before = 1)
       }) %>% tag()
 
-      # --- trajectories
       out$trajectory[[label]] <- purrr::map_dfr(strata, function(s) {
-        purrr::map_dfr(levels(d$Group), function(g) {
-          mmm_gamm_trajectory(m, make_grid(g, s), batch_w, animal_ref) %>%
+        purrr::map_dfr(groups, function(g) {
+          mmm_gamm_trajectory(m, gr(g, s), batch_w, animal_ref) %>%
             mutate(stratum = s, Group = g, .before = 1)
         })
       }) %>% tag()
 
-      # --- pointwise differences
       out$pointwise[[label]] <- purrr::map_dfr(strata, function(s) {
         purrr::map_dfr(MMM_GROUP_PAIRS, function(pp) {
-          g1 <- make_grid(pp[1], s); g0 <- make_grid(pp[2], s)
-          X1 <- mmm_design_rows(m, g1, batch_w, animal_ref)
-          X0 <- mmm_design_rows(m, g0, batch_w, animal_ref)
+          X1 <- mmm_design_rows(m, gr(pp[1], s), batch_w, animal_ref)
+          X0 <- mmm_design_rows(m, gr(pp[2], s), batch_w, animal_ref)
           Xd <- X1 - X0
-          V <- mgcv::vcov.gam(m, unconditional = TRUE)
-          b <- stats::coef(m)
-          dvec <- as.numeric(Xd %*% b)
+          V <- mgcv::vcov.gam(m, unconditional = TRUE); b <- stats::coef(m)
+          dv <- as.numeric(Xd %*% b)
           se <- sqrt(pmax(0, rowSums((Xd %*% V) * Xd)))
-          tibble(TimeAxis = tgrid, stratum = s,
+          tibble(TimeAxis = gr(pp[1], s)$TimeAxis, stratum = s,
                  contrast = paste0(pp[1], "-", pp[2]),
-                 diff = dvec, se = se,
-                 lower = dvec - 1.96 * se, upper = dvec + 1.96 * se)
+                 diff = dv, se = se, lower = dv - 1.96 * se, upper = dv + 1.96 * se)
         })
       }) %>% tag()
 
       out$spec[[label]] <- mmm_gamm_spec_row(fit, label, form, d,
                                              response_scale = v$response,
                                              batch_adjusted = v$with_batch,
-                                             role = v$role) %>% tag()
+                                             role = v$role) %>%
+        mutate(shape_structure = v$shape, k_time = v$k) %>% tag()
       out$parametric[[label]] <- mmm_gamm_parametric_table(m, label) %>% tag()
       out$smooth[[label]] <- mmm_gamm_smooth_table(m, label) %>% tag()
       out$ar1[[label]] <- mmm_ar1_sequence_proof(d, d$.ar_start, block_cols = ar_block_cols) %>% tag()
+
+      if (v$key %in% c("primary", "full_shape")) {
+        dg <- mmm_model_diagnostics(fit, d, label, response_col = "Movement")
+        out$diagnostics[[label]] <- dg$summary %>% tag()
+        out$k_check[[label]] <- dg$k_check %>% tag()
+        out$acf[[label]] <- dg$acf %>% tag()
+      }
     }
   }
 
-  lapply(out, function(x) bind_rows(x))
+  res <- lapply(out, function(x) bind_rows(x))
+  res$fits <- fits
+  res
 }
 
-#' Pull the formal Group x Stratum interaction rows out of the parametric table.
-#'
-#' This is the adaptation test. It is a SEPARATE inferential family from the
-#' pairwise contrasts and is never pooled with them.
+#' Formal Group x Stratum omnibus rows.
 mmm_interaction_tests <- function(parametric_tbl, stratum_col) {
   parametric_tbl %>%
     filter(.data$term %in% c("Group", "Stratum", "Group:Stratum")) %>%
@@ -201,5 +245,42 @@ mmm_interaction_tests <- function(parametric_tbl, stratum_col) {
         TRUE ~ paste0("Group x ", stratum_col, " (formal adaptation test)")
       ),
       stratum_variable = stratum_col
+    )
+}
+
+#' Global + localization BH columns (section 10).
+#'
+#' q_BH_global24 is the conservative prespecified family and is never replaced.
+#' The two localization columns are labelled SECONDARY and reported alongside.
+mmm_multiplicity_localization <- function(contrasts_tbl, global_family_id) {
+  contrasts_tbl %>%
+    mutate(family_id_global = global_family_id,
+           n_tests_global = sum(!is.na(.data$p_raw)),
+           q_BH_global24 = stats::p.adjust(.data$p_raw, method = "BH")) %>%
+    group_by(.data$Sex) %>%
+    mutate(n_tests_within_sex = sum(!is.na(.data$p_raw)),
+           q_BH_within_sex = stats::p.adjust(.data$p_raw, method = "BH")) %>%
+    ungroup() %>%
+    group_by(.data$stratum) %>%
+    mutate(n_tests_within_stratum = sum(!is.na(.data$p_raw)),
+           q_BH_within_stratum = stats::p.adjust(.data$p_raw, method = "BH")) %>%
+    ungroup() %>%
+    mutate(localization_note =
+             "q_BH_global24 is primary; within_sex and within_stratum are SECONDARY localization values")
+}
+
+#' Compare the parsimonious primary against the full shape-interaction model.
+mmm_shape_model_comparison <- function(spec_tbl) {
+  spec_tbl %>%
+    filter(.data$variant %in% c("primary", "full_shape")) %>%
+    dplyr::select("Sex", "variant", "shape_structure", "edf_total", "aic",
+                  "dev_expl", "rho_estimated", "n_obs") %>%
+    tidyr::pivot_wider(names_from = "variant",
+                       values_from = c("shape_structure", "edf_total", "aic", "dev_expl", "rho_estimated")) %>%
+    mutate(
+      delta_aic_full_minus_primary = .data$aic_full_shape - .data$aic_primary,
+      delta_edf_full_minus_primary = .data$edf_total_full_shape - .data$edf_total_primary,
+      delta_dev_expl = .data$dev_expl_full_shape - .data$dev_expl_primary,
+      note = "reported for parsimony/robustness, not for significance-based selection"
     )
 }
