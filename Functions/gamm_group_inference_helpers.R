@@ -47,6 +47,14 @@ MMM_GAMM_METHOD <- "fREML"
 # The three planned group contrasts, in a fixed order, shared by every stage.
 MMM_GROUP_PAIRS <- list(c("RES", "CON"), c("SUS", "CON"), c("SUS", "RES"))
 
+# Biological hierarchy of the planned contrasts. This labels the contrasts; it
+# never alters any multiplicity family.
+MMM_CONTRAST_ROLE <- c(
+  "SUS-RES" = "PRIMARY_PHENOTYPE",
+  "SUS-CON" = "CONTEXTUAL_CONTROL",
+  "RES-CON" = "CONTEXTUAL_CONTROL"
+)
+
 # Batch marginalization policy for MANUSCRIPT-FACING population predictions.
 # Batch is an experimental blocking factor with approximately balanced planned
 # n, so the target estimand is "an average experimental batch", not "the average

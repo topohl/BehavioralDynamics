@@ -35,11 +35,7 @@ for (.h in c("gamm_group_inference_helpers.R", "gamm_auc_helpers.R",
 }
 rm(.h, .probe)
 
-MMM_CONTRAST_ROLE <- c(
-  "SUS-RES" = "PRIMARY_PHENOTYPE",
-  "SUS-CON" = "CONTEXTUAL_CONTROL",
-  "RES-CON" = "CONTEXTUAL_CONTROL"
-)
+# MMM_CONTRAST_ROLE is defined in gamm_group_inference_helpers.R.
 
 #' Run one single-window acute stage end to end.
 #'
