@@ -299,11 +299,8 @@ harmonize_analysis_outputs <- function(output_dir,
 
     if (any(should_copy)) {
       purrr::walk(unique(target_dirs[should_copy]), ensure_dir)
-      purrr::walk2(figure_files[should_copy], target_files[should_copy], function(src, dst) {
-        if (!file.exists(dst)) {
-          file.copy(src, dst, overwrite = FALSE, copy.date = TRUE)
-        }
-      })
+      purrr::walk2(figure_files[should_copy], target_files[should_copy],
+                   mmm_refresh_mirror_copy)
     }
 
     info <- file.info(figure_files)
@@ -363,6 +360,63 @@ harmonize_analysis_outputs <- function(output_dir,
   invisible(inventory)
 }
 
+#' Refresh a mirrored copy so it always equals the current authored artifact.
+#'
+#' WHY THIS EXISTS
+#'
+#' Both mirror sites used to be guarded by `if (!file.exists(dst))` with
+#' `overwrite = FALSE`. That makes the FIRST run correct and every later run
+#' wrong: re-running a figure producer rewrites the authored file and leaves the
+#' mirror at whatever it was, so `figures/x.svg` and
+#' `figures/publication_panels/x.svg` silently drift apart. A manuscript builder
+#' reads the mirror (manuscript/Fig1_behavior_candidates/build_fig1_candidates.R),
+#' so a stale mirror is a wrong-figure hazard, not just wasted disk.
+#'
+#' Semantics here:
+#'   * skip only when the destination is ALREADY byte-identical (cheap no-op);
+#'   * otherwise copy via a temp file in the destination directory and rename
+#'     into place, so a reader never observes a half-written mirror;
+#'   * verify the copy by checksum before it is published;
+#'   * on any failure, stop() - never leave a stale mirror behind silently.
+#'
+#' Deliberately NOT deleting mirrors: an active consumer still reads that path.
+#'
+#' @return TRUE if the mirror was rewritten, FALSE if it was already current.
+mmm_refresh_mirror_copy <- function(src, dst) {
+  if (!file.exists(src)) return(invisible(FALSE))
+
+  src_md5 <- unname(tools::md5sum(src))
+  if (file.exists(dst)) {
+    si <- file.info(src)$size
+    di <- file.info(dst)$size
+    if (isTRUE(si == di) && identical(src_md5, unname(tools::md5sum(dst)))) {
+      return(invisible(FALSE))
+    }
+  }
+
+  ensure_dir(dirname(dst))
+  tmp <- paste0(dst, ".mmmtmp", Sys.getpid())
+  on.exit(if (file.exists(tmp)) unlink(tmp), add = TRUE)
+
+  if (!isTRUE(file.copy(src, tmp, overwrite = TRUE, copy.date = TRUE))) {
+    stop("Failed to stage mirror copy of '", src, "' -> '", tmp,
+         "'. The existing mirror at '", dst, "' may now be STALE.", call. = FALSE)
+  }
+  if (!identical(src_md5, unname(tools::md5sum(tmp)))) {
+    stop("Mirror copy of '", src, "' did not verify against its source ",
+         "checksum. Refusing to publish it to '", dst, "'.", call. = FALSE)
+  }
+  if (file.exists(dst) && !isTRUE(file.remove(dst))) {
+    stop("Could not replace the stale mirror at '", dst,
+         "'. The verified replacement is staged at '", tmp, "'.", call. = FALSE)
+  }
+  if (!isTRUE(file.rename(tmp, dst))) {
+    stop("Could not move the verified mirror into place at '", dst,
+         "'. The verified copy is staged at '", tmp, "'.", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 mirror_plot_to_standard_folder <- function(filename_base) {
   figure_root_pattern <- "/figures/"
   normalized_base <- normalizePath(filename_base, winslash = "/", mustWork = FALSE)
@@ -385,11 +439,8 @@ mirror_plot_to_standard_folder <- function(filename_base) {
   should_copy <- source_norm != target_norm
 
   if (any(should_copy)) {
-    purrr::walk2(source_files[should_copy], target_files[should_copy], function(src, dst) {
-      if (!file.exists(dst)) {
-        file.copy(src, dst, overwrite = FALSE, copy.date = TRUE)
-      }
-    })
+    purrr::walk2(source_files[should_copy], target_files[should_copy],
+                 mmm_refresh_mirror_copy)
   }
 
   invisible(filename_base)
