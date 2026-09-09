@@ -566,3 +566,95 @@ while the new stem does.
 | c | `READY_MAIN` |
 | d | `READY_MAIN` |
 | combined | `READY_AFTER_VISUAL_REVIEW` |
+
+---
+
+# Addendum 3 — provenance vocabulary and claim/test identifiers
+
+## Scientific owner vs immediate source
+
+Provenance is two facts, and one column cannot carry both. Every Source Data
+file, the figure manifest, the Source Data manifest and the claim trace now
+record them separately:
+
+| field | meaning |
+|---|---|
+| `scientific_owner_stage` | the stage whose code DEFINES the quantity — fits the model, chooses the window, runs the test. The stage a claim belongs to. |
+| `owner_table` | the canonical table in which that stage defines it |
+| `immediate_source_stage` | the stage whose file Stage 27 actually READ |
+| `source_table` | the file actually read |
+
+They are equal for most panels. They differ for exactly two reads:
+
+| panel | owner | immediate source |
+|---|---|---|
+| b, c (animal-level Movement / CombZ) | 09 — `pipeline/09_early_prediction/10min/tables/model_ladder_input.csv` | 16 — `manuscript/behavior/animal_level_source_data.csv` |
+| d1 (held-out predictions) | 09 — `pipeline/09_early_prediction/10min/tables/primary_prediction_predictions.csv` | 16 — `manuscript/behavior/prediction_source_data.csv` |
+
+**Stage 16 is a validated manuscript export layer, not a producer.** Verified
+from its source, not assumed: it contains no `lm`/`glm`/`bam`/`gam`/`lmer`, no
+`predict()`, no `set.seed()` and no `sample()`, and it carries the prediction
+columns through by `transmute(observed_CombZ = observed, predicted_CombZ =
+predicted)` — a rename, never a derivation. Its only other operations are a
+filter to the two canonical behavior-only models and a label recode. The values
+are bit-identical to Stage 09's own tables, asserted with `identical()` and
+independently re-checked by Stage 27's zero-drift gate.
+
+The earlier schema recorded `canonical_stage = "16"` for panel d1, which made
+the export layer read as the producer of the LOAO predictions, while panels b
+and c recorded Stage 09's table without disclosing that the values were read
+through the same export. Both are now stated exactly.
+`Testing/tests/test_behavior_main_figure_contracts.R` asserts that Stage 16
+never appears as a `scientific_owner_stage` and that Stage 16 acquires no
+model-fitting machinery.
+
+## Claim ids and test ids are different things
+
+The upstream frozen-results table keys rows by an ANALYSIS id
+(`S09_ASSOC_Movement_mean`, `S09_PRED_movement_mean`). Those are **test ids**.
+The manuscript claims are `CLAIM_BEHAV_01..05`. Writing the former into a column
+headed `Claim id` meant `CLAIM_BEHAV_04` — the headline number of the figure —
+appeared nowhere in `behavior_main_key_results.csv` and could not be joined to
+the claim trace.
+
+The key-results table now carries four separate fields:
+
+| field | example |
+|---|---|
+| `Claim id` | `CLAIM_BEHAV_04` |
+| `Test id` | `S09_ASSOC_Movement_mean` |
+| `Model or feature id` | `Movement_mean` |
+| `Row role` | `headline_estimate` |
+
+`Row role` distinguishes the headline estimate from the rest of its BH family
+(`multiplicity_family_member`), the supporting model (`supporting_model`), the
+permutation reference (`permutation_reference`) and the panel b descriptive
+rows (`descriptive_context`). Family and supporting rows share the claim id
+they serve, because they are what makes that claim's q and null interpretable;
+the role column stops them reading as separate claims. `CLAIM_BEHAV_02` is
+descriptive and deliberately appears in no key-results row, so it can never
+acquire a p or q.
+
+## Legend length
+
+The legend body is capped at 450 words and tested. Provenance machinery (parity
+residuals, classification thresholds, window-coverage tallies, the repeated-CV
+companion, the rank-model rationale) lives in this document, the claim trace and
+the key-results table, not in the legend. A companion test asserts that twelve
+required concepts survive the compression, so the cap cannot be met by dropping
+substance.
+
+## Panel a provenance-note anchor
+
+The CombZ provenance note is anchored at panel-a x = 46, inside the CombZ box
+span (x 46–76), stacked beneath the direction note. It previously sat at x = 1,
+under the first-night Movement box (x 1–40), where a column-wise reader would
+attach a statement about CombZ reproduction to the movement window. A test
+asserts the anchor stays at or right of x = 46.
+
+## Non-blocking
+
+`NONBLOCKING_EXPORT_METADATA_VARIANCE` — the PDF carries `CreationDate` and
+`ModDate`, so rebuild hashes differ even when the drawn content is identical.
+Scientific reproducibility does not depend on byte-identical PDF metadata, and
+the repository has no deterministic-export standard to conform to. Not fixed.

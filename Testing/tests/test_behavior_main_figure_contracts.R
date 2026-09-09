@@ -552,8 +552,8 @@ if (!have_inputs) {
                              "behavior_main_claim_trace.csv"),
                    show_col_types = FALSE, progress = FALSE)
     check(nrow(ct) == 5L, paste0("claim trace must have 5 rows, has ", nrow(ct)))
-    check(all(c("claim_id", "manuscript_claim", "canonical_stage",
-                "canonical_table", "statistical_test", "multiplicity_family",
+    check(all(c("claim_id", "manuscript_claim", "scientific_owner_stage",
+                "owner_table", "statistical_test", "multiplicity_family",
                 "figure_panel", "source_data_file", "status") %in% names(ct)),
           "claim trace is missing a required column")
     check(setequal(unique(ct$figure_panel), c("A", "B", "C", "D")),
@@ -573,10 +573,15 @@ if (!have_inputs) {
     # The prospective claim must point at Stage 09, never at Stage 20.
     prosp <- ct %>% filter(.data$claim_id %in% c("CLAIM_BEHAV_04", "CLAIM_BEHAV_05"))
     check(nrow(prosp) == 2L, "the two prospective claims are missing")
-    check(all(prosp$canonical_stage == "09"),
+    check(all(prosp$scientific_owner_stage == "09"),
           paste0("the prospective claims must be owned by Stage 09; found: ",
-                 paste(prosp$canonical_stage, collapse = ", ")))
-    check(!any(grepl("Stage 20|stage20", prosp$canonical_table)),
+                 paste(prosp$scientific_owner_stage, collapse = ", ")))
+    # Stage 16 is a manuscript EXPORT layer, not a producer. It may legitimately
+    # be the immediate source of a panel's values, but it must never surface as
+    # the owner of a claim.
+    check(!any(grepl("16", prosp$scientific_owner_stage)),
+          "Stage 16 is an export layer and must not own a prospective claim")
+    check(!any(grepl("Stage 20|stage20", prosp$owner_table)),
           "Stage 20 must not own a prospective claim")
     # Panel C must not be sold as a categorical finding.
     c3 <- ct %>% filter(.data$claim_id == "CLAIM_BEHAV_03")
@@ -588,10 +593,10 @@ if (!have_inputs) {
     # The source manifest must be complete and self-describing.
     sm <- read_csv(file.path(sd_dir, "behavior_main_figure_source_manifest.csv"),
                    show_col_types = FALSE, progress = FALSE)
-    REQ_MANIFEST <- c("panel", "source_data_file", "canonical_producer_stage",
-                      "canonical_source_table", "resolution", "model_id",
-                      "test_id", "multiplicity_family", "input_hash",
-                      "output_hash")
+    REQ_MANIFEST <- c("panel", "source_data_file", "scientific_owner_stage",
+                      "immediate_source_stage", "source_table", "resolution",
+                      "model_id", "test_id", "multiplicity_family",
+                      "input_hash", "output_hash")
     check(all(REQ_MANIFEST %in% names(sm)),
           paste0("source manifest missing column(s): ",
                  paste(setdiff(REQ_MANIFEST, names(sm)), collapse = ", ")))
@@ -724,7 +729,7 @@ if (have_outputs) {
                             "behavior_main_claim_trace.csv"),
                   show_col_types = FALSE, progress = FALSE)
   c1 <- ct2[ct2$claim_id == "CLAIM_BEHAV_01", ]
-  check(grepl("build_later_outcome_combz", c1$canonical_stage[1], fixed = TRUE),
+  check(grepl("build_later_outcome_combz", c1$scientific_owner_stage[1], fixed = TRUE),
         "CLAIM_BEHAV_01 must be owned by the canonical CombZ producer")
   c2 <- ct2[ct2$claim_id == "CLAIM_BEHAV_02", ]
   check(grepl("descriptive|framework", c2$statistical_test[1], ignore.case = TRUE),
@@ -733,10 +738,10 @@ if (have_outputs) {
         "CLAIM_BEHAV_02 must record the panel B adjudication")
   for (cid in c("CLAIM_BEHAV_04", "CLAIM_BEHAV_05")) {
     r <- ct2[ct2$claim_id == cid, ]
-    check(r$canonical_stage[1] == "09",
+    check(r$scientific_owner_stage[1] == "09",
           paste0(cid, " must be owned by Stage 09, found '",
-                 r$canonical_stage[1], "'"))
-    check(!grepl("20|21|22|23|24|25", r$canonical_stage[1]),
+                 r$scientific_owner_stage[1], "'"))
+    check(!grepl("20|21|22|23|24|25", r$scientific_owner_stage[1]),
           paste0(cid, " must not be owned by a Stage 20+ analysis"))
   }
   ok("CombZ producer owns claim 01; Stage 09 owns claims 04 and 05")
@@ -772,9 +777,23 @@ if (have_outputs) {
         "the legend must not present an AUC for a continuous endpoint")
   check(grepl("internal", legtxt, ignore.case = TRUE),
         "the legend must state that validation is internal")
-  check(grepl("not a bootstrap", legtxt, ignore.case = TRUE) ||
-        grepl("NOT a bootstrap", legtxt, fixed = TRUE),
-        "the legend must state that the repeated-CV interval is not a bootstrap CI")
+  # A resampling interval must never be sold as a confidence interval. The
+  # compressed legend drops the repeated-CV companion entirely, which satisfies
+  # this by construction; the standing-guidance section still carries the rule.
+  # So the invariant is conditional: whoever MENTIONS such an interval must
+  # disclaim it. The one CI the legend does report - the Spearman bootstrap -
+  # is a genuine bootstrap CI and is allowed to be called one.
+  mentions_resampling <- grepl("repeated cross-validation|repeated-CV|split-to-split",
+                               legtxt, ignore.case = TRUE)
+  disclaims <- grepl("not a bootstrap|NOT a bootstrap|not call it a bootstrap",
+                     legtxt, ignore.case = TRUE)
+  check(!mentions_resampling || disclaims,
+        paste("the legend mentions a repeated-CV/split-to-split interval",
+              "without stating that it is not a bootstrap confidence interval"))
+  # The permutation null is a distribution, never a confidence interval.
+  check(!grepl("permutation[^.]{0,40}confidence interval", legtxt,
+               ignore.case = TRUE),
+        "the legend must not describe the permutation null as a confidence interval")
   ok("no external-validation phrasing; internal validation stated explicitly")
 }
 
@@ -980,6 +999,201 @@ if (have_outputs) {
         "the current four-panel main figure is missing from figures/main")
   ok(paste0(length(sup_files), " superseded artifact(s) retained with a README"))
 }
+
+# ---------------------------------------------------------------------------
+# [U1] Stage 09 is the scientific owner; Stage 16 is a transport layer.
+#
+# The figure legitimately READS Stage 16's manuscript export for the
+# animal-level and held-out tables. That is only acceptable while Stage 16
+# stays a passthrough. Two things are therefore asserted: Stage 16 contains no
+# machinery that could recompute a prediction, and the Source Data records the
+# owner and the immediate source as separate facts.
+# ---------------------------------------------------------------------------
+cat("\n[U1] Stage 16 is an export layer, not a producer\n")
+
+s16_path <- file.path("Analysis", "16_manuscript_behavior_report.R")
+check(file.exists(s16_path), "Stage 16 source is missing")
+s16 <- readLines(s16_path, warn = FALSE)
+s16_code <- s16[!grepl("^\\s*#", s16)]
+
+# No model fitting, no prediction, no resampling anywhere in Stage 16.
+BANNED_S16 <- c("\\blm\\s*\\(", "\\bglm\\s*\\(", "\\bbam\\s*\\(", "\\bgam\\s*\\(",
+                "\\blmer\\s*\\(", "\\bpredict\\s*\\(", "loo_lm_predict",
+                "prediction_metrics", "\\bset\\.seed\\s*\\(", "\\bsample\\s*\\(")
+for (pat in BANNED_S16) {
+  hit <- grep(pat, s16_code)
+  check(length(hit) == 0L,
+        paste0("Stage 16 must not recompute predictions, but matches '", pat,
+               "' at line(s) ", paste(hit, collapse = ", ")))
+}
+# The prediction columns must be COPIED, never derived. Assignments of the
+# form `observed_CombZ = observed` are verbatim carries; anything with an
+# operator or a call on the right-hand side would be a recomputation.
+# (Column-width specs like `observed_CombZ = 16` are not assignments of data
+# and are excluded by requiring an identifier on the right.)
+verbatim <- grep("(observed|predicted)_CombZ\\s*=\\s*(observed|predicted)\\s*,?\\s*$",
+                 trimws(s16_code), value = TRUE)
+check(length(verbatim) >= 2L,
+      "Stage 16 no longer carries observed/predicted through verbatim")
+derived <- grep(paste0("(observed|predicted)_CombZ\\s*=\\s*",
+                       "[^,#]*([-+*/^]|\\w+\\()"),
+                trimws(s16_code), value = TRUE)
+check(length(derived) == 0L,
+      paste0("Stage 16 derives a prediction column instead of copying it: ",
+             paste(derived, collapse = " | ")))
+ok("Stage 16 fits no model and copies observed/predicted verbatim")
+
+# Stage 27 must not name Stage 16 as a scientific owner anywhere.
+s27_owner_16 <- grep('owner_stage\\s*=\\s*"16"', s27_raw_all)
+check(length(s27_owner_16) == 0L,
+      paste0("Stage 27 names Stage 16 as a scientific owner at line(s) ",
+             paste(s27_owner_16, collapse = ", ")))
+ok("Stage 27 never records Stage 16 as a scientific owner")
+
+if (have_outputs) {
+  cat("\n[U1b] Source Data separates owner from immediate source\n")
+  sd_u <- mmm_publication_dir("source_data", publication_root = pub_root)
+  PROV <- c("scientific_owner_stage", "owner_table",
+            "immediate_source_stage", "source_table")
+  for (f in c("source_panel_a_framework_combz.csv",
+              "source_panel_b_first_active_movement.csv",
+              "source_panel_c_movement_vs_combz.csv",
+              "source_panel_d1_loao_predictions.csv",
+              "source_panel_d2_permutation_null.csv")) {
+    x <- read_csv(file.path(sd_u, f), show_col_types = FALSE, progress = FALSE)
+    check(all(PROV %in% names(x)),
+          paste0(f, " is missing provenance field(s): ",
+                 paste(setdiff(PROV, names(x)), collapse = ", ")))
+    check(!any(x$scientific_owner_stage == "16", na.rm = TRUE),
+          paste0(f, " records Stage 16 as a scientific owner"))
+  }
+  # The two panels that read the export must say so explicitly.
+  d1u <- read_csv(file.path(sd_u, "source_panel_d1_loao_predictions.csv"),
+                  show_col_types = FALSE, progress = FALSE) %>%
+    filter(.data$row_role == "heldout_prediction")
+  check(all(d1u$scientific_owner_stage == "09"),
+        "panel d1 held-out rows must be owned by Stage 09")
+  check(all(d1u$immediate_source_stage == "16"),
+        "panel d1 held-out rows must record Stage 16 as the immediate source")
+  check(all(grepl("primary_prediction_predictions", d1u$owner_table)),
+        "panel d1 must name Stage 09's canonical prediction table as owner_table")
+  ok("owner and immediate source recorded separately; Stage 09 owns panel d1")
+
+  # ------------------------------------------------------------------ [U2]
+  cat("\n[U2] claim ids and test ids live in separate columns\n")
+  kr2 <- read_csv(file.path(mmm_publication_dir("tables_manuscript",
+                                                publication_root = pub_root),
+                            "behavior_main_key_results.csv"),
+                  show_col_types = FALSE, progress = FALSE)
+  for (col in c("Claim id", "Test id", "Model or feature id", "Row role")) {
+    check(col %in% names(kr2),
+          paste0("the key-results table is missing the '", col, "' column"))
+  }
+  check(all(grepl("^CLAIM_BEHAV_0[1-5]$", kr2$`Claim id`)),
+        paste0("every key-results row needs a CLAIM_BEHAV_* claim id; found: ",
+               paste(unique(kr2$`Claim id`), collapse = ", ")))
+  check(!any(grepl("^S09_", kr2$`Claim id`)),
+        "a test id has leaked into the key-results claim column")
+  check(all(c("CLAIM_BEHAV_04", "CLAIM_BEHAV_05") %in% kr2$`Claim id`),
+        "both main-figure claims must appear in the key-results table")
+  # The headline rows must be the ones carrying the headline claims.
+  head_c <- kr2 %>% filter(.data$`Figure panel` == "c",
+                           .data$`Row role` == "headline_estimate")
+  check(nrow(head_c) == 1L && head_c$`Claim id`[1] == "CLAIM_BEHAV_04",
+        "panel c must have exactly one headline row carrying CLAIM_BEHAV_04")
+  check(head_c$`Test id`[1] == "S09_ASSOC_Movement_mean",
+        "panel c's headline row must carry its Stage 09 test id")
+  head_d <- kr2 %>% filter(.data$`Figure panel` == "d",
+                           .data$`Row role` == "headline_estimate")
+  check(nrow(head_d) == 1L && head_d$`Claim id`[1] == "CLAIM_BEHAV_05",
+        "panel d must have exactly one headline row carrying CLAIM_BEHAV_05")
+  check(grepl("^S09_PRED_", head_d$`Test id`[1]),
+        "panel d's headline row must carry a Stage 09 prediction test id")
+  # Every claim id used here must exist in the claim trace.
+  ct3 <- read_csv(file.path(mmm_publication_dir("audit", publication_root = pub_root),
+                            "behavior_main_claim_trace.csv"),
+                  show_col_types = FALSE, progress = FALSE)
+  check(all(unique(kr2$`Claim id`) %in% ct3$claim_id),
+        paste0("key-results claim id(s) absent from the claim trace: ",
+               paste(setdiff(unique(kr2$`Claim id`), ct3$claim_id),
+                     collapse = ", ")))
+  # CLAIM_BEHAV_02 is descriptive and must never acquire a p or q.
+  check(!("CLAIM_BEHAV_02" %in% kr2$`Claim id`),
+        "the descriptive framework claim must not appear as a key result")
+  ok("claim ids, test ids and model ids are separate and trace-resolvable")
+
+  # ------------------------------------------------------------------ [U3]
+  cat("\n[U3] the legend is a legend, not a Methods section\n")
+  leg_p <- file.path(mmm_publication_dir("legends", publication_root = pub_root),
+                     "behavior_main_figure_legend_draft.md")
+  leg_l <- readLines(leg_p, warn = FALSE)
+  b0 <- grep("^## Full legend", leg_l)
+  b1 <- grep("^## Wording", leg_l)
+  check(length(b0) == 1L && length(b1) == 1L && b1 > b0,
+        "cannot locate the legend body between its section headings")
+  body <- leg_l[(b0 + 1):(b1 - 1)]
+  body <- body[!grepl("^---\\s*$", body)]
+  n_words <- length(unlist(strsplit(trimws(paste(body, collapse = " ")), "\\s+")))
+  n_words <- n_words - sum(body == "")
+  check(n_words <= 450L,
+        paste0("the legend body is ", n_words,
+               " words; a Nature-style legend must stay at or under 450"))
+  check(n_words >= 250L,
+        paste0("the legend body is only ", n_words,
+               " words; it has probably lost required content"))
+  bt <- paste(body, collapse = " ")
+  # Concepts the legend may never lose, whatever else is trimmed.
+  REQUIRED_CONCEPTS <- c(
+    "later outcome group"                = "later outcome group",
+    "CombZ direction"                    = "LOWER CombZ = GREATER",
+    "CombZ is a composite"               = "unweighted mean",
+    "exact first-night window"           = "18:30 inclusive to 06:30 exclusive",
+    "one animal per point"               = "One point = one animal",
+    "pooled Spearman"                    = "pooled Spearman",
+    "bootstrap CI"                       = "bootstrap 95% confidence interval",
+    "n animals"                          = "n = 111",
+    "leave-one-animal-out"               = "leave-one-animal-out",
+    "1000 full-refit permutations"       = "1000 permutation",
+    "permutation p"                      = "permutation p = 1/1001",
+    "internal validation"                = "internal validation")
+  for (nm in names(REQUIRED_CONCEPTS)) {
+    check(grepl(REQUIRED_CONCEPTS[[nm]], bt, fixed = TRUE),
+          paste0("the legend no longer states: ", nm))
+  }
+  # Overclaiming vocabulary, and provenance machinery that belongs elsewhere.
+  BANNED_LEGEND <- c("accurately predicted", "prospectively validated",
+                     "independent validation", "external validation of",
+                     "resilience biomarker", "dCombZ", "sha256",
+                     ".csv", "analysis_ready/")
+  for (b in BANNED_LEGEND) {
+    check(!grepl(b, bt, fixed = TRUE),
+          paste0("the legend must not contain '", b, "'"))
+  }
+  ok(paste0("legend body is ", n_words,
+            " words and retains every required concept"))
+}
+
+# ------------------------------------------------------------------ [U4]
+cat("\n[U4] panel a anchors the provenance note to the CombZ column\n")
+hlp <- readLines(file.path("Functions", "behavior_main_figure_helpers.R"),
+                 warn = FALSE)
+prov_i <- grep("label = provenance_note", hlp)
+check(length(prov_i) == 1L, "cannot locate the panel a provenance annotation")
+# Walk back to the annotate() call that carries it and read its x anchor.
+anchor <- NA_real_
+for (i in seq(prov_i, max(1L, prov_i - 4L))) {
+  m <- regmatches(hlp[i], regexpr("annotate\\(\"text\", x = [0-9.]+", hlp[i]))
+  if (length(m) == 1L) { anchor <- as.numeric(sub(".*x = ", "", m)); break }
+}
+check(is.finite(anchor), "cannot read the provenance annotation's x anchor")
+# The combz box spans x 46-76; the first-night Movement box spans x 1-40.
+check(anchor >= 46,
+      paste0("the provenance note is anchored at x = ", anchor,
+             ", which is under the first-night Movement box (x 1-40); it ",
+             "describes CombZ and must sit under the CombZ box (x 46-76)"))
+dir_i <- grep("label = direction_note", hlp)
+check(length(dir_i) == 1L, "cannot locate the panel a direction annotation")
+ok(paste0("provenance note anchored at x = ", anchor, ", with the CombZ column"))
 
 if (length(skipped) > 0L) {
   cat("\nSKIPPED (environment-dependent):\n")

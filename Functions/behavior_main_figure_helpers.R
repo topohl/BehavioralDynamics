@@ -612,11 +612,35 @@ bmf_panel_e_performance <- function(perf_df, baseline = NULL,
 
 #' Standard Source Data frame for one behavior-figure panel.
 #'
-#' Mirrors mmm_source_data() but keeps the panel-id vocabulary of this figure and
-#' records the producing stage and the canonical table the values came from, so
-#' a Source Data file always names its own provenance.
-bmf_source_data <- function(df, panel_id, canonical_stage, canonical_table,
-                            cols) {
+#' Mirrors mmm_source_data() but keeps the panel-id vocabulary of this figure.
+#'
+#' PROVENANCE IS TWO FACTS, NOT ONE. A single "producer" column cannot carry
+#' them both without lying about one of them:
+#'
+#'   scientific_owner_stage  the stage whose code DEFINES the quantity - fits
+#'                           the model, chooses the window, runs the test. This
+#'                           is the stage a claim belongs to.
+#'   immediate_source_stage  the stage whose file this figure actually READ. It
+#'                           may be a validated export layer that filters and
+#'                           renames but computes nothing.
+#'
+#' They are usually the same and `source_stage` then defaults to `owner_stage`.
+#' Where they differ the difference is deliberate and must stay visible: panel
+#' d1 reads Stage 16's manuscript export of Stage 09's held-out predictions, so
+#' the owner is 09 and the immediate source is 16. Collapsing that into one
+#' column previously made Stage 16 look like the producer of the LOAO
+#' predictions, which it is not - it contains no model fit and no arithmetic on
+#' the prediction columns.
+#'
+#' @param owner_stage stage that scientifically owns the values.
+#' @param owner_table the canonical table in which the owner stage DEFINES the
+#'   values, relative to the analysis root.
+#' @param source_stage stage that emitted the file actually read; defaults to
+#'   `owner_stage` for the ordinary case where the producer is also the source.
+#' @param source_table the file actually read; defaults to `owner_table`.
+bmf_source_data <- function(df, panel_id, owner_stage, owner_table, cols,
+                            source_stage = owner_stage,
+                            source_table = owner_table) {
   keep <- intersect(cols, names(df))
   missing_cols <- setdiff(cols, names(df))
   if (length(missing_cols) > 0L) {
@@ -625,8 +649,11 @@ bmf_source_data <- function(df, panel_id, canonical_stage, canonical_table,
   }
   out <- df[, keep, drop = FALSE]
   tibble::as_tibble(cbind(
-    data.frame(panel_id = panel_id, canonical_stage = canonical_stage,
-               canonical_table = canonical_table, stringsAsFactors = FALSE),
+    data.frame(panel_id = panel_id,
+               scientific_owner_stage = owner_stage,
+               owner_table = owner_table,
+               immediate_source_stage = source_stage,
+               source_table = source_table, stringsAsFactors = FALSE),
     out
   ))
 }
@@ -948,9 +975,15 @@ bmf_panel_a_framework <- function(domains,
     annotate("text", x = cmp_x0, y = cmp_top + 1.3, hjust = 0, vjust = 0,
              size = pt_head, colour = ink[["text"]],
              label = "Later outcome components") +
+    # Both notes are anchored to the COMBZ COLUMN (combz box spans x 46-76),
+    # because both describe the composite and the outcome assignment. The
+    # provenance note previously sat at x = 1, directly under the first-night
+    # Movement box, where a reader scanning column-wise would attach a
+    # statement about CombZ reproduction to the movement window instead.
+    # Stacked: direction first, then provenance beneath it.
     annotate("text", x = 46, y = y3b - 1.4, hjust = 0, vjust = 1,
              size = pt_note, colour = ink[["text"]], label = direction_note) +
-    annotate("text", x = 1, y = y3b - 1.4, hjust = 0, vjust = 1,
+    annotate("text", x = 46, y = y3b - 3.6, hjust = 0, vjust = 1,
              size = pt_note, colour = ink[["caveat"]],
              label = provenance_note, lineheight = 1.05) +
     geom_point(data = chips,

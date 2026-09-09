@@ -444,15 +444,22 @@ figman <- list(); srcman <- list()
 wsrc <- function(x, f) {
   write_csv(x, file.path(dirs$source_data, f)); f
 }
-reg <- function(fm, panel, src_file, src_key, src_table, stage, note = NA_character_) {
+# `stage` is the SCIENTIFIC OWNER, never the transport layer. Where the figure
+# reads a validated export instead of the owner's own table, `source_stage`
+# records that separately; see bmf_source_data() for why one column cannot
+# carry both facts.
+reg <- function(fm, panel, src_file, src_key, src_table, stage,
+                note = NA_character_, source_stage = stage) {
   figman[[length(figman) + 1L]] <<- fm %>%
-    mutate(panel_id = panel, canonical_stage = stage, path_key = src_key,
+    mutate(panel_id = panel, scientific_owner_stage = stage,
+           immediate_source_stage = source_stage, path_key = src_key,
            script = "27_build_behavior_main_figure.R", note = note)
   if (!is.na(src_file)) {
     srcman[[length(srcman) + 1L]] <<- tibble(
       figure_file = paste0(fm$stem, ".pdf"), panel = panel,
-      source_data_file = src_file, canonical_producer_stage = stage,
-      path_key = src_key, canonical_source_table = src_table)
+      source_data_file = src_file, scientific_owner_stage = stage,
+      immediate_source_stage = source_stage,
+      path_key = src_key, source_table = src_table)
   }
   invisible(fm)
 }
@@ -569,9 +576,14 @@ MOVEMENT_LAB <- "Movement (transitions / 10 min)"
 pC <- bmf_panel_c_first_night(animal, c_summary, y_lab = MOVEMENT_LAB)
 
 srcC <- bind_rows(
-  bmf_source_data(animal, "B", "09",
-                  "pipeline/09_early_prediction/10min/tables/model_ladder_input.csv",
-                  c("AnimalID", "Sex", "Group", "Movement_mean")) %>%
+  # Same owner/source split as panel d1: Stage 09's model frame DEFINES
+  # Movement_mean; Stage 16's manuscript export is what this figure reads.
+  bmf_source_data(animal, "B", owner_stage = "09",
+                  owner_table = paste0("pipeline/09_early_prediction/10min/",
+                                       "tables/model_ladder_input.csv"),
+                  cols = c("AnimalID", "Sex", "Group", "Movement_mean"),
+                  source_stage = "16",
+                  source_table = "manuscript/behavior/animal_level_source_data.csv") %>%
     mutate(row_role = "animal"),
   bmf_source_data(c_summary, "B", "27 (descriptive summary of the plotted points)",
                   "derived from the animal rows in this same file",
@@ -593,9 +605,12 @@ pD <- bmf_panel_d_scatter(  # show_trend = FALSE: the quintile-median guide is n
   y_lab = "Later CombZ")
 
 srcD <- bind_rows(
-  bmf_source_data(animal, "C", "09",
-                  "pipeline/09_early_prediction/10min/tables/model_ladder_input.csv",
-                  c("AnimalID", "Sex", "Group", "Movement_mean", "CombZ")) %>%
+  bmf_source_data(animal, "C", owner_stage = "09",
+                  owner_table = paste0("pipeline/09_early_prediction/10min/",
+                                       "tables/model_ladder_input.csv"),
+                  cols = c("AnimalID", "Sex", "Group", "Movement_mean", "CombZ"),
+                  source_stage = "16",
+                  source_table = "manuscript/behavior/animal_level_source_data.csv") %>%
     mutate(row_role = "animal"),
   # the quantile guide is NOT drawn in the main panel; its values are retained
   # here so the candidate version stays reproducible from Source Data
@@ -702,10 +717,22 @@ pE2_summary <- bmf_panel_e_performance(
 # Panel D Source Data is split by subpanel, so each file reproduces exactly one
 # plot: d1 the held-out per-animal predictions, d2 the actual permutation draws.
 srcD1 <- bind_rows(
-  bmf_source_data(ho_primary, "D", "16",
-                  "manuscript/behavior/prediction_source_data.csv",
-                  c("AnimalID", "Sex", "Group", "observed_CombZ",
-                    "predicted_CombZ", "model_id", "validation_scheme")) %>%
+  # THE ONE PLACE WHERE OWNER AND SOURCE DIFFER. Stage 09 fits the model and
+  # runs the leave-one-animal-out loop, so it owns these predictions and owns
+  # CLAIM_BEHAV_05. Stage 16 is a validated manuscript EXPORT layer: it filters
+  # to the two canonical behavior-only models and renames observed/predicted to
+  # observed_CombZ/predicted_CombZ, and contains no model fit, no predict() and
+  # no arithmetic on the prediction columns. The values are bit-identical to
+  # Stage 09's primary_prediction_predictions.csv, which the contract test
+  # asserts with identical(). Recording both stages keeps the export layer from
+  # reading as the scientific producer.
+  bmf_source_data(ho_primary, "D", owner_stage = "09",
+                  owner_table = paste0("pipeline/09_early_prediction/10min/",
+                                       "tables/primary_prediction_predictions.csv"),
+                  cols = c("AnimalID", "Sex", "Group", "observed_CombZ",
+                           "predicted_CombZ", "model_id", "validation_scheme"),
+                  source_stage = "16",
+                  source_table = "manuscript/behavior/prediction_source_data.csv") %>%
     mutate(row_role = "heldout_prediction"),
   bmf_source_data(e_perf, "D", "09",
                   "pipeline/09_early_prediction/10min/tables/primary_prediction_{performance,permutation_test}.csv",
@@ -759,22 +786,26 @@ panel_specs <- list(
        panel = "A", src = fA, key = "behavior.later_outcome_combz",
        tbl = "combz_component_definition.csv + combz_classification_thresholds.csv",
        stage = "canonical-endpoint + framework"),
+  # `stage` is always the SCIENTIFIC OWNER. `src_stage` names the layer the
+  # figure actually read, which for the animal-level and held-out tables is
+  # Stage 16's validated manuscript export of Stage 09 values.
   list(p = pC, stem = "panel_b_first_active_movement", w = W * 0.42, h = 56,
        panel = "B", src = fC, key = "behavior.first_night_movement",
-       tbl = "model_ladder_input.csv", stage = "09"),
+       tbl = "model_ladder_input.csv", stage = "09", src_stage = "16"),
   list(p = pD, stem = "panel_c_movement_vs_combz", w = W * 0.52, h = 58,
        panel = "C", src = fD, key = "behavior.first_night_combz_association",
-       tbl = "primary_movement_entropyacf1_associations.csv", stage = "09"),
-  # Panel d1's Source Data carries the Stage 16 held-out predictions AND the
-  # Stage 09 cross-validation performance, so its provenance names both.
+       tbl = "primary_movement_entropyacf1_associations.csv", stage = "09",
+       src_stage = "16"),
+  # Panel d1 draws Stage 09's held-out predictions, read through the Stage 16
+  # export, alongside Stage 09's own CV performance table. Stage 09 owns both.
   # path_key stays single-valued because it is what the input hash is computed
   # from.
   list(p = pE1, stem = "panel_d1_loao_predictions", w = W * 0.42, h = 58,
        panel = "D", src = fD1, key = "behavior.early_prediction_heldout",
-       tbl = paste("16: manuscript/behavior/prediction_source_data.csv;",
-                   "09: pipeline/09_early_prediction/10min/tables/",
+       tbl = paste("09: primary_prediction_predictions.csv +",
                    "primary_prediction_{performance,permutation_test}.csv"),
-       stage = "16 (held-out predictions) + 09 (CV performance and permutation)"),
+       stage = "09",
+       src_stage = "16 (held-out predictions) + 09 (CV performance)"),
   list(p = pE2, stem = "panel_d2_permutation_null", w = W * 0.52, h = 58,
        panel = "D", src = fD2, key = "behavior.early_prediction",
        tbl = "early_prediction_permutation_draws.csv", stage = "09"),
@@ -782,7 +813,8 @@ panel_specs <- list(
   list(p = pA_dist, stem = "candidate_combz_distribution_by_group", w = W * 0.42,
        h = 52, panel = "A-cand", src = NA_character_,
        key = "behavior.combz_definition",
-       tbl = "animal_level_source_data.csv", stage = "16"),
+       tbl = "animal_level_source_data.csv", stage = "canonical-endpoint",
+       src_stage = "16"),
   list(p = pE2_summary,
        stem = "candidate_d2_null_summary_intervals", w = W * 0.40, h = 58,
        panel = "D-cand", src = NA_character_, key = "behavior.early_prediction",
@@ -791,7 +823,8 @@ panel_specs <- list(
 for (s in panel_specs) {
   fm <- mmm_export_figure(s$p, dirs$figures_panels, s$stem, s$w, s$h,
                           png_preview = FALSE)
-  reg(fm, s$panel, s$src, s$key, s$tbl, s$stage)
+  reg(fm, s$panel, s$src, s$key, s$tbl, s$stage,
+      source_stage = if (is.null(s$src_stage)) s$stage else s$src_stage)
 }
 
 # ============================================================== MAIN FIGURE
@@ -931,8 +964,9 @@ fm_main <- mmm_export_figure(main_fig, dirs$figures_main, MAIN_FIGURE_STEM,
                              W, MAIN_H, png_preview = FALSE)
 reg(fm_main, paste(MAIN_FIGURE_PANELS, collapse = "-"), NA_character_, "multiple",
     "see source_data/behavior_main_figure_source_manifest.csv",
-    "canonical-endpoint + 09 + 16",
-    note = "composed four-panel main figure")
+    "canonical-endpoint + 09",
+    note = "composed four-panel main figure",
+    source_stage = "canonical-endpoint + 09 + 16")
 
 fm_prev <- mmm_save_pub(main_fig,
                         file.path(dirs$figures_previews,
@@ -1093,6 +1127,33 @@ if (!is.null(broad) && all(c("Domain", "PhaseClass", "Sex", "contrast",
 cat("  writing tables, manifests, legends ...\n")
 
 # ============================================================ KEY RESULTS
+#
+# A CLAIM ID AND A TEST ID ARE DIFFERENT THINGS and must not share a column.
+# The upstream frozen-results table keys its rows by an ANALYSIS id
+# (S09_ASSOC_Movement_mean, S09_PRED_movement_mean); those are test ids. The
+# manuscript claims are CLAIM_BEHAV_01..05 and live in the claim trace.
+# Writing the upstream ids into a column headed "Claim id" previously meant
+# CLAIM_BEHAV_04 - the single headline number of this figure - appeared nowhere
+# in the key-results table and could not be joined to the trace.
+#
+# Every inferential row now carries the claim it serves, plus a `Row role` that
+# says HOW it serves it: the headline estimate, the rest of its BH family, a
+# supporting model, or the permutation reference. Family and supporting rows
+# share their claim id because they are what makes that claim's q and null
+# interpretable; the role column keeps them from reading as separate claims.
+KEY_RESULT_CLAIM <- c(
+  S09_ASSOC_Movement_mean          = "CLAIM_BEHAV_04",
+  S09_ASSOC_Movement_rmssd         = "CLAIM_BEHAV_04",
+  S09_ASSOC_Entropy_acf1           = "CLAIM_BEHAV_04",
+  S09_PRED_movement_mean           = "CLAIM_BEHAV_05",
+  S09_PRED_primary_behavior_family = "CLAIM_BEHAV_05")
+KEY_RESULT_ROLE <- c(
+  S09_ASSOC_Movement_mean          = "headline_estimate",
+  S09_ASSOC_Movement_rmssd         = "multiplicity_family_member",
+  S09_ASSOC_Entropy_acf1           = "multiplicity_family_member",
+  S09_PRED_movement_mean           = "headline_estimate",
+  S09_PRED_primary_behavior_family = "supporting_model")
+
 key_results <- bind_rows(
   frozen_res %>%
     filter(str_detect(.data$claim_id, "^S09_ASSOC_|^S09_PRED_")) %>%
@@ -1111,7 +1172,10 @@ key_results <- bind_rows(
       `Multiplicity family` = .data$multiplicity_family,
       `n animals` = .data$n_animals,
       `Robustness status` = .data$robustness_status,
-      `Claim id` = .data$claim_id,
+      `Claim id` = unname(KEY_RESULT_CLAIM[.data$claim_id]),
+      `Test id` = .data$claim_id,
+      `Model or feature id` = .data$source_row_key,
+      `Row role` = unname(KEY_RESULT_ROLE[.data$claim_id]),
       `Figure panel` = if_else(str_detect(.data$claim_id, "^S09_ASSOC_"),
                                "c", "d")),
   # Panel b's descriptive group summary. Included because the figure shows the
@@ -1133,7 +1197,11 @@ key_results <- bind_rows(
       `n animals` = .data$n_animals,
       `Robustness status` = paste("Descriptive distribution only; no categorical",
                                   "contrast is claimed or annotated"),
-      `Claim id` = "CLAIM_BEHAV_03", `Figure panel` = "b"),
+      `Claim id` = "CLAIM_BEHAV_03",
+      `Test id` = NA_character_,
+      `Model or feature id` = "not applicable (distribution only)",
+      `Row role` = "descriptive_context",
+      `Figure panel` = "b"),
   # The permutation reference for the headline prediction, carried through from
   # the persisted draws. The former row for the single FDR-supported domain cell
   # is deliberately NOT included: no main panel displays that contrast, so
@@ -1160,8 +1228,27 @@ key_results <- bind_rows(
         .data$n_permutations, " permutations, seed ", .data$seed,
         "; null median and 2.5-97.5% quantiles recomputed from the persisted ",
         "draws and identical to the published summary"),
-      `Claim id` = "CLAIM_BEHAV_05", `Figure panel` = "d")) %>%
-  arrange(match(.data$`Figure panel`, c("b", "c", "d")))
+      `Claim id` = "CLAIM_BEHAV_05",
+      `Test id` = "S09_PERM_movement_mean",
+      `Model or feature id` = .data$model,
+      `Row role` = "permutation_reference",
+      `Figure panel` = "d")) %>%
+  arrange(match(.data$`Figure panel`, c("b", "c", "d")),
+          match(.data$`Row role`,
+                c("headline_estimate", "multiplicity_family_member",
+                  "supporting_model", "permutation_reference",
+                  "descriptive_context")))
+
+# Contract: no test id may leak into the claim column, every inferential row
+# carries a claim, and both main-figure claims are present.
+.kr_claims <- unique(na.omit(key_results$`Claim id`))
+if (any(grepl("^S09_", .kr_claims)) ||
+    !all(c("CLAIM_BEHAV_04", "CLAIM_BEHAV_05") %in% .kr_claims) ||
+    anyNA(key_results$`Claim id`)) {
+  stop("Key-results claim ids are malformed: every row needs a CLAIM_BEHAV_* ",
+       "id, no S09_* test id may appear in the claim column, and both ",
+       "CLAIM_BEHAV_04 and CLAIM_BEHAV_05 must be present.", call. = FALSE)
+}
 write_csv(key_results, file.path(dirs$tables_manuscript,
                                  "behavior_main_key_results.csv"))
 
@@ -1178,14 +1265,14 @@ write_csv(input_manifest,
 src_manifest <- bind_rows(srcman) %>%
   mutate(
     resolution = case_when(
-      canonical_producer_stage == "09" ~ "10min",
-      canonical_producer_stage == "14" ~ "10min (5min backbone for non-HMM domains)",
-      grepl("^03", canonical_producer_stage) ~ "10min",
-      grepl("canonical-endpoint", canonical_producer_stage) ~
+      scientific_owner_stage == "09" ~ "10min",
+      scientific_owner_stage == "14" ~ "10min (5min backbone for non-HMM domains)",
+      grepl("^03", scientific_owner_stage) ~ "10min",
+      grepl("canonical-endpoint", scientific_owner_stage) ~
         "per animal; the composite has no time resolution",
-      grepl("framework", canonical_producer_stage) ~
+      grepl("framework", scientific_owner_stage) ~
         "not applicable (measurement framework)",
-      grepl("16", canonical_producer_stage) ~ "10min (inherited)",
+      grepl("16", immediate_source_stage) ~ "10min (inherited)",
       TRUE ~ NA_character_),
     # Panel letters follow the FINAL four-panel architecture:
     #   A definitional framework | B descriptive | C and D inferential
@@ -1196,7 +1283,7 @@ src_manifest <- bind_rows(srcman) %>%
       panel == "D" ~ "stage09_primary_prediction_movement_mean",
       panel == "ED-long" ~ "stage03_longitudinal_movement_descriptive",
       panel == "ED-firstnight" ~ "stage14_first_night_domain_within_sex_marginal_contrasts",
-      TRUE ~ "see canonical_source_table"),
+      TRUE ~ "see source_table"),
     test_id = case_when(
       panel == "C" ~ "spearman_rank_correlation_with_bootstrap_ci",
       panel == "D" ~ "loao_out_of_sample_r2_with_full_refit_outcome_permutation",
@@ -1222,7 +1309,12 @@ write_csv(src_manifest, file.path(dirs$source_data,
 
 # ============================================================== CLAIM TRACE
 claims <- tribble(
-  ~claim_id, ~manuscript_claim, ~claim_class, ~canonical_stage, ~canonical_table,
+  # scientific_owner_stage is the stage whose code DEFINES the claimed
+  # quantity. It is never the transport layer: panels b, c and d1 are read
+  # through Stage 16's validated manuscript export, but Stage 16 fits no
+  # model and owns no claim, so it appears in the Source Data provenance
+  # columns and never here.
+  ~claim_id, ~manuscript_claim, ~claim_class, ~scientific_owner_stage, ~owner_table,
   ~statistical_test, ~multiplicity_family, ~figure_panel, ~source_data_file,
   ~status,
 
