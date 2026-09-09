@@ -1626,7 +1626,16 @@ run_primary_outcome_permutation <- function(dat, predictors, model_id, n_perm, s
     empirical_p = (sum(finite_null >= observed_statistic) + 1) / (length(finite_null) + 1),
     n_permutations = n_perm,
     cv_scheme = "leave-one-animal-out outcome permutation with full refit",
-    seed = seed
+    seed = seed,
+    # PERSISTENCE ONLY. The per-permutation statistics were already computed
+    # above and were previously discarded, which left downstream figures unable
+    # to show the real null distribution and forced them to fake a density from
+    # the published quantiles. Carrying them out changes no computation: the
+    # RNG stream, the fold structure, the model, the metric and every summary
+    # column above are untouched, and this list-column is stripped again before
+    # primary_prediction_permutation_test.csv is written, so that file stays
+    # byte-identical. Asserted by Testing/tests/test_stage09_permutation_draws.R.
+    null_draws = list(null_statistics)
   )
 }
 
@@ -1793,6 +1802,71 @@ if (!identical(primary_prediction_performance$model_id, expected_primary_model_i
   stop("The canonical primary prediction summary contains unintended or missing models.", call. = FALSE)
 }
 write_table(primary_prediction_performance, file.path(output_dir, "tables", "primary_prediction_performance.csv"))
+
+# ---------------------------------------------- permutation draw persistence
+# PERSISTENCE ONLY: write out the per-permutation statistics that
+# run_primary_outcome_permutation() already computed, so a figure can show the
+# REAL null distribution instead of reconstructing a density from published
+# quantiles. Nothing is recomputed here and no scientific value changes.
+#
+# The summary table is written WITHOUT the list-column, so
+# primary_prediction_permutation_test.csv keeps its original schema and values.
+primary_prediction_permutation_draws <- primary_prediction_permutation_test %>%
+  select(model, model_label, observed_statistic_name, observed_statistic,
+         n_permutations, cv_scheme, seed, null_draws) %>%
+  mutate(
+    feature_set = map_chr(model, ~paste(primary_prediction_specs[[.x]],
+                                        collapse = " + "))
+  ) %>%
+  tidyr::unnest_longer(null_draws, values_to = "performance_value",
+                       indices_to = "permutation_id") %>%
+  transmute(
+    permutation_id,
+    seed,
+    model_id = model,
+    model_label,
+    feature_set,
+    endpoint = outcome_col,
+    cv_scheme,
+    performance_metric = observed_statistic_name,
+    performance_value,
+    is_observed = FALSE,
+    n_permutations
+  ) %>%
+  bind_rows(
+    primary_prediction_permutation_test %>%
+      transmute(
+        permutation_id = 0L,
+        seed,
+        model_id = model,
+        model_label,
+        feature_set = map_chr(model, ~paste(primary_prediction_specs[[.x]],
+                                            collapse = " + ")),
+        endpoint = outcome_col,
+        cv_scheme,
+        performance_metric = observed_statistic_name,
+        performance_value = observed_statistic,
+        is_observed = TRUE,
+        n_permutations
+      )
+  ) %>%
+  arrange(model_id, desc(is_observed), permutation_id)
+
+# Contract: one observed row plus exactly n_permutations null rows per model.
+.draw_counts <- primary_prediction_permutation_draws %>%
+  group_by(model_id) %>%
+  summarise(n_null = sum(!is_observed), n_obs = sum(is_observed),
+            declared = dplyr::first(n_permutations), .groups = "drop")
+if (!all(.draw_counts$n_null == .draw_counts$declared) ||
+    !all(.draw_counts$n_obs == 1L)) {
+  stop("Permutation draw persistence contract violated: expected exactly ",
+       "n_permutations null draws and one observed row per model.", call. = FALSE)
+}
+write_table(primary_prediction_permutation_draws,
+            file.path(output_dir, "tables", "early_prediction_permutation_draws.csv"))
+
+primary_prediction_permutation_test <- primary_prediction_permutation_test %>%
+  select(-null_draws)
 write_table(primary_prediction_permutation_test, file.path(output_dir, "tables", "primary_prediction_permutation_test.csv"))
 
 behavior_predictors <- c("Movement_mean", "Movement_rmssd", "Entropy_acf1")

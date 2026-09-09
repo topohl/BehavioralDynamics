@@ -20,6 +20,8 @@ source("Analysis/_pipeline_setup.R")
 source_mmm_helper("mmm_publication_theme.R")
 source_mmm_helper("project_paths.R")
 source_mmm_helper("behavior_main_figure_helpers.R")
+# provides MMM_FIRST_NIGHT_DISPLAYED_DOMAINS, the validated domain allowlist
+source_mmm_helper("first_night_domain_helpers.R")
 
 fail <- function(msg) stop("FAIL: ", msg, call. = FALSE)
 check <- function(cond, msg) if (!isTRUE(cond)) fail(msg) else invisible(TRUE)
@@ -80,6 +82,8 @@ check("behavior.early_prediction_heldout" %in% mmm_path_keys(),
 # Stage 27 must obtain every input through the registry, never by pasting a
 # stage directory together itself.
 s27 <- read_code(STAGE27)
+s27_code <- s27                       # comment-stripped, for content checks
+s27_raw_all <- readLines(STAGE27, warn = FALSE)   # raw, for line numbers
 check(any(grepl("mmm_path_get(", s27, fixed = TRUE)),
       "Stage 27 does not call mmm_path_get(); it is not using the path layer")
 check(!any(grepl("behavior_stage_tables(", s27, fixed = TRUE)) &&
@@ -191,7 +195,15 @@ BANNED_CALLS <- c(
   "bam(", "gam(", "glm(", "lm(", "lmer(", "gamm(",
   "p.adjust(", "cor.test(", "t.test(", "wilcox.test(", "chisq.test(",
   "aov(", "anova(", "emmeans", "boot(", "mvrnorm(", "predict(",
-  "sample(", "vcov(", "confint(", "quantile(")
+  "sample(", "vcov(", "confint(")
+# `quantile(` is NOT blanket-banned: Stage 27 legitimately recomputes the null
+# quantiles from the persisted permutation draws for the sole purpose of
+# asserting that they reproduce the published summaries, and hard-stopping if
+# they do not. That is a guard, not a second statistical pipeline. The rule
+# below is therefore targeted rather than blanket: every quantile() must be
+# namespaced, must sit inside that verification block, and its result must
+# never reach a written output.
+VERIFICATION_MARKERS <- c("draw_checks", "from_draws")
 # geom_smooth would silently fit a model inside the plotting layer.
 BANNED_LAYERS <- c("geom_smooth", "stat_smooth", "method = \"lm\"",
                    "method = \"loess\"", "stat_summary")
@@ -205,6 +217,29 @@ for (b in c(BANNED_CALLS, BANNED_LAYERS)) {
 }
 ok(paste0("none of ", length(c(BANNED_CALLS, BANNED_LAYERS)),
           " banned calls present in Stage 27"))
+
+# Targeted rule for the one permitted descriptive/verification call.
+q_lines <- code_grep(STAGE27, "quantile(")
+for (i in q_lines) {
+  ctx <- paste(s27_raw_all[max(1L, i - 6L):min(length(s27_raw_all), i + 6L)],
+               collapse = " ")
+  check(grepl("stats::quantile(", s27_raw_all[i], fixed = TRUE),
+        paste0("quantile() at Stage 27 line ", i, " must be namespaced ",
+               "stats::quantile() so it is unambiguously the base function"))
+  check(any(vapply(VERIFICATION_MARKERS,
+                   function(m) grepl(m, ctx, fixed = TRUE), logical(1))),
+        paste0("quantile() at Stage 27 line ", i, " is outside the permutation-",
+               "draw verification block; the assembler may not derive ",
+               "quantiles for display"))
+}
+# and the verification frame must never be exported
+for (m in VERIFICATION_MARKERS) {
+  wrote <- grep(paste0("write_csv(", m), s27_raw_all, fixed = TRUE)
+  check(length(wrote) == 0L,
+        paste0("the verification frame '", m, "' must not be written to an output"))
+}
+ok(paste0(length(q_lines), " quantile() call(s), all namespaced and confined to ",
+          "the draw-verification guard"))
 
 # Redefinition of the science is banned. These are REGEX and deliberately
 # narrow: `CombZ = ` also legitimately names an element of a diagnostic vector
@@ -306,7 +341,7 @@ ok("Stage 27 writes only through the configured publication root")
 budget_paths <- unlist(lapply(names(MMM_PUBLICATION_SUBDIRS), function(k)
   file.path(mmm_publication_dir(k, publication_root = mmm_publication_root(
     project_root = MMM_PROJECT_ROOT_DEFAULT)),
-    "source_panel_e_out_of_sample_prediction.csv")))
+    "source_panel_d1_loao_predictions.csv")))
 mmm_assert_publication_path_budget(budget_paths, "Stage 27 intended tree")
 check(max(nchar(budget_paths)) <= MMM_MAX_OUTPUT_PATH_CHARS,
       paste0("longest intended Stage 27 path (", max(nchar(budget_paths)),
@@ -386,7 +421,7 @@ if (!have_inputs) {
     s09_key <- canonical_animal_id(s09$AnimalNum)
 
     cat("\n[5] Panel C animal IDs match the canonical first-night animals\n")
-    pc <- src("source_panel_c_first_active_movement.csv")
+    pc <- src("source_panel_b_first_active_movement.csv")
     pc_animals <- pc %>% filter(.data$row_role == "animal")
     check(nrow(pc_animals) == nrow(s09),
           paste0("Panel C has ", nrow(pc_animals), " animals, canonical has ",
@@ -396,7 +431,7 @@ if (!have_inputs) {
     ok(paste0("Panel C animal set identical to canonical (n = ", nrow(s09), ")"))
 
     cat("\n[6] Panel D values match the canonical Stage 09 association input\n")
-    pd <- src("source_panel_d_movement_vs_combz.csv") %>%
+    pd <- src("source_panel_c_movement_vs_combz.csv") %>%
       filter(.data$row_role == "animal") %>%
       mutate(.k = canonical_animal_id(.data$AnimalID))
     ref <- tibble::tibble(.k = s09_key, ref_move = s09$Movement_mean,
@@ -414,7 +449,7 @@ if (!have_inputs) {
               format(max(dm, dz)), ", tolerance ", format(TOL), ")"))
 
     cat("\n[7] Panel E contains only held-out predictions\n")
-    pe <- src("source_panel_e_out_of_sample_prediction.csv")
+    pe <- src("source_panel_d1_loao_predictions.csv")
     pe_pred <- pe %>% filter(.data$row_role == "heldout_prediction")
     schemes <- unique(as.character(pe_pred$validation_scheme))
     check(length(schemes) >= 1L, "Panel E carries no validation scheme label")
@@ -481,18 +516,36 @@ if (!have_inputs) {
                        sep = "=", collapse = ", ")))
     check(identical(rec$palette[c("CON", "RES", "SUS")], EXPECTED_COLOURS),
           "the palette recorded at build time is not the manuscript palette")
-    # Independent re-check against Stage 16, not via the build record.
+    # Panel a is now DEFINITIONAL metadata, not plotted points, so the
+    # independent CombZ re-check is done against panel c, which does plot it.
     a16 <- read_csv(mmm_path_get("behavior.combz_definition", "animal_level"),
                     show_col_types = FALSE, progress = FALSE)
-    pa <- src("source_panel_a_combz_definition.csv") %>%
+    pcz <- src("source_panel_c_movement_vs_combz.csv") %>%
       filter(.data$row_role == "animal") %>%
       mutate(.k = canonical_animal_id(.data$AnimalID))
-    ja <- inner_join(pa, tibble::tibble(.k = canonical_animal_id(a16$AnimalID),
-                                        ref = a16$CombZ), by = ".k")
-    check(nrow(ja) == nrow(a16), "Panel A does not join 1:1 to Stage 16")
+    ja <- inner_join(pcz, tibble::tibble(.k = canonical_animal_id(a16$AnimalID),
+                                         ref = a16$CombZ), by = ".k")
+    check(nrow(ja) == nrow(a16), "Panel c does not join 1:1 to Stage 16")
     check(max(abs(ja$CombZ - ja$ref)) == 0,
-          "Panel A CombZ differs from the Stage 16 manuscript value")
-    ok("Source Data reproduces plotted values exactly, palette recorded correctly")
+          "Panel c CombZ differs from the Stage 16 manuscript value")
+
+    # Panel a must carry the outcome DEFINITION, not plotted animal rows.
+    pa <- src("source_panel_a_framework_combz.csv")
+    check(!("animal" %in% pa$row_role),
+          "panel a Source Data should be definitional metadata, not animal rows")
+    for (r in c("characterised_domain", "combz_component_definition",
+                "classification_threshold", "workbook_parity",
+                "analysed_window_identity")) {
+      check(r %in% pa$row_role,
+            paste0("panel a Source Data is missing the '", r, "' rows"))
+    }
+    check(sum(pa$row_role == "combz_component_definition") == 6L,
+          "panel a must document all six CombZ components")
+    check(sum(pa$row_role == "characterised_domain") >= 1L,
+          "panel a must document the characterised-domain inventory")
+    check(all(c("claim_status") %in% names(pa)),
+          "panel a domain rows must carry a claim_status column")
+    ok("Source Data reproduces plotted values exactly; panel a is definitional")
 
     cat("\n[11] every figure claim has a claim-trace row\n")
     ct <- read_csv(file.path(mmm_publication_dir("audit", publication_root = pub_root),
@@ -503,15 +556,18 @@ if (!have_inputs) {
                 "canonical_table", "statistical_test", "multiplicity_family",
                 "figure_panel", "source_data_file", "status") %in% names(ct)),
           "claim trace is missing a required column")
-    check(setequal(unique(ct$figure_panel), c("A", "B", "C", "D", "E")),
+    check(setequal(unique(ct$figure_panel), c("A", "B", "C", "D")),
           paste0("claim trace panels are ",
                  paste(unique(ct$figure_panel), collapse = ", "),
-                 "; every panel A-E needs a row"))
+                 "; every panel A-D needs a row (A carries two claims)"))
     check(all(grepl("^CLAIM_BEHAV_0[1-5]$", ct$claim_id)),
           "claim ids must be CLAIM_BEHAV_01..05")
     sd_dir <- mmm_publication_dir("source_data", publication_root = pub_root)
-    for (f in unique(ct$source_data_file)) {
-      check(file.exists(file.path(sd_dir, f)),
+    # A claim may legitimately rest on more than one Source Data file: panel d
+    # is split into d1 (held-out predictions) and d2 (permutation null), so the
+    # field is a "; "-separated list and each entry must exist.
+    for (f in unique(unlist(strsplit(ct$source_data_file, "; ", fixed = TRUE)))) {
+      check(file.exists(file.path(sd_dir, trimws(f))),
             paste0("claim trace names a missing Source Data file: ", f))
     }
     # The prospective claim must point at Stage 09, never at Stage 20.
@@ -543,6 +599,386 @@ if (!have_inputs) {
           "every Source Data file must carry an output hash")
     ok(paste0("source manifest complete with ", nrow(sm), " rows and hashes"))
   }
+}
+
+
+# =====================================================================
+# ADDED IN THE PRE-FREEZE CANONICALIZATION PASS
+# =====================================================================
+
+cat("\n[15,16] no unstable HMM or invalidated Inactive result is displayable\n")
+
+check(length(MMM_FIRST_NIGHT_DISPLAYED_DOMAINS) == 5L,
+      paste0("the validated displayed-domain set must have 5 entries, has ",
+             length(MMM_FIRST_NIGHT_DISPLAYED_DOMAINS)))
+# The barred constructs must not be nameable as a displayed contrast domain.
+BARRED <- c("Behavioral state architecture", "Inactive-phase rest",
+            "latent-state", "dwell", "occupancy_entropy",
+            "gaussian_log1p_invalid", "MODEL_INADEQUATE")
+for (b in BARRED) {
+  hit <- grep(b, MMM_FIRST_NIGHT_DISPLAYED_DOMAINS, fixed = TRUE)
+  check(length(hit) == 0L,
+        paste0("the validated allowlist contains the barred construct '", b, "'"))
+}
+# The broad, HMM-bearing table may only be read inside the Extended Data
+# section, never anywhere that could reach the main composition.
+ed_marker <- grep("ALTERNATIVE CANDIDATES", s27_raw_all)
+check(length(ed_marker) == 1L, "could not locate the candidates section")
+broad_reads <- code_grep(STAGE27, "rfid_domain_summary_broad")
+for (i in broad_reads) {
+  check(i > ed_marker,
+        paste0("the broad HMM-bearing domain table is referenced at line ", i,
+               ", before the Extended Data section"))
+}
+ok("no HMM/latent-state, inactive-rest or invalidated construct is displayable")
+
+cat("\n[8b] panel E plots the ACTUAL persisted permutation draws\n")
+
+check(any(grepl("bmf_panel_e_null_distribution", s27_code, fixed = TRUE)),
+      "panel E right must use the real null-distribution builder")
+check(any(grepl("permutation_draws", s27_code, fixed = TRUE)),
+      "Stage 27 must read the persisted permutation draws")
+check(any(grepl("must never be reconstructed from", s27_code, fixed = TRUE)) ||
+      any(grepl("the null must never be reconstructed", s27_code, fixed = TRUE)),
+      "Stage 27 must refuse to reconstruct the null from published quantiles")
+helper_null <- readLines("Functions/behavior_main_figure_helpers.R", warn = FALSE)
+check(any(grepl("Refusing to plot an incomplete null", helper_null, fixed = TRUE)),
+      "the null-distribution builder must refuse an incomplete null")
+ok("panel E right is built from the persisted draws and refuses a partial null")
+
+cat("\n[12] panel C annotates no categorical inference\n")
+
+# Panel C's builder must not accept or draw an annotation, and Stage 27 must not
+# pass a p or q value into it.
+c_call <- grep("bmf_panel_c_first_night(", s27_code, fixed = TRUE)
+check(length(c_call) >= 1L, "panel C is not built")
+for (i in c_call) {
+  seg <- paste(s27_code[i:min(i + 3L, length(s27_code))], collapse = " ")
+  for (bad in c("annotation", "wilcox", "q =", "p =", "signif")) {
+    check(!grepl(bad, seg, fixed = TRUE),
+          paste0("panel C must carry no inferential annotation; found '", bad,
+                 "' in its construction"))
+  }
+}
+ok("panel C is built without any inferential annotation")
+
+cat("\n[C1] the canonical CombZ producer owns the outcome definition\n")
+
+check(any(grepl("behavior.later_outcome_combz", s27_code, fixed = TRUE)),
+      "Stage 27 must read the canonical CombZ producer output")
+check(any(grepl("combz_compdef", s27_code, fixed = TRUE)),
+      "the component list must come from the canonical component definition")
+# Display LABELS are local (they must be short enough for the schematic), but
+# the component IDENTITY and ORDER must come from the canonical table, and any
+# canonical component without a label must fail loudly rather than be dropped.
+check(any(grepl("combz_components <- as.character(combz_compdef$component)",
+                s27_code, fixed = TRUE)),
+      "the component identity must be read from the canonical component table")
+check(any(grepl("missing_disp <- setdiff(combz_components, names(COMPONENT_DISPLAY))",
+                s27_code, fixed = TRUE)),
+      paste("Stage 27 must detect a canonical component with no display label",
+            "rather than silently omitting it"))
+check(any(grepl("The schematic must not invent one", s27_code, fixed = TRUE)),
+      "Stage 27 must refuse to invent a component label")
+check(any(grepl("COMPONENT_DISPLAY[combz_components]", s27_code, fixed = TRUE)),
+      "the displayed components must be indexed BY the canonical component list")
+check(any(grepl("Refusing to build a figure on an unverified outcome definition",
+                s27_code, fixed = TRUE)),
+      "Stage 27 must refuse to build if the CombZ parity audit failed")
+ok("panel A's outcome definition is owned by the canonical producer")
+
+if (have_outputs) {
+  cat("\n[8c] plotted null values equal the persisted draws exactly\n")
+  sd_dir <- mmm_publication_dir("source_data", publication_root = pub_root)
+  # The draws live in panel d2's own Source Data file, one file per subpanel.
+  pe <- read_csv(file.path(sd_dir, "source_panel_d2_permutation_null.csv"),
+                 show_col_types = FALSE, progress = FALSE)
+  plotted <- pe %>% filter(.data$row_role %in% c("permutation_draw",
+                                                 "observed_statistic"))
+  check(nrow(plotted) > 0L, "panel d2 Source Data carries no permutation draws")
+  canon <- read_csv(mmm_path_get("behavior.early_prediction", "permutation_draws",
+                                 root = project_root),
+                    show_col_types = FALSE, progress = FALSE)
+  check(nrow(plotted) == nrow(canon),
+        paste0("panel E Source Data has ", nrow(plotted),
+               " draw rows, canonical has ", nrow(canon)))
+  j <- inner_join(
+    plotted %>% select("model_id", "permutation_id", "is_observed",
+                       plotted_value = "performance_value"),
+    canon %>% select("model_id", "permutation_id", "is_observed",
+                     canon_value = "performance_value"),
+    by = c("model_id", "permutation_id", "is_observed"))
+  check(nrow(j) == nrow(canon), "panel E draws do not join 1:1 to canonical")
+  d <- max(abs(j$plotted_value - j$canon_value))
+  check(d == 0, paste0("plotted null values differ from the persisted draws by ",
+                       format(d), "; they must be identical"))
+  n_null <- sum(!plotted$is_observed & plotted$model_id == "movement_mean")
+  check(n_null == 1000L,
+        paste0("panel E must plot exactly 1000 null draws for the headline ",
+               "model, found ", n_null))
+  ok(paste0("all ", nrow(canon),
+            " draw rows identical to the persisted draws at tolerance 0"))
+
+  cat("\n[11b] the claim trace records the new owners\n")
+  ct2 <- read_csv(file.path(mmm_publication_dir("audit", publication_root = pub_root),
+                            "behavior_main_claim_trace.csv"),
+                  show_col_types = FALSE, progress = FALSE)
+  c1 <- ct2[ct2$claim_id == "CLAIM_BEHAV_01", ]
+  check(grepl("build_later_outcome_combz", c1$canonical_stage[1], fixed = TRUE),
+        "CLAIM_BEHAV_01 must be owned by the canonical CombZ producer")
+  c2 <- ct2[ct2$claim_id == "CLAIM_BEHAV_02", ]
+  check(grepl("descriptive|framework", c2$statistical_test[1], ignore.case = TRUE),
+        "CLAIM_BEHAV_02 must be recorded as descriptive only")
+  check(grepl("B3_NOT_JUSTIFIED|FRAMEWORK", c2$status[1]),
+        "CLAIM_BEHAV_02 must record the panel B adjudication")
+  for (cid in c("CLAIM_BEHAV_04", "CLAIM_BEHAV_05")) {
+    r <- ct2[ct2$claim_id == cid, ]
+    check(r$canonical_stage[1] == "09",
+          paste0(cid, " must be owned by Stage 09, found '",
+                 r$canonical_stage[1], "'"))
+    check(!grepl("20|21|22|23|24|25", r$canonical_stage[1]),
+          paste0(cid, " must not be owned by a Stage 20+ analysis"))
+  }
+  ok("CombZ producer owns claim 01; Stage 09 owns claims 04 and 05")
+
+  cat("\n[E1] panel E wording contains no external-validation claim\n")
+  leg <- readLines(file.path(mmm_publication_dir("legends", publication_root = pub_root),
+                             "behavior_main_figure_legend_draft.md"), warn = FALSE)
+  legtxt <- paste(leg, collapse = " ")
+  # These phrases are forbidden as CLAIMS but required as DISCLAIMERS, so an
+  # occurrence is only a failure when it is not negated. A blanket ban would
+  # reject the very sentence that rules the claim out.
+  FORBIDDEN_WORDS <- c("external validation cohort", "independent cohort",
+                       "externally replicated", "prospective validation cohort",
+                       "independently validated")
+  # Judge per SENTENCE, not per fixed character window: the negation that rules
+  # a phrase out can sit several clauses earlier ("Never 'external validation',
+  # 'independent cohort' or ...").
+  sentences <- unlist(strsplit(legtxt, "(?<=[.!?])\\s+", perl = TRUE))
+  for (w in FORBIDDEN_WORDS) {
+    hits <- sentences[grepl(w, sentences, ignore.case = TRUE)]
+    for (sen in hits) {
+      check(grepl("\\b(not|never|no|rather than)\\b", sen, ignore.case = TRUE),
+            paste0("the legend asserts the forbidden phrase '", w,
+                   "' without negating it, in: '", substr(sen, 1, 160), "'"))
+    }
+  }
+  # and the affirmative claim must be absent outright
+  for (w in c("we externally validated", "validated in an independent")) {
+    check(!grepl(w, legtxt, ignore.case = TRUE),
+          paste0("the legend makes the forbidden claim '", w, "'"))
+  }
+  check(grepl("AUC", legtxt) == FALSE || grepl("never report an AUC", legtxt),
+        "the legend must not present an AUC for a continuous endpoint")
+  check(grepl("internal", legtxt, ignore.case = TRUE),
+        "the legend must state that validation is internal")
+  check(grepl("not a bootstrap", legtxt, ignore.case = TRUE) ||
+        grepl("NOT a bootstrap", legtxt, fixed = TRUE),
+        "the legend must state that the repeated-CV interval is not a bootstrap CI")
+  ok("no external-validation phrasing; internal validation stated explicitly")
+}
+
+
+# =====================================================================
+# ADDED IN THE FINAL EDITORIAL / COMPOSITION PASS
+# =====================================================================
+
+cat("\n[F1] the main figure has exactly four top-level panels a-d\n")
+
+check(any(grepl('MAIN_FIGURE_PANELS <- c("A", "B", "C", "D")', s27_raw_all,
+                fixed = TRUE)),
+      "Stage 27 must declare exactly four main-figure panels A-D")
+check(any(grepl('MAIN_FIGURE_STEM <- "behavior_early_signal_and_prediction_main"',
+                s27_raw_all, fixed = TRUE)),
+      "the main figure must use the semantic four-panel filename")
+# exactly four tagged panels in the composition, and the letters are a-d
+tagged <- grep('tag\\((p[A-Z0-9_]+), "([a-d])"\\)', s27_raw_all)
+letters_used <- sort(unique(unlist(
+  regmatches(s27_raw_all[tagged],
+             gregexpr('(?<=, ")[a-d](?=")', s27_raw_all[tagged], perl = TRUE)))))
+check(identical(letters_used, c("a", "b", "c", "d")),
+      paste0("the composition must tag exactly a, b, c, d; found: ",
+             paste(letters_used, collapse = ", ")))
+check(!any(grepl('tag\\([^,]+, "e"\\)', s27_raw_all)),
+      "there must be no panel e in the four-panel figure")
+ok("four panels declared and tagged a-d; no panel e")
+
+cat("\n[F2] no configuration can put a domain heatmap in the main figure\n")
+
+# the heatmap builder must only ever be called in the Extended Data section
+hm <- code_grep(STAGE27, "bmf_panel_b_domain_heatmap(")
+ed_start <- grep("ALTERNATIVE CANDIDATES", s27_raw_all)
+check(length(ed_start) == 1L, "could not locate the candidates section")
+for (i in hm) {
+  check(i > ed_start,
+        paste0("the domain-heatmap builder is called at line ", i,
+               ", before the Extended Data section: it could reach the main figure"))
+}
+# and the main composition must not reference any heatmap object
+comp <- s27_raw_all[grep("^row_[123] <- ", s27_raw_all)]
+for (bad in c("pB_alt", "pED_fn", "domain_heatmap")) {
+  check(!any(grepl(bad, comp, fixed = TRUE)),
+        paste0("the main composition references '", bad, "'"))
+}
+check(!any(grepl("PANEL_B_SOURCE", s27_raw_all, fixed = TRUE)),
+      paste("the old selectable main Panel B source must be gone; the main",
+            "figure has no domain-overview slot at all"))
+check(any(grepl("ED_DOMAIN_OVERVIEWS", s27_raw_all, fixed = TRUE)),
+      "the Extended Data domain overviews must still be explicitly configured")
+ok("heatmaps are Extended Data only and unreachable from the main composition")
+
+cat("\n[F3] the framework panel carries no inferential annotation\n")
+
+a_call <- grep("bmf_panel_a_framework(", s27_raw_all, fixed = TRUE)
+check(length(a_call) >= 1L, "panel a is not built")
+a_seg <- paste(s27_raw_all[min(a_call):(min(a_call) + 12L)], collapse = " ")
+for (bad in c("assoc_q", "spearman", "p_bh", "q = ", "pred_r2", "perm_p")) {
+  check(!grepl(bad, a_seg, fixed = TRUE),
+        paste0("panel a must carry no inferential quantity; found '", bad, "'"))
+}
+# the helper itself must not accept or draw a p/q annotation
+helper_a <- readLines("Functions/behavior_main_figure_helpers.R", warn = FALSE)
+i0 <- grep("^bmf_panel_a_framework <- function", helper_a)
+i1 <- i0; repeat { i1 <- i1 + 1L; if (helper_a[i1] == "}") break }
+a_body <- helper_a[i0:i1]
+for (bad in c("q_col", "fdr", "p_value", "significan")) {
+  check(!any(grepl(bad, a_body, ignore.case = TRUE)),
+        paste0("the panel a builder references '", bad, "'"))
+}
+check(any(grepl("claim_status", a_body, fixed = TRUE)),
+      "the panel a builder must require a per-domain claim_status")
+ok("panel a is definitional: no p, q, effect size or significance anywhere")
+
+cat("\n[F4] Stage 27 invokes no scientific producer\n")
+
+# Producer NAMES legitimately appear as provenance strings (the claim trace must
+# record which producer owns each claim). What is forbidden is INVOKING one, so
+# the check looks for invocation context rather than for the name.
+INVOKE_CTX <- c("source\\(", "sys\\.source\\(", "system\\(", "system2\\(",
+                "Rscript", "callr::", "eval\\(parse\\(")
+PRODUCERS <- c("build_later_outcome_combz", "09_early_prediction_model_ladder",
+               "run_all_analysis", "14_systems_neuroscience", "16_manuscript")
+for (i in seq_along(s27_raw_all)) {
+  if (grepl("^\\s*#", s27_raw_all[i])) next
+  ln <- s27_raw_all[i]
+  if (!any(vapply(INVOKE_CTX, function(p) grepl(p, ln), logical(1)))) next
+  # the only sourcing Stage 27 may do is the pipeline setup and its helpers
+  if (grepl("pipeline_setup|source_mmm_helper", ln)) next
+  for (pr in PRODUCERS) {
+    check(!grepl(pr, ln, fixed = TRUE),
+          paste0("Stage 27 appears to INVOKE the producer '", pr,
+                 "' at line ", i, ": ", trimws(ln)))
+  }
+  check(!any(vapply(c("system\\(", "system2\\(", "Rscript", "callr::"),
+                    function(p) grepl(p, ln), logical(1))),
+        paste0("Stage 27 must not shell out; line ", i, ": ", trimws(ln)))
+}
+# and it must source nothing beyond the setup and its helpers
+src_lines <- code_grep(STAGE27, "source(")
+offend <- src_lines[!grepl("pipeline_setup|source_mmm_helper",
+                           s27_raw_all[src_lines])]
+check(length(offend) == 0L,
+      paste0("Stage 27 sources something other than the setup/helpers at ",
+             "line(s) ", paste(offend, collapse = ", ")))
+ok("no producer is invoked, nothing is shelled out, only helpers are sourced")
+
+if (have_outputs) {
+  cat("\n[F5] panel d1 holds exactly the 111 canonical held-out predictions\n")
+  sd_dir2 <- mmm_publication_dir("source_data", publication_root = pub_root)
+  d1 <- read_csv(file.path(sd_dir2, "source_panel_d1_loao_predictions.csv"),
+                 show_col_types = FALSE, progress = FALSE)
+  d1p <- d1 %>% filter(.data$row_role == "heldout_prediction")
+  ho <- read_csv(mmm_path_get("behavior.early_prediction_heldout", "predictions",
+                              root = project_root),
+                 show_col_types = FALSE, progress = FALSE) %>%
+    filter(.data$model_id == "movement_mean")
+  check(nrow(d1p) == 111L,
+        paste0("panel d1 must hold 111 held-out predictions, has ", nrow(d1p)))
+  check(nrow(ho) == 111L, "the canonical held-out set is not 111 rows")
+  jj <- inner_join(
+    d1p %>% select("AnimalID", plotted = "predicted_CombZ"),
+    ho %>% select("AnimalID", canon = "predicted_CombZ"), by = "AnimalID")
+  check(nrow(jj) == 111L, "panel d1 does not join 1:1 to the canonical set")
+  check(max(abs(jj$plotted - jj$canon)) == 0,
+        "panel d1 predicted values differ from the canonical held-out values")
+  ok("111/111 held-out predictions, identical at tolerance 0")
+
+  cat("\n[F6] panel d2 holds exactly the 1000 canonical null draws\n")
+  d2 <- read_csv(file.path(sd_dir2, "source_panel_d2_permutation_null.csv"),
+                 show_col_types = FALSE, progress = FALSE)
+  n_null_head <- sum(!d2$is_observed & d2$model_id == "movement_mean")
+  check(n_null_head == 1000L,
+        paste0("panel d2 must hold 1000 null draws for the headline model, has ",
+               n_null_head))
+  n_obs_head <- sum(d2$is_observed & d2$model_id == "movement_mean")
+  check(n_obs_head == 1L,
+        "panel d2 must hold exactly one observed row for the headline model")
+  ok("1000 null draws + 1 observed row for the headline model")
+
+  cat("\n[F7] key results and claim trace follow the four-panel hierarchy\n")
+  kr <- read_csv(file.path(mmm_publication_dir("tables_manuscript",
+                                               publication_root = pub_root),
+                           "behavior_main_key_results.csv"),
+                 show_col_types = FALSE, progress = FALSE)
+  check("Figure panel" %in% names(kr),
+        "the key-results table must record which panel each row belongs to")
+  panels_kr <- sort(unique(kr$`Figure panel`))
+  check(all(panels_kr %in% c("b", "c", "d")),
+        paste0("key-results rows must map to panels b, c or d; found: ",
+               paste(panels_kr, collapse = ", ")))
+  # panel b rows must carry no test
+  b_rows <- kr %>% filter(.data$`Figure panel` == "b")
+  check(nrow(b_rows) >= 1L, "the key-results table has no panel b rows")
+  check(all(is.na(b_rows$`raw p`)) && all(is.na(b_rows$`adjusted p`)),
+        "panel b key-results rows must carry no p or q value")
+  check(all(grepl("no categorical contrast", b_rows$`Robustness status`,
+                  ignore.case = TRUE)),
+        "panel b rows must state that no categorical contrast is claimed")
+
+  ct2 <- read_csv(file.path(mmm_publication_dir("audit", publication_root = pub_root),
+                            "behavior_main_claim_trace.csv"),
+                  show_col_types = FALSE, progress = FALSE)
+  check("claim_class" %in% names(ct2),
+        "the claim trace must carry a claim_class column")
+  cls <- setNames(ct2$claim_class, ct2$claim_id)
+  EXPECT_CLASS <- c(
+    CLAIM_BEHAV_01 = "OUTCOME_DEFINITION",
+    CLAIM_BEHAV_02 = "DESCRIPTIVE_FRAMEWORK",
+    CLAIM_BEHAV_03 = "DESCRIPTIVE_DISTRIBUTION",
+    CLAIM_BEHAV_04 = "INFERENTIAL_MAIN",
+    CLAIM_BEHAV_05 = "INFERENTIAL_MAIN")
+  for (id in names(EXPECT_CLASS)) {
+    check(identical(as.character(cls[[id]]), EXPECT_CLASS[[id]]),
+          paste0(id, " must be classed ", EXPECT_CLASS[[id]], ", found '",
+                 cls[[id]], "'"))
+  }
+  EXPECT_PANEL <- c(CLAIM_BEHAV_01 = "A", CLAIM_BEHAV_02 = "A",
+                    CLAIM_BEHAV_03 = "B", CLAIM_BEHAV_04 = "C",
+                    CLAIM_BEHAV_05 = "D")
+  pn <- setNames(ct2$figure_panel, ct2$claim_id)
+  for (id in names(EXPECT_PANEL)) {
+    check(identical(as.character(pn[[id]]), EXPECT_PANEL[[id]]),
+          paste0(id, " must map to panel ", EXPECT_PANEL[[id]], ", found '",
+                 pn[[id]], "'"))
+  }
+  ok("claim classes and panel mapping match the four-panel hierarchy")
+
+  cat("\n[F8] the superseded five-panel composition is retained with provenance\n")
+  sup <- file.path(pub_root, "figures", "superseded_candidates")
+  check(dir.exists(sup), "the superseded_candidates directory is missing")
+  check(file.exists(file.path(sup, "README.md")),
+        "the superseded figure must be retained WITH a provenance note")
+  sup_files <- list.files(sup, pattern = "superseded")
+  check(length(sup_files) >= 1L,
+        "no superseded figure artifact was retained")
+  # the old stem must no longer be present as a current main figure
+  main_files <- list.files(mmm_publication_dir("figures_main",
+                                               publication_root = pub_root))
+  check(!any(grepl("behavior_outcome_and_early_prediction_main", main_files)),
+        "the superseded stem must not remain in figures/main")
+  check(any(grepl("behavior_early_signal_and_prediction_main", main_files)),
+        "the current four-panel main figure is missing from figures/main")
+  ok(paste0(length(sup_files), " superseded artifact(s) retained with a README"))
 }
 
 if (length(skipped) > 0L) {

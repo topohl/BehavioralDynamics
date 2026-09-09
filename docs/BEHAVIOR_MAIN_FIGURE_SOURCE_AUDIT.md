@@ -219,8 +219,10 @@ Two consequences the panel respects:
   equal to the canonical ρ — drawn analytically from that ρ, not fitted.
 - **Pooled, not sex-facetted.** The formal feature-by-Sex interaction is null for
   all three features (all `q = 0.895`), and the repository states that
-  sex-stratified estimates are descriptive and are **not** interaction tests. Sex
-  is carried redundantly by point shape. A sex-facetted version is exported as a
+  sex-stratified estimates are descriptive and are **not** interaction tests. The
+  later outcome group is carried redundantly by point shape and fill, so the panel
+  survives greyscale; sex is not encoded in the pooled panel. A sex-facetted
+  version is exported as a
   clearly-labelled descriptive candidate only. This deviates from the brief's
   "prefer Female/Male facets", deliberately, because the brief also required the
   visual and inferential models to match.
@@ -300,3 +302,267 @@ register a new stage in `run_all_analysis.R`, or touch the release. Where a
 producer contract is missing (the permutation null distribution) or unmet (the
 duration robustness requirement), it is reported here for the producing stage to
 fix.
+
+---
+
+# Addendum — pre-freeze canonicalization pass
+
+Baseline for this pass: `967fcb11804fa3604a24678e1fc613207d9f0dd1`
+("Add Markov inactive GAMMs and manuscript builders"), working tree clean.
+
+Everything above is retained as the record of the earlier audit. This addendum
+states what changed, and **corrects one thing the earlier audit got wrong**.
+
+## Correction: the CombZ z-score reference is within-sex, not male-only
+
+The earlier audit reported the component z-score reference as "12 male CON
+animals" globally. That was **wrong** — it read only the first formula block.
+
+Reading the workbook XML block by block shows four positional formula blocks per
+column. In `organWeight` column `O`, rows 2–41 and 81–99 use the male reference
+`I$12,I$13,I$15,I$17,I$30:I$33,I$82:I$85`, while rows 42–80 use the female
+reference `I$42:I$45,I$65:I$68,I$100:I$103`. The two reference sets are:
+
+| reference | animals | batches |
+|---|---|---|
+| male | `OQ760/761/763/765`, `OR126/127/128/129`, `OR621/622/623/624` | 1, 2, 5 |
+| female | `413/414/415/416`, `OR537/538/539/540`, `OR639/643/644/645` | 3, 4, 6 |
+
+So the standardization is **within-sex control-referenced**. The earlier
+"12 male CON" statement happened to be right for male animals only.
+
+## Panel A — now canonical in-repository
+
+`Analysis/build_later_outcome_combz.R` is a new upstream producer (non-numbered,
+following the `build_publication_release.R` convention; deliberately **not**
+registered in `run_all_analysis.R`). It reproduces the workbook endpoint and
+hard-stops otherwise:
+
+| quantity | result | tolerance |
+|---|---|---|
+| CombZ vs workbook | **2.220446e-16** | 1e-12 |
+| outcome-group labels | **0 of 93 mismatched** | 0 |
+| Male threshold | **−0.436641698** | — |
+| Female threshold | **−0.222390844** | — |
+
+Population SD is **required**: with sample SD, `OR434`, `OR554`, `OR625` and
+`13856` misclassify.
+
+**What is still external, and why it stays that way.** The six component
+z-scores are carried through verbatim. The upstream reference is written as
+hard-coded absolute row positions, and it is not internally consistent:
+
+- row ranges and sex only approximately coincide — in `organWeight` rows 81–118
+  are **mixed sex** (19 F, 19 M) yet use the **male** reference;
+- sheets have different row layouts (`bodyWeight` has 250 rows and uses
+  `12,13,15,17,31:34,87:90`; the 117-row sheets use `12,13,15,17,30:33,82:85`),
+  though both resolve to the same 12 animals;
+- `sucrosePreference` labels four reference animals (`OQ760/761/763/765`) as
+  `SIS` while every other sheet labels them `CON`.
+
+Recomputing from raw with a single uniform within-sex rule does **not** reproduce
+the shipped values (max deviation ≈ 2.0 even block-aware). Since this pass must
+not "improve" the primary endpoint, the components are preserved exactly and the
+dependency is recorded in `combz_component_definition.csv`
+(`reproducible_in_repository = FALSE`).
+
+## Panel B — decision: `B3_NOT_JUSTIFIED__USE_FRAMEWORK_SCHEMATIC`
+
+Adversarially verified. No scientifically clean longitudinal multi-domain
+overview can be built from currently validated material:
+
+1. The canonical `analysis_ready/pipeline/` tree contains **no domain-level
+   results table at all**.
+2. `analysis_ready/output_index.csv` records the Stage 14 tree as
+   `canonical_path = NA`, `status = "legacy_pending_migration"`,
+   `manuscript_role = "exploratory systems layer"`.
+3. The registry references only its `first_night/10min_based/` subtree, and the
+   release plan stages **no** `sis_domain` artifact among its 45.
+4. The strict-completeness defect **provably bites**: `OQ755`/CC2, `OQ770`/CC1
+   and `OQ771`/CC1 carry finite domain scores computed from 2-of-3, 4-of-5 and
+   2-of-3 contributors — three named animals scored on a different formula from
+   their peers, which `Functions/first_night_domain_helpers.R:21-24` forbids.
+5. Every HMM/latent-state domain and every inactive-rest/circadian reading is
+   barred by `docs/KNOWN_LIMITATIONS.md` items 1–3.
+
+Panel B is therefore a **descriptive measurement-framework panel** built from
+the one registry-cleared longitudinal construct — raw movement across CC1–CC4 ×
+light phase (`S03_RAW_LONGITUDINAL_MOVEMENT`, `publication_ready = "yes as
+secondary characterization"`) — plus the inventory of validated behavioural
+domains. It carries **no** inferential claim.
+
+The choice is **explicit configuration** (`PANEL_B_SOURCE`, default
+`longitudinal_framework`), never file availability. `first_night_domains` (B1)
+is selectable by configuration; `broad_domain_map` (B2) is refused as a main
+panel and exists only as an Extended Data candidate.
+
+The two phases are drawn on **independent y axes** because inactive-phase
+movement is an order of magnitude lower; the legend states they must not be
+compared by eye.
+
+## Panel E — the permutation null is now real
+
+Stage 09 previously discarded the 1000 per-permutation statistics it computed,
+which forced the figure to reconstruct a null from published quantiles. That is
+fixed at the producer, **persistence only**:
+
+- new output `early_prediction_permutation_draws.csv`, 2002 rows
+  = 2 models × (1000 null + 1 observed);
+- the permutation count, seed `20260811`, fold structure, model, metric and
+  every published summary are untouched;
+- the list-column is stripped before `primary_prediction_permutation_test.csv`
+  is written, so that file keeps its original schema;
+- the persisted draws reproduce all five published summaries to **1.7e-18**.
+
+Stage 09 pre/post parity: every headline value identical to 10 significant
+digits (CV R² `0.1593945586`, permutation p `0.000999000999`, null median
+`−0.03131646461`, null quantiles `[−0.04420903341, 0.005863676405]`, baseline
+`−0.01826446281`), held-out predictions drift **0**, and
+`model_ladder_input.csv`, `early_behavior_features_wide.csv` and both
+duration-sensitivity tables are **byte-identical**.
+
+Two non-scientific tables did change, and neither is attributable to the edit:
+`early_window_rows_used*.csv` gained a metadata column `AnimalID_raw`, and
+`epoch_duration_qc.csv` shifted in `active_duration_hours`. Both come from
+shared helpers, the 10-min tree was stale relative to `HEAD` (the untouched
+5-min tree already contains `AnimalID_raw`), and `epoch_duration_qc` is written
+at Stage 09 line **603** whereas the edit begins at line **1806** — causally
+downstream, so it cannot be the cause. Neither table is in the registry or the
+release plan.
+
+## Panel D — no fitted line at all
+
+The descriptive quintile-median guide is **non-monotone** in this sample, so it
+read as noise rather than as a guide. The main panel now shows the scatter with
+the canonical ρ / CI / q annotation and no line; the quintile guide and the
+rank-space version (reference-line slope = canonical ρ) are retained as panel
+candidates.
+
+## Status after this pass
+
+| Panel | Status | Owner |
+|---|---|---|
+| A | `CANONICAL_READY` | `Analysis/build_later_outcome_combz.R` |
+| B | `READY_AFTER_FORMATTING` (framework; decision recorded) | Stage 03 + validated allowlist |
+| C | `AMBIGUOUS_SOURCE` for the categorical contrast; distribution is canonical | Stage 09 |
+| D | `READY_AFTER_FORMATTING` | Stage 09 pooled Spearman |
+| E | `CANONICAL_READY` | Stage 09 LOAO + persisted draws |
+
+---
+
+# Addendum 2 — final editorial and composition pass
+
+Baseline: `967fcb11804fa3604a24678e1fc613207d9f0dd1`, with the CombZ
+canonicalization and Stage 09 permutation-draw persistence present as
+uncommitted work. **No scientific value was changed in this pass** — proven by
+re-hashing all 14 canonical producer outputs (byte-identical), re-checking 19
+headline values (identical), and re-checking all 117 per-animal CombZ values and
+outcome-group labels (identical).
+
+## The main figure is now FOUR panels
+
+Panels A and B were merged. The previous pass had already concluded
+`B3_NOT_JUSTIFIED__USE_FRAMEWORK_SCHEMATIC`, which left a main-figure slot doing
+work no validated analysis could support. Merging removes the slot rather than
+filling it weakly.
+
+| panel | content | class |
+|---|---|---|
+| **a** | experimental design, RFID framework, characterised-domain inventory, first-night window, later battery, CombZ construction, later classification | `OUTCOME_DEFINITION` + `DESCRIPTIVE_FRAMEWORK` |
+| **b** | first-night Movement by later outcome group | `DESCRIPTIVE_DISTRIBUTION` |
+| **c** | early Movement vs later CombZ | `INFERENTIAL_MAIN` |
+| **d** | out-of-sample prediction: d1 held-out predictions, d2 real permutation null | `INFERENTIAL_MAIN` |
+
+**There is no main-figure slot for a domain heatmap, and no configuration can
+create one.** The former `PANEL_B_SOURCE` switch is gone; `ED_DOMAIN_OVERVIEWS`
+governs Extended Data only, and a test asserts the heatmap builder is only ever
+called after the Extended Data marker.
+
+Final size: **183 × 162 mm** (PDF MediaBox 518 × 459 pt), inside the 170 mm
+limit and the 165 mm preference. Smallest embedded font **5.00 pt**; panel
+letters 8.00 pt bold lowercase a–d.
+
+## Panel a: what it does and does not assert
+
+The domain inventory is a **measurement** statement. Each of the six rows
+carries its own `claim_status` in the Source Data:
+
+- `Movement / psychomotor activation` — carries the main-figure early signal
+- flexibility, social-spatial, volatility — characterised; no main-figure claim
+- `Behavioural state architecture (latent)` — characterised only; latent-state
+  identifiability caveats; no main-figure claim
+- `Inactivity-related locomotor organization` — characterised only;
+  inactive-phase biological interpretation barred by `KNOWN_LIMITATIONS` item 3
+
+Two of these are listed as *measured* despite being barred as *claims*. That is
+deliberate and is the reason each row carries an explicit status: the panel
+answers "what does the continuous record characterise?", not "where do the
+groups differ?". A test asserts the panel builder contains no `q`, `p`, `fdr` or
+significance term at all.
+
+Proximity-derived measurement is labelled **social-spatial (co-location)
+organization**, never sociability.
+
+## Panel a: CombZ provenance wording
+
+The wording was tightened across the figure, the legend, the Stage 27 README and
+`docs/COMBZ_CANONICAL_DEFINITION.md` to say exactly:
+
+> Canonical CombZ and later outcome assignments are reproduced exactly from the
+> historically defined component z-scores. The historical upstream
+> standardization is preserved as source provenance rather than redefined.
+
+This separates **downstream reproducibility** (component z-scores → CombZ →
+outcome group, established exactly: `2.22e-16`, 0 of 93 label mismatches) from
+**upstream derivation** (raw measurement → component z-score, *not*
+reconstructed under one coherent algorithm). An audit of every
+manuscript-facing CombZ reference found no overclaim; the only occurrence of
+"regenerated from raw" is the prohibition against writing it.
+
+## Panel c: no fitted line at all
+
+The descriptive quantile-median guide was removed from the main panel — it is
+non-monotone in this sample and read as noise. The main panel is the raw scatter
+plus the pooled annotation (ρ = −0.390, 95% CI [−0.547, −0.209], BH q = 6.88e-05,
+n = 111) and a direction note. Group colour is a visual aid; the legend states
+explicitly that three separate within-group correlations are neither implied nor
+reported. The quantile guide and the rank-space version remain panel candidates.
+
+## Panel d: real null, and wording
+
+d2 plots the **actual 1000 persisted permutation draws**, verified row-for-row
+against the producer's file at tolerance 0. The identity line in d1 is a visual
+reference only; no regression is fitted to it and none is reported. Performance
+is the canonical `cv_r2_vs_mean` = 0.15939 with permutation p = 1/1001.
+
+Wording is constrained and tested: "internal out-of-sample validation", never
+external validation / independent cohort / independently validated, and never an
+AUC or classification framing for a continuous endpoint. The negation-aware test
+allows those phrases only inside a disclaiming sentence.
+
+## Provenance of the superseded figure
+
+The previous five-panel composition is retained at
+`figures/superseded_candidates/behavior_outcome_and_early_prediction_main__five_panel_superseded.{pdf,svg,png}`
+with a `README.md` recording why it was superseded. It is not silently
+overwritten, and a test asserts the old stem no longer appears in `figures/main`
+while the new stem does.
+
+## Extended Data candidates after this pass
+
+- broad phase-resolved domain map (unregistered; all FDR cells Inactive)
+- registry-cleared first-night domain map (1 of 30 cells FDR-supported)
+- longitudinal movement across CC1–CC4 × phase (registry-cleared, descriptive)
+- panel candidates: CombZ distribution, rank-space association, sex-faceted
+  association, null summary-interval view
+- Stage 20–25 GAMM and Inactive Markov figures remain owned by Stage 26
+
+## Status
+
+| Panel | Status |
+|---|---|
+| a | `READY_AFTER_VISUAL_REVIEW` |
+| b | `READY_MAIN` |
+| c | `READY_MAIN` |
+| d | `READY_MAIN` |
+| combined | `READY_AFTER_VISUAL_REVIEW` |

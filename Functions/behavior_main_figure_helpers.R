@@ -168,6 +168,9 @@ bmf_descriptive_summary <- function(df, value, by) {
 #' @param window_label short string describing the first-night window identity
 #' @param external_note wording for the steps that are defined OUTSIDE this
 #'   repository. Must not be empty while that remains true.
+#' SUPERSEDED by bmf_panel_a_framework(). Retained so the previously rendered
+#' five-panel composition stays reconstructible for provenance; it is not
+#' called by the current four-panel main figure.
 bmf_panel_a_schematic <- function(components,
                                   combine_rule,
                                   window_label,
@@ -557,9 +560,13 @@ bmf_panel_e_heldout <- function(pred_df, scheme_pattern = "one-animal-out",
 #'
 #' Everything drawn here is read from the canonical performance and permutation
 #' tables: the observed statistic, the permutation null median and its 2.5-97.5%
-#' quantiles, and the repeated-CV resampling interval. The null distribution
-#' itself is not exported by the producing stage, so the null is drawn as its
-#' published quantile interval rather than as a density; the legend says so.
+#' quantiles, and the repeated-CV resampling interval.
+#'
+#' CANDIDATE PANEL ONLY. This is the compact summary-interval view of the null,
+#' drawn as the published quantile INTERVAL and never as a density reconstructed
+#' from those quantiles. Stage 09 now persists the per-permutation statistics,
+#' so the main figure uses bmf_panel_e_null_distribution() and shows the real
+#' distribution; this view is retained as a space-constrained alternative.
 bmf_panel_e_performance <- function(perf_df, baseline = NULL,
                                     x_lab = "Out-of-sample R2",
                                     annotation = NULL,
@@ -591,7 +598,7 @@ bmf_panel_e_performance <- function(perf_df, baseline = NULL,
     geom_linerange(aes(xmin = .data$cv_r2_q025, xmax = .data$cv_r2_q975),
                    linewidth = 0.5, colour = MMM_CONTRAST_COLOUR) +
     geom_point(aes(x = .data$observed_statistic), size = 1.9, shape = 21L,
-               fill = MMM_GROUP_COLOURS[["SUS"]], colour = "black",
+               fill = MMM_CONTRAST_COLOUR, colour = "black",
                stroke = 0.35) +
     labs(x = x_lab, y = NULL, caption = annotation) +
     theme_mmm_pub() +
@@ -622,4 +629,337 @@ bmf_source_data <- function(df, panel_id, canonical_stage, canonical_table,
                canonical_table = canonical_table, stringsAsFactors = FALSE),
     out
   ))
+}
+
+# ------------------------- panel B: longitudinal phenotyping framework
+#
+# WHY THIS SHAPE AND NOT A DOMAIN HEATMAP
+#
+# A multi-domain longitudinal heatmap cannot be built from currently validated
+# material: every HMM / latent-state domain is barred, every inactive-phase
+# rest/circadian/quiescence reading is barred, and the only registry-cleared
+# multi-domain table is first-night-only, so it cannot support the word
+# "longitudinal" and it duplicates panel C. See
+# docs/BEHAVIOR_MAIN_FIGURE_SOURCE_AUDIT.md for the full adjudication.
+#
+# What IS cleared as a longitudinal characterisation is raw movement across the
+# four cage changes and both light phases. Panel B is therefore a DESCRIPTIVE
+# measurement-framework panel grounded in that real data, rather than a
+# decorative schematic or an unsupported heatmap.
+
+#' Longitudinal movement across repeated cage changes, by phase.
+#'
+#' One point per animal per cage change, so the repeated structure of the
+#' paradigm and the continuous nature of the RFID record are both visible.
+#' Purely descriptive: no contrast is drawn and no test is annotated.
+bmf_panel_b_longitudinal_movement <- function(animal_df, summary_df,
+                                              y_lab, x_lab = "Cage change",
+                                              jitter_seed = 27L) {
+  bmf_assert_schema(animal_df, "panel B longitudinal movement",
+                    required = c("AnimalNum", "Sex", "Group", "CageChangeIndex",
+                                 "PhaseClass", "mean_movement"),
+                    keys = c("AnimalNum", "CageChangeIndex", "PhaseClass"),
+                    allowed = list(Group = BMF_GROUP_LEVELS, Sex = BMF_SEX_LEVELS,
+                                   PhaseClass = c("Active", "Inactive")),
+                    finite = "mean_movement")
+  bmf_assert_schema(summary_df, "panel B descriptive summary",
+                    required = c("Group", "CageChangeIndex", "PhaseClass",
+                                 "median", "n_animals"),
+                    keys = c("Group", "CageChangeIndex", "PhaseClass"))
+  animal_df <- bmf_order_factors(animal_df)
+  summary_df <- bmf_order_factors(summary_df)
+  animal_df$PhaseClass <- factor(as.character(animal_df$PhaseClass),
+                                 levels = c("Active", "Inactive"))
+  summary_df$PhaseClass <- factor(as.character(summary_df$PhaseClass),
+                                  levels = c("Active", "Inactive"))
+  brks <- sort(unique(animal_df$CageChangeIndex))
+
+  ggplot(animal_df, aes(x = .data$CageChangeIndex, y = .data$mean_movement)) +
+    # Median + interquartile band rather than 111 jittered points per cell:
+    # this panel is longitudinal CONTEXT, and panel C is where every individual
+    # animal is shown. A per-animal cloud here competed with panels D and E for
+    # attention without adding information.
+    geom_ribbon(data = summary_df,
+                aes(x = .data$CageChangeIndex, ymin = .data$q25,
+                    ymax = .data$q75, fill = .data$Group),
+                inherit.aes = FALSE, alpha = 0.15, colour = NA) +
+    geom_line(data = summary_df,
+              aes(x = .data$CageChangeIndex, y = .data$median,
+                  colour = .data$Group, linetype = .data$Group),
+              inherit.aes = FALSE, linewidth = 0.55) +
+    geom_point(data = summary_df,
+               aes(x = .data$CageChangeIndex, y = .data$median,
+                   fill = .data$Group, shape = .data$Group),
+               inherit.aes = FALSE, size = 1.3, colour = "black", stroke = 0.28,
+               show.legend = FALSE) +
+    mmm_scale_colour_group() + mmm_scale_fill_group() +
+    mmm_scale_shape_group() + mmm_scale_linetype_group() +
+    facet_wrap(~PhaseClass, scales = "free_y") +
+    scale_x_continuous(breaks = brks, labels = paste0("CC", brks),
+                       expand = c(0.07, 0)) +
+    labs(x = x_lab, y = y_lab) +
+    theme_mmm_pub() +
+    theme(legend.position = "none", panel.spacing = unit(6, "pt"))
+}
+
+#' Compact inventory of the behavioural domains extracted from the RFID record.
+#'
+#' A measurement-framework element, not a result: no effect size, no contrast,
+#' no p value. `domains` must be passed from the validated allowlist constant so
+#' the panel cannot drift from the audit.
+bmf_panel_b_domain_inventory <- function(domains, title, note) {
+  stopifnot(length(domains) >= 1L, nzchar(title))
+  ink <- MMM_SCHEMATIC_INK
+  n <- length(domains)
+  d <- data.frame(
+    y = rev(seq_len(n)),
+    label = gsub(" / ", "/\n", domains, fixed = TRUE),
+    stringsAsFactors = FALSE)
+  d$ymin <- d$y - 0.42
+  d$ymax <- d$y + 0.42
+
+  ggplot(d) +
+    geom_rect(aes(xmin = 0.04, xmax = 0.96, ymin = .data$ymin, ymax = .data$ymax),
+              fill = ink[["box_fill"]], colour = ink[["box_border"]],
+              linewidth = 0.22) +
+    geom_text(aes(x = 0.5, y = .data$y, label = .data$label),
+              size = (MMM_BASE_PT - 2.9) / .pt, colour = ink[["text"]],
+              lineheight = 0.95) +
+    annotate("text", x = 0.5, y = n + 2.55, label = title, hjust = 0.5, vjust = 1,
+             size = (MMM_BASE_PT - 2.1) / .pt, colour = ink[["text"]]) +
+    annotate("text", x = 0.5, y = 0.15, label = note, hjust = 0.5, vjust = 1,
+             size = (MMM_BASE_PT - 3.1) / .pt, colour = ink[["caveat"]],
+             lineheight = 1.05) +
+    scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+    scale_y_continuous(limits = c(-1.25, n + 2.75), expand = c(0, 0)) +
+    theme_mmm_schematic()
+}
+
+# ------------------- panel E: real permutation-null distribution
+
+#' Observed cross-validated performance against the REAL permutation null.
+#'
+#' Requires the persisted per-permutation statistics and refuses to run on a
+#' summary-only table, because reconstructing a density from published quantiles
+#' would be fabricating a distribution.
+bmf_panel_e_null_distribution <- function(draws_df, model_id,
+                                          x_lab = "Out-of-sample R2 vs the mean",
+                                          annotation = NULL, bins = 40L) {
+  bmf_assert_schema(draws_df, "panel E permutation draws",
+                    required = c("permutation_id", "model_id",
+                                 "performance_metric", "performance_value",
+                                 "is_observed", "n_permutations"),
+                    finite = "performance_value")
+  d <- draws_df[as.character(draws_df$model_id) == model_id, , drop = FALSE]
+  if (nrow(d) == 0L) {
+    stop("No persisted permutation draws for model '", model_id, "'.",
+         call. = FALSE)
+  }
+  nulls <- d[!d$is_observed, , drop = FALSE]
+  obs <- d[d$is_observed, , drop = FALSE]
+  if (nrow(obs) != 1L) {
+    stop("Expected exactly one observed row for model '", model_id, "', got ",
+         nrow(obs), ".", call. = FALSE)
+  }
+  declared <- unique(d$n_permutations)
+  if (length(declared) != 1L || nrow(nulls) != declared) {
+    stop("Persisted null draws for '", model_id, "' number ", nrow(nulls),
+         " but the producer declared ", paste(declared, collapse = "/"),
+         ". Refusing to plot an incomplete null.", call. = FALSE)
+  }
+
+  ggplot(nulls, aes(x = .data$performance_value)) +
+    geom_histogram(bins = bins, fill = "grey82", colour = "white",
+                   linewidth = 0.15) +
+    geom_vline(xintercept = stats::median(nulls$performance_value),
+               linewidth = 0.35, colour = "grey45", linetype = "22") +
+    # Charcoal, NOT the SUS group colour. The observed statistic is not a group,
+    # and panel d1 sits directly beside this one using that same red for SUS
+    # animals; reusing it here would make one hue mean two different things
+    # within a single panel letter. MMM_CONTRAST_COLOUR is the palette's
+    # designated non-group emphasis ink for exactly this reason.
+    geom_vline(xintercept = obs$performance_value[1], linewidth = 0.75,
+               colour = MMM_CONTRAST_COLOUR) +
+    labs(x = x_lab, y = paste0("Permutations (n = ", nrow(nulls), ")"),
+         caption = annotation) +
+    theme_mmm_pub() +
+    theme(legend.position = "none",
+          plot.caption = element_text(size = MMM_BASE_PT - 2, hjust = 0,
+                                      colour = "grey30", lineheight = 1.08))
+}
+
+# ------------- panel A: integrated experimental / analytical framework
+#
+# Replaces the previous separate panels A (CombZ schematic) and B (longitudinal
+# context). Merging them removes a main-figure slot that the source audit could
+# not justify (B3_NOT_JUSTIFIED__USE_FRAMEWORK_SCHEMATIC) and puts the whole
+# temporal logic in one place, which is the only thing a reader needs before
+# panels b-d.
+#
+# It is a SCHEMATIC. It states what was done and in what order. It carries no
+# effect size, no contrast, no p or q value, and it must never be read as
+# evidence that any domain distinguished the later outcome groups.
+
+#' Integrated design / RFID / outcome-definition panel.
+#'
+#' @param domains data frame with columns `domain` and `claim_status`, supplied
+#'   by the caller from an explicit, auditable inventory so the figure cannot
+#'   drift from it.
+#' @param components character vector of the six CombZ component labels, in
+#'   canonical order, taken from the producer's component-definition table.
+#' @param window_label the frozen first-night window identity.
+#' @param combz_label display label for the composite.
+#' @param direction_note one short sentence fixing the sign of CombZ.
+#' @param provenance_note wording for what the repository does and does not
+#'   reproduce. Must not be empty.
+#' @param group_counts named integer vector over CON/RES/SUS.
+bmf_panel_a_framework <- function(domains,
+                                  components,
+                                  window_label,
+                                  combz_label,
+                                  direction_note,
+                                  provenance_note,
+                                  n_animals,
+                                  group_counts,
+                                  panel_height_mm = 56) {
+  stopifnot(is.data.frame(domains), nrow(domains) >= 1L,
+            all(c("domain", "claim_status") %in% names(domains)),
+            length(components) >= 1L, nzchar(provenance_note))
+  ink <- MMM_SCHEMATIC_INK
+  pt_stage <- (MMM_BASE_PT - 1.5) / .pt   # 5.5 pt
+  pt_chip  <- (MMM_BASE_PT - 2.0) / .pt   # 5.0 pt
+  pt_head  <- (MMM_BASE_PT - 1.5) / .pt
+  pt_note  <- (MMM_BASE_PT - 2.0) / .pt
+
+  # GEOMETRY NOTE. The y axis is in LINE UNITS, not arbitrary units: the panel
+  # is `panel_height_mm` tall over a y range of ~50, so one unit is about
+  # 1.1 mm and one 5.5 pt text line is about 1.8 units. Box heights below are
+  # therefore chosen as (lines * 1.8 + padding), which is why the earlier
+  # 0-100 grid overflowed - there, one unit was only 0.5 mm.
+  LINE <- 2.05
+
+  bx <- function(id, xmin, xmax, ymin, ymax, label, role, size = pt_stage) {
+    data.frame(id = id, xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax,
+               label = label, role = role, size = size,
+               x = (xmin + xmax) / 2, y = (ymin + ymax) / 2,
+               stringsAsFactors = FALSE)
+  }
+
+  # ---- band 1: experimental chronology (3 text lines -> h = 7.2) ---------
+  y1b <- 36.4; y1t <- y1b + 2 * LINE + 2.6
+  s1 <- bx("sis", 1, 22, y1b, y1t,
+           "Adolescent social\ninstability stress (SIS)", "stage")
+  s2 <- bx("rfid", 27, 65, y1b, y1t,
+           paste0("Continuous RFID home-cage monitoring\n",
+                  "across repeated regroupings (CC1-CC4)"), "stage")
+  s3 <- bx("battery", 70, 99, y1b, y1t,
+           "Later behavioural and\nphysiological battery", "stage")
+
+  # ---- band 2: what is characterised / what defines the outcome ----------
+  # Single-line chips: every label is supplied already short enough for one
+  # line, so a chip never needs to grow.
+  chip_h <- LINE + 1.5
+  row_gap <- 0.9
+  n_dom <- nrow(domains); dom_cols <- 2L
+  dom_w <- 31; dom_x0 <- 1; dom_top <- 32.2
+  doms <- do.call(rbind, lapply(seq_len(n_dom), function(i) {
+    cc <- (i - 1L) %% dom_cols; rr <- (i - 1L) %/% dom_cols
+    x0 <- dom_x0 + cc * (dom_w + 1.6)
+    yt <- dom_top - rr * (chip_h + row_gap)
+    bx(paste0("dom", i), x0, x0 + dom_w, yt - chip_h, yt,
+       domains$domain[i], "assay", pt_chip)
+  }))
+
+  n_cmp <- length(components); cmp_cols <- 2L
+  cmp_w <- 14.2; cmp_x0 <- 70; cmp_top <- 32.2
+  cmps <- do.call(rbind, lapply(seq_len(n_cmp), function(i) {
+    cc <- (i - 1L) %% cmp_cols; rr <- (i - 1L) %/% cmp_cols
+    x0 <- cmp_x0 + cc * (cmp_w + 1.6)
+    yt <- cmp_top - rr * (chip_h + row_gap)
+    bx(paste0("cmp", i), x0, x0 + cmp_w, yt - chip_h, yt,
+       components[i], "assay", pt_chip)
+  }))
+
+  # ---- band 3: the two extracted quantities (3 lines -> h = 7.2) ---------
+  y3b <- 9.4; y3t <- y3b + 3 * LINE + 2.4
+  early <- bx("early", 1, 40, y3b, y3t,
+              paste0("First-night Movement\n", window_label), "extract")
+  combz <- bx("combz", 46, 76, y3b, y3t,
+              paste0(combz_label, "\nunweighted mean of ", n_cmp,
+                     " components"), "extract")
+  gcv <- as.integer(group_counts[BMF_GROUP_LEVELS])
+  later <- bx("later", 79, 99, y3b, y3t,
+              paste0("Later outcome group\nCON ", gcv[1], " / RES ", gcv[2],
+                     " / SUS ", gcv[3], "\n(assigned after the battery)"),
+              "identity")
+
+  boxes <- rbind(s1, s2, s3, doms, cmps, early, combz, later)
+  boxes$fill <- dplyr::case_when(
+    boxes$role == "assay" ~ ink[["box_fill"]],
+    boxes$role == "extract" ~ "#FBFBFB",
+    TRUE ~ ink[["stage_fill"]])
+  boxes$border <- ifelse(boxes$role == "assay", ink[["box_border"]],
+                         ink[["stage_border"]])
+  boxes$lw <- ifelse(boxes$role == "extract", 0.5, 0.26)
+
+  dom_bottom <- min(doms$ymin); cmp_bottom <- min(cmps$ymin)
+  arrows <- rbind(
+    data.frame(x = s1$xmax, xend = s2$xmin - 0.4, y = s1$y, yend = s1$y),
+    data.frame(x = s2$xmax, xend = s3$xmin - 0.4, y = s2$y, yend = s2$y),
+    # monitoring -> characterised domains
+    data.frame(x = 46, xend = 46, y = y1b - 0.4, yend = dom_top + 1.0),
+    # monitoring -> the analysed window
+    data.frame(x = 8, xend = 8, y = y1b - 0.4, yend = y3t + 1.0),
+    # battery -> components -> composite
+    data.frame(x = 84.5, xend = 84.5, y = y1b - 0.4, yend = cmp_top + 1.0),
+    data.frame(x = 61, xend = 61, y = cmp_bottom - 0.6, yend = y3t + 1.0),
+    data.frame(x = combz$xmax, xend = later$xmin - 0.4, y = combz$y,
+               yend = combz$y))
+
+  # Shape/colour key only: the group names and n already live in the box text,
+  # so labelling the chips as well would overflow the right edge.
+  chips <- data.frame(
+    Group = factor(BMF_GROUP_LEVELS, levels = BMF_GROUP_LEVELS),
+    x = later$x + c(-5.5, 0, 5.5), y = y3b - 2.6,
+    stringsAsFactors = FALSE)
+
+  y_top <- y1t + 3.4
+  ggplot() +
+    annotate("segment", x = 1, xend = 99, y = y_top, yend = y_top,
+             linewidth = 0.28, colour = ink[["arrow"]],
+             arrow = grid::arrow(length = unit(1.1, "mm"), type = "closed")) +
+    annotate("text", x = 50, y = y_top + 0.6, label = "time", hjust = 0.5,
+             vjust = 0, size = pt_note, colour = ink[["arrow"]]) +
+    geom_segment(data = arrows,
+                 aes(x = .data$x, xend = .data$xend, y = .data$y,
+                     yend = .data$yend),
+                 linewidth = 0.28, colour = ink[["arrow"]],
+                 arrow = grid::arrow(length = unit(1.05, "mm"), type = "closed")) +
+    geom_rect(data = boxes,
+              aes(xmin = .data$xmin, xmax = .data$xmax, ymin = .data$ymin,
+                  ymax = .data$ymax),
+              fill = boxes$fill, colour = boxes$border, linewidth = boxes$lw) +
+    geom_text(data = boxes,
+              aes(x = .data$x, y = .data$y, label = .data$label),
+              size = boxes$size, colour = ink[["text"]], lineheight = 1.0) +
+    annotate("text", x = dom_x0 + 12, y = dom_top + 1.3, hjust = 0, vjust = 0,
+             size = pt_head, colour = ink[["text"]],
+             label = "Behavioural domains characterised from the continuous record") +
+    annotate("text", x = cmp_x0, y = cmp_top + 1.3, hjust = 0, vjust = 0,
+             size = pt_head, colour = ink[["text"]],
+             label = "Later outcome components") +
+    annotate("text", x = 46, y = y3b - 1.4, hjust = 0, vjust = 1,
+             size = pt_note, colour = ink[["text"]], label = direction_note) +
+    annotate("text", x = 1, y = y3b - 1.4, hjust = 0, vjust = 1,
+             size = pt_note, colour = ink[["caveat"]],
+             label = provenance_note, lineheight = 1.05) +
+    geom_point(data = chips,
+               aes(x = .data$x, y = .data$y, fill = .data$Group,
+                   shape = .data$Group),
+               size = 1.5, colour = "black", stroke = 0.28,
+               show.legend = FALSE) +
+    mmm_scale_fill_group() + mmm_scale_shape_group() +
+    scale_x_continuous(limits = c(0, 100), expand = c(0, 0)) +
+    scale_y_continuous(limits = c(-4.5, y_top + 2.6), expand = c(0, 0)) +
+    theme_mmm_schematic()
 }

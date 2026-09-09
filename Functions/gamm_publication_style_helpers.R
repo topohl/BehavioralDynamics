@@ -25,9 +25,18 @@ if (!exists("theme_mmm_pub", inherits = TRUE)) {
 mmm_panel_label <- function(letter) {
   labs(tag = letter)
 }
-mmm_tag_theme <- function() {
+
+# The tag position is RELATIVE to each sub-plot's own 0-1 space. In a composed
+# figure that means one inset lands at a different ABSOLUTE x on panels of
+# different width, so a full-width row's letter drifts right of the letters in
+# a row that opens with a narrower column. Exposed as constants so an assembler
+# can rescale the inset for a wider panel and keep all letters flush.
+MMM_TAG_INSET_X <- 0.005
+MMM_TAG_INSET_Y <- 0.995
+
+mmm_tag_theme <- function(inset_x = MMM_TAG_INSET_X, inset_y = MMM_TAG_INSET_Y) {
   theme(plot.tag = element_text(size = MMM_PANEL_LABEL_PT, face = "bold", hjust = 0, vjust = 1),
-        plot.tag.position = c(0.005, 0.995))
+        plot.tag.position = c(inset_x, inset_y))
 }
 
 #' Export one figure as editable vector PDF + SVG (and optional PNG preview).

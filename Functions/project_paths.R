@@ -162,8 +162,63 @@ mmm_publication_dir <- function(kind, create = FALSE,
 # canonical filename. A key with one file resolves to a bare path; a key with
 # several resolves to a named vector, or to one path when `file =` is supplied.
 
+#' Root of the upstream SIS endpoint sources (outside the RFID analysis tree).
+#'
+#' The composite outcome and the phenotype classification lists live one level up
+#' from the RFID analysis root, in the SIS analysis folder. Configurable for the
+#' same reason as every other root.
+mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
+  configured <- .mmm_configured("mmm.endpoint_source_root",
+                                "MMM_ENDPOINT_SOURCE_ROOT", "")
+  if (nzchar(configured)) {
+    return(normalizePath(configured, winslash = "/", mustWork = FALSE))
+  }
+  # .../Analysis/Behavior/RFID -> .../Analysis
+  normalizePath(dirname(dirname(project_root)), winslash = "/", mustWork = FALSE)
+}
+
 .mmm_path_specs <- function() {
   list(
+    # ------------------------------------------------- upstream endpoint source
+    "behavior.combz_upstream_workbook" = list(
+      description = paste(
+        "UPSTREAM, NOT PRODUCED BY THIS REPOSITORY. The hand-maintained SIS",
+        "endpoint workbook that supplies the six standardized outcome",
+        "components, plus the two phenotype-classification identifier lists.",
+        "Sheet 'zScore' is the ONLY canonical composite; sheets 'combZScore'",
+        "and 'CombZScore_noBatch' are noncanonical alternatives and must never",
+        "be read. See docs/COMBZ_CANONICAL_DEFINITION.md."),
+      producer_stage = "external",
+      producer_script = "none - hand-maintained Excel workbook",
+      resolution = "per animal; the composite has no time resolution",
+      analysis_role = "upstream endpoint source (external dependency)",
+      dir = function(root) file.path(mmm_endpoint_source_root(root)),
+      files = c(workbook = "SIS_Analysis/E9_Behavior_Data.xlsx",
+                susceptible_ids = "sus_animals.csv",
+                control_ids = "con_animals.csv")
+    ),
+
+    "behavior.later_outcome_combz" = list(
+      description = paste(
+        "CANONICAL in-repository later composite stress-burden score (CombZ):",
+        "animal-level components, the composite, and the derived later outcome",
+        "group, together with the component definition, the classification",
+        "thresholds and the workbook parity audit. Produced by",
+        "Analysis/build_later_outcome_combz.R, which reproduces the workbook",
+        "endpoint exactly and refuses to run if parity fails."),
+      producer_stage = "canonical-endpoint",
+      producer_script = "Analysis/build_later_outcome_combz.R",
+      resolution = "per animal; the composite has no time resolution",
+      analysis_role = "CANONICAL later outcome definition",
+      dir = function(root) file.path(behavior_analysis_ready_dir(root),
+                                     "canonical", "later_outcome_combz", "tables"),
+      files = c(animal_level = "later_outcome_combz_animal_level.csv",
+                component_definition = "combz_component_definition.csv",
+                classification_thresholds = "combz_classification_thresholds.csv",
+                parity_audit = "combz_workbook_parity_audit.csv",
+                alternative_composite_audit = "combz_alternative_composite_audit.csv")
+    ),
+
     # ---------------------------------------------------------------- panel A
     "behavior.combz_definition" = list(
       description = paste(
@@ -295,6 +350,11 @@ mmm_publication_dir <- function(kind, create = FALSE,
                                                  "10min"),
       files = c(performance = "primary_prediction_performance.csv",
                 permutation = "primary_prediction_permutation_test.csv",
+                # The per-permutation statistics themselves, so a figure can
+                # show the REAL null distribution instead of reconstructing a
+                # density from published quantiles. One observed row plus
+                # n_permutations null rows per model.
+                permutation_draws = "early_prediction_permutation_draws.csv",
                 predictions = "primary_prediction_predictions.csv",
                 model_registry = "primary_prediction_model_registry.csv"),
       stage09_resolver = TRUE
