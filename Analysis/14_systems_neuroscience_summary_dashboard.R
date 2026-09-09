@@ -95,13 +95,24 @@ domain_bin_preference <- function(domain = "general") {
   preferred <- switch(
     domain,
     hmm = c("10min_based", "5min_based", "30min_based", "1min_based", "10sec_based"),
-    latent_state = c("10min_based", "5min_based", "30min_based", "1min_based", "10sec_based"),
+    # latent_state: Analysis/05_behavioral_state_space.R:43 declares and writes
+    # 5min_based ONLY. The 10min_based state_space tree on disk is undeclared
+    # historical output from an older version of that script and is three days
+    # OLDER than the declared one, so preferring it read a tree the current
+    # producer cannot regenerate. Head aligned to the producer's declaration.
+    latent_state = c("5min_based", "10min_based", "30min_based", "1min_based", "10sec_based"),
     rest = c("10min_based", "30min_based", "5min_based", "1min_based", "10sec_based"),
     sleep_like_inactivity = c("10min_based", "30min_based", "5min_based", "1min_based", "10sec_based"),
     temporal_flexibility = c("10sec_based", "1min_based", "5min_based", "10min_based", "30min_based"),
     general = c(primary_bin_level, optional_import_bin_levels),
     social_reorganization = c("5min_based", "10min_based", "1min_based", "30min_based", "10sec_based"),
-    adaptive_recovery = c("5min_based", "10min_based", "30min_based", "1min_based", "10sec_based"),
+    # adaptive_recovery: Analysis/11_behavioral_adaptation_kinetics.R:34 declares
+    # and writes 10min_based ONLY. Preferring 5min_based selected an undeclared
+    # 2026-05-18 tree that PREDATES the 2026-09-03 phase-classifier fix
+    # (commit 12f3e76), i.e. a tree in which Inactive epochs were silently
+    # relabelled Active. This was an active correctness defect, not a style
+    # choice: the current producer cannot regenerate 5min_based at all.
+    adaptive_recovery = c("10min_based", "5min_based", "30min_based", "1min_based", "10sec_based"),
     phase_organization = c("10min_based", "30min_based", "5min_based", "1min_based", "10sec_based"),
     nonlinear_systems = c("5min_based", "10min_based", "1min_based", "30min_based", "10sec_based"),
     early_prediction = c(primary_bin_level, "10min_based", "1min_based", "30min_based", "10sec_based"),
@@ -349,10 +360,67 @@ read_any_table <- function(path, sheet = NULL) {
   NULL
 }
 
-first_existing_path <- function(candidates) {
+#' UTC instant of the exact-phase-classifier fix (commit 12f3e76, 2026-09-03).
+#'
+#' Before it, `str_detect(str_to_lower(Phase), "active|dark|night")` matched the
+#' substring "active" inside "inactive", so Inactive epochs were silently
+#' relabelled Active wherever that branch ran first or attributed duration.
+#' Any upstream phase-dependent table written before this instant carries the
+#' defect. Regenerating Stage 13 changed n_bins by up to 144 bins per row, so
+#' this is not a rounding-level concern.
+#'
+#' The commit is stamped `2026-09-03 15:24:07 +0200`, i.e. 13:24:07 UTC. Writing
+#' the offset explicitly rather than pasting the local-clock digits into a
+#' tz = "UTC" call matters: getting that wrong shifts the cutoff two hours late
+#' and refuses genuinely post-fix trees, which is how this guard first failed.
+MMM_PHASE_CLASSIFIER_FIX_UTC <- as.POSIXct("2026-09-03 15:24:07 +0200",
+                                           format = "%Y-%m-%d %H:%M:%S %z",
+                                           tz = "UTC")
+
+#' Upstream trees whose contents depend on Active/Inactive classification.
+#'
+#' Keyed by the analysis_ready directory segment. Only these are staleness-gated;
+#' resolution-only or phase-agnostic sources are not.
+MMM_PHASE_DEPENDENT_SOURCES <- c(
+  "15_behavioral_adaptation_kinetics",
+  "16_sleep_like_inactivity_metrics",
+  "17_ethological_phase_organization"
+)
+
+#' Fail loudly if a resolved input predates the phase-classifier fix.
+#'
+#' The previous behaviour was the dangerous one: `first_existing_path()` took the
+#' first path that merely EXISTED, so a stale undeclared resolution silently won
+#' over a correct declared one. Existence is not validity.
+assert_not_pre_phase_fix <- function(path, label = basename(path)) {
+  if (is.na(path) || !nzchar(path) || !file.exists(path)) return(invisible(path))
+  if (!any(vapply(MMM_PHASE_DEPENDENT_SOURCES,
+                  function(s) grepl(s, path, fixed = TRUE), logical(1)))) {
+    return(invisible(path))
+  }
+  mtime <- file.info(path)$mtime
+  if (is.na(mtime)) return(invisible(path))
+  if (as.POSIXct(mtime, tz = "UTC") < MMM_PHASE_CLASSIFIER_FIX_UTC) {
+    stop(
+      "STALE PHASE-DEPENDENT INPUT refused for '", label, "':\n  ", path,
+      "\n  written ", format(mtime, tz = "UTC", usetz = TRUE),
+      ", which predates the exact-phase-classifier fix (",
+      format(MMM_PHASE_CLASSIFIER_FIX_UTC, usetz = TRUE), ", commit 12f3e76).",
+      "\n  In that tree Inactive epochs were silently relabelled Active.",
+      "\n  Re-run the owning producer at its DECLARED resolution rather than",
+      " pointing this stage at a different one.",
+      call. = FALSE
+    )
+  }
+  invisible(path)
+}
+
+first_existing_path <- function(candidates, label = NULL) {
   candidates <- candidates[!is.na(candidates)]
   hit <- candidates[file.exists(candidates)][1]
-  if (length(hit) == 0 || is.na(hit)) NA_character_ else hit
+  if (length(hit) == 0 || is.na(hit)) return(NA_character_)
+  assert_not_pre_phase_fix(hit, label %||% basename(hit))
+  hit
 }
 
 parse_cage_change_index <- function(x) {
@@ -630,9 +698,17 @@ paths <- tibble(
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", hmm_primary_bin_level, "tables"),
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", primary_bin_level, "tables"),
     file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", primary_bin_level, "derived_data"),
-    file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", primary_bin_level, "tables"),
-    file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", primary_bin_level, "tables"),
-    file.path(project_root, "analysis_ready/17_ethological_phase_organization", primary_bin_level, "tables"),
+    # These three are 10min-only producers (Analysis/11:34, 12:33, 13:35), so
+    # recording them at primary_bin_level (5min) made the provenance registry
+    # describe a resolution this stage does not actually read - and in the
+    # adaptation case a resolution that no longer has a producer at all.
+    # Record the resolution the domain preference will really resolve to.
+    file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics",
+              domain_bin_preference("adaptive_recovery")[1], "tables"),
+    file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics",
+              domain_bin_preference("sleep_like_inactivity")[1], "tables"),
+    file.path(project_root, "analysis_ready/17_ethological_phase_organization",
+              domain_bin_preference("phase_organization")[1], "tables"),
     file.path(project_root, "analysis_ready/12_behavior_proteomics_integration", "tables"),
     file.path(project_root, "analysis_ready/14_nextgen_behavioral_phenotyping", primary_bin_level, "tables")
   )
