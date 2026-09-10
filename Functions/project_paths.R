@@ -374,6 +374,44 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
       files = c(predictions = "prediction_source_data.csv")
     ),
 
+    # ---------------------------------------- temporal panels for Stage 27 candidates
+    "behavior.first_active_trajectory" = list(
+      description = paste(
+        "Canonical Stage 20 first-active 12 h GAMM outputs used by the",
+        "assembly-only five-panel behavior-figure candidate. The primary",
+        "prediction grid is already fitted upstream; group-aware candidates",
+        "must plot those stored Sex x Group trajectories directly."),
+      producer_stage = "20",
+      producer_script = "Analysis/20_first_night_gamm.R",
+      resolution = "10min",
+      analysis_role = "PRIMARY first-active temporal characterisation",
+      dir = function(root) behavior_stage_tables(root, "20",
+                                                 "first_night_gamm", "10min"),
+      files = c(
+        trajectory_predictions = "first_active_trajectory_predictions.csv",
+        primary_contrasts = "first_active_primary_contrasts.csv",
+        model_specification = "first_active_model_specification.csv")
+    ),
+
+    "behavior.repeated_acute_movement" = list(
+      description = paste(
+        "Canonical Stage 22 repeated acute Active-window outputs used by the",
+        "assembly-only five-panel behavior-figure candidate: animal-level",
+        "empirical points and the precomputed overall-population CC4-CC1",
+        "estimand, with the phenotype-dependent null retained as context."),
+      producer_stage = "22",
+      producer_script = "Analysis/22_repeated_cagechange_acute_gamm.R",
+      resolution = "10min",
+      analysis_role = "SECONDARY repeated acute-response characterisation",
+      dir = function(root) behavior_stage_tables(
+        root, "22", "repeated_cagechange_acute_gamm", "10min"),
+      files = c(
+        empirical_auc = "allcc_active_animal_empirical_auc.csv",
+        adaptation_registry = "allcc_active_adaptation_multiplicity_registry.csv",
+        sex_moderation = "allcc_active_sex_moderation_contrasts.csv",
+        model_specification = "allcc_active_model_specification.csv")
+    ),
+
     # -------------------------------------------------- context / cross-links
     "behavior.longitudinal_movement" = list(
       description = paste(
