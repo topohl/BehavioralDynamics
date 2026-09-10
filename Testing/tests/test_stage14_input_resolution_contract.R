@@ -148,4 +148,52 @@ check(identical(res3, "no_error"),
       "the guard gated a source that does not depend on phase classification")
 ok("phase-agnostic sources are not gated")
 
+# ---------------------------------------------------------------------------
+cat("\n[4] a DIRECTORY is judged by its contents, not by its own mtime\n")
+# ---------------------------------------------------------------------------
+#
+# Stage 14 passes a bare tables/ directory for one of these sources. On NTFS a
+# directory's mtime moves only when entries are added or removed, so
+# regenerating a stage IN PLACE leaves the directory stamped with its old date.
+# Gating on the directory stamp rejected a freshly corrected Stage 13 tree and
+# aborted the run - the regression this section exists to prevent.
+
+check(exists("mmm_effective_write_time", envir = env, mode = "function"),
+      "mmm_effective_write_time() is missing; directory inputs would be judged by their own mtime")
+
+# Fresh files inside a directory whose own stamp is pre-fix -> must be ACCEPTED.
+# Own fixture tree: section [3] leaves a post-fix file in its tables/ directory,
+# and reusing that path would make the "stale contents" case pass for the wrong
+# reason.
+freshdir <- file.path(tempdir(), "s14guard_dir", "17_ethological_phase_organization",
+                      "10min_based", "tables")
+dir.create(freshdir, recursive = TRUE, showWarnings = FALSE)
+inner <- file.path(freshdir, "phase_timing_features.csv")
+writeLines("a,b\n1,2", inner)
+Sys.setFileTime(inner, as.POSIXct("2026-09-09 18:02:00", tz = "UTC"))
+Sys.setFileTime(freshdir, as.POSIXct("2026-08-31 16:22:57", tz = "UTC"))
+res4 <- tryCatch({ env$assert_not_pre_phase_fix(freshdir); "no_error" },
+                 error = function(e) conditionMessage(e))
+check(identical(res4, "no_error"),
+      paste0("a directory holding only POST-fix files was refused because of its own ",
+             "stale directory mtime: ", substr(res4, 1, 140)))
+ok("directory with fresh contents is accepted despite a stale directory stamp")
+
+# Genuinely stale contents -> must still be REFUSED.
+Sys.setFileTime(inner, as.POSIXct("2026-05-22 14:13:07", tz = "UTC"))
+res5 <- tryCatch({ env$assert_not_pre_phase_fix(freshdir); "no_error" },
+                 error = function(e) conditionMessage(e))
+check(!identical(res5, "no_error"),
+      "a directory whose files are all PRE-fix was accepted; the guard no longer protects directory inputs")
+ok("directory with stale contents is still refused")
+
+# An empty directory consumes nothing and must not be gated.
+emptydir <- file.path(tempdir(), "s14guard_dir", "17_ethological_phase_organization", "empty_probe")
+dir.create(emptydir, recursive = TRUE, showWarnings = FALSE)
+Sys.setFileTime(emptydir, as.POSIXct("2026-01-01 00:00:00", tz = "UTC"))
+res6 <- tryCatch({ env$assert_not_pre_phase_fix(emptydir); "no_error" },
+                 error = function(e) conditionMessage(e))
+check(identical(res6, "no_error"), "an empty directory was gated; nothing is consumed from it")
+ok("empty directory is not gated")
+
 cat("\nStage 14 input-resolution contract checks: PASS\n")

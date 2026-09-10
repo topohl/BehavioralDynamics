@@ -392,13 +392,36 @@ MMM_PHASE_DEPENDENT_SOURCES <- c(
 #' The previous behaviour was the dangerous one: `first_existing_path()` took the
 #' first path that merely EXISTED, so a stale undeclared resolution silently won
 #' over a correct declared one. Existence is not validity.
+#' Effective write time of a consumed input.
+#'
+#' A DIRECTORY's own mtime is not evidence about its contents. On NTFS the
+#' parent mtime moves only when entries are added or removed, so regenerating a
+#' stage in place - overwriting every table - leaves the directory stamped with
+#' its creation date. Stage 13 was regenerated on 2026-09-09 while its tables/
+#' directory still read 2026-08-31, and gating on the directory stamp rejected
+#' a freshly corrected tree.
+#'
+#' What actually determines staleness is the NEWEST file that will be read, so
+#' that is what this returns. Empty directories yield NA and are not gated:
+#' nothing is consumed from them.
+mmm_effective_write_time <- function(path) {
+  info <- file.info(path)
+  if (isTRUE(info$isdir)) {
+    files <- list.files(path, recursive = TRUE, full.names = TRUE, all.files = FALSE)
+    files <- files[!dir.exists(files)]
+    if (length(files) == 0L) return(as.POSIXct(NA))
+    return(max(file.info(files)$mtime, na.rm = TRUE))
+  }
+  info$mtime
+}
+
 assert_not_pre_phase_fix <- function(path, label = basename(path)) {
   if (is.na(path) || !nzchar(path) || !file.exists(path)) return(invisible(path))
   if (!any(vapply(MMM_PHASE_DEPENDENT_SOURCES,
                   function(s) grepl(s, path, fixed = TRUE), logical(1)))) {
     return(invisible(path))
   }
-  mtime <- file.info(path)$mtime
+  mtime <- mmm_effective_write_time(path)
   if (is.na(mtime)) return(invisible(path))
   if (as.POSIXct(mtime, tz = "UTC") < MMM_PHASE_CLASSIFIER_FIX_UTC) {
     stop(
