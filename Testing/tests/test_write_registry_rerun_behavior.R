@@ -98,10 +98,17 @@ cat("candidate paths within a single run) was fixed at the call sites instead.\n
 # ------------------------------------------------------------------
 # Part 3: supersede semantics. A stage may legitimately write a
 # provisional artifact early and overwrite it with an enriched version
-# later in the SAME run (Stage 14's systems_module_scorecards.csv). That
-# is opt-in via supersede = TRUE; without it the duplicate-write guard
-# must still fire, because an unmarked duplicate is indistinguishable
-# from the accidental double-write this registry exists to catch.
+# later in the SAME run. That is opt-in via supersede = TRUE; without it
+# the duplicate-write guard must still fire, because an unmarked
+# duplicate is indistinguishable from the accidental double-write this
+# registry exists to catch.
+#
+# The mechanism is still tested, but note that Stage 14's
+# systems_module_scorecards.csv is no longer an example of it: the
+# provisional write made the file's SCHEMA depend on whether the
+# enrichment branch ran, so it now builds the canonical table in memory
+# and writes it exactly once. Provisional-then-supersede is a poor fit
+# whenever the two versions differ in shape rather than only in values.
 # ------------------------------------------------------------------
 tmp3 <- tempfile(fileext = ".csv")
 provisional <- tibble(v = 1)

@@ -2576,10 +2576,29 @@ module_scorecards_base <- feature_qc %>%
   )))
 
 write_table(module_scorecards_base, file.path(output_dir, "tables/systems_module_scorecards_base.csv"))
-# Provisional: guarantees systems_module_scorecards.csv exists even when no
-# outcome data are available. Superseded below by the prediction-enriched
-# version whenever length(available_outcomes) > 0.
-write_table(module_scorecards_base, file.path(output_dir, "tables/systems_module_scorecards.csv"))
+
+# ---------------------------------------------------------------------------
+# CANONICAL MODULE SCORECARD SCHEMA - defined here, written exactly once, far
+# below, after prediction enrichment has had its chance to run.
+#
+# This file used to be written twice to the same path: a provisional
+# base-only version here, then a prediction-enriched version that superseded
+# it, but ONLY inside `if (length(available_outcomes) > 0)`. Endpoint columns
+# reach systems_features through read_any_table() on an .xlsx workbook that
+# lives on a network share, and read_any_table() returns NULL silently when
+# file.exists() is false. One unreachable moment therefore left the canonical
+# file in a 13-column form with no error and no warning, while an ordinary run
+# produced 15 columns. Schema became a function of share availability.
+#
+# The two enrichment fields now always exist. Absence of prediction is carried
+# as a VALUE - PredictionInterpretation == "not_available", the same token the
+# enriched path already uses for a non-finite readout - never as a missing
+# column. Nothing may infer prediction availability from the column set.
+module_scorecards <- module_scorecards_base %>%
+  mutate(
+    PredictionReadout = NA_real_,
+    PredictionInterpretation = "not_available"
+  )
 
 feature_redundancy_tbl <- map_dfr(unique(feature_dictionary$Module), function(mod) {
   feats <- feature_dictionary %>%
@@ -4572,8 +4591,15 @@ if (length(available_outcomes) > 0) {
     )
   )
 
+  # Join safety: Module is the row key on both sides, so the enrichment must
+  # neither multiply nor drop rows. relationship = "one-to-one" makes a
+  # duplicated key an error instead of a silent fan-out; the row-count check
+  # catches the reverse case, a module vanishing from the canonical universe.
+  # Modules with no prediction entry keep their row and get NA, which the
+  # case_when below turns into "not_available".
+  stopifnot(!anyDuplicated(module_prediction_map$Module))
   module_scorecards <- module_scorecards_base %>%
-    left_join(module_prediction_map, by = "Module") %>%
+    left_join(module_prediction_map, by = "Module", relationship = "one-to-one") %>%
     mutate(
       PredictionInterpretation = case_when(
         !is.finite(PredictionReadout) ~ "not_available",
@@ -4582,10 +4608,10 @@ if (length(available_outcomes) > 0) {
         TRUE ~ "no_increment_or_overfit"
       )
     )
-
-  # Final, prediction-enriched scorecards intentionally supersede the
-  # provisional base version written earlier in this run.
-  write_table(module_scorecards, file.path(output_dir, "tables/systems_module_scorecards.csv"), supersede = TRUE)
+  stopifnot(nrow(module_scorecards) == nrow(module_scorecards_base))
+  # Deliberately NOT written here. The single canonical write is below, outside
+  # this conditional, so the file's schema cannot depend on whether this branch
+  # ran.
 
   prediction_sex_stats <- prediction_tbl %>%
     group_by(Sex) %>%
@@ -4653,6 +4679,32 @@ if (length(available_outcomes) > 0) {
   save_plot_svg_pdf(p_pred, file.path(output_dir, "figures/publication_panels/Fig_systems_prospective_crossvalidated_prediction"), width = 135, height = 75)
 
 }
+
+# ---------------------------------------------------------------------------
+# THE single canonical write of systems_module_scorecards.csv.
+#
+# Reached on every path: with prediction enrichment (module_scorecards was
+# rebuilt above) or without it (the NA-initialised version defined next to
+# module_scorecards_base). Column set, order and types are therefore identical
+# in both cases, and the file no longer records whether the endpoint workbook
+# happened to be reachable.
+MMM_MODULE_SCORECARD_COLUMNS <- c(
+  names(module_scorecards_base), "PredictionReadout", "PredictionInterpretation"
+)
+module_scorecards <- module_scorecards %>%
+  mutate(
+    PredictionReadout = as.numeric(PredictionReadout),
+    PredictionInterpretation = as.character(PredictionInterpretation)
+  ) %>%
+  select(all_of(MMM_MODULE_SCORECARD_COLUMNS)) %>%
+  arrange(.data$Module)
+stopifnot(
+  identical(names(module_scorecards), MMM_MODULE_SCORECARD_COLUMNS),
+  nrow(module_scorecards) == nrow(module_scorecards_base),
+  !anyDuplicated(module_scorecards$Module),
+  !anyNA(module_scorecards$PredictionInterpretation)
+)
+write_table(module_scorecards, file.path(output_dir, "tables/systems_module_scorecards.csv"))
 
 systems_endpoint_leakage_audit <- bind_rows(
   feature_dictionary %>%
