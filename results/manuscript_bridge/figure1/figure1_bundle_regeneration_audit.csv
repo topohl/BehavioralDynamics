@@ -1,0 +1,7 @@
+"file","row_key","column","old_value","new_value","classification"
+"figure1_claim_contract.csv","F1-03","statistical_support","Spearman with 5000-sample bootstrap CI; BH over three prespecified features","Spearman with 5000-sample bootstrap CI (percentile, seed 123); BH over three prespecified features","EXPECTED_SEED_PROVENANCE_FIX"
+"figure1_methods_contract.csv","FM-06","value","Spearman with 5000-sample bootstrap CI; BH over three prespecified features","Spearman with 5000-sample bootstrap CI (percentile, seed 123); BH over three prespecified features","EXPECTED_SEED_PROVENANCE_FIX"
+"figure1_methods_contract.csv","FM-07","value","fixed a priori model registry; leave-one-animal-out primary; repeated grouped 5-fold (k=5, 100 repeats, group=AnimalNum, seed 123) companion","fixed a priori model registry; leave-one-animal-out primary; repeated grouped 5-fold (k=5, 100 repeats, group=AnimalNum, seed 521) companion","EXPECTED_SEED_PROVENANCE_FIX"
+"figure1_repo_provenance.csv","topohl/MMMSociability (local authoritative)","source_commit","4b0f90f974ce430d26f31c5e3ddce76f98ae70d1","a1042e29b47c6b74e1eb351bfa238be9fb57cf9b","EXPECTED_PROVENANCE_UPDATE"
+"figure1_repo_provenance.csv","topohl/MMMSociability (local authoritative)","worktree_state","dirty at export time","clean","EXPECTED_PROVENANCE_UPDATE"
+"figure1_repo_provenance.csv","topohl/MMMSociability (local authoritative)","created_at","2026-09-15T16:00:39","2026-09-16T00:57:42","EXPECTED_PROVENANCE_UPDATE"
