@@ -13,6 +13,12 @@ OUT <- file.path(REPO, "results/manuscript_bridge/figure1")
 EXP <- file.path(OUT, "export")
 dir.create(EXP, recursive = TRUE, showWarnings = FALSE)
 
+# Single source of truth for every prediction parameter this bundle reports.
+# Sourced rather than retyped: the repeated-CV seed was previously hard-coded
+# here as the make_grouped_folds() default (123) instead of the value the
+# canonical call site actually passes (521).
+source(file.path(REPO, "Functions", "figure1_prediction_contract.R"))
+
 git <- function(...) {
   o <- suppressWarnings(system2("git", c("-C", shQuote(REPO), ...),
                                 stdout = TRUE, stderr = FALSE))
@@ -20,8 +26,19 @@ git <- function(...) {
 }
 SHA <- git("rev-parse", "HEAD")
 BRANCH <- git("rev-parse", "--abbrev-ref", "HEAD")
+# Worktree state of the SOURCE, excluding this bundle's own output tree.
+#
+# The artefact describes the state of the code that produced it, and that state
+# is not made dirty by the act of writing the artefact. Assessing the whole tree
+# is what made the previous freeze record "dirty at export time" even though the
+# analysis and the builders were fully committed: the bridge builder had just
+# written its own files moments earlier. Excluding the output directory makes
+# the recorded value mean what a reader takes it to mean - whether the code this
+# bundle came from is committed.
+BUNDLE_TREE <- "results/manuscript_bridge/figure1"
 DIRTY <- length(suppressWarnings(system2("git",
-  c("-C", shQuote(REPO), "status", "--porcelain", "--untracked-files=all"),
+  c("-C", shQuote(REPO), "status", "--porcelain", "--untracked-files=all",
+    "--", ".", shQuote(paste0(":(exclude)", BUNDLE_TREE, "/**"))),
   stdout = TRUE, stderr = FALSE))) > 0
 NOW <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S")
 
@@ -61,7 +78,7 @@ claims <- rbind(
            fmt(g("Movement_mean", "spearman_boot_ci_high")), "], q = ",
            fmt(g("Movement_mean", "spearman_p_bh"), 2), ")."),
     "DIRECT_ASSOCIATION", S09, "111",
-    "Spearman with 5000-sample bootstrap CI; BH over three prespecified features",
+    figure1_association_description(),
     "associated with; greater early activity corresponded to greater later stress burden",
     "causes; drives; determines; biomarker", "1c", "READY"),
   C("F1-04",
@@ -140,13 +157,13 @@ meth <- rbind(
     "SUS = SIS and CombZ < within-sex control mean minus within-sex control population SD; thresholds -0.437 male, -0.222 female",
     "docs/COMBZ_CANONICAL_DEFINITION.md section 5"),
   M("FM-06", "association model",
-    "Spearman with 5000-sample bootstrap CI; BH over three prespecified features",
+    figure1_association_description(),
     S09),
   M("FM-07", "prediction design",
-    "fixed a priori model registry; leave-one-animal-out primary; repeated grouped 5-fold (k=5, 100 repeats, group=AnimalNum, seed 123) companion",
+    figure1_repeated_cv_description(),
     S09),
   M("FM-08", "permutation",
-    "full-refit outcome permutation, 1000 draws, seed 20260811; p = 1/1001",
+    figure1_permutation_description(),
     S09),
   M("FM-09", "leakage control",
     "no scaling, centring or feature selection anywhere; outcome-derived group label excluded from every canonical model",

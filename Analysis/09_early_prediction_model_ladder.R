@@ -44,6 +44,7 @@ source(.pipeline_setup)
 source_mmm_helper("behavioral_dynamics_stats_helpers.R")
 source_mmm_helper("duration_normalization_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
+source_mmm_helper("figure1_prediction_contract.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -249,11 +250,11 @@ feature_display_labels <- c(
 model_display_labels <- c(
   "Mean only" = "Mean only",
   "Sex + Group" = "Sex + group",
-  "Movement only" = "Movement",
-  "Entropy ACF1 only" = "Entropy persistence",
-  "Movement + Entropy ACF1" = "Movement + entropy",
-  "Movement x Entropy ACF1" = "Movement x entropy",
-  "Full behavior compact" = "Compact behavior"
+  "Movement only" = "Movement + sex + group",
+  "Entropy ACF1 only" = "Entropy persistence + sex + group",
+  "Movement + Entropy ACF1" = "Movement + entropy + sex + group",
+  "Movement x Entropy ACF1" = "Movement x entropy + sex + group",
+  "Full behavior compact" = "Compact behavior + sex + group"
 )
 
 matched_ladder_model_labels <- c(
@@ -1297,6 +1298,9 @@ model_predictor_audit <- imap_dfr(model_specs, function(predictors, model_name) 
     contains_outcome_like_predictor = any(predictors %in% unique(c("outcome", outcome_col, known_endpoint_cols)))
   )
 })
+# A displayed label must never claim behaviour-only for a model that also
+# carries the outcome-derived Group term or Sex.
+figure1_assert_label_integrity(model_predictor_audit)
 write_table(model_predictor_audit, file.path(output_dir, "tables", "model_ladder_predictor_audit.csv"))
 write_table(model_predictor_audit, file.path(output_dir, "tables", "model_specification_dictionary.csv"))
 
@@ -1711,6 +1715,7 @@ primary_prediction_model_dictionary <- primary_prediction_registry %>%
     notes
   )
 write_table(primary_prediction_model_dictionary, file.path(output_dir, "tables", "primary_prediction_model_registry.csv"))
+figure1_assert_headline_is_behaviour_only(primary_prediction_model_dictionary)
 
 primary_loo_results <- imap(primary_prediction_specs, ~loo_lm_predict(model_dat, .x, .y))
 primary_prediction_predictions <- map_dfr(primary_loo_results, "predictions")
@@ -1728,7 +1733,7 @@ primary_fold_map <- make_grouped_folds(
   model_dat,
   k = 5,
   repeats = n_repeated_cv_repeats,
-  seed = 521
+  seed = FIGURE1_PREDICTION_CONTRACT$repeated_cv_seed
 )
 primary_repeated_predictions <- imap_dfr(
   primary_prediction_specs,

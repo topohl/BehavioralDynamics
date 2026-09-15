@@ -16,6 +16,10 @@ T10 <- file.path(DATA, "analysis_ready/pipeline/09_early_prediction/10min/tables
 T05 <- file.path(DATA, "analysis_ready/pipeline/09_early_prediction/5min/tables")
 OUT <- file.path(REPO, "results/manuscript_bridge/figure1")
 EXP <- file.path(OUT, "export")
+
+# Prediction parameters are read from the single source of truth, never
+# retyped. See Functions/figure1_prediction_contract.R.
+source(file.path(REPO, "Functions", "figure1_prediction_contract.R"))
 REP <- file.path(REPO, "results/reports/manuscript_bridge")
 for (d in c(OUT, EXP, REP)) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 
@@ -244,7 +248,7 @@ L <- function(model, target, preds, unit, folds, scaling, sel, tune, thr, leak,
              stringsAsFactors = FALSE)
 leak <- rbind(
   L("movement_mean", "CombZ (continuous)", "Movement_mean", "animal",
-    "leave-one-animal-out primary; repeated grouped 5-fold CV (k=5, 100 repeats, group = AnimalNum, seed 123) as companion",
+    figure1_repeated_cv_description(),
     "no predictor scaling is applied; features enter as-is",
     "NONE - fixed a priori model registry declared before fitting",
     "none - ordinary least squares, no tuning",
