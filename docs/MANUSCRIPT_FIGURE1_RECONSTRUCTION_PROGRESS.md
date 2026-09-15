@@ -122,3 +122,20 @@ verification (all numbers are in the contract tables with source hashes).
 **CARRY INTO THE MANUSCRIPT:** BH-001 (no sex difference — this contradicts the
 historical narrative), BH-002 (cage structure not modelled), BH-003 (do not claim
 CombZ is regenerated from raw), BH-006 (no behaviour–proteomics main-text claim).
+
+## Verification state
+
+- **HEAD at export:** `4b0f90f` (the analysis code state the numbers come from)
+- **HEAD after bundle commit:** `53bc7e9`
+- **Branch:** `main` · **worktree_clean:** TRUE · **index_clean:** TRUE ·
+  **index_differs_from_head:** FALSE · **tested_state:** HEAD
+- **Tests:** 30 of 30 verification scripts pass, run the intended way
+  (`Rscript Testing/tests/<script>.R` from the repository root).
+  `test_combz_canonical_definition.R` independently confirms the thresholds
+  (male −0.436641698, female −0.222390844), 12 controls per sex, population SD,
+  0 of 117 label mismatches, and direct workbook parity at
+  max |repo − workbook| = 4.44e-16.
+
+Note: `testthat::test_dir()` is the wrong harness for this suite — the scripts
+resolve paths from the repository root and error under `test_dir`. That is an
+invocation artefact, not a defect.
