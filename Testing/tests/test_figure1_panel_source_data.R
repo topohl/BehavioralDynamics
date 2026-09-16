@@ -180,9 +180,12 @@ cat("\n[E] the exporter computes nothing\n")
 
 src <- readLines(EXPORTER, warn = FALSE)
 code <- src[!grepl("^\\s*#", src)]
+# Match CALLS, not prose. The exporter legitimately names the bootstrap and the
+# permutation in descriptive notes attached to the statistics it copies; what it
+# must never do is perform one.
 FORBIDDEN <- c("\\blm\\(", "\\bglm\\(", "cor\\.test\\(", "\\bcor\\(",
-               "p\\.adjust\\(", "\\bsample\\(", "set\\.seed\\(", "gam\\(",
-               "bootstrap", "permute")
+               "p\\.adjust\\(", "\\bsample\\(", "set\\.seed\\(", "\\bgam\\(",
+               "\\bboot\\(", "replicate\\(", "\\bt\\.test\\(", "wilcox\\.test\\(")
 for (f in FORBIDDEN) {
   check(!any(grepl(f, code)),
         paste0("the exporter appears to compute something: ", f))
