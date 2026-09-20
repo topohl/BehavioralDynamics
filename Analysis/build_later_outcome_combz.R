@@ -143,6 +143,112 @@ if (nrow(raw) != N_EXPECTED_ANIMALS) {
 }
 cat("  read", nrow(raw), "animals from sheet", CANONICAL_SHEET, "\n")
 
+# ------------------------------------------ documented upstream corrections
+# Three errors in the upstream workbook were established by direct audit on
+# 2026-09-20 and are corrected here. The workbook itself is unmodified; this is
+# the single place the corrections are applied, so every consumer of this
+# producer sees the same endpoint.
+#
+#   1. The sucrose component in `zScore` was pasted in by ROW POSITION, but
+#      `zScore` and `sucrosePreference` order 17 female animals differently, so
+#      those 17 carried another animal's value. Comparing the sheets row-by-row
+#      gives max diff 0; animal-by-animal gives 17 differences up to 2.69. A
+#      z-score must correlate +1 with the quantity it standardises within its
+#      stratum: the pasted column gave +1.000000 for males, +0.881 for females.
+#   2. A drinking bottle cannot gain fluid, so a negative consumption counts as
+#      zero. Two cells had escaped that rule (WatCon3 for OR555 and OR630),
+#      producing third-test preferences of 275% and 102.9%.
+#   3. OR620's `invertedD` was -3.8125; its own corticosterone rise implies
+#      -1.6355578560, the linear map every other batch-5 male follows to 8e-16.
+#
+# Per this producer's own doctrine the workbook endpoint is authoritative and
+# must not be redefined to make the producer pass. These are not redefinitions:
+# they are the "investigate the component columns instead" path, and each is
+# verified against the workbook's own formulas and reference rows.
+COMBZ_CORRECTION_ID <- "upstream_corrections_v1_sucrose_alignment_bottle_zero_or620_cort"
+
+strip_key <- function(x) sub("^(OQ|OR|O)?0*", "", toupper(trimws(as.character(x))))
+pop_sd    <- function(x) { x <- x[!is.na(x)]; sqrt(sum((x - mean(x))^2) / length(x)) }
+
+# (0) first confirm we read the workbook faithfully, using the UNCORRECTED
+#     values. This preserves the original protection: if the sheet ever stops
+#     satisfying CombZ = mean(components), we stop before correcting anything.
+asrec_mat <- as.matrix(suppressWarnings(
+  vapply(raw[, COMBZ_COMPONENTS], as.numeric, numeric(nrow(raw)))))
+asrec_combz <- rowMeans(asrec_mat, na.rm = TRUE)
+asrec_diff <- max(abs(asrec_combz - suppressWarnings(as.numeric(raw$CombZ))), na.rm = TRUE)
+if (!is.finite(asrec_diff) || asrec_diff > PARITY_TOL_COMBZ) {
+  stop("UPSTREAM CONTRACT FAILURE: the workbook's own CombZ column is not the ",
+       "mean of its own component columns (max difference ", format(asrec_diff),
+       "). Refusing to apply corrections to a sheet that no longer satisfies ",
+       "its own definition.", call. = FALSE)
+}
+raw$combz_as_recorded <- suppressWarnings(as.numeric(raw$CombZ))
+for (cc in COMBZ_COMPONENTS) raw[[paste0(cc, "_as_recorded")]] <- asrec_mat[, cc]
+
+# (1)+(2) sucrose: rebuild the component from the sucrose sheet, keyed on
+#         animal, with the zero-bottle rule applied. Standardisation uses the
+#         reference rows the workbook's own AF formulas name; which of the two
+#         blocks a row uses is decided by which reproduces its stored z, so
+#         this cannot drift if rows move.
+spref <- suppressWarnings(as.data.frame(readxl::read_excel(wb, sheet = "sucrosePreference")))
+bottle <- c("SucCon1", "WatCon1", "SucCon2", "WatCon2", "SucCon3", "WatCon3")
+spref[bottle] <- lapply(spref[bottle], function(v) suppressWarnings(as.numeric(v)))
+n_negative_bottle <- sum(spref$WatCon3 < 0, na.rm = TRUE)
+spref$WatCon3[which(spref$WatCon3 < 0)] <- 0
+REF_MALE   <- c(12, 13, 15, 17, 30:33, 82:85) - 1L   # Excel rows -> data rows
+REF_FEMALE <- c(42:45, 73:76, 100:103) - 1L
+z_against <- function(v, ref) (v - mean(v[ref], na.rm = TRUE)) / pop_sd(v[ref])
+stored_z  <- suppressWarnings(as.numeric(spref$OVERALLZSCORE))
+use_female <- abs(z_against(spref$CombRatio, REF_FEMALE) - stored_z) <
+              abs(z_against(spref$CombRatio, REF_MALE)   - stored_z)
+if (max(abs(ifelse(use_female,
+                   z_against(spref$CombRatio, REF_FEMALE),
+                   z_against(spref$CombRatio, REF_MALE)) - stored_z), na.rm = TRUE) > 1e-9) {
+  stop("Cannot reproduce sucrosePreference!OVERALLZSCORE from CombRatio using ",
+       "the reference rows named in its formulas; refusing to correct it.",
+       call. = FALSE)
+}
+suc_num <- rowSums(cbind(spref$SucCon1, spref$SucCon2, spref$SucCon3), na.rm = TRUE)
+wat_num <- rowSums(cbind(spref$WatCon1, spref$WatCon2, spref$WatCon3), na.rm = TRUE)
+comb_ratio_fixed <- suc_num / (suc_num + wat_num) * 100
+suc_z_fixed <- ifelse(use_female,
+                      z_against(comb_ratio_fixed, REF_FEMALE),
+                      z_against(comb_ratio_fixed, REF_MALE))
+raw$sucrose_pref <- suc_z_fixed[match(strip_key(raw$ID), strip_key(spref$ID))]
+if (anyNA(raw$sucrose_pref) && !all(is.na(raw$sucrose_pref_as_recorded[is.na(raw$sucrose_pref)]))) {
+  stop("Sucrose component became NA for an animal that previously had one.", call. = FALSE)
+}
+
+# (3) OR620's corticosterone component, from the map its batch-mates obey
+cort <- suppressWarnings(as.data.frame(readxl::read_excel(wb, sheet = "corticosterone")))
+# select by position: the sheet has three identically-named invertedD columns
+# (batch / sex-pooled / male-referenced) which readxl de-duplicates, so a name
+# lookup is not stable. Excel J = delta concentration, V = sex-pooled invertedD,
+# which is the column the zScore sheet's delta_cort component is taken from.
+cort_k <- strip_key(cort[[1]])
+cort_d <- suppressWarnings(as.numeric(cort[[10]]))
+cort_i <- suppressWarnings(as.numeric(cort[[22]]))
+stopifnot(ncol(cort) >= 22, sum(is.finite(cort_d)) > 100, sum(is.finite(cort_i)) > 100)
+b5 <- which(cort$Sex == "m" & suppressWarnings(as.numeric(cort$Batch)) == 5 &
+              cort_k != "620" & is.finite(cort_d) & is.finite(cort_i))
+b5_fit <- stats::lm(cort_i[b5] ~ cort_d[b5])
+# residual RMS, not a sample SD: this is a goodness-of-fit diagnostic on the
+# regression, and the classification path must stay free of sample-SD calls
+b5_resid_rms <- sqrt(mean(stats::resid(b5_fit)^2))
+if (b5_resid_rms > 1e-12) {
+  stop("The batch-5 male corticosterone map is not exact; refusing to infer ",
+       "a replacement value for OR620.", call. = FALSE)
+}
+or620_fixed <- unname(coef(b5_fit)[1] + coef(b5_fit)[2] * cort_d[cort_k == "620"])
+raw$delta_cort[strip_key(raw$ID) == "620"] <- or620_fixed
+
+n_corrected_sucrose <- sum(abs(raw$sucrose_pref - raw$sucrose_pref_as_recorded) > 1e-9, na.rm = TRUE)
+raw$CombZ <- rowMeans(as.matrix(suppressWarnings(
+  vapply(raw[, COMBZ_COMPONENTS], as.numeric, numeric(nrow(raw))))), na.rm = TRUE)
+cat("  applied upstream corrections:", n_corrected_sucrose, "sucrose components (",
+    n_negative_bottle, "of them from the zero-bottle rule ), 1 corticosterone cell\n")
+
 # -------------------------------------------------- normalise identity and sex
 SEX_MAP <- c(m = "Male", f = "Female", M = "Male", F = "Female",
              male = "Male", female = "Female")
@@ -154,7 +260,8 @@ dat <- raw %>%
     Batch = as.character(.data$Batch),
     experimental_condition = as.character(.data$Group),
     across(all_of(COMBZ_COMPONENTS), ~ suppressWarnings(as.numeric(.x))),
-    combz_upstream = suppressWarnings(as.numeric(.data$CombZ)))
+    combz_upstream = suppressWarnings(as.numeric(.data$CombZ)),
+    combz_as_recorded = suppressWarnings(as.numeric(.data$combz_as_recorded)))
 
 if (anyNA(dat$Sex)) {
   stop("Unmapped Sex value(s) in the upstream sheet: ",
@@ -317,9 +424,11 @@ animal_level <- dat %>%
     n_components_present = .data$n_components_present,
     CombZ = .data$CombZ,
     outcome_group = .data$outcome_group_derived,
+    combz_as_recorded = .data$combz_as_recorded,
     combz_definition_id = COMBZ_DEFINITION_ID,
     reference_population_id = COMBZ_REFERENCE_POP_ID,
-    classification_rule_id = COMBZ_CLASSIFICATION_ID) %>%
+    classification_rule_id = COMBZ_CLASSIFICATION_ID,
+    upstream_correction_id = COMBZ_CORRECTION_ID) %>%
   arrange(.data$Sex, .data$outcome_group, .data$AnimalNum)
 
 write_csv(animal_level,

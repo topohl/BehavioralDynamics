@@ -192,7 +192,14 @@ if (!have_out) {
   thr <- read_csv(mmm_path_get("behavior.later_outcome_combz",
                                "classification_thresholds", root = project_root),
                   show_col_types = FALSE, progress = FALSE)
-  EXPECT <- c(Male = -0.436641698, Female = -0.222390844)
+  # The Female threshold changed on 2026-09-20 from -0.222390844 when three
+  # documented errors in the upstream workbook were corrected in the producer:
+  # a row-position paste that gave 17 female animals another animal's sucrose
+  # component, two negative drinking-bottle readings that should have counted
+  # as zero, and one wrong corticosterone cell (OR620). Four female animals
+  # moved SUS -> RES (OR424, OR430, OR434, OR554). The Male threshold is
+  # unchanged because no male fed the female reference population.
+  EXPECT <- c(Male = -0.436641698, Female = -0.316628592)
   for (sx in names(EXPECT)) {
     got <- thr$susceptibility_threshold[thr$Sex == sx]
     check(length(got) == 1L, paste0("no threshold row for Sex=", sx))
@@ -203,7 +210,7 @@ if (!have_out) {
   check(all(thr$n_control == 12L), "each sex must have 12 control reference animals")
   check(all(grepl("population", thr$sd_convention, ignore.case = TRUE)),
         "the recorded SD convention must be population SD")
-  ok("Male -0.436641698 and Female -0.222390844, 12 controls per sex, population SD")
+  ok("Male -0.436641698 and Female -0.316628592, 12 controls per sex, population SD")
 
   # the rule must reproduce the labels from CombZ alone
   pop_sd <- function(v) { v <- v[is.finite(v)]; sqrt(mean((v - mean(v))^2)) }
@@ -257,14 +264,32 @@ if (have_wb && have_out) {
         readxl::read_excel(wb, sheet = CANON_SHEET)))
   a <- read_csv(canon, show_col_types = FALSE, progress = FALSE)
   z$k <- canonical_animal_id(z$ID)
+  # Since 2026-09-20 the producer applies three documented corrections to the
+  # upstream components, so the repo CombZ is deliberately NOT equal to the
+  # workbook's stored CombZ for the corrected animals. Parity is therefore
+  # asserted in two parts: the as-recorded column must still reproduce the
+  # workbook exactly, and the corrected column may differ only for animals the
+  # correction is documented to touch.
+  check("combz_as_recorded" %in% names(a),
+        "the canonical output must retain combz_as_recorded so parity against the workbook stays checkable")
   m <- merge(data.frame(k = z$k, wb_combz = suppressWarnings(as.numeric(z$CombZ))),
-             data.frame(k = canonical_animal_id(a$AnimalNum), repo_combz = a$CombZ),
+             data.frame(k = canonical_animal_id(a$AnimalNum),
+                        repo_combz = a$CombZ,
+                        repo_asrec = a$combz_as_recorded),
              by = "k")
   check(nrow(m) == 117L, paste0("workbook/repo join is ", nrow(m), ", expected 117"))
-  d <- max(abs(m$wb_combz - m$repo_combz), na.rm = TRUE)
-  check(d <= 1e-12,
-        paste0("repo CombZ differs from the workbook by ", format(d)))
-  ok(paste0("117/117 animals, max |repo - workbook| = ", format(d)))
+  d_asrec <- max(abs(m$wb_combz - m$repo_asrec), na.rm = TRUE)
+  check(d_asrec <= 1e-12,
+        paste0("as-recorded CombZ differs from the workbook by ", format(d_asrec)))
+  ok(paste0("as-recorded parity: 117/117 animals, max |repo - workbook| = ", format(d_asrec)))
+
+  CORRECTED_EXPECTED <- 19L   # 18 sucrose components + OR620's corticosterone cell
+  n_diff <- sum(abs(m$repo_combz - m$repo_asrec) > 1e-9, na.rm = TRUE)
+  check(n_diff == CORRECTED_EXPECTED,
+        paste0("expected exactly ", CORRECTED_EXPECTED,
+               " animals whose CombZ was changed by the documented corrections, found ", n_diff))
+  ok(paste0("corrected CombZ differs from as-recorded for exactly ", n_diff,
+            " documented animals"))
 
   # the canonical sheet must remain the only one carrying a column named CombZ
   # that any consumer pins
