@@ -441,8 +441,37 @@ cat("    frozen facts: rho =", facts$assoc_rho, "| LOAO R2 =", facts$pred_r2,
 # ------------------------------------------------------------- registration
 figman <- list(); srcman <- list()
 
+# Source Data must reproduce the values it was given BIT FOR BIT, because the
+# contract tests assert equality at zero tolerance against the producing stage's
+# own tables, reading BOTH sides with readr::read_csv. Neither obvious writer
+# manages that alone, because readr's number parser (vroom) is not correctly
+# rounded and its error GROWS with the length of the decimal string:
+#   * readr::write_csv's shortest representation lost one permutation draw in
+#     2,002 on 2026-09-21 (-0.0146820437782830705 written, ...791 read);
+#   * a fixed 17 significant digits, tried as the fix on the same day, is
+#     strictly worse. It is a faithful image of the double, but readr reads it
+#     back one ULP away for 1,456 of the 17,780 doubles this stage carries -
+#     including every null_median, and 937 of the 2,002 draws. It therefore
+#     multiplied the very failure it was meant to remove.
+# The only honest rule is empirical: emit the shortest candidate that readr
+# ITSELF reads back as the identical double, and refuse to write if none does.
+# Plain notation with leading zeros is where vroom is least accurate, so
+# scientific candidates are offered too.
+fmt_exact <- function(v) {
+  if (is.na(v)) return(NA_character_)
+  cands <- c(vapply(15:17, function(d) format(v, digits = d, scientific = FALSE,
+                                              trim = TRUE), character(1)),
+             vapply(14:17, function(k) sprintf(paste0("%.", k, "e"), v),
+                    character(1)))
+  for (s in cands) if (identical(readr::parse_double(s), v)) return(s)
+  stop("No decimal representation of ", sprintf("%.17g", v), " round-trips ",
+       "through readr::read_csv; Source Data cannot be written bit-exactly.",
+       call. = FALSE)
+}
 wsrc <- function(x, f) {
-  write_csv(x, file.path(dirs$source_data, f)); f
+  x_exact <- x %>% mutate(across(where(is.double),
+                                 ~ vapply(.x, fmt_exact, character(1))))
+  write_csv(x_exact, file.path(dirs$source_data, f), na = ""); f
 }
 # `stage` is the SCIENTIFIC OWNER, never the transport layer. Where the figure
 # reads a validated export instead of the owner's own table, `source_stage`

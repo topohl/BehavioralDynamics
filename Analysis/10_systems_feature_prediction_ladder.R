@@ -539,8 +539,100 @@ candidate_paths <- feature_search_dirs[dir.exists(feature_search_dirs)] %>%
 # Avoid re-importing the 08b model input as an external candidate.
 candidate_paths <- setdiff(normalizePath(candidate_paths, winslash = "/", mustWork = FALSE), normalizePath(input_08b, winslash = "/", mustWork = FALSE))
 
+# ---------------------------------------------------------------------------
+# SELF-INGESTION GUARD
+# ---------------------------------------------------------------------------
+# The glob above cannot tell an upstream feature table from an artifact this
+# stage itself wrote on an earlier run. Without a guard the stage re-reads its
+# own output, re-prefixes every column with the file's basename and full-joins
+# it back in, so the matrix grows super-linearly run over run.
+#
+# Measured on 2026-09-21 before this guard: 111 rows x 752,473 columns (790 MB),
+# of which 749,053 (99.55%) were re-ingested copies of three May-2026 outputs,
+# nested up to seven deep. Only 3,420 columns were genuine. The run used 22 GB
+# of RAM and 14.5 h without reaching the modelling step.
+#
+# Note a path-based guard alone is NOT sufficient, and specifically that adding
+# output_dir here would be a no-op: output_dir is under analysis_ready/pipeline/,
+# which no feature_search_dirs entry covers, while the polluting copies sat at
+# analysis_ready/06_behavioral_dynamics/systems_feature_prediction_ladder/ - a
+# path the current code never constructs. Hence a name registry plus a width cap.
+
+# Layer 1: this stage's own artifacts, identified by basename so the guard
+# survives the output tree being moved or renamed.
+self_artifact_stubs <- clean_name(c(
+  "systems_model_input_raw", "systems_feature_audit", "systems_feature_audit_by_sex",
+  "systems_feature_correlation_stats", "systems_readout_dictionary",
+  "selected_features_by_domain", "feature_source_audit", "model_predictor_audit",
+  "model_specification_dictionary", "interpretation_constraints",
+  "group_endpoint_summary_for_interpretation",
+  "systems_ladder_performance", "systems_ladder_performance_by_sex",
+  "systems_ladder_coefficients", "systems_ladder_coefficients_by_sex",
+  "systems_ladder_loo_predictions", "systems_ladder_loo_predictions_by_sex",
+  "systems_ladder_incremental_summary", "systems_ladder_incremental_summary_by_sex",
+  "systems_ladder_prediction_correlations", "systems_ladder_prediction_correlations_by_sex",
+  "tiered_elastic_net_coefficients", "tiered_elastic_net_coefficient_stability",
+  "tiered_elastic_net_loo_predictions", "tiered_elastic_net_model_comparison",
+  "tiered_elastic_net_model_predictor_audit",
+  "nonlinear_sensitivity_loo_predictions", "nonlinear_sensitivity_performance",
+  "output_table_catalog", "output_figure_inventory", "output_folder_summary",
+  "output_manifest", "input_output_manifest"))
+is_self_artifact <- clean_name(tools::file_path_sans_ext(basename(candidate_paths))) %in%
+  self_artifact_stubs
+
+# Layer 2: any directory this stage writes to now, or wrote to historically,
+# at ANY resolution - a current-resolution-only test would let a 5min run eat
+# the 10min output.
+self_dir_markers <- c("systems_feature_prediction_ladder", "10_systems_prediction")
+in_self_dir <- vapply(candidate_paths, function(p)
+  any(vapply(self_dir_markers, function(m) grepl(m, p, fixed = TRUE), logical(1))),
+  logical(1))
+
+excluded <- is_self_artifact | in_self_dir
+if (any(excluded)) {
+  message("Self-ingestion guard: skipping ", sum(excluded),
+          " candidate file(s) that are this stage's own output:")
+  for (p in head(candidate_paths[excluded], 20)) message("    ", p)
+  if (sum(excluded) > 20) message("    ... and ", sum(excluded) - 20, " more")
+}
+candidate_paths <- candidate_paths[!excluded]
+
 candidate_feature_tables <- map(candidate_paths, ~summarise_candidate_features(read_candidate_file(.x), .x))
 candidate_feature_tables <- candidate_feature_tables[!vapply(candidate_feature_tables, is.null, logical(1))]
+
+# Layer 3: width cap. A per-animal feature table is narrow; anything very wide
+# is either a pre-joined matrix or a recursion artifact that slipped past the
+# name and path tests. Empirically the widest legitimate candidate here is ~14
+# columns and the narrowest polluted one was 21,444, so 1,000 is far clear of
+# both. Drop rather than stop, but say so loudly.
+MAX_CANDIDATE_FEATURE_COLS <- 1000L
+too_wide <- vapply(candidate_feature_tables, function(t) ncol(t) > MAX_CANDIDATE_FEATURE_COLS, logical(1))
+if (any(too_wide)) {
+  message("Self-ingestion guard: dropping ", sum(too_wide), " candidate table(s) wider than ",
+          MAX_CANDIDATE_FEATURE_COLS, " columns (",
+          paste(vapply(candidate_feature_tables[too_wide], function(t) format(ncol(t), big.mark = ","), character(1)),
+                collapse = ", "), " columns)")
+  candidate_feature_tables <- candidate_feature_tables[!too_wide]
+}
+
+# Layer 4: aggregate backstop. If the combined candidate set is still absurdly
+# wide, something new has gone wrong and it is better to fail visibly than to
+# spend hours fitting models on garbage.
+# Threshold sized from the healthy state measured 2026-09-21: ~3,400 aggregated
+# feature columns. 20,000 leaves ample room for genuine growth while still
+# catching a recursion, whose signature is 10^5-10^6 columns.
+MAX_TOTAL_CANDIDATE_COLS <- 20000L
+total_candidate_cols <- sum(vapply(candidate_feature_tables, ncol, integer(1)))
+if (total_candidate_cols > MAX_TOTAL_CANDIDATE_COLS) {
+  stop("Self-ingestion guard: candidate feature set is ", format(total_candidate_cols, big.mark = ","),
+       " columns across ", length(candidate_feature_tables),
+       " tables, far beyond anything this stage should assemble. This is the ",
+       "signature of the stage re-ingesting its own output. Inspect the glob ",
+       "before rerunning.", call. = FALSE)
+}
+message("Self-ingestion guard: ", length(candidate_feature_tables),
+        " candidate feature tables retained, ", format(total_candidate_cols, big.mark = ","),
+        " columns total")
 
 systems_extra <- if (length(candidate_feature_tables) > 0) {
   reduce(candidate_feature_tables, full_join, by = "AnimalNum")

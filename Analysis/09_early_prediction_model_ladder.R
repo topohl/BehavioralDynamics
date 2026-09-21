@@ -59,8 +59,22 @@ output_dir <- behavior_stage_dir(
 
 # Endpoint file should contain one row per animal or repeated rows with a stable endpoint.
 # If NULL, the script tries to read the outcome from input_file.
-endpoint_file <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
-endpoint_excel_sheet <- "zScore"  # sheet name for Excel endpoint files; NULL = first sheet
+# The endpoint comes from the canonical producer, Analysis/build_later_outcome_combz.R,
+# NOT from the upstream workbook directly. The producer reads the workbook's zScore
+# sheet, verifies it still satisfies CombZ = mean(components), then applies three
+# documented corrections to the upstream component columns (a row-position paste that
+# gave 17 female animals another animal's sucrose value, two negative drinking-bottle
+# readings that should count as zero, and one wrong corticosterone cell). Reading the
+# workbook here instead would give this stage the uncorrected CombZ while the producer
+# and everything downstream used the corrected one; Stage 27 has a guard that hard-stops
+# on exactly that divergence, and it fired on 2026-09-21 with a drift of 0.4477978.
+# The producer's own parity gate still asserts faithful reproduction of the workbook,
+# and it carries combz_as_recorded so the uncorrected values remain reachable.
+endpoint_file <- file.path(
+  "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID",
+  "analysis_ready/canonical/later_outcome_combz/tables",
+  "later_outcome_combz_animal_level.csv")
+endpoint_excel_sheet <- NULL      # the canonical endpoint is a CSV, not a workbook sheet
 outcome_col <- "CombZ"
 
 # Primary prospective window: first 12 h of the ACTIVE phase after the first

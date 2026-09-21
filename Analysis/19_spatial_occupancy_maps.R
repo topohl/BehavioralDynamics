@@ -99,11 +99,19 @@ POSITION_MAP <- tibble::tibble(
 # Output folders
 # -----------------------------
 
-DIR_DERIVED <- "analysis_ready/03_derived_metrics/spatial_occupancy"
-DIR_MODELS  <- "analysis_ready/04_model_outputs/spatial_occupancy"
-DIR_FIGS    <- "analysis_ready/05_figures/spatial_occupancy"
-DIR_PUBTAB  <- "publication_ready/tables/spatial_occupancy"
-DIR_PUBFIG  <- "publication_ready/figures/single_panels/spatial_occupancy"
+# These were relative paths until 2026-09-21, while RAW_POSITION_DIR above is
+# absolute. That inconsistency meant the stage read from the lab drive but wrote
+# wherever the working directory happened to be: run from the repository root it
+# silently deposited 186 MB into the checkout and left the real outputs on the
+# lab drive untouched since 2026-08-28, while still exiting 0. Anchor the
+# outputs to the same RFID root the input is pinned to.
+RFID_ROOT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+
+DIR_DERIVED <- file.path(RFID_ROOT, "analysis_ready/03_derived_metrics/spatial_occupancy")
+DIR_MODELS  <- file.path(RFID_ROOT, "analysis_ready/04_model_outputs/spatial_occupancy")
+DIR_FIGS    <- file.path(RFID_ROOT, "analysis_ready/05_figures/spatial_occupancy")
+DIR_PUBTAB  <- file.path(RFID_ROOT, "publication_ready/tables/spatial_occupancy")
+DIR_PUBFIG  <- file.path(RFID_ROOT, "publication_ready/figures/single_panels/spatial_occupancy")
 
 purrr::walk(
   c(DIR_DERIVED, DIR_MODELS, DIR_FIGS, DIR_PUBTAB, DIR_PUBFIG),

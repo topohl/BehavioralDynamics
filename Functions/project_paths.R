@@ -124,10 +124,18 @@ mmm_publication_root <- function(project_root = mmm_project_root(),
 #' Manuscript figures, panel candidates, source data, legends, audit records and
 #' manifests are conceptually distinct products. Keeping the mapping in one
 #' named vector means a future restructure edits this vector, not the assembler.
+# Note on brevity: these slugs are deliberately short. Stage 27 also renders
+# into candidate variant roots such as
+#   .../27_behavior_main_figure/candidates/<variant_slug>/
+# and the combined path has to stay inside the 240-character budget enforced by
+# mmm_assert_publication_path_budget(). On 2026-09-21 "figures/panel_candidates"
+# pushed six outputs to 243 characters and Stage 27 hard-stopped; shortening the
+# two slugs below reclaimed 10 and 11 characters respectively. Lengthen them
+# again only after checking the longest candidate-variant path still fits.
 MMM_PUBLICATION_SUBDIRS <- c(
   figures_main      = "figures/main",
-  figures_panels    = "figures/panel_candidates",
-  figures_ed        = "figures/extended_data_candidates",
+  figures_panels    = "figures/panels",
+  figures_ed        = "figures/extended_data",
   figures_previews  = "figures/previews",
   tables_manuscript = "tables/manuscript",
   source_data       = "source_data",
