@@ -30,13 +30,24 @@ cat("\n[A] the Stage 09 change is persistence only\n")
 FROZEN <- c(
   "n_primary_outcome_permutations <- 1000",
   "primary_outcome_permutation_seed <- 20260811",
-  'outcome_col <- "CombZ"',
-  'endpoint_excel_sheet <- "zScore"')
+  'outcome_col <- "CombZ"')
 for (f in FROZEN) {
   check(any(grepl(f, code, fixed = TRUE)),
         paste0("Stage 09 no longer declares the frozen contract line: ", f))
 }
-ok("permutation count, seed, endpoint and source sheet all unchanged")
+# This vector used to include `endpoint_excel_sheet <- "zScore"`. The property
+# it protected is that Stage 09 can never reach a NONCANONICAL composite; until
+# 2026-09-21 the only canonical composite was the workbook's zScore sheet, so
+# pinning the sheet name was a faithful spelling of that property. It no longer
+# is. The producer now applies three documented corrections to the upstream
+# components, so reading the workbook directly would give Stage 09 a DIFFERENT
+# outcome definition from the canonical one - the precise failure Stage 27's
+# guard caught. The same property is now asserted positively and negatively.
+check(any(grepl("later_outcome_combz_animal_level.csv", code, fixed = TRUE)),
+      "Stage 09 must take its endpoint from the canonical producer output")
+check(!any(grepl('endpoint_excel_sheet <- "zScore"', code, fixed = TRUE)),
+      "Stage 09 must not read the upstream workbook sheet directly; that bypasses the documented endpoint corrections")
+ok("permutation count, seed and endpoint unchanged; endpoint source is the canonical producer")
 
 # The permutation engine must still permute the OUTCOME and refit the whole loop.
 check(any(grepl("perm_dat$outcome <- sample(dat$outcome, replace = FALSE)",
@@ -165,18 +176,25 @@ if (!have) {
   cat("\n[D] the frozen headline values are unchanged\n")
   head_perf <- pf[pf$model_id == "movement_mean", ]
   head_perm <- pt[pt$model == "movement_mean", ]
+  # Re-frozen 2026-09-21 against the corrected CombZ (producer commit 497deb7),
+  # which changed the endpoint for 19 of 117 animals. The pre-correction set was
+  # cv_r2 0.1593945586, repeated_cv_mean_r2 0.1558227254, q025 0.1159402748,
+  # q975 0.1790433407, and is reproducible by substituting combz_as_recorded
+  # from later_outcome_combz_animal_level.csv. permutation_p is unchanged: it is
+  # at the 1/1001 floor for 1000 draws, so it cannot move further.
   EXPECT <- list(
-    cv_r2 = 0.1593945586, permutation_p = 0.000999000999,
-    repeated_cv_mean_r2 = 0.1558227254, cv_r2_q025 = 0.1159402748,
-    cv_r2_q975 = 0.1790433407)
+    cv_r2 = 0.1725558030, permutation_p = 0.000999000999,
+    repeated_cv_mean_r2 = 0.1683067608, cv_r2_q025 = 0.1250461423,
+    cv_r2_q975 = 0.1927922460)
   for (nm in names(EXPECT)) {
     got <- head_perf[[nm]][1]
     check(abs(got - EXPECT[[nm]]) < 1e-8,
           paste0("movement_mean ", nm, " is ", format(got, digits = 12),
                  ", expected ", format(EXPECT[[nm]], digits = 12)))
   }
-  EXPECT_NULL <- list(null_median = -0.03131646461, null_q025 = -0.04420903341,
-                      null_q975 = 0.005863676405)
+  # Likewise re-frozen; previously -0.03131646461 / -0.04420903341 / 0.005863676405.
+  EXPECT_NULL <- list(null_median = -0.031582947976, null_q025 = -0.043790115141,
+                      null_q975 = 0.007011781831)
   for (nm in names(EXPECT_NULL)) {
     got <- head_perm[[nm]][1]
     check(abs(got - EXPECT_NULL[[nm]]) < 1e-8,

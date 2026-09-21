@@ -220,15 +220,26 @@ if (is.null(T10)) {
   g <- function(id, col) perf[[col]][perf$model_id == id]
   near <- function(a, b, tol = 1e-9) isTRUE(abs(a - b) < tol)
 
-  check(near(g("movement_mean", "cv_r2"), 0.15939455855319962),
+  # The constants in block [F] were re-frozen on 2026-09-21 against the
+  # CORRECTED CombZ (producer commit 497deb7), which changed the endpoint for 19
+  # of 117 animals and moved four females from SUS to RES. The pre-correction set
+  # is reproducible by substituting combz_as_recorded from
+  # later_outcome_combz_animal_level.csv, which the producer carries for exactly
+  # this purpose. Each value below was re-derived independently of the pipeline,
+  # by leave-one-animal-out OLS computed two ways (an explicit n=111 refit loop
+  # and the hat-matrix PRESS identity), and the derivation was reproduced a
+  # second time from the raw workbook before being written here.
+  check(near(g("movement_mean", "cv_r2"), 0.17255580295966455),
         "LOAO R2 for movement_mean moved")
+  # mean_only is deliberately NOT re-frozen: it is the closed form
+  # 1 - (111/110)^2 and is invariant to the endpoint.
   check(near(g("mean_only", "cv_r2"), -0.01826446280991756),
         "intercept-only baseline R2 moved")
-  check(near(g("movement_mean", "repeated_cv_mean_r2"), 0.15582272536971034),
+  check(near(g("movement_mean", "repeated_cv_mean_r2"), 0.16830676077585088),
         "repeated grouped CV mean R2 moved")
-  check(near(g("movement_mean", "cv_r2_q025"), 0.11594027484397953),
+  check(near(g("movement_mean", "cv_r2_q025"), 0.1250461423044919),
         "repeated CV lower quantile moved")
-  check(near(g("movement_mean", "cv_r2_q975"), 0.17904334073063455),
+  check(near(g("movement_mean", "cv_r2_q975"), 0.19279224602828185),
         "repeated CV upper quantile moved")
   check(all(perf$n_animals == 111L), "the analysed n must remain 111")
   ok("prediction performance, baseline and CV interval all frozen")
@@ -244,17 +255,17 @@ if (is.null(T10)) {
   as_ <- utils::read.csv(file.path(T10,
     "primary_movement_entropyacf1_associations.csv"), stringsAsFactors = FALSE)
   a <- function(f, col) as_[[col]][as_$feature == f]
-  check(near(a("Movement_mean", "spearman_rho"), -0.3902639142724438),
+  check(near(a("Movement_mean", "spearman_rho"), -0.40379966225192016),
         "Movement_mean rho moved")
-  check(near(a("Movement_mean", "spearman_boot_ci_low"), -0.547434593760078),
+  check(near(a("Movement_mean", "spearman_boot_ci_low"), -0.55648160455900575),
         "Movement_mean CI lower moved")
-  check(near(a("Movement_mean", "spearman_boot_ci_high"), -0.20917806610402842),
+  check(near(a("Movement_mean", "spearman_boot_ci_high"), -0.2234232099085772),
         "Movement_mean CI upper moved")
-  check(near(a("Movement_mean", "spearman_p_bh"), 6.8776554749896e-05),
+  check(near(a("Movement_mean", "spearman_p_bh"), 3.3265647943764399e-05),
         "Movement_mean q moved")
-  check(near(a("Movement_rmssd", "spearman_rho"), -0.22552650052650053),
+  check(near(a("Movement_rmssd", "spearman_rho"), -0.24648122148122148),
         "Movement_rmssd rho moved")
-  check(near(a("Entropy_acf1", "spearman_rho"), -0.17471042471042472),
+  check(near(a("Entropy_acf1", "spearman_rho"), -0.18006318006318006),
         "Entropy_acf1 rho moved")
   check(all(as_$n == 111L), "association n must remain 111")
   ok("all three association rho, CI and q values frozen")
@@ -263,9 +274,18 @@ if (is.null(T10)) {
                         stringsAsFactors = FALSE)
   qcol <- grep("bh", names(sx), value = TRUE, ignore.case = TRUE)[1]
   check(!is.na(qcol), "the sex-interaction BH column is missing")
-  check(all(abs(sx[[qcol]] - 0.8951970487582287) < 1e-9),
-        "the feature-by-sex interaction q values moved")
-  ok("sex-interaction q values frozen at 0.895")
+  # Before the 2026-09-21 endpoint correction all three BH q values tied at
+  # 0.8951970487582287, so a single all()-against-one-scalar test expressed the
+  # contract. They are now two distinct values, so each is pinned separately.
+  # All three remain far from significance, which is the property that matters.
+  sxq <- function(f) sx[[qcol]][sx$feature == f]
+  check(near(sxq("Movement_mean"),  0.97536221617972285),
+        "the Movement_mean-by-sex interaction q moved")
+  check(near(sxq("Movement_rmssd"), 0.76637416508998391),
+        "the Movement_rmssd-by-sex interaction q moved")
+  check(near(sxq("Entropy_acf1"),   0.76637416508998391),
+        "the Entropy_acf1-by-sex interaction q moved")
+  ok("sex-interaction q values frozen; all three remain non-significant")
 }
 
 if (length(skipped) > 0L) {
