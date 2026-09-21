@@ -79,8 +79,18 @@ ok("producer names all noncanonical alternatives and reads none of them")
 # Stage 09 must read only the canonical sheet.
 s09 <- code_lines(STAGE09)
 sheet_refs <- grep("endpoint_excel_sheet|excel_sheets|sheet\\s*=", s09, value = TRUE)
-check(any(grepl(paste0('endpoint_excel_sheet\\s*<-\\s*"', CANON_SHEET, '"'), s09)),
-      "Stage 09 must pin endpoint_excel_sheet to the canonical 'zScore' sheet")
+# Until 2026-09-21 this asserted Stage 09 pinned endpoint_excel_sheet to "zScore",
+# i.e. that it read the upstream workbook directly. That is now forbidden rather
+# than required: the producer applies documented corrections to the upstream
+# components, so a stage reading the workbook directly would silently use a
+# different outcome definition. Stage 09 must take the endpoint from the canonical
+# producer output instead. The original intent of this check - that Stage 09 can
+# never reach a noncanonical composite - is preserved and strengthened, because
+# the producer is the only artifact it may now read.
+check(any(grepl("later_outcome_combz_animal_level\\.csv", s09)),
+      "Stage 09 must take its endpoint from the canonical producer output, not the workbook")
+check(!any(grepl('endpoint_excel_sheet\\s*<-\\s*"zScore"', s09)),
+      "Stage 09 must not read the upstream workbook sheet directly; it would bypass the documented endpoint corrections")
 for (nc in NONCANON) {
   hit <- grep(nc, s09, fixed = TRUE)
   check(length(hit) == 0L,
