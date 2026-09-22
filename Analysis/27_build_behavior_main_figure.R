@@ -427,10 +427,16 @@ facts <- list(
   # This caption previously carried a hard-coded "Only 50 of 111 animals have a
   # complete window". That is a window-QC statistic the analysis does NOT act on
   # - every animal with a domain score contributes to the contrasts - and it
-  # reads as n = 50. It is also not neutral: the 61 "incomplete" animals are
-  # missing only LEADING bins and are the less active ones (Spearman -0.232 with
-  # psychomotor activation, p = 0.014), because a bin in which an animal
-  # produced no RFID read emits no row at all rather than Movement = 0.
+  # reads as n = 50. It is also not neutral: the 61 "incomplete" animals were
+  # missing only LEADING bins and were the less active ones (Spearman -0.232
+  # with psychomotor activation, p = 0.014), because a bin in which an animal
+  # produced no RFID read emitted no row at all rather than Movement = 0.
+  #
+  # That leading-bin gap was fixed on 2026-09-22: Stage 01 now seeds the
+  # carry-forward position from each animal's last valid pre-window read in
+  # raw_data, so the leading bins exist and read Movement = 0. See
+  # docs/FIRST_NIGHT_LEADING_BIN_GAP.md. The window-QC statistic is still not
+  # reported here, for the n = 50 reason above.
   domain_contrast_n = paste0(min(domain$n_ref + domain$n_comp, na.rm = TRUE), "-",
                              max(domain$n_ref + domain$n_comp, na.rm = TRUE)),
   # canonical outcome definition
@@ -1078,7 +1084,7 @@ if ("first_night_domains" %in% ED_DOMAIN_OVERVIEWS) {
       facts$domain_family_size, " tests per family); ", facts$domain_nominal,
       " nominally p<0.05.\nNot a multi-domain signature. No animal is excluded",
       " for window completeness (per-contrast n ", facts$domain_contrast_n,
-      "); a bin with no RFID read is absent, not zero."))
+      "); a bin with no RFID read is scored Movement = 0."))
   fm <- mmm_export_figure(pED_fn, dirs$figures_ed,
                           "ed_candidate_first_night_domain_map", W * 0.58, 62,
                           png_preview = FALSE)

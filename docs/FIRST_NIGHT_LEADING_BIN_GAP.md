@@ -1,9 +1,9 @@
 # First-night leading bins: why 61 animals look "incomplete", and what to do about it
 
-**Status: DIAGNOSED, NOT FIXED.** The pipeline is unchanged. This document exists
-so the fix can be done in one deliberate pass rather than rediscovered.
+**Status: FIXED 2026-09-22** in `0685366`. Sections 1–4 describe the defect as it
+stood; section 5 records what was actually implemented.
 
-**Date:** 2026-09-22
+**Date:** diagnosed and fixed 2026-09-22
 **Affects:** `Analysis/01_build_multiscale_behavior_metrics.R`, the first-night
 window QC, and the Extended Data domain map in
 `Analysis/27_build_behavior_main_figure.R`.
@@ -115,51 +115,86 @@ existing group differences rather than manufacturing them.
 
 ---
 
-## 5. Proposed fix
+## 5. The fix, as implemented
 
-Seed `current_pos` at the window start from each animal's last read *before* the
-window, so the carry-forward state is populated from the first bin onward. Two
-routes:
+Route 2 was taken: **seed only the state vector.** Route 1 (un-truncating
+`preprocessed_data/`) would have changed the input to every stage and extended
+all analyses backwards, which is not wanted.
 
-1. **Stop truncating `preprocessed_data/` at the cage change.** Simplest
-   conceptually; changes the input to every stage and extends all analyses
-   backwards, which is not wanted.
-2. **Seed only the state vector** — read the last pre-window position per animal
-   and initialise `current_pos` with it, without admitting the pre-window period
-   into the analysis window. Targeted, and preferred.
+`Analysis/01_build_multiscale_behavior_metrics.R` now recovers each animal's
+last valid pre-window position from `raw_data/` and injects it as one synthetic
+row at the file's first timestamp, between `all_pos` assembly and
+`occupancy_intervals`. The recovered bins appear with `Movement = 0`, the same
+encoding already used for the 56% of detected-but-stationary bins.
 
-Either way the recovered bins should appear with `Movement = 0`, which is the
-same encoding already used for the 56% of detected-but-stationary bins.
+Four details that matter:
+
+- **The position is recovered, not back-filled.** Back-filling an animal's first
+  *observed* position would be wrong: under change-only logging that is the
+  position it moved *to*. Animal `00317` is the worked case — seed position 5 at
+  18:28:48, first in-window read position 3 at 19:11:33. `Movement` is 0 either
+  way, but `Entropy` and `Proximity` depend on where the animal actually was.
+- **Off-grid reads are skipped.** 16% of raw B5_CC1 reads (e.g. `166.7,116`) are
+  off the `tblPosition` grid and carry no `PositionID`; the seed uses the last
+  read that maps to a valid grid position.
+- **Time-derived fields are copied from a real observation at the window start**
+  (`Phase`, `ConsecActive/Inactive`, `HalfHoursElapsed`, `MinutesOfDay`, the
+  Cookie fields), so nothing is recomputed. Animal-level fields come from the
+  animal's own first row.
+- **The seed is stamped at the window start, not at its true read time.** This
+  keeps the pre-window period out of the analysis window. The cost is that
+  `time_since_last_genuine_position_event_sec` for the first real read is
+  measured from the window start rather than from 18:28:48.
+
+**Verified against all 24 files before running:** 412 seeds over 111 animals,
+schema preserved, no duplicate `(SourceFile, AnimalNum, DateTime)`, all
+`PositionID` in 1–8 with no `NA`. All 105 late first-night animals are seeded.
+
+**Not seeded:** 8 animals in B1_CC2, whose raw file contains no pre-window reads
+at all (they are late by 0.1–8.0 min). Nothing exists to recover. B1_CC2 is not
+a first-night file.
+
+One side effect worth naming: the animals' *first real read* now has a
+predecessor, so it registers as a genuine position change where previously it was
+discarded for lack of a `PrevPositionID`. That is a real movement being
+recovered, not a fabricated one.
 
 ---
 
-## 6. What a fix would require re-running
+## 6. What the fix requires re-running
 
-- `Analysis/01_build_multiscale_behavior_metrics.R` (~4 h)
-- everything downstream of `03_derived_metrics`: stages 02, 04–08, 11–14, then
-  03, 09, 10, 16, 19, 26, 27
-- re-freezing the numeric expectations in
-  `Testing/tests/test_figure1_prediction_contract.R`,
-  `test_stage09_permutation_draws.R` and
-  `test_stage19_identity_and_stage06_schema.R`, which were already re-frozen on
-  2026-09-21 for the CombZ endpoint correction
-- removing the clause *"a bin with no RFID read is absent, not zero"* from the
-  Extended Data caption in `Analysis/27_build_behavior_main_figure.R`, which
-  documents the present limitation and would no longer be true
+- [x] the ED caption clause in `Analysis/27_build_behavior_main_figure.R`
+- [ ] `Analysis/01_build_multiscale_behavior_metrics.R` (~4 h)
+- [ ] everything downstream of `03_derived_metrics`: stages 02, 04–08, 11–14,
+      then 03, 09, 10, 16, 19, 26, 27
+- [ ] re-freezing the numeric expectations in
+      `Testing/tests/test_figure1_prediction_contract.R`,
+      `test_stage09_permutation_draws.R` and
+      `test_stage19_identity_and_stage06_schema.R`, which were already re-frozen
+      on 2026-09-21 for the CombZ endpoint correction — this is their third
+      re-freezing
 
 Estimated total: 6–8 h of compute plus a verification pass.
 
+Note for whoever re-freezes the tests: the seeding also completes *partial*
+leading bins. 105 first-night animals read late, not 61 — the other 44 were late
+by less than one bin width, so their first bin existed but was only partly
+covered. Expect slightly more movement than the section 4 estimate, in the same
+direction.
+
 ---
 
-## 7. Interim position
+## 7. Position after the fix
 
-The pipeline is **correct as it stands for every group comparison**, because the
-bias is small and balanced across outcome groups. The defect is a modest upward
-bias in absolute activity for 61 animals, and a caption that previously implied
-an n it did not use. The caption is fixed; the bias is documented here and not
-yet corrected.
+Every animal contributes; no animal is excluded for window completeness; a bin in
+which an animal produced no RFID read is now scored `Movement = 0` rather than
+dropped.
 
-If a reviewer asks: every animal contributes; no animal is excluded for window
-completeness; bins in which an animal produced no RFID read are absent rather than
-zero, which slightly overestimates activity for the least active animals, by 2.4%
-on average and near-identically across groups.
+Conclusions from before the fix are not invalidated by it. The bias it removed
+was small and near-identical across outcome groups (CON −1.50%, RES −1.47%, SUS
+−1.27%), and it ran *against* the observed group differences rather than creating
+them — the pipeline was overestimating activity for the least active animals. The
+correction therefore sharpens the estimates rather than reversing anything.
+
+The ED caption clause "a bin with no RFID read is absent, not zero" documented
+the old behaviour and has been replaced.

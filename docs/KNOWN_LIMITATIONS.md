@@ -180,34 +180,43 @@ rather than silently omitted, and is unchanged by this work.
 
 ---
 
-## 8. First-night window completeness
+## 8. First-night window completeness — FIXED 2026-09-22
 
-Only **50 of 111** animals have a complete 72-slot first-night window at 10-min
-resolution. The analysis is adjacency-aware (RMSSD and ACF1 are computed over
-adjacent observed slots, not over naive row order) and completeness is reported
-per animal, but incomplete windows still contribute.
+**This was a pipeline defect, and it has been corrected.** The description below
+is kept because it explains what the older artifacts contain.
 
-**Corrected 2026-09-22.** This section previously said the remainder have
-"leading, interior or trailing missing slots". That is wrong: all 61 are missing
-**leading slots only** — 31 miss one slot, 14 two, 10 three, 6 four. No animal
-misses an interior or trailing slot, and coverage never falls below 94.4%.
+Previously only **50 of 111** animals had a complete 72-slot first-night window
+at 10-min resolution. All 61 others were missing **leading slots only** — 31
+missed one slot, 14 two, 10 three, 6 four. No animal missed an interior or
+trailing slot, and coverage never fell below 94.4%.
 
-The cause is now understood and is a pipeline defect, not a property of the
-recording. RFID reads fire only on position change (0.072% of 135,541 consecutive
-read pairs repeat a position), and `make_occupancy_intervals_one_system()` carries
+RFID reads fire only on position change (0.072% of 135,541 consecutive read
+pairs repeat a position), and `make_occupancy_intervals_one_system()` carries
 position forward between reads — which is why 56% of all bins legitimately carry
-`Movement == 0`. But it has nothing to carry before an animal's *first* read, and
-preprocessing discards the pre-cage-change reads that would seed it. Those bins
-should be `Movement = 0`; instead they are absent. See
-[FIRST_NIGHT_LEADING_BIN_GAP.md](FIRST_NIGHT_LEADING_BIN_GAP.md) for the full
-diagnosis, the quantified impact (1.4% of bins; −2.4% mean activity for the 61,
-and −1.50 / −1.47 / −1.27% for CON / RES / SUS, i.e. near-identical across
-groups), and the proposed fix. **Not yet implemented.**
+`Movement == 0`. But it had nothing to carry before an animal's *first* read,
+because preprocessing trims each file to whole phases and so discards the read
+that would seed it. Those bins should have been `Movement = 0`; instead they
+were absent entirely.
 
-**Forbids:** presenting the first-night panel as a complete-case analysis, and
-describing the missing slots as a data-quality property of the animals — the
-affected animals are simply the least active ones, and the pipeline drops their
-quietest bins, which slightly *overestimates* their activity.
+**The fix.** Stage 01 now recovers each animal's last valid pre-window position
+from `raw_data/` and injects it as one synthetic row at the file's first
+timestamp, seeding the carry-forward state. 412 seeds across 24 files cover 111
+animals; all 105 late first-night animals are seeded. The position is recovered
+rather than back-filled from the first observed read, because under change-only
+logging that read is at the position the animal moved *to* — `Movement` would be
+0 either way, but `Entropy` and `Proximity` depend on where the animal was.
+
+Eight animals in B1_CC2 remain unseeded: their raw file contains no pre-window
+reads at all, so there is nothing to recover. B1_CC2 is not a first-night file.
+
+Expected effect, from the pre-implementation estimate: 1.4% of bins recovered,
+−2.4% mean activity for the 61, and −1.50 / −1.47 / −1.27% for CON / RES / SUS —
+near-identical across groups, so no group contrast was expected to move. See
+[FIRST_NIGHT_LEADING_BIN_GAP.md](FIRST_NIGHT_LEADING_BIN_GAP.md).
+
+**Still forbids:** presenting the first-night panel as a complete-case analysis.
+Window completeness is measured against a fixed clock window (18:30→06:30) and
+is never back-filled from night 2.
 
 Related: the first-night panel yields **1 FDR-supported cell out of 30**
 displayed. It should be reported as that single result, not as a multi-domain
