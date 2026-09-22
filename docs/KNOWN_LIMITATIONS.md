@@ -183,12 +183,31 @@ rather than silently omitted, and is unchanged by this work.
 ## 8. First-night window completeness
 
 Only **50 of 111** animals have a complete 72-slot first-night window at 10-min
-resolution. The remainder have leading, interior or trailing missing slots. The
-analysis is adjacency-aware (RMSSD and ACF1 are computed over adjacent observed
-slots, not over naive row order) and completeness is reported per animal, but
-incomplete windows still contribute.
+resolution. The analysis is adjacency-aware (RMSSD and ACF1 are computed over
+adjacent observed slots, not over naive row order) and completeness is reported
+per animal, but incomplete windows still contribute.
 
-**Forbids:** presenting the first-night panel as a complete-case analysis.
+**Corrected 2026-09-22.** This section previously said the remainder have
+"leading, interior or trailing missing slots". That is wrong: all 61 are missing
+**leading slots only** — 31 miss one slot, 14 two, 10 three, 6 four. No animal
+misses an interior or trailing slot, and coverage never falls below 94.4%.
+
+The cause is now understood and is a pipeline defect, not a property of the
+recording. RFID reads fire only on position change (0.072% of 135,541 consecutive
+read pairs repeat a position), and `make_occupancy_intervals_one_system()` carries
+position forward between reads — which is why 56% of all bins legitimately carry
+`Movement == 0`. But it has nothing to carry before an animal's *first* read, and
+preprocessing discards the pre-cage-change reads that would seed it. Those bins
+should be `Movement = 0`; instead they are absent. See
+[FIRST_NIGHT_LEADING_BIN_GAP.md](FIRST_NIGHT_LEADING_BIN_GAP.md) for the full
+diagnosis, the quantified impact (1.4% of bins; −2.4% mean activity for the 61,
+and −1.50 / −1.47 / −1.27% for CON / RES / SUS, i.e. near-identical across
+groups), and the proposed fix. **Not yet implemented.**
+
+**Forbids:** presenting the first-night panel as a complete-case analysis, and
+describing the missing slots as a data-quality property of the animals — the
+affected animals are simply the least active ones, and the pipeline drops their
+quietest bins, which slightly *overestimates* their activity.
 
 Related: the first-night panel yields **1 FDR-supported cell out of 30**
 displayed. It should be reported as that single result, not as a multi-domain

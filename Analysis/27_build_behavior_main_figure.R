@@ -415,6 +415,24 @@ facts <- list(
   domain_family = paste(unique(as.character(domain$family_id)), collapse = " and "),
   domain_supported = sum(domain$q < 0.05, na.rm = TRUE),
   domain_n_cells = nrow(domain),
+  domain_nominal = sum(domain$raw_p < 0.05, na.rm = TRUE),
+  # Family size is per Sex, so "x of 30" spans TWO BH families of 15. State the
+  # family size explicitly rather than letting the reader infer 30.
+  domain_family_size = paste(unique(domain$n_tests_in_family), collapse = "/"),
+  # Per-contrast group sizes, as a range, because they differ slightly BETWEEN
+  # domains: two animals lack contributors for some domains, so e.g. Male
+  # SUS-CON is n=14 for one domain and n=16 for another. A single "n = X" would
+  # therefore be wrong whichever value were chosen.
+  #
+  # This caption previously carried a hard-coded "Only 50 of 111 animals have a
+  # complete window". That is a window-QC statistic the analysis does NOT act on
+  # - every animal with a domain score contributes to the contrasts - and it
+  # reads as n = 50. It is also not neutral: the 61 "incomplete" animals are
+  # missing only LEADING bins and are the less active ones (Spearman -0.232 with
+  # psychomotor activation, p = 0.014), because a bin in which an animal
+  # produced no RFID read emits no row at all rather than Movement = 0.
+  domain_contrast_n = paste0(min(domain$n_ref + domain$n_comp, na.rm = TRUE), "-",
+                             max(domain$n_ref + domain$n_comp, na.rm = TRUE)),
   # canonical outcome definition
   combz_definition_id = COMBZ_DEFINITION_ID,
   combz_n_components = length(combz_components),
@@ -1056,8 +1074,11 @@ if ("first_night_domains" %in% ED_DOMAIN_OVERVIEWS) {
       unique(as.character(domain$Domain)))) +
     labs(subtitle = paste0(
       "EXTENDED DATA. First active phase only. ", facts$domain_supported,
-      " of ", facts$domain_n_cells, " cells FDR-supported;\nnot a multi-domain",
-      " signature. Only 50 of 111 animals have a complete window."))
+      " of ", facts$domain_n_cells, " cells FDR-supported (BH within Sex, ",
+      facts$domain_family_size, " tests per family); ", facts$domain_nominal,
+      " nominally p<0.05.\nNot a multi-domain signature. No animal is excluded",
+      " for window completeness (per-contrast n ", facts$domain_contrast_n,
+      "); a bin with no RFID read is absent, not zero."))
   fm <- mmm_export_figure(pED_fn, dirs$figures_ed,
                           "ed_candidate_first_night_domain_map", W * 0.58, 62,
                           png_preview = FALSE)
