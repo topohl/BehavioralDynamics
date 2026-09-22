@@ -535,6 +535,117 @@ make_dyadic_intervals_one_system <- function(dat_sys) {
   bind_rows(out)
 }
 
+# ---------------------------------------------------------------------------
+# SEED THE CARRY-FORWARD POSITION AT EACH FILE'S FIRST TIMESTAMP
+# ---------------------------------------------------------------------------
+# make_occupancy_intervals_one_system() holds each animal's last known position
+# between reads, which is why most bins legitimately carry Movement == 0. But
+# `current_pos` starts as NA and an animal only enters `valid` once it has been
+# read, so every bin before an animal's FIRST read of a file yields no occupancy
+# interval and therefore no metric row at all.
+#
+# That matters because RFID reads fire ONLY on position change - across 135,541
+# consecutive read pairs in raw_data only 98 (0.072%) repeat a position - so a
+# quiet span means the animal STAYED PUT, not that it was unobserved. Those bins
+# should read Movement = 0, the same encoding already used for the 56% of
+# detected-but-stationary bins.
+#
+# Preprocessing trims each file to whole Active/Inactive phases, so it discards
+# the read that would seed the state. Animal 00317's seed exists in raw_data at
+# 18:28:48, 72 seconds before its window opens, and its first preprocessed read
+# is 19:11:33 - four bins later. Here we recover that last pre-window position
+# from raw_data and inject it as a synthetic row at the file's first timestamp.
+#
+# The position matters, not just the row count: Movement would be 0 under any
+# constant back-fill, but Entropy and Proximity depend on WHERE the animal was.
+# Back-filling the first OBSERVED position would be wrong for exactly the reason
+# above - under change-only logging that is the position the animal moved TO.
+RAW_POSITION_ROOT <- getOption(
+  "mmm.raw_position_root",
+  file.path(dirname(input_dir), "raw_data"))
+
+# tblPosition from E9_SIS_AnimalPos-preprocessing.R: reads off this grid (e.g.
+# "166.7,116") carry no PositionID and must not be used as a seed.
+POSITION_GRID <- tibble::tibble(
+  xPos = c(0, 100, 200, 300, 0, 100, 200, 300),
+  yPos = c(0, 0, 0, 0, 116, 116, 116, 116),
+  SeedPositionID = 1:8)
+
+seed_rows_for_file <- function(pos_one_file) {
+  src <- pos_one_file$SourceFile[1]
+  raw_path <- file.path(RAW_POSITION_ROOT, pos_one_file$Batch[1],
+                        sub("_preprocessed[.]csv$", ".csv", src))
+  if (!file.exists(raw_path)) {
+    warning("No raw file to seed from for ", src, call. = FALSE)
+    return(NULL)
+  }
+
+  t0 <- min(pos_one_file$DateTime, na.rm = TRUE)
+
+  # Animals whose first read in this file is after t0 are the ones missing
+  # leading bins. Everyone else is already seeded by their own read at t0.
+  late <- pos_one_file %>%
+    group_by(AnimalNum) %>%
+    summarise(first_read = min(DateTime), .groups = "drop") %>%
+    filter(first_read > t0)
+  if (nrow(late) == 0) return(NULL)
+
+  raw <- suppressWarnings(readr::read_delim(
+    raw_path, delim = ";", show_col_types = FALSE, progress = FALSE))
+  if (!all(c("DateTime", "Animal", "xPos", "yPos") %in% names(raw))) {
+    warning("Unexpected raw schema, cannot seed ", src, call. = FALSE)
+    return(NULL)
+  }
+
+  seeds <- raw %>%
+    mutate(
+      DateTime = as.POSIXct(as.character(DateTime),
+                            format = "%d.%m.%Y %H:%M:%OS", tz = "UTC"),
+      AnimalNum = canonical_animal_id(sub("_sys[.].*$", "", as.character(Animal))),
+      xPos = suppressWarnings(as.numeric(xPos)),
+      yPos = suppressWarnings(as.numeric(yPos))) %>%
+    filter(!is.na(DateTime), DateTime < t0, AnimalNum %in% late$AnimalNum) %>%
+    inner_join(POSITION_GRID, by = c("xPos", "yPos")) %>%
+    group_by(AnimalNum) %>%
+    slice_max(DateTime, n = 1, with_ties = FALSE) %>%
+    ungroup() %>%
+    select(AnimalNum, SeedPositionID, SeedReadTime = DateTime)
+  if (nrow(seeds) == 0) return(NULL)
+
+  # Animal-level fields come from the animal's own first row; every time-derived
+  # field comes from a real observation at t0, so nothing is recomputed here.
+  t0_row <- pos_one_file %>% filter(DateTime == t0) %>% slice(1)
+  time_derived <- c("Phase", "ConsecActive", "ConsecInactive", "HalfHoursElapsed",
+                    "MinutesOfDay", "CookieWindowPrimary", "CookieSubWindow",
+                    "CookieHabEpoch")
+
+  pos_one_file %>%
+    group_by(AnimalNum) %>%
+    slice_min(DateTime, n = 1, with_ties = FALSE) %>%
+    ungroup() %>%
+    inner_join(seeds, by = "AnimalNum") %>%
+    select(-all_of(time_derived)) %>%
+    bind_cols(t0_row[rep(1, nrow(seeds)), time_derived]) %>%
+    mutate(DateTime = t0, PositionID = as.integer(SeedPositionID)) %>%
+    select(-SeedPositionID, -SeedReadTime)
+}
+
+message("Seeding carry-forward positions from raw_data...")
+seed_rows <- all_pos %>%
+  group_by(SourceFile) %>%
+  group_split() %>%
+  map_dfr(seed_rows_for_file)
+
+if (nrow(seed_rows) > 0) {
+  message("  injected ", nrow(seed_rows), " seed row(s) across ",
+          dplyr::n_distinct(seed_rows$SourceFile), " file(s), covering ",
+          dplyr::n_distinct(seed_rows$AnimalNum), " animal(s)")
+  all_pos <- bind_rows(all_pos, seed_rows) %>%
+    arrange(SourceFile, Batch, CageChange, System, DateTime, AnimalID)
+} else {
+  message("  no seed rows required")
+}
+
 message("Building occupancy intervals...")
 occupancy_intervals <- all_pos %>%
   group_by(SourceFile, Batch, CageChange, System) %>%
