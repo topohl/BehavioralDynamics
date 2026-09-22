@@ -478,23 +478,63 @@ figman <- list(); srcman <- list()
 #     including every null_median, and 937 of the 2,002 draws. It therefore
 #     multiplied the very failure it was meant to remove.
 # The only honest rule is empirical: emit the shortest candidate that readr
-# ITSELF reads back as the identical double, and refuse to write if none does.
-# Plain notation with leading zeros is where vroom is least accurate, so
-# scientific candidates are offered too.
-fmt_exact <- function(v) {
+# ITSELF reads back as the identical double. Plain notation with leading zeros
+# is where vroom is least accurate, so scientific candidates are offered too.
+#
+# Amended 2026-09-22. The original refused to write when no candidate worked,
+# which stopped the stage on `median` = 3.7361111111111107 in panel b. readr
+# 2.2.0 cannot return that double from ANY decimal string: every
+# representation from 17 significant digits upward is read back the same fixed
+# distance away, while base R's parser is exact from 17 digits on. So the
+# refusal was unsatisfiable, not a warning about a bad value.
+#
+# The distinction that matters is WHERE a value comes from:
+#   * a value PARSED from a CSV is reachable by construction - the string it
+#     was parsed from round-trips by definition. Every column the contract
+#     tests assert at tolerance 0 is of this kind, because those tests compare
+#     CSV to CSV (panel d1 predicted_CombZ against Stage 09's
+#     primary_prediction_predictions.csv, panel d2 performance_value against
+#     the persisted draws), both sides read with readr.
+#   * a value COMPUTED here - a median, a mean - has no such guarantee, and
+#     nothing asserts it bit-exactly.
+# So readr-exactness is REQUIRED for the strict columns and best-effort
+# elsewhere, falling back to a faithful 17-digit image of the double, which is
+# what a correctly-rounded parser reads back exactly. Fallbacks are counted and
+# reported rather than passing silently.
+.fmt_fallback <- new.env(parent = emptyenv())
+.fmt_fallback$n <- 0L
+.fmt_fallback$cols <- character()
+
+fmt_exact <- function(v, strict = FALSE, col = NA_character_) {
   if (is.na(v)) return(NA_character_)
   cands <- c(vapply(15:17, function(d) format(v, digits = d, scientific = FALSE,
                                               trim = TRUE), character(1)),
              vapply(14:17, function(k) sprintf(paste0("%.", k, "e"), v),
                     character(1)))
   for (s in cands) if (identical(readr::parse_double(s), v)) return(s)
-  stop("No decimal representation of ", sprintf("%.17g", v), " round-trips ",
-       "through readr::read_csv; Source Data cannot be written bit-exactly.",
-       call. = FALSE)
+
+  if (strict) {
+    stop("No decimal representation of ", sprintf("%.17g", v), " in column '",
+         col, "' round-trips through readr::read_csv, and that column is ",
+         "asserted at tolerance 0 against another CSV by the contract tests.",
+         call. = FALSE)
+  }
+  faithful <- format(v, digits = 17, scientific = FALSE, trim = TRUE)
+  if (!identical(as.numeric(faithful), v)) faithful <- sprintf("%.17e", v)
+  if (!identical(as.numeric(faithful), v)) {
+    stop("No faithful decimal representation of ", sprintf("%.17g", v),
+         " in column '", col, "'.", call. = FALSE)
+  }
+  .fmt_fallback$n <- .fmt_fallback$n + 1L
+  .fmt_fallback$cols <- union(.fmt_fallback$cols, col)
+  faithful
 }
-wsrc <- function(x, f) {
-  x_exact <- x %>% mutate(across(where(is.double),
-                                 ~ vapply(.x, fmt_exact, character(1))))
+wsrc <- function(x, f, strict_cols = character()) {
+  x_exact <- x
+  for (nm in names(x)[vapply(x, is.double, logical(1))]) {
+    x_exact[[nm]] <- vapply(x[[nm]], fmt_exact, character(1),
+                            strict = nm %in% strict_cols, col = nm)
+  }
   write_csv(x_exact, file.path(dirs$source_data, f), na = ""); f
 }
 # `stage` is the SCIENTIFIC OWNER, never the transport layer. Where the figure
@@ -796,7 +836,8 @@ srcD1 <- bind_rows(
                     "seed", "repeated_cv_mean_r2", "cv_r2_q025", "cv_r2_q975",
                     "interval_type")) %>%
     mutate(row_role = "cv_performance"))
-fD1 <- wsrc(srcD1, "source_panel_d1_loao_predictions.csv")
+fD1 <- wsrc(srcD1, "source_panel_d1_loao_predictions.csv",
+            strict_cols = "predicted_CombZ")
 
 # The ACTUAL persisted permutation draws that panel d2 plots, one row each.
 srcD2 <- bmf_source_data(
@@ -807,7 +848,8 @@ srcD2 <- bmf_source_data(
     "is_observed", "n_permutations")) %>%
   mutate(row_role = if_else(perm_draws$is_observed, "observed_statistic",
                             "permutation_draw"))
-fD2 <- wsrc(srcD2, "source_panel_d2_permutation_null.csv")
+fD2 <- wsrc(srcD2, "source_panel_d2_permutation_null.csv",
+            strict_cols = "performance_value")
 srcE <- bind_rows(srcD1, srcD2)   # combined view for the zero-tolerance check
 
 # --------------------------- Source Data must equal the plotted values at 0
@@ -830,6 +872,15 @@ if (any(src_zero_checks$max_abs_difference != 0)) {
        call. = FALSE)
 }
 cat("    Source Data equals plotted values at tolerance 0\n")
+if (.fmt_fallback$n > 0L) {
+  cat("    Source Data: ", .fmt_fallback$n, " computed value(s) in column(s) ",
+      paste(sort(.fmt_fallback$cols), collapse = ", "),
+      " have no readr-exact decimal form; written as faithful 17-digit\n",
+      "      doubles instead. Exact under a correctly-rounded parser",
+      " (base R as.numeric); readr reads them back within 1 ULP.\n", sep = "")
+} else {
+  cat("    Source Data: every double is readr-exact\n")
+}
 
 # =========================================================== INDIVIDUAL PANELS
 cat("  exporting panels ...\n")
