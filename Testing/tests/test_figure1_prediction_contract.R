@@ -220,7 +220,23 @@ if (is.null(T10)) {
   g <- function(id, col) perf[[col]][perf$model_id == id]
   near <- function(a, b, tol = 1e-9) isTRUE(abs(a - b) < tol)
 
-  # The constants in block [F] were re-frozen on 2026-09-21 against the
+  # RE-FROZEN 2026-09-22 against the first-night leading-bin fix, which seeds the
+  # carry-forward position from raw_data so bins before an animal's first read
+  # exist and read Movement = 0 (docs/FIRST_NIGHT_LEADING_BIN_GAP.md). Every
+  # first-night feature shifted slightly. The superseded values are, in the order
+  # asserted below: cv_r2 0.17255580295966455, repeated_cv_mean_r2
+  # 0.16830676077585088, q025 0.1250461423044919, q975 0.19279224602828185,
+  # Movement_mean rho -0.40379966225192016 with CI
+  # [-0.55648160455900575, -0.2234232099085772] and q 3.3265647943764399e-05,
+  # Movement_rmssd rho -0.24648122148122148, Entropy_acf1 rho
+  # -0.18006318006318006, and sex-interaction q 0.97536221617972285 /
+  # 0.76637416508998391 / 0.76637416508998391.
+  #
+  # NOTE: Entropy_acf1 crossed the significance threshold in this rebuild
+  # (BH p 0.04776, bootstrap CI now excluding zero). Its reporting contract lives
+  # in Analysis/16_manuscript_behavior_report.R, not here.
+  #
+  # The constants in block [F] were previously re-frozen on 2026-09-21 against the
   # CORRECTED CombZ (producer commit 497deb7), which changed the endpoint for 19
   # of 117 animals and moved four females from SUS to RES. The pre-correction set
   # is reproducible by substituting combz_as_recorded from
@@ -229,17 +245,17 @@ if (is.null(T10)) {
   # by leave-one-animal-out OLS computed two ways (an explicit n=111 refit loop
   # and the hat-matrix PRESS identity), and the derivation was reproduced a
   # second time from the raw workbook before being written here.
-  check(near(g("movement_mean", "cv_r2"), 0.17255580295966455),
+  check(near(g("movement_mean", "cv_r2"), 0.17270101408957383),
         "LOAO R2 for movement_mean moved")
   # mean_only is deliberately NOT re-frozen: it is the closed form
   # 1 - (111/110)^2 and is invariant to the endpoint.
   check(near(g("mean_only", "cv_r2"), -0.01826446280991756),
         "intercept-only baseline R2 moved")
-  check(near(g("movement_mean", "repeated_cv_mean_r2"), 0.16830676077585088),
+  check(near(g("movement_mean", "repeated_cv_mean_r2"), 0.16840962855789862),
         "repeated grouped CV mean R2 moved")
-  check(near(g("movement_mean", "cv_r2_q025"), 0.1250461423044919),
+  check(near(g("movement_mean", "cv_r2_q025"), 0.1249211153066056),
         "repeated CV lower quantile moved")
-  check(near(g("movement_mean", "cv_r2_q975"), 0.19279224602828185),
+  check(near(g("movement_mean", "cv_r2_q975"), 0.19311727195787765),
         "repeated CV upper quantile moved")
   check(all(perf$n_animals == 111L), "the analysed n must remain 111")
   ok("prediction performance, baseline and CV interval all frozen")
@@ -255,17 +271,17 @@ if (is.null(T10)) {
   as_ <- utils::read.csv(file.path(T10,
     "primary_movement_entropyacf1_associations.csv"), stringsAsFactors = FALSE)
   a <- function(f, col) as_[[col]][as_$feature == f]
-  check(near(a("Movement_mean", "spearman_rho"), -0.40379966225192016),
+  check(near(a("Movement_mean", "spearman_rho"), -0.40816416261600141),
         "Movement_mean rho moved")
-  check(near(a("Movement_mean", "spearman_boot_ci_low"), -0.55648160455900575),
+  check(near(a("Movement_mean", "spearman_boot_ci_low"), -0.56060323819897995),
         "Movement_mean CI lower moved")
-  check(near(a("Movement_mean", "spearman_boot_ci_high"), -0.2234232099085772),
+  check(near(a("Movement_mean", "spearman_boot_ci_high"), -0.22601554433677001),
         "Movement_mean CI upper moved")
-  check(near(a("Movement_mean", "spearman_p_bh"), 3.3265647943764399e-05),
+  check(near(a("Movement_mean", "spearman_p_bh"), 2.6140702791123884e-05),
         "Movement_mean q moved")
-  check(near(a("Movement_rmssd", "spearman_rho"), -0.24648122148122148),
+  check(near(a("Movement_rmssd", "spearman_rho"), -0.23738257890092868),
         "Movement_rmssd rho moved")
-  check(near(a("Entropy_acf1", "spearman_rho"), -0.18006318006318006),
+  check(near(a("Entropy_acf1", "spearman_rho"), -0.18832923832923831),
         "Entropy_acf1 rho moved")
   check(all(as_$n == 111L), "association n must remain 111")
   ok("all three association rho, CI and q values frozen")
@@ -279,11 +295,11 @@ if (is.null(T10)) {
   # contract. They are now two distinct values, so each is pinned separately.
   # All three remain far from significance, which is the property that matters.
   sxq <- function(f) sx[[qcol]][sx$feature == f]
-  check(near(sxq("Movement_mean"),  0.97536221617972285),
+  check(near(sxq("Movement_mean"),  0.95093991122381161),
         "the Movement_mean-by-sex interaction q moved")
-  check(near(sxq("Movement_rmssd"), 0.76637416508998391),
+  check(near(sxq("Movement_rmssd"), 0.74901802530741635),
         "the Movement_rmssd-by-sex interaction q moved")
-  check(near(sxq("Entropy_acf1"),   0.76637416508998391),
+  check(near(sxq("Entropy_acf1"),   0.74901802530741635),
         "the Entropy_acf1-by-sex interaction q moved")
   ok("sex-interaction q values frozen; all three remain non-significant")
 }

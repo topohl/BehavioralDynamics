@@ -232,8 +232,12 @@ if (file.exists(frozen_parity_file)) {
     all(grepl("descriptive display only; no group-specific inference",
               group_summary_c$pooling_definition, fixed = TRUE)),
     nrow(phenotype_c) == 6L,
+    # The contract here is the NULL: no phenotype-dependent cell survives BH.
+    # The pinned minimum is a tripwire against a silent recompute, not a result.
+    # Re-frozen 2026-09-22 from 0.626 after the first-night leading-bin fix
+    # (docs/FIRST_NIGHT_LEADING_BIN_GAP.md); the null itself is unchanged.
     sum(phenotype_c$q_BH_family <= 0.05) == 0L,
-    round(min(phenotype_c$q_BH_family), 3) == 0.626,
+    round(min(phenotype_c$q_BH_family), 3) == 0.877,
     nrow(plotted_d) == 111L, !anyNA(plotted_d$Group),
     nrow(plotted_e) == 111L, !anyNA(plotted_e$Group))
   for (sex_value in c("Female", "Male")) {

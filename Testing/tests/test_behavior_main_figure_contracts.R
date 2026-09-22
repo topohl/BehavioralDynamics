@@ -386,10 +386,16 @@ if (!have_inputs) {
   check(win$n_inactive_rows_selected[1] == 0,
         "no Inactive row may enter the first-active window")
   check(win$n_animals[1] == 111, "primary window must cover 111 animals")
-  # The figure must not overstate coverage.
-  check(isFALSE(as.logical(win$all_target_slots_observed[1])),
-        paste("this dataset does NOT have every target slot observed; if that",
-              "ever becomes TRUE the legend wording must be revisited"))
+  # Every target slot IS observed since the leading-bin fix of 2026-09-22
+  # (docs/FIRST_NIGHT_LEADING_BIN_GAP.md): all 111 animals have all 72 slots at
+  # 10 min and all 144 at 5 min. This assertion used to require the opposite and
+  # warned that "if that ever becomes TRUE the legend wording must be revisited".
+  # It became true, and the wording was revisited: the Extended Data caption now
+  # reads "a bin with no RFID read is scored Movement = 0" in place of "is
+  # absent, not zero".
+  check(isTRUE(as.logical(win$all_target_slots_observed[1])),
+        paste("every target slot must now be observed; if this reverts to FALSE",
+              "the leading-bin seeding in Stage 01 has regressed"))
   ok("window identity, resolution, anchor and coverage flags all unchanged")
   # Stage 27 builds the expected string with paste() across two source lines, so
   # assert on the distinctive fragments plus the guard that consumes them rather

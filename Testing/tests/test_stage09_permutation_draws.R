@@ -176,25 +176,35 @@ if (!have) {
   cat("\n[D] the frozen headline values are unchanged\n")
   head_perf <- pf[pf$model_id == "movement_mean", ]
   head_perm <- pt[pt$model == "movement_mean", ]
-  # Re-frozen 2026-09-21 against the corrected CombZ (producer commit 497deb7),
-  # which changed the endpoint for 19 of 117 animals. The pre-correction set was
+  # Re-frozen 2026-09-22 against the first-night leading-bin fix, which seeds the
+  # carry-forward position so bins before an animal's first read exist and read
+  # Movement = 0 (docs/FIRST_NIGHT_LEADING_BIN_GAP.md). The previous set was
+  # cv_r2 0.1725558030, repeated_cv_mean_r2 0.1683067608, q025 0.1250461423,
+  # q975 0.1927922460.
+  #
+  # Re-frozen 2026-09-21 before that against the corrected CombZ (producer commit
+  # 497deb7), which changed the endpoint for 19 of 117 animals; that set was
   # cv_r2 0.1593945586, repeated_cv_mean_r2 0.1558227254, q025 0.1159402748,
-  # q975 0.1790433407, and is reproducible by substituting combz_as_recorded
-  # from later_outcome_combz_animal_level.csv. permutation_p is unchanged: it is
-  # at the 1/1001 floor for 1000 draws, so it cannot move further.
+  # q975 0.1790433407, reproducible by substituting combz_as_recorded from
+  # later_outcome_combz_animal_level.csv.
+  #
+  # permutation_p is unchanged across all three: it sits at the 1/1001 floor for
+  # 1000 draws, so it cannot move further.
   EXPECT <- list(
-    cv_r2 = 0.1725558030, permutation_p = 0.000999000999,
-    repeated_cv_mean_r2 = 0.1683067608, cv_r2_q025 = 0.1250461423,
-    cv_r2_q975 = 0.1927922460)
+    cv_r2 = 0.1727010141, permutation_p = 0.000999000999,
+    repeated_cv_mean_r2 = 0.1684096286, cv_r2_q025 = 0.1249211153,
+    cv_r2_q975 = 0.1931172720)
   for (nm in names(EXPECT)) {
     got <- head_perf[[nm]][1]
     check(abs(got - EXPECT[[nm]]) < 1e-8,
           paste0("movement_mean ", nm, " is ", format(got, digits = 12),
                  ", expected ", format(EXPECT[[nm]], digits = 12)))
   }
-  # Likewise re-frozen; previously -0.03131646461 / -0.04420903341 / 0.005863676405.
-  EXPECT_NULL <- list(null_median = -0.031582947976, null_q025 = -0.043790115141,
-                      null_q975 = 0.007011781831)
+  # Likewise re-frozen 2026-09-22; previously -0.031582947976 / -0.043790115141 /
+  # 0.007011781831, and before that -0.03131646461 / -0.04420903341 /
+  # 0.005863676405.
+  EXPECT_NULL <- list(null_median = -0.031526754282, null_q025 = -0.043595913666,
+                      null_q975 = 0.005614733989)
   for (nm in names(EXPECT_NULL)) {
     got <- head_perm[[nm]][1]
     check(abs(got - EXPECT_NULL[[nm]]) < 1e-8,
