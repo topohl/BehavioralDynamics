@@ -109,6 +109,16 @@ behavioural volatility, g = −0.946, q = 0.035), or anything CombZ-derived. Com
 comes from the behavioural/physiological workbook, not from RFID, so the animal
 lists and outcome groups are stable under this change.
 
+> **This prediction was WRONG about the domain cells, and the rebuild proved it.
+> See 4a.** CombZ stability held. The contrasts did not.
+>
+> The error was one of extrapolation: the −2.4% figure and the group balance
+> behind it are properties of **mean movement**, and I generalised them to
+> metrics that respond to a prepended bin quite differently. Volatility and
+> fragmentation measures are built from successive differences, so adding a
+> leading `Movement = 0` bin changes them structurally, not just in level —
+> and the animals gaining bins are systematically the quieter ones.
+
 Note the direction: the old pipeline **overestimated** activity for the 61,
 because it dropped precisely their quietest bins. The bias worked against the
 existing group differences rather than manufacturing them.
@@ -134,6 +144,30 @@ In the first bin of the window all 111 animals now have a row, 61 of them at
 600, and that is correct rather than a shortfall: each file's first timestamp
 falls 3–89 s after its 18:30 anchor, and the fix does not invent occupancy
 before recording starts.
+
+**Two statistical results moved, contrary to the section 4 prediction.**
+
+*The Extended Data domain map lost its only FDR-supported cell.*
+
+| | before | after |
+|---|---|---|
+| Female RES−CON, behavioural volatility | g = −0.946, q = **0.035** | g = −0.844, raw p = 0.00595, q = **0.0893** |
+| FDR-supported cells | 1 of 30 | **0 of 30** |
+| nominally p < 0.05 | — | 6 of 30 |
+
+It is still the strongest cell in its family and its raw p is 0.006; what
+changed is that a ~11% smaller effect no longer survives BH across 15 tests
+within Sex. Family structure is unchanged (15 tests per Sex, per-contrast
+n 26–46), so this is a shift in effect size, not a change in what was tested.
+
+*`Entropy_acf1` crossed the threshold the other way*, from BH p ≥ 0.05 to
+0.04776 with a bootstrap CI that clears zero by 1e-4. Its partial correlation
+controlling movement is −0.054, so it still adds nothing beyond `Movement_mean`.
+See the contract block in `Analysis/16_manuscript_behavior_report.R`.
+
+`Movement_mean` was essentially unmoved: rho −0.4038 → −0.4082, still the
+headline association. CombZ, the animal lists and the outcome groups are
+unchanged, as predicted — they come from the workbook, not from RFID.
 
 ---
 

@@ -218,9 +218,20 @@ near-identical across groups, so no group contrast was expected to move. See
 Window completeness is measured against a fixed clock window (18:30→06:30) and
 is never back-filled from night 2.
 
-Related: the first-night panel yields **1 FDR-supported cell out of 30**
-displayed. It should be reported as that single result, not as a multi-domain
-signature.
+Related: the first-night panel yields **0 FDR-supported cells out of 30**
+displayed, with 6 nominally p < 0.05. It must be reported as a null panel, not
+as a multi-domain signature and not as a single positive result.
+
+**Changed by the leading-bin fix, 2026-09-22.** It previously yielded 1
+FDR-supported cell (Female RES−CON, behavioural volatility, g = −0.946,
+q = 0.035). That cell is now g = −0.844, raw p = 0.00595, q = 0.0893 — still the
+strongest in its family, but a ~11% smaller effect no longer survives BH across
+15 tests within Sex. Family structure is unchanged, so this is a shift in effect
+size rather than in what was tested. The pre-implementation estimate predicted
+no movement in the contrasts; that prediction was derived from mean movement and
+did not transfer to volatility metrics, which are built from successive
+differences and are restructured by a prepended bin. See
+[FIRST_NIGHT_LEADING_BIN_GAP.md](FIRST_NIGHT_LEADING_BIN_GAP.md) section 4a.
 
 ---
 

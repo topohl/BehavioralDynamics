@@ -33,10 +33,11 @@ unsupported.
 
 ### Explicitly recommended against for the main figure
 
-Adding the first-night five-domain heatmap as a sixth main panel. It is a
-legitimate secondary result but it yields **1 FDR-supported cell of 30**, and
-placing it in the main figure would invite it to be read as a multi-domain
-signature.
+Adding the first-night five-domain heatmap as a sixth main panel. It yields
+**0 FDR-supported cells of 30** (6 nominally p < 0.05) since the leading-bin
+fix of 2026-09-22, having previously yielded 1, and placing it in the main
+figure would invite it to be read as a multi-domain signature. The
+recommendation against is now stronger, not weaker.
 
 ---
 
