@@ -109,9 +109,31 @@ behavioural volatility, g = −0.946, q = 0.035), or anything CombZ-derived. Com
 comes from the behavioural/physiological workbook, not from RFID, so the animal
 lists and outcome groups are stable under this change.
 
-Note the direction: the current pipeline **overestimates** activity for the 61,
-because it drops precisely their quietest bins. The bias works against the
+Note the direction: the old pipeline **overestimated** activity for the 61,
+because it dropped precisely their quietest bins. The bias worked against the
 existing group differences rather than manufacturing them.
+
+### 4a. Measured outcome after the rebuild
+
+A prediction was registered before the rebuild finished, from a model that first
+had to reproduce the *before* numbers exactly (it did: 113/50 and 265/33). The
+rebuild matched it on every count:
+
+| | before | predicted | actual |
+|---|---|---|---|
+| 10 min — animals complete | 50 | 111 | **111** |
+| 10 min — missing leading slots | 113 | 0 | **0** |
+| 5 min — animals complete | 33 | 111 | **111** |
+| 5 min — missing leading slots | 265 | 0 | **0** |
+
+Both grids are now completely full — 7,992 rows at 10 min and 15,984 at 5 min,
+minimum per-animal coverage 1.000 — with interior and trailing gaps still zero.
+
+In the first bin of the window all 111 animals now have a row, 61 of them at
+`Movement = 0`. Mean `observation_seconds` in that bin is **553.8 of 600**, not
+600, and that is correct rather than a shortfall: each file's first timestamp
+falls 3–89 s after its 18:30 anchor, and the fix does not invent occupancy
+before recording starts.
 
 ---
 
@@ -164,9 +186,16 @@ recovered, not a fabricated one.
 ## 6. What the fix requires re-running
 
 - [x] the ED caption clause in `Analysis/27_build_behavior_main_figure.R`
-- [ ] `Analysis/01_build_multiscale_behavior_metrics.R` (~4 h)
-- [ ] everything downstream of `03_derived_metrics`: stages 02, 04–08, 11–14,
-      then 03, 09, 10, 16, 19, 26, 27
+- [x] `Analysis/01_build_multiscale_behavior_metrics.R` (took ~3 h)
+- [ ] everything downstream of `03_derived_metrics`: stages 02–14 (bar the
+      optional 15), then 16, 19, **20–25**, 26, 27
+
+  An earlier draft of this list read "02, 04–08, 11–14, then 03, 09, 10, 16, 19,
+  26, 27" and **omitted stages 20–25**. All six GAMM stages read
+  `all_behavior_metrics.csv` from `03_derived_metrics`, so they go stale with
+  stage 01, and stage 26 consumes their tables — running that chain would have
+  rebuilt the manuscript figures on stale GAMM output.
+
 - [ ] re-freezing the numeric expectations in
       `Testing/tests/test_figure1_prediction_contract.R`,
       `test_stage09_permutation_draws.R` and
