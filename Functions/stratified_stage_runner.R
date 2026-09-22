@@ -178,7 +178,7 @@ mmm_stratified_figures <- function(res, post, dirs, stratum_col, x_lab, stratum_
                      130, 55)
 
   p_contr <- post$localization %>%
-    mutate(contrast = factor(.data$contrast, levels = names(MMM_CONTRAST_COLOURS)),
+    mutate(contrast = factor(.data$contrast, levels = MMM_CONTRAST_LEVELS),
            panel = paste(stratum_prefix, .data$stratum)) %>%
     ggplot(aes(AUC_diff_log1p, contrast, colour = contrast)) +
     geom_vline(xintercept = 0, linewidth = 0.3, colour = "grey55") +

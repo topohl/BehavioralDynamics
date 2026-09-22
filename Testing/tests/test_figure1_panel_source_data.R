@@ -170,7 +170,7 @@ check(all(c("susceptibility_threshold", "control_reference_mean",
 for (f in c("figure1c_movement_combz_source.csv", "figure1d_loao_predictions_source.csv")) {
   nm <- names(rd(f))
   check(!any(grepl("rmssd|entropy", nm, ignore.case = TRUE)),
-        paste0(f, " carries a secondary feature that is not FDR-supported"))
+        paste0(f, " carries a secondary feature that is not an independent predictor"))
 }
 ok("no outcome-derived predictor, no GAMM or HMM, no by-construction series")
 

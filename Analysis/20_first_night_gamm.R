@@ -144,7 +144,7 @@ p_traj <- ggplot(traj, aes(TimeAxis, fit, colour = Group, fill = Group)) +
 mmm_save_pub(p_traj, file.path(dirs$figure_root, "first_active_trajectories.svg"), 180, 70)
 
 p_auc <- res$auc_contrasts %>%
-  mutate(contrast = factor(.data$contrast, levels = names(MMM_CONTRAST_COLOURS))) %>%
+  mutate(contrast = factor(.data$contrast, levels = MMM_CONTRAST_LEVELS)) %>%
   ggplot(aes(AUC_diff_log1p, contrast, colour = contrast)) +
   geom_vline(xintercept = 0, linewidth = 0.3, colour = "grey55") +
   geom_errorbarh(aes(xmin = AUC_diff_CI_low, xmax = AUC_diff_CI_high),

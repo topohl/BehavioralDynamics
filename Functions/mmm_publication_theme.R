@@ -30,6 +30,14 @@ MMM_GROUP_SHAPES <- c(CON = 21L, RES = 24L, SUS = 22L)   # circle, triangle, squ
 # their identity in the row label, not in hue.
 MMM_CONTRAST_COLOUR <- "#2B2B2B"
 
+# Canonical ordering of the three pairwise contrasts. Stage figures factor their
+# contrast column against this to fix the row order. It used to be read as
+# names(MMM_CONTRAST_COLOURS) off a named colour vector; that vector went away
+# when contrasts moved to a single neutral hue, but two call sites kept reading
+# it and failed with "object not found". Defined here once so the levels and the
+# scale below cannot drift apart again.
+MMM_CONTRAST_LEVELS <- c("RES-CON", "SUS-CON", "SUS-RES")
+
 # Nature body text is 5-7 pt at final size; 7 pt base keeps axis text at 6.5 pt.
 MMM_BASE_PT <- 7
 MMM_PANEL_LABEL_PT <- 8
@@ -94,7 +102,7 @@ mmm_scale_shape_group <- function(...) {
 #' panels should use the single neutral MMM_CONTRAST_COLOUR instead.
 mmm_scale_colour_contrast <- function(...) {
   scale_colour_manual(values = stats::setNames(
-    rep(MMM_CONTRAST_COLOUR, 3), c("RES-CON", "SUS-CON", "SUS-RES")), ...)
+    rep(MMM_CONTRAST_COLOUR, length(MMM_CONTRAST_LEVELS)), MMM_CONTRAST_LEVELS), ...)
 }
 
 #' y axis for a log1p-fitted curve, labelled in response units.

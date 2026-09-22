@@ -66,19 +66,31 @@ generated_at <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
 
 # Entropy_acf1 reporting contract, defined ONCE.
 #
-# The wording used to be "BH-supported; bootstrap CI narrowly includes zero" and
-# was hard-coded in five separate places, so the manuscript text, the assembled
-# registry, the audit row and two export checks could only agree by hand. That
-# claim no longer matches the canonical Stage 09 result: Entropy_acf1 is
-# rho = -0.175, raw p = 0.0667, BH p = 0.0667 and bootstrap CI
-# [-0.351, +0.017]. It is NOT BH-supported, and the interval includes zero, so
-# the association is consistently null rather than significant-but-fragile.
+# The wording is hard-coded nowhere else: the manuscript text, the assembled
+# registry, the audit row and two export checks all read these two constants, so
+# they cannot drift apart by hand.
 #
-# The contract below is still a real guard: it fails if Entropy_acf1 ever
-# becomes BH-significant or its bootstrap interval stops covering zero. Keeping
-# the wording in one constant means all five consumers move together.
-entropy_robustness_wording <- "Not BH-supported; bootstrap CI includes zero"
-entropy_contract_expectation <- "BH p >= 0.05 with a bootstrap interval that includes zero"
+# Updated 2026-09-22 with the first-night leading-bin fix
+# (docs/FIRST_NIGHT_LEADING_BIN_GAP.md). Entropy_acf1 moved from rho = -0.18006
+# with BH p >= 0.05 and a bootstrap interval covering zero, to rho = -0.18833,
+# BH p = 0.04776 and bootstrap CI [-0.3645, -0.000104]. It is now BH-supported
+# and the interval excludes zero, which is how it is reported.
+#
+# Read that result with three caveats, none of which change the wording but all
+# of which belong in any discussion of it:
+#   - the interval clears zero by 1.0e-4, so this is a threshold crossing rather
+#     than a robust effect;
+#   - partial r controlling movement is -0.054, and -0.018 also controlling sex,
+#     so Entropy_acf1 still adds nothing beyond Movement_mean - the "not
+#     independent evidence" claim is unaffected;
+#   - the quantity is unstable across builds at 10 min (BH p = 0.0388 on
+#     2026-08-11, >= 0.05 on 2026-09-21, 0.04776 now), so expect this guard to
+#     trip again in either direction.
+#
+# The contract below is still a real guard: it now fails if Entropy_acf1 stops
+# being BH-significant or its bootstrap interval starts covering zero.
+entropy_robustness_wording <- "FDR-supported; bootstrap CI excludes zero"
+entropy_contract_expectation <- "BH p < 0.05 with a bootstrap interval that excludes zero"
 
 source_registry <- tribble(
   ~source_id, ~stage, ~required, ~source_script, ~artifact, ~canonical_path, ~legacy_path, ~role, ~source_notes,
@@ -394,9 +406,11 @@ feature_labels <- feature_dictionary_raw %>%
 entropy_assoc_source <- assoc %>% filter(feature == "Entropy_acf1")
 if (
   nrow(entropy_assoc_source) != 1L ||
-  !is.finite(entropy_assoc_source$spearman_p_bh) || entropy_assoc_source$spearman_p_bh < 0.05 ||
-  !is.finite(entropy_assoc_source$spearman_boot_ci_low) || entropy_assoc_source$spearman_boot_ci_low > 0 ||
-  !is.finite(entropy_assoc_source$spearman_boot_ci_high) || entropy_assoc_source$spearman_boot_ci_high < 0
+  !is.finite(entropy_assoc_source$spearman_p_bh) || entropy_assoc_source$spearman_p_bh >= 0.05 ||
+  !is.finite(entropy_assoc_source$spearman_boot_ci_low) ||
+  !is.finite(entropy_assoc_source$spearman_boot_ci_high) ||
+  # interval must exclude zero, in either direction
+  !(entropy_assoc_source$spearman_boot_ci_low > 0 || entropy_assoc_source$spearman_boot_ci_high < 0)
 ) {
   stop(
     "Entropy_acf1 reporting contract changed: expected ", entropy_contract_expectation,
