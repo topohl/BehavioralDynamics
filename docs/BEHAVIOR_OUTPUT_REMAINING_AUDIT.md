@@ -8,6 +8,17 @@ been copied and activated as `nonlinear_dynamics/5min/` and
 `systems_phenotyping/5min/`; their originals remain. See the activation record
 for the current state. This document authorizes no further cutover.
 
+Current-state update, 2026-09-24: the nine historical-resolution groups
+described below were subsequently activated as verified copies under
+`analysis_ready/history/`. All 864 numbered originals remain, and the
+original/destination hashes match the approved plan. The plan gates are now
+`ready`, all nine receipts are `activated`, and the live output index selects
+the semantic paths. Stage 10 still scans the numbered root and routes the
+330 matching filtered candidates in place. The sections below preserve the
+pre-activation audit sequence; their earlier references to blocked gates,
+absent destinations, and zero historical rewrites describe that prior state.
+See `BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md` for the cutover checks and hashes.
+
 On 2026-09-24, two HMM audits were rerun against current inputs in the
 separate `analyses/hmm_revalidation_runs/current_stage08_review_20260924/`
 directory. The old 183-file HMM audit tree remains in its numbered location
