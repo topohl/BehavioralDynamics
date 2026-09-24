@@ -530,6 +530,46 @@ summarise_candidate_features <- function(dat, source_path) {
   out
 }
 
+# Keep the discovery order fixed while replacing receipt-activated numbered
+# originals with their exact semantic copies. Retained historical resolutions
+# have no plan row and continue to use their original paths.
+route_activated_feature_sources <- function(paths, project_root, plan_file) {
+  if (length(paths) == 0L) return(paths)
+  if (!file.exists(plan_file)) stop("Behavior output migration plan missing: ", plan_file)
+  plan <- readr::read_csv(plan_file, show_col_types = FALSE, progress = FALSE)
+  required_cols <- c("group", "source_rel", "target_root_rel", "target_file", "gate")
+  if (!all(required_cols %in% names(plan)) || anyDuplicated(plan$source_rel)) {
+    stop("Behavior output migration plan has missing columns or duplicate sources.")
+  }
+  ready_root <- normalizePath(file.path(project_root, "analysis_ready"),
+                              winslash = "/", mustWork = TRUE)
+  norm <- normalizePath(paths, winslash = "/", mustWork = TRUE)
+  prefix <- paste0(ready_root, "/")
+  within_ready <- startsWith(norm, prefix)
+  rel <- rep(NA_character_, length(norm))
+  rel[within_ready] <- substring(norm[within_ready], nchar(prefix) + 1L)
+  idx <- match(rel, plan$source_rel)
+  mapped <- which(!is.na(idx))
+  for (i in mapped) {
+    row <- plan[idx[[i]], , drop = FALSE]
+    if (!identical(row$gate[[1L]], "ready")) next
+    group <- row$group[[1L]]
+    active <- mmm_behavior_output_active_root(group, project_root)
+    semantic <- mmm_behavior_output_group_root(group, "semantic", project_root)
+    if (!identical(normalizePath(active, winslash = "/", mustWork = FALSE),
+                   normalizePath(semantic, winslash = "/", mustWork = FALSE))) next
+    target <- file.path(project_root, "analysis_ready", row$target_root_rel[[1L]],
+                        row$target_file[[1L]])
+    if (!identical(basename(norm[[i]]), basename(target)) || !file.exists(target)) {
+      stop("Activated feature source has a missing or renamed destination: ",
+           norm[[i]], " -> ", target, call. = FALSE)
+    }
+    norm[[i]] <- normalizePath(target, winslash = "/", mustWork = TRUE)
+  }
+  if (anyDuplicated(norm)) stop("Activated feature routing produced duplicate paths.")
+  norm
+}
+
 candidate_paths <- feature_search_dirs[dir.exists(feature_search_dirs)] %>%
   map(~list.files(.x, pattern = "\\.(csv|tsv|xlsx|xls)$", recursive = TRUE, full.names = TRUE)) %>%
   unlist(use.names = FALSE) %>%
@@ -595,8 +635,13 @@ if (any(excluded)) {
   if (sum(excluded) > 20) message("    ... and ", sum(excluded) - 20, " more")
 }
 candidate_paths <- candidate_paths[!excluded]
+candidate_paths <- route_activated_feature_sources(
+  candidate_paths, base_dir,
+  file.path(MMM_REPO_ROOT, "docs", "BEHAVIOR_OUTPUT_MIGRATION_PLAN.csv")
+)
 
 candidate_feature_tables <- map(candidate_paths, ~summarise_candidate_features(read_candidate_file(.x), .x))
+names(candidate_feature_tables) <- candidate_paths
 candidate_feature_tables <- candidate_feature_tables[!vapply(candidate_feature_tables, is.null, logical(1))]
 
 # Layer 3: width cap. A per-animal feature table is narrow; anything very wide
@@ -641,9 +686,7 @@ systems_extra <- if (length(candidate_feature_tables) > 0) {
 
 feature_source_audit <- tibble(
   source_file = candidate_paths,
-  loaded_as_feature_table = map_lgl(candidate_paths, function(p) {
-    any(map_lgl(candidate_feature_tables, ~any(str_starts(names(.x), paste0(clean_name(tools::file_path_sans_ext(basename(p))), "__")))))
-  })
+  loaded_as_feature_table = candidate_paths %in% names(candidate_feature_tables)
 )
 write_tbl(feature_source_audit, file.path(output_dir, "tables/feature_source_audit.csv"))
 write_tbl(feature_source_audit, file.path(output_dir, "tables/input_audit/feature_source_audit.csv"))

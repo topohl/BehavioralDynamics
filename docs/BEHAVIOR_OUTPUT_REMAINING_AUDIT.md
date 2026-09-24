@@ -158,10 +158,32 @@ original by SHA-256. Stage 15 no longer lists the absent branch as a fallback,
 but its separate thirty-minute GAMM input still deliberately resolves within
 the retained numbered `gamm_features/` tree. Stage 10's required Stage 09
 model input now accepts only its canonical pipeline path; the removed
-`early_prediction_model_ladder/` fallback is absent on disk. Stage 10 still
-scans the broader numbered `06_behavioral_dynamics/` root for optional
-features, so that root is not ready for a whole-directory rename. These code
+`early_prediction_model_ladder/` fallback is absent on disk. These code
 edits have not rerun Stages 10, 14, or 15.
+
+Stage 10 still discovers optional files in the broader numbered
+`06_behavioral_dynamics/` root. Its September 22 source audit listed 536
+candidate files there, of which 205 have activated file-level migration-plan
+targets. Every mapped target exists and matches its retained original in size;
+55 smaller files marked loaded by that audit also passed fresh source, plan,
+and target SHA-256 checks. The other large loaded files were not rehashed in
+this pass. The audit marked 85 unmapped files as loaded across historical
+30-minute GAMM, older social-network and state-space, and 1-/5-minute
+temporal-instability branches. Its former loaded flag used only a basename
+match, so those counts are labels from that historical audit, not an exact
+read log. The task deliverable
+`stage10_numbered_06_source_reconciliation_20260924.csv` records each path.
+
+Stage 10 now replaces each activated source path in place after discovery and
+self-ingestion filtering, using the checked file-level migration plan and
+receipt; unmapped historical paths stay in order. A missing or renamed
+activated target stops the run. On the September 22 audit's 611 candidate
+paths, this rewrites 280 paths in total, including 205 inside numbered `06`,
+without changing order, basenames, or file sizes. Its future source audit now
+tracks exact candidate paths instead of treating every file with a shared
+basename as loaded. Stage 10 models have not been rerun or compared numerically
+after this routing change, and the numbered root remains necessary for the
+unmapped historical branches.
 
 ## Stage 00 QC follow-up and writer safeguard
 
