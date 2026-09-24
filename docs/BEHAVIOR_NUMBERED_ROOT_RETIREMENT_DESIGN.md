@@ -180,7 +180,8 @@ or prepared any live source.
    resolves the retained original through the archive receipt and constructs
    its expected semantic list from the reviewed source-to-target plans. It
    passed on the live pre-archive tree (1,459 mapped originals, 606 ordered
-   candidates); the archived-location run remains untested. The independent phase-classification bug
+   candidates); a synthetic archived-location fixture passed, while the live
+   post-move run remains pending. The independent phase-classification bug
    counterfactual now reads the retained Stage 01 original and writes to its
    own replay folder; it was not rerun. The temporal HMM component audit now
    reads retained Stage 01 and Stage 08 originals and writes its epoch metrics
@@ -293,7 +294,7 @@ proximity values; the first-night window-provenance check exited successfully
 and found 12-hour first blocks at both HMM resolutions for 109 animals. The
 Stage 10 discovery parity check had previously passed on the live numbered
 tree. These results do not mark the 37-script queue `ready`, and the
-archived-location Stage 10 run remains untested.
+live post-move Stage 10 run remains untested.
 The queue records the two console checks as `live_read_only_checked` and Stage
 10 as `live_numbered_only_checked`; both states remain below `ready`.
 
@@ -329,7 +330,12 @@ passed. These fixtures exercise routing and output placement, not the saved
 scientific results. The identity driver deliberately labels unknown and mixed
 baselines as unsuitable for a clean before/after comparison. R reported locale
 startup warnings and package build-version warnings; none caused these path
-tests to fail. The Stage 10 archived-location parity run remains outstanding.
+tests to fail. A separate fixture populated empty files at the 1,459 mapped
+original and semantic paths, plus the two supporting feature groups, then
+activated a synthetic root archive receipt. The actual Stage 10 read-only
+parity audit passed against that archived layout, including the 606-path order
+check. This tests discovery after routing without comparing scientific table
+contents; the live post-move parity run remains outstanding.
 All three live numbered roots were still present and there were zero numbered-
 root archive receipts at that check. No reviewed live gate was created.
 
