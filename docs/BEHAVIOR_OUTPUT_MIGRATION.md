@@ -285,6 +285,9 @@ hashes and no staged or destination directory. For one read-only group check:
   -AnalysisReadyRoot 'S:\Lab_Member\Tobi\Experiments\Exp9_Social-Stress\Analysis\Behavior\RFID\analysis_ready'
 ```
 
-The blocked gate must remain until the historical consumer paths and Stage 10
-candidate set are reviewed as a cutover unit. `Inspect` verifies the retained
-source inventory; it does not make the old runs current scientific evidence.
+Stage 16 now has nine receipt-aware history detail rows alongside its four
+aggregate family rows, and the live navigation index was refreshed without
+running the manuscript pipeline. The blocked gate remains until the
+historical consumer paths and Stage 10 candidate set are reviewed as a
+cutover unit. `Inspect` verifies the retained source inventory; it does not
+make the old runs current scientific evidence.

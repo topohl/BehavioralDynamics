@@ -278,11 +278,25 @@ activated fixture passed. The live draft map has not been submitted to
 
 The reviewed draft is also encoded as a separate blocked repository plan:
 `docs/BEHAVIOR_HISTORICAL_MIGRATION_PLAN.csv` has 864 rows in nine groups,
-all `gate=blocked_review`, with no duplicate source or target. Its ten-file
+all `gate=blocked_review`, with no duplicate source or target. Its eleven-file
 code contract has matching live hashes. Read-only `Inspect` passed for every
 group: 92, 92, 92, 88 social-network files; 61 and 95 state-space files;
 125 and 210 temporal-instability files; and nine GAMM files. No staging or
 destination directory exists. The plan is not yet eligible for `Prepare`.
+The shared code contract was repinned after the Stage 16 index change; all
+864 plan references match it.
+
+Stage 16 and the live `output_index.csv` now retain the four aggregate
+historical family rows and add nine receipt-aware resolution detail rows.
+The live index changed from 54 to 63 rows: nine additions and four overview
+note edits, with no other previous cell changed. A hash-checked backup is
+`_migration_control/output_index_before_history_detail_20260924.csv`
+(SHA-256 `EE7DC09EE2F0E03ECF700F77613575082AE71D4B488AE2A854BBF2190A4340FF`);
+the refreshed index is
+`5C438F0F041A17087C5758E89B351B62CC19398E006D8166FAA78F51F33E0546`.
+A post-refresh definition comparison found zero drift. The release builder
+has no direct read of those nine old resolution paths. This was a navigation
+metadata refresh, not a scientific or manuscript rerun.
 
 ## Stage 00 QC follow-up and writer safeguard
 
