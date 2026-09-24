@@ -232,4 +232,33 @@ stopifnot(any(grepl('mmm_behavior_audit_replay_output_root("phase_bug_impact", P
                      fixed = TRUE)),
           !any(grepl('analysis_ready/12_systems_neuroscience_summary', phase_bug,
                      fixed = TRUE)))
+
+temporal <- readLines(
+  "Testing/audits/audit_hmm_state_architecture_temporal_components.R",
+  warn = FALSE)
+invisible(parse(text = temporal))
+stopifnot(any(grepl('mmm_behavior_audit_replay_output_root("hmm_architecture_temporal_components", PROJ)',
+                   temporal, fixed = TRUE)),
+          sum(grepl('mmm_behavior_numbered_source_root(', temporal,
+                    fixed = TRUE)) == 2L,
+          !any(grepl('analysis_ready/06_behavioral_dynamics', temporal,
+                     fixed = TRUE)))
+
+for (entry in list(
+  c("audit_hmm_state_architecture_gap_aware.R", "hmm_architecture_gap_aware"),
+  c("audit_hmm_state_architecture_qc_sensitivity.R", "hmm_architecture_qc_sensitivity"),
+  c("audit_hmm_state_architecture_locomotion_dominance.R", "hmm_architecture_locomotion_dominance"))) {
+  downstream <- readLines(file.path("Testing/audits", entry[[1L]]),
+                          warn = FALSE)
+  invisible(parse(text = downstream))
+  stopifnot(any(grepl('mmm_behavior_audit_replay_input_root("hmm_architecture_temporal_components", PROJ)',
+                     downstream, fixed = TRUE)),
+            any(grepl(paste0('mmm_behavior_audit_replay_output_root("',
+                              entry[[2L]], '", PROJ)'), downstream,
+                      fixed = TRUE)),
+            any(grepl('read_csv(file.path(INPUT, "hmm_architecture_temporal_epoch_metrics.csv")',
+                      downstream, fixed = TRUE)),
+            !any(grepl('analysis_ready/12_systems_neuroscience_summary',
+                       downstream, fixed = TRUE)))
+}
 cat("Historical audit replay source and fresh-output paths: PASS\n")

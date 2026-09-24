@@ -6,14 +6,17 @@ suppressMessages({library(dplyr); library(tidyr); library(readr); library(string
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-OUT <- getOption("mmm.audit_out", "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture")
-PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-HMM <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
+PROJ <- mmm_project_root()
+OUT <- mmm_behavior_audit_replay_output_root("hmm_architecture_temporal_components", PROJ)
+HMM <- file.path(mmm_behavior_numbered_source_root("06_behavioral_dynamics", PROJ),
+                 "hmm_states")
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 PH_INACT <- "\\binactive\\b|\\blight\\b|\\bday\\b"; PH_ACT <- "\\bactive\\b|\\bdark\\b|\\bnight\\b"
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(DERIV, "5min_based/all_behavior_metrics.csv"),
            col_types = cols(.default = col_skip(), AnimalNum = col_character(),
                             Group = col_character(), Sex = col_character()), progress = FALSE), "roster")
 
@@ -90,6 +93,7 @@ for (res in c("10min_based", "5min_based")) {
   }
 }
 rt <- bind_rows(allres)
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(rt, file.path(OUT, "hmm_architecture_temporal_component_contrasts.csv"))
 write_csv(bind_rows(allmet), file.path(OUT, "hmm_architecture_temporal_epoch_metrics.csv"))
 

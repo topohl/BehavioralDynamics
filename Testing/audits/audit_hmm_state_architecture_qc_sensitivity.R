@@ -5,8 +5,12 @@
 suppressMessages({library(dplyr); library(tidyr); library(readr); library(stringr); library(purrr)})
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R"); source_mmm_helper("hmm_stage14_helpers.R")
-B <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based"
-A <- file.path(B, "audit_hmm_state_architecture")
+source_mmm_helper("project_paths.R")
+PROJ <- mmm_project_root()
+B <- file.path(mmm_behavior_numbered_source_root(
+  "12_systems_neuroscience_summary", PROJ), "5min_based")
+INPUT <- mmm_behavior_audit_replay_input_root("hmm_architecture_temporal_components", PROJ)
+A <- mmm_behavior_audit_replay_output_root("hmm_architecture_qc_sensitivity", PROJ)
 
 qc <- read_csv(file.path(B, "tables/qc_chip_loss_flags.csv"),
                col_types = cols(AnimalNum = col_character(), .default = col_guess())) %>%
@@ -22,7 +26,7 @@ cat("\nper-animal detail:\n")
 print(as.data.frame(drop %>% transmute(AnimalNum, Group, Sex, CageChange, PhaseClass, qc_epoch_class,
       observed_fraction = round(observed_fraction, 4)) %>% arrange(PhaseClass, Group, AnimalNum)), row.names = FALSE)
 
-met <- read_csv(file.path(A, "hmm_architecture_temporal_epoch_metrics.csv"),
+met <- read_csv(file.path(INPUT, "hmm_architecture_temporal_epoch_metrics.csv"),
                 col_types = cols(AnimalNum = col_character(), .default = col_guess())) %>%
   mutate(AnimalNum = canonical_animal_id(AnimalNum)) %>%
   left_join(qc %>% select(AnimalNum, CageChangeIndex, PhaseClass, qc_epoch_class, observed_fraction),
@@ -57,6 +61,7 @@ for (rs in c("10min_based", "5min_based")) {
   cmp[[length(cmp)+1]] <- run(d %>% filter(!qc_drop), "qc_excluded") %>% mutate(resolution = rs)
 }
 ct <- bind_rows(cmp)
+dir.create(A, recursive = TRUE, showWarnings = FALSE)
 write_csv(ct, file.path(A, "hmm_architecture_qc_leaveout_sensitivity.csv"))
 
 cat("\n=== FEMALE: full vs QC-excluded (10min primary, context-z estimates) ===\n")

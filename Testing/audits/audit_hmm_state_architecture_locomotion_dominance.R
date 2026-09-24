@@ -1,10 +1,15 @@
 ## Are the TEMPORAL HMM metrics themselves locomotion-dominated, or do they carry
 ## information the movement mean does not? Uses the repo's own 0.70 |rho| dominance threshold.
 suppressMessages({library(dplyr); library(tidyr); library(readr); library(lmerTest); library(emmeans)})
-OUT <- getOption("mmm.audit_out", "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture")
-B <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based"
+source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
+PROJ <- mmm_project_root()
+INPUT <- mmm_behavior_audit_replay_input_root("hmm_architecture_temporal_components", PROJ)
+OUT <- mmm_behavior_audit_replay_output_root("hmm_architecture_locomotion_dominance", PROJ)
+B <- file.path(mmm_behavior_numbered_source_root(
+  "12_systems_neuroscience_summary", PROJ), "5min_based")
 
-met <- read_csv(file.path(OUT, "hmm_architecture_temporal_epoch_metrics.csv"),
+met <- read_csv(file.path(INPUT, "hmm_architecture_temporal_epoch_metrics.csv"),
                 col_types = cols(AnimalNum = col_character(), .default = col_guess()))
 mov <- read_csv(file.path(B, "tables/systems_sis_domain_scores.csv"),
                 col_types = cols(AnimalNum = col_character(), .default = col_guess())) %>%
@@ -38,6 +43,7 @@ for (rs in unique(d$resolution)) for (ph in c("Active", "Inactive")) {
       locomotion_dominance_flag = abs(r_al) >= 0.70)
   }
 }
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(bind_rows(res), file.path(OUT, "hmm_architecture_locomotion_dominance_by_metric.csv"))
 
 ## Movement-adjusted contrasts for the two most informative temporal metrics

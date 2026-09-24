@@ -156,7 +156,12 @@ or prepared any live source.
    passed on the live pre-archive tree (1,459 mapped originals, 606 ordered
    candidates); the archived-location run remains untested. The independent phase-classification bug
    counterfactual now reads the retained Stage 01 original and writes to its
-   own replay folder; it was not rerun. That leaves 20 unresolved rows.
+   own replay folder; it was not rerun. The temporal HMM component audit now
+   reads retained Stage 01 and Stage 08 originals and writes its epoch metrics
+   to a fresh replay folder. The gap-aware, QC sensitivity, and locomotion
+   dominance audits consume those same-run metrics; their other Stage 14 inputs
+   resolve to the retained original, and each has its own output folder. None
+   of these calculations were rerun. That leaves 16 unresolved rows.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

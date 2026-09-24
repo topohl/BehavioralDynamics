@@ -5,8 +5,13 @@
 suppressMessages({library(dplyr); library(tidyr); library(readr); library(stringr); library(purrr)})
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R"); source_mmm_helper("hmm_stage14_helpers.R")
-A <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture"
-HMM <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/hmm_states"
+source_mmm_helper("project_paths.R")
+PROJ <- mmm_project_root()
+INPUT <- mmm_behavior_audit_replay_input_root("hmm_architecture_temporal_components", PROJ)
+A <- mmm_behavior_audit_replay_output_root("hmm_architecture_gap_aware", PROJ)
+HMM <- file.path(mmm_behavior_numbered_source_root("06_behavioral_dynamics", PROJ),
+                 "hmm_states")
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 PH_I <- "\\binactive\\b|\\blight\\b|\\bday\\b"; PH_A <- "\\bactive\\b|\\bdark\\b|\\bnight\\b"
 ent <- function(p) { p <- p[is.finite(p) & p > 0]; if (!length(p)) return(NA_real_); -sum(p * log(p)) }
 METRICS <- c("occupancy_entropy", "state_switch_rate", "self_transition_probability", "transition_entropy", "mean_dwell_bins")
@@ -38,7 +43,7 @@ gap_metrics <- function(d, K) {
 }
 
 roster <- build_canonical_identity_roster(
-  read_csv("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv",
+  read_csv(file.path(DERIV, "5min_based/all_behavior_metrics.csv"),
     col_types = cols(.default = col_skip(), AnimalNum = col_character(), Group = col_character(), Sex = col_character()),
     progress = FALSE), "roster")
 
@@ -57,7 +62,7 @@ for (res in c("10min_based", "5min_based")) {
   cat("\n####", res, " epochs:", nrow(m), "\n")
   cat("  blocks per epoch:", paste(names(table(m$n_blocks)), table(m$n_blocks), sep = "x", collapse = " "), "\n")
   cat("  non-contiguous epochs (n_blocks>1):", sum(m$n_blocks > 1), "of", nrow(m), "\n")
-  naive <- read_csv(file.path(A, "hmm_architecture_temporal_epoch_metrics.csv"),
+  naive <- read_csv(file.path(INPUT, "hmm_architecture_temporal_epoch_metrics.csv"),
                     col_types = cols(AnimalNum = col_character(), .default = col_guess())) %>%
     filter(resolution == res) %>% mutate(AnimalNum = canonical_animal_id(AnimalNum))
   j <- m %>% inner_join(naive, by = c("AnimalNum","CageChangeIndex","PhaseClass"), suffix = c("_gap","_naive"))
@@ -73,7 +78,9 @@ for (res in c("10min_based", "5min_based")) {
     out[[length(out)+1]] <- fit_repeated_measures_domain_contrasts(long, v, ph)$contrasts %>%
       mutate(resolution = res, metric_variant = "gap_aware")
 }
-gt <- bind_rows(out); write_csv(gt, file.path(A, "hmm_architecture_gap_aware_contrasts.csv"))
+gt <- bind_rows(out)
+dir.create(A, recursive = TRUE, showWarnings = FALSE)
+write_csv(gt, file.path(A, "hmm_architecture_gap_aware_contrasts.csv"))
 cat("\n=== FEMALE 10min: GAP-AWARE contrasts (compare with naive reported earlier) ===\n")
 print(as.data.frame(gt %>% filter(resolution=="10min_based", Sex=="Female") %>%
   transmute(PhaseClass, Domain=substr(Domain,1,28), contrast, est=round(mixed_model_estimate,3),
