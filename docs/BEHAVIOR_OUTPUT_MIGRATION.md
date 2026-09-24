@@ -162,8 +162,10 @@ Stage 14 dashboard, historical manifests, figure mirrors, and independently
 produced audit families. The current dashboard, first-night groups, and
 inactive-QC audit have separate semantic paths. The supporting nonlinear and systems-
 phenotyping trees are now active semantic groups; their numbered originals
-remain in place. The older resolution branches left within
-`06_behavioral_dynamics/` retain their historical or optional-input role.
+remain in place. The older resolution branches under
+`06_behavioral_dynamics/` retain their historical provenance;
+receipt-selected copies under `history/` serve optional readers and Stage 10
+feature discovery.
 The read-only live-tree and code-dependency snapshot for the remaining roots
 is `docs/BEHAVIOR_OUTPUT_REMAINING_AUDIT.md`.
 

@@ -9,6 +9,7 @@ assignment <- function(name) {
   hit[[1L]]
 }
 eval(assignment("route_activated_feature_sources"))
+eval(assignment("stage10_scan_feature_paths"))
 
 root <- file.path(tempdir(), paste0("stage10_candidate_routing_",
                                     as.integer(runif(1L, 1L, 1e9))))
@@ -102,6 +103,17 @@ stopifnot(identical(normalizePath(mmm_temporal_instability_resolution_root("1min
                     normalizePath(history_copy, winslash = "/")),
           any(grepl("mmm_behavior_route_historical_feature_sources\\(candidate_paths, base_dir\\)",
                     readLines("Analysis/10_systems_feature_prediction_ladder.R"))))
+stopifnot(file.copy(old, new))
+scanned <- stage10_scan_feature_paths(c(history_group, "dyadic_contacts"), root,
+                                       character())
+stopifnot(identical(scanned, normalizePath(c(new, history_copy), winslash = "/")))
+new_semantic_feature <- file.path(dirname(new), "new_feature.csv")
+writeLines("AnimalNum,value\n1,3", new_semantic_feature)
+stopifnot(identical(stage10_scan_feature_paths(
+  c(history_group, "dyadic_contacts"), root, character()),
+  normalizePath(c(new, new_semantic_feature, history_copy), winslash = "/")))
+unlink(new_semantic_feature)
+unlink(new)
 writeLines("AnimalNum,value\n1,222", history_copy)
 stopifnot(inherits(try(mmm_behavior_route_historical_feature_sources(historical, root),
                        silent = TRUE), "try-error"))

@@ -6,6 +6,12 @@ stopifnot(length(start) == 1L)
 end <- start + which(lines[start:length(lines)] == ")")[1] - 1L
 stopifnot(is.finite(end))
 expression <- parse(text = paste(lines[start:end], collapse = "\n"))
+group_source <- readLines("Analysis/10_systems_feature_prediction_ladder.R", warn = FALSE)
+group_start <- grep("^feature_search_groups <- c\\($", group_source)
+stopifnot(length(group_start) == 1L)
+group_end <- group_start + which(group_source[group_start:length(group_source)] == ")")[1L] - 1L
+stopifnot(is.finite(group_end))
+group_expression <- parse(text = paste(group_source[group_start:group_end], collapse = "\n"))
 
 base_dir <- file.path(tempdir(), "supporting_scan_contract")
 ready <- file.path(base_dir, "analysis_ready")
@@ -16,6 +22,7 @@ for (group in names(groups)) {
   dir.create(file.path(old, "tables"), recursive = TRUE, showWarnings = FALSE)
   writeLines("AnimalNum,value\n1,1", file.path(old, "tables", "feature.csv"))
 }
+eval(group_expression)
 eval(expression)
 for (group in names(groups)) {
   old <- mmm_behavior_output_group_root(group, "current", base_dir)

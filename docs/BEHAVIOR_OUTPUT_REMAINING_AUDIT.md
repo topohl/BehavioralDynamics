@@ -35,14 +35,16 @@ no `AnimalNum` column.
 read-only comparison. It scans the 18 semantic roots, restores their virtual
 numbered-root sort order, and applies Stage 10's current self-ingestion
 filters. The resulting 606 filtered candidate paths are identical and in the
-same order as the current receipt-routed Stage 10 scan after removing the one
-non-feature map row from its 607 paths. This establishes a path-selection
-contract for a future Stage 10 discovery change; no model was run. Stage 10
-still scans the numbered root today. The root also remains required by
-activated receipts and older audit scripts, so this check does not authorize
-renaming or deleting it. Any executable Stage 10 change needs a new reviewed
-code contract; the contracts bound to the activated receipts are historical
-snapshots and should not be silently repinned.
+same order as the former receipt-routed Stage 10 scan after removing the one
+non-feature map row from its 607 paths. Stage 10 now scans the 18
+receipt-selected groups directly and sorts their discovered files by virtual
+numbered path, so new files written to a semantic group can be discovered
+without scanning the old root. The 606-path comparison is read-only; no model
+was run. The numbered root remains required by activated receipts and older
+audit scripts, so this does not authorize renaming or deleting it. The
+contracts bound to the activated receipts remain historical code snapshots;
+the post-activation Stage 10 code and its focused checks are pinned in
+`docs/behavior_output_code_contracts/stage10_semantic_discovery_20260924.csv`.
 
 From the repository root, rerun the check with:
 

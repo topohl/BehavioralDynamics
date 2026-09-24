@@ -17,10 +17,13 @@ assignment <- function(name) {
   if (length(hit) != 1L) stop("Missing or duplicate Stage 10 assignment: ", name)
   hit[[1L]]
 }
-for (name in c("route_activated_feature_sources", "clean_name")) eval(assignment(name))
+for (name in c("route_activated_feature_sources", "stage10_scan_feature_paths",
+               "clean_name")) eval(assignment(name))
 bin_level <- "10min_based"
+eval(assignment("feature_search_groups"))
 eval(assignment("feature_search_dirs"))
-stopifnot(length(feature_search_dirs) == 8L)
+stopifnot(length(feature_search_groups) == 18L,
+          length(feature_search_dirs) == 25L)
 
 scan <- function(dirs) {
   paths <- unique(unlist(lapply(dirs[dir.exists(dirs)], list.files,
@@ -29,7 +32,10 @@ scan <- function(dirs) {
                          use.names = FALSE))
   normalizePath(paths, winslash = "/", mustWork = TRUE)
 }
-candidate_paths <- scan(feature_search_dirs)
+ready <- file.path(base_dir, "analysis_ready")
+numbered_root <- file.path(ready, "06_behavioral_dynamics")
+other_dirs <- feature_search_dirs[-seq_along(feature_search_groups)]
+candidate_paths <- scan(c(numbered_root, other_dirs))
 for (name in c("self_artifact_stubs", "is_self_artifact", "self_dir_markers",
                "in_self_dir", "excluded")) eval(assignment(name))
 numbered_filtered <- candidate_paths[!excluded]
@@ -44,8 +50,6 @@ plans <- rbind(
   utils::read.csv("docs/BEHAVIOR_HISTORICAL_MIGRATION_PLAN.csv",
                   check.names = FALSE)[, columns])
 plans <- plans[startsWith(plans$source_rel, "06_behavioral_dynamics/"), , drop = FALSE]
-ready <- file.path(base_dir, "analysis_ready")
-numbered_root <- file.path(ready, "06_behavioral_dynamics")
 numbered_all <- list.files(numbered_root, all.files = TRUE, recursive = TRUE,
                            full.names = TRUE, include.dirs = FALSE)
 numbered_all <- numbered_all[file.info(numbered_all)$isdir %in% FALSE &
@@ -72,12 +76,8 @@ for (root in roots) {
   stopifnot(setequal(actual, expected))
 }
 
-semantic <- scan(roots)
-index <- match(semantic, target)
-stopifnot(!anyNA(index))
-virtual_numbered_path <- file.path(ready, plans$source_rel[index])
-semantic <- semantic[order(virtual_numbered_path)]
-proposed <- unique(c(semantic, scan(feature_search_dirs[-1L])))
+proposed <- stage10_scan_feature_paths(feature_search_groups, base_dir,
+                                       other_dirs)
 semantic_self <- clean_name(tools::file_path_sans_ext(basename(proposed))) %in%
   self_artifact_stubs
 semantic_self_dir <- vapply(proposed, function(path)

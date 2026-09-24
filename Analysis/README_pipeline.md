@@ -218,13 +218,13 @@ identify the stage.**
 | `00_qc_tracking_integrity.R` | `analysis_ready/quality_control/tracking_integrity/runs/<new_run_id>/` for provisional single-resolution diagnostics; the May 2026 snapshot stays under `00_qc_tracking_integrity/` as an optional historical source |
 | `01_build_multiscale_behavior_metrics.R` | `analysis_ready/foundations/behavior_metrics/` (numbered originals retained) |
 | `02_build_dyadic_rfid_contacts.R` | `analysis_ready/analyses/dyadic_contacts/` (historical source retained) |
-| `06_dynamic_social_networks.R` | `analysis_ready/analyses/dynamic_social_networks/5min/` (older resolutions retained under `06_behavioral_dynamics/`) |
+| `06_dynamic_social_networks.R` | `analysis_ready/analyses/dynamic_social_networks/5min/` (older-resolution copies under `history/social_networks/`; numbered originals retained) |
 | `07_gamm_trajectory_features.R` | `analysis_ready/analyses/gamm_trajectory_features/10min/` (historical 30-minute input retained) |
 | `05_behavioral_state_space.R` | `analysis_ready/analyses/behavioral_state_space/5min/` (older resolutions retained) |
 | `08_hmm_behavioral_states_optional.R` | `analysis_ready/analyses/hmm_states/{10min,5min}/` (originals retained for historical audits) |
 | `04_temporal_instability.R` | `analysis_ready/analyses/temporal_instability/10sec/` (older resolutions retained) |
 | `15_behavior_proteomics_integration.R` | `analysis_ready/analyses/behavior_proteomics/proteomics_mnn_{primary,sensitivity}/` (old map and outputs retained) |
-| `10` | other children of `analysis_ready/06_behavioral_dynamics/` |
+| `10_systems_feature_prediction_ladder.R` | `analysis_ready/pipeline/10_systems_prediction/<resolution>/`; feature discovery reads receipt-selected groups, with numbered originals retained for provenance |
 | `11_behavioral_adaptation_kinetics.R` | `analysis_ready/analyses/adaptation_kinetics/10min/` (older five-minute tree retained) |
 | `12_sleep_like_quiescence_metrics.R` | `analysis_ready/analyses/sleep_like_inactivity/10min/` (older five-minute tree retained) |
 | `13_ethological_phase_organization.R` | `analysis_ready/analyses/phase_organization/10min/` (older five-minute tree retained) |

@@ -113,15 +113,16 @@ The recommended entry point for anyone reading the results:
 
 ### Remaining historical output branches
 
-Some active or historical groups remain in numbered locations, including
+Some active or historical groups retain numbered originals, including
 older resolutions under
-`analysis_ready/06_behavioral_dynamics/`, and
+`analysis_ready/06_behavioral_dynamics/` with receipt-selected copies under
+`analysis_ready/history/`, and
 `analysis_ready/12_systems_neuroscience_summary/`. Their status is recorded
 per output group in `output_index.csv`. Stage 01 now reads and writes through
 `analysis_ready/foundations/behavior_metrics/`; its 20 current metric/QC
 files were copied from `03_derived_metrics/` with identical hashes. The
 numbered root retains all 52 originals, including separate identity-audit
-and spatial outputs. Twenty-two activated groups retain their numbered
+and spatial outputs. Activated groups retain their numbered
 originals for provenance. Remaining branches need separate dependency review
 before any further migration.
 

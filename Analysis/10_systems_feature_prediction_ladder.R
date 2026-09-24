@@ -82,15 +82,28 @@ input_08b_resolution <- resolve_behavior_artifact(
 )
 input_08b <- input_08b_resolution$path
 
-# Optional: search these analysis folders for additional animal-level feature
-# tables. The script only uses files with an AnimalNum column and numeric
-# features that pass leakage filters. Stage 19's 04_model_outputs/ and
+# Optional: search these receipt-selected output groups for additional
+# animal-level feature tables. Preserve the former numbered-root discovery
+# order so a path migration cannot silently reorder candidate precedence.
+# The script only uses files with an AnimalNum column and numeric features
+# that pass leakage filters. Stage 19's 04_model_outputs/ and
 # 05_figures/ are model-result and presentation trees, not feature sources:
 # the recorded 10min feature_source_audit.csv lists four spatial model CSVs,
 # all with loaded_as_feature_table=FALSE, and no loaded spatial figure. Do not
 # scan those trees, including after their semantic-folder migration.
+feature_search_groups <- c(
+  "dyadic_contacts", "gamm_features_10min", "history_gamm_features_30min",
+  "history_social_networks_10sec", "history_social_networks_1min",
+  "history_social_networks_10min", "history_social_networks_30min",
+  "history_state_space_1min", "history_state_space_10min",
+  "history_temporal_instability_1min", "history_temporal_instability_5min",
+  "hmm_states_10min", "hmm_states_5min", "proteomics_mnn_primary",
+  "proteomics_mnn_sensitivity", "social_networks_5min", "state_space_5min",
+  "temporal_instability_10sec"
+)
 feature_search_dirs <- c(
-  file.path(base_dir, "analysis_ready/06_behavioral_dynamics"),
+  vapply(feature_search_groups, mmm_behavior_output_active_root,
+         character(1), project_root = base_dir, USE.NAMES = FALSE),
   file.path(base_dir, "analysis_ready/07_behavioral_state_space"),
   file.path(base_dir, "analysis_ready/08_early_prediction"),
   file.path(base_dir, "analysis_ready/09_dynamic_social_networks"),
@@ -570,10 +583,34 @@ route_activated_feature_sources <- function(paths, project_root, plan_file) {
   norm
 }
 
-candidate_paths <- feature_search_dirs[dir.exists(feature_search_dirs)] %>%
-  map(~list.files(.x, pattern = "\\.(csv|tsv|xlsx|xls)$", recursive = TRUE, full.names = TRUE)) %>%
-  unlist(use.names = FALSE) %>%
-  unique()
+stage10_scan_feature_paths <- function(groups, project_root, other_dirs) {
+  roots <- vapply(groups, mmm_behavior_output_active_root,
+                  character(1), project_root = project_root, USE.NAMES = FALSE)
+  old_roots <- vapply(groups, mmm_behavior_output_group_root,
+                      character(1), layout = "current", project_root = project_root,
+                      USE.NAMES = FALSE)
+  scan <- function(dirs) {
+    paths <- unique(unlist(lapply(dirs[dir.exists(dirs)], list.files,
+                                  pattern = "\\.(csv|tsv|xlsx|xls)$",
+                                  recursive = TRUE, full.names = TRUE),
+                           use.names = FALSE))
+    if (!length(paths)) return(character())
+    normalizePath(paths, winslash = "/", mustWork = TRUE)
+  }
+  group_paths <- scan(roots)
+  virtual_old_paths <- group_paths
+  for (i in seq_along(roots)) {
+    active <- paste0(normalizePath(roots[[i]], winslash = "/", mustWork = FALSE), "/")
+    old <- paste0(normalizePath(old_roots[[i]], winslash = "/", mustWork = FALSE), "/")
+    in_group <- startsWith(group_paths, active)
+    virtual_old_paths[in_group] <- paste0(old, substring(group_paths[in_group],
+                                                        nchar(active) + 1L))
+  }
+  unique(c(group_paths[order(virtual_old_paths)], scan(other_dirs)))
+}
+candidate_paths <- stage10_scan_feature_paths(
+  feature_search_groups, base_dir,
+  feature_search_dirs[-seq_along(feature_search_groups)])
 
 # Avoid re-importing the 08b model input as an external candidate.
 candidate_paths <- setdiff(normalizePath(candidate_paths, winslash = "/", mustWork = FALSE), normalizePath(input_08b, winslash = "/", mustWork = FALSE))
@@ -595,7 +632,8 @@ candidate_paths <- setdiff(normalizePath(candidate_paths, winslash = "/", mustWo
 # output_dir here would be a no-op: output_dir is under analysis_ready/pipeline/,
 # which no feature_search_dirs entry covers, while the polluting copies sat at
 # analysis_ready/06_behavioral_dynamics/systems_feature_prediction_ladder/ - a
-# path the current code never constructs. Hence a name registry plus a width cap.
+# path now outside the receipt-selected scan. Keep the name registry and width
+# cap so future semantic outputs cannot be ingested as upstream features.
 
 # Layer 1: this stage's own artifacts, identified by basename so the guard
 # survives the output tree being moved or renamed.

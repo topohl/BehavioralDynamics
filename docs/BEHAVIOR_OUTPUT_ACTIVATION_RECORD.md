@@ -1,5 +1,17 @@
 # Behavioral output cutover record — 2026-09-23
 
+## 2026-09-24 Stage 10 discovery follow-up
+
+After the history copies were activated, Stage 10 feature discovery was
+changed to scan the 18 receipt-selected output groups directly. A read-only
+comparison found the same 606 filtered paths in the same order as the former
+numbered-root scan after omitting its one non-feature metadata map. A focused
+fixture also confirmed that a newly written semantic-group feature is
+discovered. The Stage 10 code and its checks are pinned separately in
+`docs/behavior_output_code_contracts/stage10_semantic_discovery_20260924.csv`;
+the code contracts recorded in activation receipts remain unchanged. Stage 10
+models were not rerun, and the numbered originals remain in place.
+
 ## 2026-09-24 historical resolution copy activation
 
 The nine groups in `BEHAVIOR_HISTORICAL_MIGRATION_PLAN.csv` were opened from
