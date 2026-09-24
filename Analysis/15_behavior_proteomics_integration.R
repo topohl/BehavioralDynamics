@@ -68,6 +68,7 @@ proteomics_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Be
 base_output_dir <- mmm_behavior_proteomics_base_dir(project_root)
 
 behavior_bin_level <- "5min_based"
+phase_analysis_bin_level <- "10min_based"
 
 canonical_behavior_bin_level <- "phase_based"
 
@@ -683,14 +684,14 @@ build_behavior_feature_matrix <- function() {
       behavior_bin_level,
       trajectory_bin_level,
       behavior_bin_level,
-      behavior_bin_level,
-      behavior_bin_level,
-      behavior_bin_level,
-      behavior_bin_level,
-      behavior_bin_level,
-      behavior_bin_level,
-      behavior_bin_level,
-      behavior_bin_level
+      phase_analysis_bin_level,
+      phase_analysis_bin_level,
+      phase_analysis_bin_level,
+      phase_analysis_bin_level,
+      phase_analysis_bin_level,
+      phase_analysis_bin_level,
+      phase_analysis_bin_level,
+      phase_analysis_bin_level
     ),
     Path = c(
       file.path(mmm_derived_metrics_output_root(project_root), canonical_behavior_bin_level, "all_behavior_metrics.csv"),
@@ -708,14 +709,14 @@ build_behavior_feature_matrix <- function() {
         file.path(analysis_ready_dir, "06_behavioral_dynamics", "gamm_trajectory_features", trajectory_bin_level, "tables", "combined_gamm_features.csv")
       )),
       file.path(mmm_supporting_resolution_root("nonlinear_dynamics", behavior_bin_level, project_root), "derived_data", "animal_level_nonlinear_feature_matrix.csv"),
-      file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", behavior_bin_level, project_root), "tables", "adaptation_kinetics_features.csv"),
-      file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", behavior_bin_level, project_root), "tables", "distance_to_control_trajectories.csv"),
-      file.path(mmm_phase_analysis_resolution_root("sleep_like_inactivity", behavior_bin_level, project_root), "tables", "sleep_like_inactivity_features.csv"),
-      file.path(mmm_phase_analysis_resolution_root("phase_organization", behavior_bin_level, project_root), "tables", "phase_contrast_features.csv"),
-      file.path(mmm_phase_analysis_resolution_root("phase_organization", behavior_bin_level, project_root), "tables", "phase_timing_features.csv"),
-      file.path(mmm_phase_analysis_resolution_root("phase_organization", behavior_bin_level, project_root), "tables", "phase_fragmentation_features.csv"),
-      file.path(mmm_phase_analysis_resolution_root("phase_organization", behavior_bin_level, project_root), "tables", "phase_recovery_kinetics.csv"),
-      file.path(mmm_phase_analysis_resolution_root("phase_organization", behavior_bin_level, project_root), "tables", "phase_predictability_features.csv")
+      file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", phase_analysis_bin_level, project_root), "tables", "adaptation_kinetics_features.csv"),
+      file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", phase_analysis_bin_level, project_root), "tables", "distance_to_control_trajectories.csv"),
+      file.path(mmm_phase_analysis_resolution_root("sleep_like_inactivity", phase_analysis_bin_level, project_root), "tables", "sleep_like_inactivity_features.csv"),
+      file.path(mmm_phase_analysis_resolution_root("phase_organization", phase_analysis_bin_level, project_root), "tables", "phase_contrast_features.csv"),
+      file.path(mmm_phase_analysis_resolution_root("phase_organization", phase_analysis_bin_level, project_root), "tables", "phase_timing_features.csv"),
+      file.path(mmm_phase_analysis_resolution_root("phase_organization", phase_analysis_bin_level, project_root), "tables", "phase_fragmentation_features.csv"),
+      file.path(mmm_phase_analysis_resolution_root("phase_organization", phase_analysis_bin_level, project_root), "tables", "phase_recovery_kinetics.csv"),
+      file.path(mmm_phase_analysis_resolution_root("phase_organization", phase_analysis_bin_level, project_root), "tables", "phase_predictability_features.csv")
     )
   )
 

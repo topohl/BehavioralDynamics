@@ -13,6 +13,16 @@ stopifnot(length(scale_start) == 1L, length(path_start) == 1L,
           identical(trimws(source_text[scale_start + 5L]),
                     "early_prediction_bin_level,"),
           identical(trimws(source_text[path_start + 5L]), "behavior_file,"))
+stopifnot(any(grepl('phase_analysis_bin_level <- "10min_based"',
+                  source_text, fixed = TRUE)),
+          all(trimws(source_text[scale_start + 13:20]) %in%
+                c("phase_analysis_bin_level,", "phase_analysis_bin_level")))
+phase_paths <- grep('mmm_phase_analysis_resolution_root\\(', source_text, value = TRUE)
+phase_paths <- phase_paths[grepl('file.path\\(mmm_phase_analysis_resolution_root',
+                                 phase_paths)]
+stopifnot(length(phase_paths) == 8L,
+          all(grepl("phase_analysis_bin_level, project_root", phase_paths,
+                    fixed = TRUE)))
 
 exprs <- parse(file = source_file)
 guard <- Filter(function(expr) is.call(expr) && identical(expr[[1]], as.name("<-")) &&

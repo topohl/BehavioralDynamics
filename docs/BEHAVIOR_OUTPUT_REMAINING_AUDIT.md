@@ -365,15 +365,15 @@ semantic write location. No residual file was copied, moved, or rerun.
 
 ## 2026-09-24 Stage 15 historical phase-source guard
 
-Stage 15's feature loader now refuses an existing five-minute table from the
-adaptation, sleep-like inactivity, or phase-organization sources before reading
-it. Those eight optional tables still resolve to the retained historical
-folders, while the current Stage 11–13 producers declare ten-minute outputs.
-The guard identifies the exact refused path and requires source-validity review
-before a new integration run. It does not reclassify the old tables, change
-their paths, or revise the existing Stage 15 results. A portable contract test
-checks all three source families and leaves declared ten-minute and unrelated
-five-minute sources available.
+Stage 15 now resolves its eight adaptation, sleep-like inactivity, and
+phase-organization tables at the activated ten-minute outputs declared by
+Stages 11–13. All eight files are present with September 22 timestamps and
+111 animal IDs; the tables with a `PhaseClass` field contain both Active and
+Inactive. A guard still refuses an explicitly requested five-minute table
+from those families before reading it, identifying the path that needs
+source-validity review. This does not reclassify the historical five-minute
+files or revise the existing Stage 15 results. A portable contract test checks
+the eight source path/scale pairs and the guarded loader.
 
 The same Stage 15 source review found that its two existing integration
 inventories label the Stage 09 early-prediction source `5min_based` while their

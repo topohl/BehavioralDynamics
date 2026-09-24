@@ -102,15 +102,15 @@ Stages 11–13 now write their declared ten-minute outputs under
 `analyses/adaptation_kinetics/10min/`, `analyses/sleep_like_inactivity/10min/`,
 and `analyses/phase_organization/10min/`. Stage 14 follows the receipts for
 its ten-minute input preferences and applies its phase-classifier staleness
-guard to the semantic paths. Stage 15's fixed five-minute behavior scale still
-resolves to the older five-minute trees. Both current Stage 15 outputs record
-eight loaded tables from those pre-fix branches; their scientific validity
-needs separate resolution before reuse. New Stage 15 runs now refuse those
-existing phase-dependent five-minute tables at the feature loader. The existing
-integration outputs also label a canonical ten-minute Stage 09 input as
-five-minute; the future source specification has been corrected, without
-rewriting those historical outputs. Those branches were neither copied
-nor reclassified by this cutover. No Stage 11–15 scientific analysis was rerun.
+guard to the semantic paths. Both existing Stage 15 outputs recorded eight
+loaded tables from the pre-fix five-minute branches. Future Stage 15 code now
+selects the activated, producer-declared ten-minute outputs for those eight
+phase sources; its feature loader also refuses an explicitly requested
+five-minute phase table without verified lineage. The existing integrations
+label a canonical ten-minute Stage 09 input as five-minute; that future source
+specification was corrected as well. None of these code changes rewrote the
+historical integrations or ran a scientific analysis. The five-minute branches
+remain retained in their numbered locations.
 The existing Stage 15 integrations also let HMM features into their primary
 behavior matrix despite the default exclusion option. Future code now enforces
 that option for both direct five-minute HMM tables and ten-minute HMM summary
