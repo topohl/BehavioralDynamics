@@ -276,6 +276,14 @@ source enumeration, SHA-256, and receipt checks. Its temporary blocked-to-
 activated fixture passed. The live draft map has not been submitted to
 `Prepare`, `Verify`, or `Activate`.
 
+The reviewed draft is also encoded as a separate blocked repository plan:
+`docs/BEHAVIOR_HISTORICAL_MIGRATION_PLAN.csv` has 864 rows in nine groups,
+all `gate=blocked_review`, with no duplicate source or target. Its ten-file
+code contract has matching live hashes. Read-only `Inspect` passed for every
+group: 92, 92, 92, 88 social-network files; 61 and 95 state-space files;
+125 and 210 temporal-instability files; and nine GAMM files. No staging or
+destination directory exists. The plan is not yet eligible for `Prepare`.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX

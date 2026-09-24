@@ -269,3 +269,22 @@ contract, complete-tree and hash checks, retained originals, and receipt
 requirements remain mandatory. A synthetic blocked-to-activated history
 fixture is included in `Testing/tests/test_behavior_output_migration.ps1`.
 This mode is not an approval to activate the live historical folders.
+
+The separate `docs/BEHAVIOR_HISTORICAL_MIGRATION_PLAN.csv` records 864 exact
+files across nine older resolution groups. Every row is `blocked_review`.
+Its shared code contract is
+`docs/behavior_output_code_contracts/historical_resolution_readers.csv`.
+The live `Inspect` action passed for all nine groups with matching source
+hashes and no staged or destination directory. For one read-only group check:
+
+```powershell
+& .\Maintenance\Invoke-BehaviorOutputMigration.ps1 `
+  -Action Inspect -Group history_social_networks_10min `
+  -HistoricalDestination `
+  -Plan .\docs\BEHAVIOR_HISTORICAL_MIGRATION_PLAN.csv `
+  -AnalysisReadyRoot 'S:\Lab_Member\Tobi\Experiments\Exp9_Social-Stress\Analysis\Behavior\RFID\analysis_ready'
+```
+
+The blocked gate must remain until the historical consumer paths and Stage 10
+candidate set are reviewed as a cutover unit. `Inspect` verifies the retained
+source inventory; it does not make the old runs current scientific evidence.
