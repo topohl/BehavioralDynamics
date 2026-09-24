@@ -211,11 +211,90 @@ mmm_behavior_output_group_root <- function(group,
   file.path(project_root, "analysis_ready", paths[[group]][[layout]])
 }
 
+# A numbered root may eventually be retained under history/original_layout/.
+# Its archive receipt is separate from each semantic-copy activation receipt.
+# Without that receipt, the original source location is still mandatory.
+mmm_behavior_retained_source_root <- function(group,
+                                              project_root = mmm_project_root()) {
+  current <- mmm_behavior_output_group_root(group, "current", project_root)
+  ready <- normalizePath(file.path(project_root, "analysis_ready"),
+                         winslash = "/", mustWork = FALSE)
+  normalized <- normalizePath(current, winslash = "/", mustWork = FALSE)
+  if (!startsWith(normalized, paste0(ready, "/"))) {
+    stop("Behavior output source escaped analysis_ready: ", current,
+         call. = FALSE)
+  }
+  parts <- strsplit(substring(normalized, nchar(ready) + 2L), "/",
+                    fixed = TRUE)[[1L]]
+  numbered <- parts[[1L]]
+  if (!numbered %in% c("03_derived_metrics", "06_behavioral_dynamics",
+                       "12_systems_neuroscience_summary")) return(current)
+
+  archived <- file.path(project_root, "analysis_ready", "history",
+                        "original_layout", paste(parts, collapse = "/"))
+  receipt_path <- file.path(project_root, "analysis_ready", "_migration_control",
+                            "numbered_root_archive", paste0(numbered, ".json"))
+  if (!file.exists(receipt_path)) {
+    if (dir.exists(file.path(project_root, "analysis_ready", "history",
+                             "original_layout", numbered))) {
+      stop("Numbered source archive exists without a receipt for ", numbered,
+           call. = FALSE)
+    }
+    return(current)
+  }
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("jsonlite is required to validate a numbered source archive receipt.",
+         call. = FALSE)
+  }
+  receipt <- tryCatch(jsonlite::fromJSON(receipt_path),
+                      error = function(e) stop("Invalid numbered source archive receipt: ",
+                                               receipt_path, ": ", conditionMessage(e),
+                                               call. = FALSE))
+  expected_archive_rel <- paste0("history/original_layout/", numbered)
+  if (!identical(receipt$root, numbered) ||
+      !identical(receipt$source_root_rel, numbered) ||
+      !identical(receipt$archive_root_rel, expected_archive_rel) ||
+      !is.character(receipt$manifest_sha256) ||
+      length(receipt$manifest_sha256) != 1L ||
+      !grepl("^[0-9a-f]{64}$", receipt$manifest_sha256) ||
+      !is.numeric(receipt$files) || length(receipt$files) != 1L ||
+      is.na(receipt$files) || receipt$files < 1L ||
+      !is.numeric(receipt$bytes) || length(receipt$bytes) != 1L ||
+      is.na(receipt$bytes) || receipt$bytes < 0 ||
+      !is.character(receipt$state) || length(receipt$state) != 1L) {
+    stop("Numbered source archive receipt does not match ", numbered,
+         call. = FALSE)
+  }
+  old_root <- file.path(project_root, "analysis_ready", numbered)
+  archive_root <- file.path(project_root, "analysis_ready",
+                            expected_archive_rel)
+  if (identical(receipt$state, "prepared")) {
+    if (!dir.exists(old_root) || dir.exists(archive_root)) {
+      stop("Prepared numbered source archive has unexpected locations for ",
+           numbered, call. = FALSE)
+    }
+    return(current)
+  }
+  if (identical(receipt$state, "transferring")) {
+    stop("Numbered source archive is transferring for ", numbered,
+         call. = FALSE)
+  }
+  if (identical(receipt$state, "activated")) {
+    if (dir.exists(old_root) || !dir.exists(archive_root)) {
+      stop("Activated numbered source archive has unexpected locations for ",
+           numbered, call. = FALSE)
+    }
+    return(archived)
+  }
+  stop("Unknown numbered source archive state for ", numbered, ": ",
+       receipt$state, call. = FALSE)
+}
+
 # The migration receipt is the explicit per-group layout switch. The semantic
 # directory alone never selects a scientific input. Intermediate and corrupted
 # migration states fail closed rather than silently returning to the old tree.
 mmm_behavior_output_layout_state <- function(group, project_root = mmm_project_root()) {
-  current <- mmm_behavior_output_group_root(group, "current", project_root)
+  current <- mmm_behavior_retained_source_root(group, project_root)
   semantic <- mmm_behavior_output_group_root(group, "semantic", project_root)
   receipt_path <- file.path(project_root, "analysis_ready", "_migration_control",
                             paste0(group, ".json"))
@@ -275,9 +354,11 @@ mmm_behavior_output_layout_state <- function(group, project_root = mmm_project_r
 }
 
 mmm_behavior_output_active_root <- function(group, project_root = mmm_project_root()) {
-  mmm_behavior_output_group_root(
-    group, layout = mmm_behavior_output_layout_state(group, project_root),
-    project_root = project_root)
+  layout <- mmm_behavior_output_layout_state(group, project_root)
+  if (identical(layout, "current")) {
+    return(mmm_behavior_retained_source_root(group, project_root))
+  }
+  mmm_behavior_output_group_root(group, "semantic", project_root)
 }
 
 # Stage 01's explicit output override is used by the separate cookie-habituation

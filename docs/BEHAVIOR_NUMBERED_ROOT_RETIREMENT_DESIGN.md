@@ -1,6 +1,6 @@
 # Retiring numbered behavioral output roots: proposed transaction
 
-Status: design for review, 2026-09-24. No numbered source directory has been
+Status: design and resolver foundation for review, 2026-09-24. No numbered source directory has been
 moved, renamed, hidden, or deleted. The receipt-activated semantic copies are
 already selected by current readers. This design is a separate operation from
 the completed copy activations.
@@ -51,10 +51,13 @@ an automatic rollback shortcut.
 
 ## Reader and writer gate before `Activate`
 
-1. Update `mmm_behavior_output_layout_state()` and its tests so an activated
-   semantic group can verify its retained source at the receipt-selected
-   archived location. Until an archive receipt is activated, the old path is
-   required exactly as today.
+1. `mmm_behavior_output_layout_state()` now accepts a separate, exact-root
+   archive receipt and verifies that the retained source is in the selected
+   location. Until an archive receipt is activated, the old path is required
+   exactly as today. Temporary-fixture tests cover prepared, transferring,
+   activated, invalid, and interrupted locations; no receipt was created on
+   the live tree. The archive manifest builder, transaction tool, and manual
+   audit reader changes are still required before a live move.
 2. Keep Stage 10's current 18-group semantic discovery and its 606-path parity
    check. Its virtual numbered-path sort key preserves input precedence; the
    current group scan does not require the numbered `06` root.

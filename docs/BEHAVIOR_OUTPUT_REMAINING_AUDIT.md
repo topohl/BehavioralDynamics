@@ -109,9 +109,11 @@ them.
 ### Gate before removing numbered folders from the top level
 
 The current receipt resolver checks that both the semantic directory and the
-numbered source directory still exist. An archive move would therefore break
-active path resolution unless a separately reviewed archive receipt and
-source-location rule were implemented first. A coarse repository text search
+retained source directory still exist. A separate archive receipt can now
+select an exact `history/original_layout/` source location, but no such receipt
+exists on the live tree and the transaction tool is not yet implemented. An
+archive move without those gates would still break active path resolution. A
+coarse repository text search
 also finds numbered-path references in 16 audit scripts for
 `06_behavioral_dynamics/`, 34 for `12_systems_neuroscience_summary/`, and 28
 for `03_derived_metrics/`. These counts include historical replay scripts;
@@ -124,7 +126,7 @@ would be unsafe:
 
 | Reference | Current role | Archive implication |
 | --- | --- | --- |
-| `Functions/project_paths.R::mmm_behavior_output_layout_state()` | An activated group requires both its semantic target and retained numbered source. | **Blocking runtime contract** for any root move, even when the stage reads the semantic copy. |
+| `Functions/project_paths.R::mmm_behavior_output_layout_state()` | An activated group requires both its semantic target and retained source. An exact-root archive receipt can select a retained source under `history/original_layout/`. | No live archive receipt exists; moving a root before one is prepared and activated would fail closed. The separate archive transaction and reader checks remain mandatory. |
 | `Analysis/10_systems_feature_prediction_ladder.R::stage10_scan_feature_paths()` | Stage 10 scans 18 receipt-selected semantic groups and sorts by virtual numbered path to preserve candidate precedence. The compatibility router remains in the script, but the group scan no longer needs the numbered `06_behavioral_dynamics/` root. | The 606-path parity check covers the current live discovery set; Stage 10 discovery is **not** a blocker for that root's retirement. Preserve the compatibility router until remaining fallback inputs are reviewed. |
 | `Analysis/14_systems_neuroscience_summary_dashboard.R` | The five-minute writer uses the activated semantic root; its other-resolution branch still constructs `12_systems_neuroscience_summary/<resolution>`. | Preserve the numbered fallback for any non-primary resolution until that branch has an explicit policy and test. |
 | `Analysis/_pipeline_setup.R::resolve_stage09_early_prediction_artifact()` | An explicit canonical-then-legacy lookup for Stage 09; the old candidate is under `06_behavioral_dynamics`. | Retain the fallback contract or explicitly retire it after verifying that no supported replay needs it. |
