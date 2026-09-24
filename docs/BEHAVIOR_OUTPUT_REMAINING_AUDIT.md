@@ -19,6 +19,38 @@ pre-activation audit sequence; their earlier references to blocked gates,
 absent destinations, and zero historical rewrites describe that prior state.
 See `BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md` for the cutover checks and hashes.
 
+### Stage 10 semantic-discovery readiness after the history cutover
+
+A fresh inventory found 1,460 files in `06_behavioral_dynamics/`: 1,459
+originate from the 18 activated groups in the two migration plans, and the
+only unplanned file is the 780-byte
+`proteomics_integration_output_dir_map.csv`. Every semantic group has exactly
+its planned file inventory. The old map records numbered Stage 15 output
+paths; its current semantic counterpart records semantic paths, so the two
+files must not be treated as byte-identical copies. The saved Stage 10 source
+audit marks the old map `loaded_as_feature_table=FALSE`, and its header has
+no `AnimalNum` column.
+
+`Testing/audits/audit_stage10_semantic_discovery_parity.R` now repeats the
+read-only comparison. It scans the 18 semantic roots, restores their virtual
+numbered-root sort order, and applies Stage 10's current self-ingestion
+filters. The resulting 606 filtered candidate paths are identical and in the
+same order as the current receipt-routed Stage 10 scan after removing the one
+non-feature map row from its 607 paths. This establishes a path-selection
+contract for a future Stage 10 discovery change; no model was run. Stage 10
+still scans the numbered root today. The root also remains required by
+activated receipts and older audit scripts, so this check does not authorize
+renaming or deleting it. Any executable Stage 10 change needs a new reviewed
+code contract; the contracts bound to the activated receipts are historical
+snapshots and should not be silently repinned.
+
+From the repository root, rerun the check with:
+
+```powershell
+Rscript Testing/audits/audit_stage10_semantic_discovery_parity.R `
+  'S:\Lab_Member\Tobi\Experiments\Exp9_Social-Stress\Analysis\Behavior\RFID'
+```
+
 On 2026-09-24, two HMM audits were rerun against current inputs in the
 separate `analyses/hmm_revalidation_runs/current_stage08_review_20260924/`
 directory. The old 183-file HMM audit tree remains in its numbered location
