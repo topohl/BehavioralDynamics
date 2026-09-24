@@ -259,3 +259,13 @@ as the activation tool does. It has no copy or activation action. Run its
 synthetic fixture with
 `Testing/tests/test_behavior_historical_output_map.ps1` before relying on a
 new version of the checker.
+
+The migration tool also supports `-HistoricalDestination` for a reviewed
+historical plan. Without that switch it still rejects `history/`. With the
+switch it accepts only the nine named historical resolution groups, their
+exact numbered source roots, matching relative file paths, and the matching
+`history/<family>/<resolution>/` destination. `gate=ready`, the code
+contract, complete-tree and hash checks, retained originals, and receipt
+requirements remain mandatory. A synthetic blocked-to-activated history
+fixture is included in `Testing/tests/test_behavior_output_migration.ps1`.
+This mode is not an approval to activate the live historical folders.

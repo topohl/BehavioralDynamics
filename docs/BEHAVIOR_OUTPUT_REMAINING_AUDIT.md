@@ -269,6 +269,13 @@ copies. Stage 10 still discovers candidates from the retained numbered root;
 this change prepares reader cutover but does not permit that root to be
 renamed or removed.
 
+The migration engine now has an explicit `-HistoricalDestination` mode for
+the same nine source/destination roots. The normal mode still rejects
+`history/`, and the historical mode retains the ready gate, code contract,
+source enumeration, SHA-256, and receipt checks. Its temporary blocked-to-
+activated fixture passed. The live draft map has not been submitted to
+`Prepare`, `Verify`, or `Activate`.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX

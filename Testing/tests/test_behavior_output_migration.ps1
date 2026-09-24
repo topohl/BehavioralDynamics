@@ -224,6 +224,55 @@ try {
       -not (Test-Path -LiteralPath $dashboardRootPlot)) {
     throw 'Dashboard activation did not recover metadata and preserve both scientific originals'
   }
+
+  # History destinations require an explicit mode and one of the nine exact
+  # old-resolution to semantic-resolution mappings.
+  $historyGroup = 'history_social_networks_10min'
+  $historyOldRoot = Join-Path $root '06_behavioral_dynamics\social_networks\10min_based'
+  $historySource = Join-Path $historyOldRoot 'tables\animal_features.csv'
+  New-Item -ItemType Directory -Path (Split-Path -Parent $historySource) -Force | Out-Null
+  Write-Text $historySource "AnimalNum,value`n1,2"
+  $historyRow = [pscustomobject]@{
+    group = $historyGroup
+    source_rel = '06_behavioral_dynamics/social_networks/10min_based/tables/animal_features.csv'
+    target_root_rel = 'history/social_networks/10min'
+    target_file = 'tables/animal_features.csv'
+    source_sha256 = (Get-FileHash -LiteralPath $historySource -Algorithm SHA256).Hash.ToLowerInvariant()
+    gate = 'blocked_review'
+    contract_file = 'reviewed_code.csv'
+    contract_sha256 = $contractHash
+  }
+  $historyRow | Export-Csv -LiteralPath $plan -NoTypeInformation
+  Expect-Failure {
+    & $script -Action Inspect -Group $historyGroup -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo
+  } 'history requires explicit mode'
+  $inspection = & $script -Action Inspect -Group $historyGroup -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo -HistoricalDestination
+  if ($inspection.gate -ne 'blocked_review' -or $inspection.source_hashes -ne 'PASS') {
+    throw 'Historical blocked inspection failed'
+  }
+  Expect-Failure {
+    & $script -Action Prepare -Group $historyGroup -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo -HistoricalDestination
+  } 'history review gate'
+  $historyRow.target_root_rel = 'history/social_networks/1min'
+  $historyRow | Export-Csv -LiteralPath $plan -NoTypeInformation
+  Expect-Failure {
+    & $script -Action Inspect -Group $historyGroup -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo -HistoricalDestination
+  } 'wrong historical resolution target'
+  $historyRow.target_root_rel = 'history/social_networks/10min'
+  $historyRow.gate = 'ready'
+  $historyRow | Export-Csv -LiteralPath $plan -NoTypeInformation
+  & $script -Action Prepare -Group $historyGroup -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo -HistoricalDestination | Out-Null
+  & $script -Action Verify -Group $historyGroup -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo -HistoricalDestination | Out-Null
+  & $script -Action Activate -Group $historyGroup -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo -HistoricalDestination | Out-Null
+  $historyTarget = Join-Path $root 'history\social_networks\10min\tables\animal_features.csv'
+  $historyReceipt = Get-Content -LiteralPath (Join-Path $root "_migration_control\$historyGroup.json") -Raw | ConvertFrom-Json
+  if (-not (Test-Path -LiteralPath $historySource) -or
+      -not (Test-Path -LiteralPath $historyTarget) -or
+      $historyReceipt.state -ne 'activated' -or
+      (Get-FileHash -LiteralPath $historyTarget -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+        $historyRow.source_sha256) {
+    throw 'Historical fixture did not retain a byte-identical original and activated copy'
+  }
   'PASS: migration fixture, blocked gate, hashes, activation, and change detection'
 }
 finally {

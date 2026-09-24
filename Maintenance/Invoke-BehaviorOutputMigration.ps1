@@ -7,7 +7,8 @@ param(
   [string] $Plan = '',
   [string] $RepositoryRoot = '',
   [string] $OwnershipManifest = '',
-  [string] $OwnershipManifestSha256 = ''
+  [string] $OwnershipManifestSha256 = '',
+  [switch] $HistoricalDestination
 )
 
 Set-StrictMode -Version Latest
@@ -137,10 +138,36 @@ $groupPlanHash = Sha256Text $groupPlanText
 $targetRoot = ChildPath $root $rows[0].target_root_rel
 $stagingRoot = ChildPath $root ("_migration_incoming/$Group")
 $receiptPath = ChildPath $root ("_migration_control/$Group.json")
+$historicalRoots = @{
+  history_social_networks_10sec = @('social_networks', '10sec_based', '10sec')
+  history_social_networks_1min = @('social_networks', '1min_based', '1min')
+  history_social_networks_10min = @('social_networks', '10min_based', '10min')
+  history_social_networks_30min = @('social_networks', '30min_based', '30min')
+  history_state_space_1min = @('state_space', '1min_based', '1min')
+  history_state_space_10min = @('state_space', '10min_based', '10min')
+  history_temporal_instability_1min = @('temporal_instability', '1min_based', '1min')
+  history_temporal_instability_5min = @('temporal_instability', '5min_based', '5min')
+  history_gamm_features_30min = @('gamm_features', '30min_based', '30min')
+}
+if ($HistoricalDestination -and -not $historicalRoots.ContainsKey($Group)) {
+  throw "Historical destination is not an approved resolution group: $Group"
+}
 $mapping = @(foreach ($row in $rows) {
   if ($row.source_rel -match '(^|[\\/])(_quarantine|quarantine|_archive|history)([\\/]|$)' -or
-      $row.target_root_rel -match '(^|[\\/])(_quarantine|quarantine|_archive|history)([\\/]|$)') {
-    throw "Quarantine, archive, and history paths are not migration sources or destinations"
+      $row.target_root_rel -match '(^|[\\/])(_quarantine|quarantine|_archive)([\\/]|$)') {
+    throw "Quarantine, archive, and history sources and quarantine/archive destinations are forbidden"
+  }
+  if ($HistoricalDestination) {
+    $spec = $historicalRoots[$Group]
+    $expectedSourceRoot = "06_behavioral_dynamics/$($spec[0])/$($spec[1])"
+    $expectedTargetRoot = "history/$($spec[0])/$($spec[2])"
+    if ($row.target_root_rel.Replace('\', '/') -cne $expectedTargetRoot -or
+        $row.source_rel.Replace('\', '/') -cne
+          ($expectedSourceRoot + '/' + $row.target_file.Replace('\', '/'))) {
+      throw "Historical group $Group has an unexpected source or destination"
+    }
+  } elseif ($row.target_root_rel -match '(^|[\\/])history([\\/]|$)') {
+    throw "History destination requires -HistoricalDestination and an approved group"
   }
   if ($row.source_sha256 -notmatch '^[0-9a-fA-F]{64}$') {
     throw "Invalid SHA-256 for $($row.source_rel)"
