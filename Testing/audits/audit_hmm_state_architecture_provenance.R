@@ -26,20 +26,23 @@ repo <- "C:/Users/topohl/Documents/GitHub/MMMSociability"
 setwd(repo)
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-project <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-audit_out <- file.path(project, "analysis_ready/12_systems_neuroscience_summary/5min_based",
-                       "audit_hmm_state_architecture")
-dir.create(audit_out, recursive = TRUE, showWarnings = FALSE)
+project <- mmm_project_root()
+audit_out <- mmm_behavior_audit_replay_output_root(
+  "hmm_architecture_provenance", project)
+hmm_root <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", project), "hmm_states")
+deriv_root <- mmm_behavior_numbered_source_root("03_derived_metrics", project)
 
 resolutions <- c("5min_based", "10min_based")
 hmm_tab <- function(res, f) {
-  file.path(project, "analysis_ready/06_behavioral_dynamics/hmm_states", res, "tables", f)
+  file.path(hmm_root, res, "tables", f)
 }
 
 # ---- canonical roster exactly as Stage 08 does -------------------------------
 roster_raw <- read_csv(
-  file.path(project, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  file.path(deriv_root, "5min_based/all_behavior_metrics.csv"),
   col_types = cols(.default = col_skip(), AnimalNum = col_character(),
                    Group = col_character(), Sex = col_character()),
   progress = FALSE
@@ -64,6 +67,7 @@ v1 <- imap_dfr(labels, function(lab, res) {
       is_top_proximity_state = Proximity_z == max(Proximity_z)
     )
 })
+dir.create(audit_out, recursive = TRUE, showWarnings = FALSE)
 write_csv(v1, file.path(audit_out, "audit_doc_v1_state_semantics.csv"))
 print(v1 %>% select(resolution, State, Movement_z, Entropy_z, Proximity_z, occupancy,
                     SemanticState, proximity_rank, is_top_proximity_state), n = 20)

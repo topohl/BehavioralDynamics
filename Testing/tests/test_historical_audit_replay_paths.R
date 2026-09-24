@@ -290,4 +290,22 @@ stopifnot(any(grepl('mmm_behavior_audit_replay_output_root(', components,
                      fixed = TRUE)),
           !any(grepl('analysis_ready/12_systems_neuroscience_summary',
                      components, fixed = TRUE)))
+
+for (entry in list(
+  c("audit_hmm_state_architecture_provenance.R", "hmm_architecture_provenance"),
+  c("audit_hmm_state_architecture_provenance_addendum.R", "hmm_architecture_provenance_addendum"))) {
+  provenance <- readLines(file.path("Testing/audits", entry[[1L]]),
+                          warn = FALSE)
+  invisible(parse(text = provenance))
+  stopifnot(any(grepl('mmm_behavior_audit_replay_output_root(', provenance,
+                     fixed = TRUE)),
+            any(grepl(paste0('"', entry[[2L]], '", project)'), provenance,
+                      fixed = TRUE)),
+            sum(grepl('mmm_behavior_numbered_source_root(', provenance,
+                      fixed = TRUE)) == 2L,
+            !any(grepl('analysis_ready/06_behavioral_dynamics', provenance,
+                       fixed = TRUE)),
+            !any(grepl('analysis_ready/12_systems_neuroscience_summary',
+                       provenance, fixed = TRUE)))
+}
 cat("Historical audit replay source and fresh-output paths: PASS\n")

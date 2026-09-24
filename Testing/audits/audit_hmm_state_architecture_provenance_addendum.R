@@ -15,19 +15,22 @@ repo <- "C:/Users/topohl/Documents/GitHub/MMMSociability"
 setwd(repo)
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-project <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-audit_out <- file.path(project, "analysis_ready/12_systems_neuroscience_summary/5min_based",
-                       "audit_hmm_state_architecture")
-dir.create(audit_out, recursive = TRUE, showWarnings = FALSE)
+project <- mmm_project_root()
+audit_out <- mmm_behavior_audit_replay_output_root(
+  "hmm_architecture_provenance_addendum", project)
+hmm_root <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", project), "hmm_states")
+deriv_root <- mmm_behavior_numbered_source_root("03_derived_metrics", project)
 
 resolutions <- c("5min_based", "10min_based")
 hmm_dir <- function(res) {
-  file.path(project, "analysis_ready/06_behavioral_dynamics/hmm_states", res, "tables")
+  file.path(hmm_root, res, "tables")
 }
 
 roster_raw <- read_csv(
-  file.path(project, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  file.path(deriv_root, "5min_based/all_behavior_metrics.csv"),
   col_types = cols(.default = col_skip(), AnimalNum = col_character(),
                    Group = col_character(), Sex = col_character()),
   progress = FALSE
@@ -78,6 +81,7 @@ anova_tbl <- map_dfr(resolutions, function(res) {
     ) %>% mutate(resolution = res, PhaseClass = ph, .before = 1)
   })
 })
+dir.create(audit_out, recursive = TRUE, showWarnings = FALSE)
 write_csv(anova_tbl, file.path(audit_out, "audit_doc_v6_sex_and_cc_terms.csv"))
 print(anova_tbl %>% filter(kind == "anova") %>%
         select(resolution, PhaseClass, term, `F value`, NumDF, DenDF, `Pr(>F)`), n = 40)
