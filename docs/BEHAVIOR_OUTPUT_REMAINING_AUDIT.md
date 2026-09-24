@@ -238,6 +238,17 @@ consumer and candidate-set parity test using explicit historical-root
 selection, followed by a copy/hash check. No historical file was moved or
 copied during this inventory.
 
+The consumer boundary extends beyond Stage 10: Stage 14's multi-resolution
+optional imports can resolve older state-space, social-network, temporal, and
+GAMM paths through `Functions/project_paths.R`. Stage 15's current source
+specification explicitly prefers the retained five-minute temporal table and
+the 30-minute GAMM table. Stage 16 records these resolution families as
+historical groups. Current Stage 04–07 producer defaults select 10-second,
+5-minute, 5-minute, and 10-minute outputs respectively, while the May
+manifests name predecessor scripts. An eventual cutover must update the
+resolution helpers and the Stage 10 discovery route together; changing only
+the Stage 10 scan would leave direct optional readers on the numbered paths.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX
