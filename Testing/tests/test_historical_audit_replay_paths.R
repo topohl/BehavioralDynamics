@@ -199,4 +199,16 @@ for (entry in list(
             !any(grepl('analysis_ready/12_systems_neuroscience_summary',
                        standalone, fixed = TRUE)))
 }
+
+stage09 <- readLines("Testing/audits/audit_stage09_stale_artifacts.R",
+                     warn = FALSE)
+invisible(parse(text = stage09))
+stopifnot(any(grepl('mmm_behavior_audit_replay_output_root("stage09_stale_artifacts", RFID)',
+                   stage09, fixed = TRUE)),
+          sum(grepl('mmm_behavior_numbered_source_root(', stage09,
+                    fixed = TRUE)) == 2L,
+          !any(grepl('file.path(AR,"03_derived_metrics/', stage09,
+                     fixed = TRUE)),
+          !any(grepl('file.path(AR,"06_behavioral_dynamics/', stage09,
+                     fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

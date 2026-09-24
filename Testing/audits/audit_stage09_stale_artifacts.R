@@ -3,17 +3,20 @@
 ## Analysis/09_early_prediction_model_ladder.R (select_primary_active_window):
 ##   first Active phase block after the first cage change, 18:30 inclusive -> 06:30 exclusive,
 ##   12 h, 72 slots at 10-min, Active phase ONLY (exact membership), CC1 only, canonical 111 animals.
-## Read-only. Does not modify or rerun Stage 09.
+## Does not modify or rerun Stage 09. Replay results go to a new per-script folder.
 suppressMessages({library(dplyr); library(tidyr); library(readr); library(stringr); library(purrr)})
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R"); source_mmm_helper("hmm_stage14_helpers.R")
-OUT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/first_night_domain_heatmap"
-RFID <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+source_mmm_helper("project_paths.R")
+RFID <- mmm_project_root()
+OUT <- mmm_behavior_audit_replay_output_root("stage09_stale_artifacts", RFID)
 AR <- file.path(RFID, "analysis_ready")
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", RFID)
+LEGACY <- mmm_behavior_numbered_source_root("06_behavioral_dynamics", RFID)
 SNAP <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID_snapshot_stage09_erroneous_active_plus_inactive_24h_20260827"
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(AR,"03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(DERIV,"5min_based/all_behavior_metrics.csv"),
     col_types = cols(.default=col_skip(), AnimalNum=col_character(), Group=col_character(), Sex=col_character()),
     progress=FALSE), "roster")
 CANON_N <- nrow(roster)
@@ -23,15 +26,15 @@ families <- tribble(
   ~family, ~dir, ~producer_declared,
   "CURRENT canonical Stage 09 (10min)", file.path(AR,"pipeline/09_early_prediction/10min/tables"),
     "Analysis/09_early_prediction_model_ladder.R",
-  "LEGACY early_prediction 10min_based", file.path(AR,"06_behavioral_dynamics/early_prediction/10min_based/tables"),
+  "LEGACY early_prediction 10min_based", file.path(LEGACY,"early_prediction/10min_based/tables"),
     "Analysis/_archive/08_early_prediction_models.R (per output_manifest.csv)",
-  "LEGACY early_prediction 5min_based", file.path(AR,"06_behavioral_dynamics/early_prediction/5min_based/tables"),
+  "LEGACY early_prediction 5min_based", file.path(LEGACY,"early_prediction/5min_based/tables"),
     "Analysis/_archive/08_early_prediction_models.R (inferred, same generation)",
-  "LEGACY early_prediction 1min_based", file.path(AR,"06_behavioral_dynamics/early_prediction/1min_based/tables"),
+  "LEGACY early_prediction 1min_based", file.path(LEGACY,"early_prediction/1min_based/tables"),
     "Analysis/_archive/08_early_prediction_models.R (inferred, same generation)",
-  "LEGACY mirror early_prediction_model_ladder 10min_based", file.path(AR,"06_behavioral_dynamics/early_prediction_model_ladder/10min_based/tables"),
+  "LEGACY mirror early_prediction_model_ladder 10min_based", file.path(LEGACY,"early_prediction_model_ladder/10min_based/tables"),
     "Analysis/09_early_prediction_model_ladder.R (pre-migration location)",
-  "LEGACY mirror early_prediction_model_ladder 5min_based", file.path(AR,"06_behavioral_dynamics/early_prediction_model_ladder/5min_based/tables"),
+  "LEGACY mirror early_prediction_model_ladder 5min_based", file.path(LEGACY,"early_prediction_model_ladder/5min_based/tables"),
     "Analysis/09_early_prediction_model_ladder.R (pre-migration location)",
   "QUARANTINED snapshot (erroneous 24 h)", file.path(SNAP,"09_early_prediction_10min/tables"),
     "Analysis/09_early_prediction_model_ladder.R at git 3c12151 (snapshot manifest)"
@@ -116,6 +119,7 @@ audit <- bind_rows(rows) %>%
   relocate(family, file, timestamp, generating_script, animal_count, canonical_id_status,
            phases_present, cage_changes_present, effective_window,
            compatible_with_current_contract, reason_incompatible)
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(audit, file.path(OUT, "stage09_stale_artifact_audit.csv"))
 
 cat("################ STAGE 09 ARTIFACT FAMILIES ################\n")

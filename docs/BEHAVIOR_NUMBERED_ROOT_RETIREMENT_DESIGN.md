@@ -147,7 +147,10 @@ or prepared any live source.
    not been rerun. The superseded v1 domain-scores audit and exploratory HMM
    component audit now read the retained originals and write to independent
    replay folders, removing their former shared-writer destination. Their
-   scientific calculations have not been rerun. The other 23 rows still need
+   scientific calculations have not been rerun. The Stage 09 stale-artifact
+   audit now reads the retained Stage 01 and legacy Stage 09 families through
+   archive-aware roots, retains its snapshot comparison, and writes its report
+   to a separate replay folder. It was not rerun. The other 22 rows still need
    reader/writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
