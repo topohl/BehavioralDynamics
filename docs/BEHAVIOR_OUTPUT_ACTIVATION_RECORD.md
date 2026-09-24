@@ -617,3 +617,17 @@ manuscript and release products are refreshed and reviewed. Inactive claims
 remain unpromoted; occupancy entropy remains excluded. This changes source
 metadata only. The historical HMM audit files, Stage 16 products, and release
 products were not changed.
+
+## 2026-09-24 historical Stage 01 identity-audit index entry
+
+A read-only residue check confirmed 52 files in the retained numbered
+`03_derived_metrics/` root: 20 Stage 01 originals, eight August cross-scale
+identity reports, fourteen Stage 19 spatial originals, and ten original
+metadata/folder-guide files. The Stage 16 source definition and live output
+index now include a separate `01-identity-history` row with no canonical
+path and `historical_source_retained` status. The 54-row live index matches
+the Stage 16 source definition exactly, SHA-256
+`6D9EFE910ADE4C35FC9A37BC94183B1B15E94998E21DC6B628B0B03464361AF1`.
+The prior 53-row index is backed up under `_migration_control/` with SHA-256
+`38BD52B718D7D32D0F84CBADB47CE3AF8CAF8FAA1EA100F6651EE485C9F3955E`.
+No residual file was copied, moved, or rerun.

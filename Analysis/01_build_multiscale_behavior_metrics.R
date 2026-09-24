@@ -10,7 +10,7 @@
 #   preprocessed_data/*_preprocessed.csv
 #
 # Output:
-#   Receipt-selected Stage 01 root (currently analysis_ready/03_derived_metrics):
+#   Receipt-selected Stage 01 root (currently analysis_ready/foundations/behavior_metrics):
 #   {10sec,1min,5min,10min,30min}_based/all_behavior_metrics.csv
 #   phase_based/all_behavior_metrics.csv
 #   qc/multiscale_behavior_metrics_qc.csv

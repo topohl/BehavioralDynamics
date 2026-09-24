@@ -34,7 +34,8 @@ the broader Stage 14 dashboard consume whatever is on disk.
 - Stage 03 (secondary characterization) reads only Stage 01 metrics.
 - The canonical first-night five-domain panel — the one manuscript-facing Stage 14
   product — is built by `Functions/first_night_domain_driver.R`, whose only data
-  input is `analysis_ready/03_derived_metrics/<bin>/all_behavior_metrics.csv`.
+  input is the receipt-selected Stage 01 metric at
+  `analysis_ready/foundations/behavior_metrics/<bin>/all_behavior_metrics.csv`.
 - Stage 16 assembles only Stage 03, Stage 09 and QC artifacts.
 - `Analysis/build_publication_release.R` resolves only Stage 03, Stage 09,
   first-night, Stage 16 and QC artifacts.

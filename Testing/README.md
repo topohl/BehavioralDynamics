@@ -93,8 +93,8 @@ their numbered Stage 01 paths and require input-lineage review before rerun.
   `test_reporting_architecture.R`.
 
 > **Why two `test_*.R` files live here rather than in `tests/`:** both read
-> `analysis_ready/03_derived_metrics/.../all_behavior_metrics.csv` (and, for the
-> reporting check, a list of required canonical artifacts) *unconditionally* —
+> the mounted RFID project data (and, for the reporting check, a list of
+> required canonical artifacts) *unconditionally* —
 > there is no `file.exists()` guard. They are genuine data-dependent contract
 > checks despite the `test_` prefix, and placing them in `tests/` would break CI.
 > Classification here follows what the code actually does, not the filename.

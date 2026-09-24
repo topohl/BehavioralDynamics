@@ -349,3 +349,16 @@ measurement validity is unresolved. The Active SUS-RES occupancy-entropy row
 remains excluded: the current five fits have same-sign estimates but 0/5
 nominally significant fits, replacing the older sign-flip rationale. The
 183-file numbered audit tree remains unchanged as historical evidence.
+
+## 2026-09-24 numbered Stage 01 residue check
+
+The retained `03_derived_metrics/` root still has 52 files. Twenty Stage 01
+metric and QC files have receipt-selected copies under
+`foundations/behavior_metrics/`; the other files include eight older
+cross-scale identity reports, fourteen Stage 19 spatial originals, and ten
+original run metadata/folder-guide files. Current Stage 01 readers select the
+semantic copy, while historical manual audits still name the numbered tree.
+The machine-readable output index now has a separate
+`01-identity-history` entry for the eight August identity reports. Its
+canonical path is deliberately empty; future manual reports have a separate
+semantic write location. No residual file was copied, moved, or rerun.

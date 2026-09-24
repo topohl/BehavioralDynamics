@@ -49,6 +49,12 @@ stopifnot(nrow(foundation_index_row) == 1L,
           identical(foundation_index_row$status, "migrated_source_retained"),
           identical(foundation_index_row$legacy_path,
                     "analysis_ready/03_derived_metrics/"))
+identity_history <- env$output_index[env$output_index$stage == "01-identity-history", ]
+stopifnot(nrow(identity_history) == 1L,
+          is.na(identity_history$canonical_path),
+          identical(identity_history$status, "historical_source_retained"),
+          identical(identity_history$legacy_path,
+                    "analysis_ready/03_derived_metrics/qc/"))
 hmm_current <- env$output_index[env$output_index$stage == "08-audit-current", ]
 hmm_history <- env$output_index[env$output_index$stage == "08-audit-history", ]
 stopifnot(nrow(hmm_current) == 1L,
