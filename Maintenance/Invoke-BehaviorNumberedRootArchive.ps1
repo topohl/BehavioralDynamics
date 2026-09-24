@@ -66,6 +66,7 @@ function Verify-ReaderGate {
       -not ($queue[0].PSObject.Properties.Name -contains 'script') -or
       -not ($gate[0].PSObject.Properties.Name -contains 'script') -or
       -not ($gate[0].PSObject.Properties.Name -contains 'review_state') -or
+      -not ($gate[0].PSObject.Properties.Name -contains 'script_sha256') -or
       @($queue | Select-Object -ExpandProperty script -Unique).Count -ne $queue.Count -or
       @($gate | Select-Object -ExpandProperty script -Unique).Count -ne $gate.Count) {
     throw 'Reader gate does not have a unique row for every queued script'
@@ -75,6 +76,18 @@ function Verify-ReaderGate {
   if ((Compare-Object $queuedScripts $gateScripts) -or
       @($gate | Where-Object { $_.review_state -cne 'ready' }).Count -gt 0) {
     throw 'Reader gate does not resolve every queued script'
+  }
+  $repoRoot = FullPath (Join-Path $PSScriptRoot '..')
+  foreach ($row in $gate) {
+    if ($row.script -cnotmatch '^Testing/audits/[A-Za-z0-9_.-]+\.R$' -or
+        $row.script_sha256 -cnotmatch '^[0-9a-fA-F]{64}$') {
+      throw "Reader gate has an invalid script path or hash: $($row.script)"
+    }
+    $scriptPath = FullPath (Join-Path $repoRoot ($row.script -replace '/', '\'))
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf) -or
+        (Sha256 $scriptPath) -cne $row.script_sha256.ToLowerInvariant()) {
+      throw "Reviewed audit script changed or is missing: $($row.script)"
+    }
   }
   return $ReviewedReaderGateSha256.ToLowerInvariant()
 }

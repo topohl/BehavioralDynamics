@@ -77,7 +77,11 @@ and rollback after interruptions on either side of the directory move. The
 same transaction fixture now checks that the R pipeline resolver reads the
 prepared, activated, and rolled-back receipt states correctly. It
 requires a SHA-pinned reader gate with one `ready` row for every script in the
-queue before `Prepare` or `Activate`. A live read-only `Inspect` of the Stage 14
+queue before `Prepare` or `Activate`. Each reviewed row must also pin the
+current audit script with `script_sha256`; a changed script closes the gate even
+when the gate CSV itself still has its reviewed hash. The gate hash and queue
+hash are retained in the archive receipt. This verifies review integrity, not
+the scientific result of a replay. A live read-only `Inspect` of the Stage 14
 root passed with 702 manifest files; `Prepare` using the current unresolved
 queue was refused and created no receipt. The transaction tool has not moved
 or prepared any live source.
@@ -219,6 +223,16 @@ or prepared any live source.
    but the analyses were not rerun. The stale legacy structure check also
    resolves its Stage 03 input through the receipt; it was parsed but not run.
    Any remaining archived readers require review before live activation.
+
+`Rscript Maintenance/Get-BehaviorAuditReplayPlan.R` prints a static replay
+order from the 37-script queue. It parses each script without sourcing or
+running it, extracts literal same-run replay input/output IDs, rejects unknown
+producers, duplicate outputs, and cycles, then orders producers before their
+consumers. The current plan has 34 scripts with replay output IDs, three
+without them, and 16 with same-run prerequisites. It is an execution order,
+not a scientific validation result or permission to run the audits. The
+reviewed gate must still be built from validated replays and pinned script
+hashes; every queue row remains `path_prepared_unvalidated` now.
 
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination

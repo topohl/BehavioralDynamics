@@ -16,9 +16,12 @@ $sample = Join-Path $source 'dyadic_contacts\feature.csv'
 & $manifestTool -Action Build -AnalysisReadyRoot $ready -RootName `
   '06_behavioral_dynamics' -Manifest $manifest | Out-Null
 $manifestHash = (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLowerInvariant()
-@([pscustomobject]@{ script = 'Testing/audits/example.R'; review_state = 'needs_reader_writer_review' }) |
+$script = 'Testing/audits/audit_first_night_time_anchor.R'
+$scriptPath = Join-Path $PSScriptRoot ('..\..\' + ($script -replace '/', '\'))
+$scriptHash = (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+@([pscustomobject]@{ script = $script; review_state = 'needs_reader_writer_review' }) |
   Export-Csv -LiteralPath $queue -NoTypeInformation -Encoding utf8
-@([pscustomobject]@{ script = 'Testing/audits/example.R'; review_state = 'ready' }) |
+@([pscustomobject]@{ script = $script; review_state = 'ready'; script_sha256 = $scriptHash }) |
   Export-Csv -LiteralPath $gate -NoTypeInformation -Encoding utf8
 $gateHash = (Get-FileHash -LiteralPath $gate -Algorithm SHA256).Hash.ToLowerInvariant()
 $semantic = Join-Path $ready 'analyses\dyadic_contacts'
@@ -61,6 +64,14 @@ function Assert-R-Routes([string] $ExpectedSource) {
 if ((Invoke-Archive 'Inspect').state -cne 'unprepared') {
   throw 'Initial archive inspection did not report unprepared'
 }
+# A ready label with a stale script hash must not prepare the transaction.
+@([pscustomobject]@{ script = $script; review_state = 'ready'; script_sha256 = ('0' * 64) }) |
+  Export-Csv -LiteralPath $gate -NoTypeInformation -Encoding utf8
+$gateHash = (Get-FileHash -LiteralPath $gate -Algorithm SHA256).Hash.ToLowerInvariant()
+Expect-Failure { Invoke-Archive 'Prepare' }
+@([pscustomobject]@{ script = $script; review_state = 'ready'; script_sha256 = $scriptHash }) |
+  Export-Csv -LiteralPath $gate -NoTypeInformation -Encoding utf8
+$gateHash = (Get-FileHash -LiteralPath $gate -Algorithm SHA256).Hash.ToLowerInvariant()
 if ((Invoke-Archive 'Prepare').state -cne 'prepared' -or
     (Invoke-Archive 'Verify').hashes -cne 'PASS') {
   throw 'Archive preparation did not verify'
@@ -75,11 +86,11 @@ Expect-Failure { Invoke-Archive 'Activate' }
 
 # A changed review gate cannot be used to activate a previously prepared plan.
 $oldGateHash = $gateHash
-@([pscustomobject]@{ script = 'Testing/audits/example.R'; review_state = 'needs_reader_writer_review' }) |
+@([pscustomobject]@{ script = $script; review_state = 'needs_reader_writer_review'; script_sha256 = $scriptHash }) |
   Export-Csv -LiteralPath $gate -NoTypeInformation -Encoding utf8
 $gateHash = (Get-FileHash -LiteralPath $gate -Algorithm SHA256).Hash.ToLowerInvariant()
 Expect-Failure { Invoke-Archive 'Activate' }
-@([pscustomobject]@{ script = 'Testing/audits/example.R'; review_state = 'ready' }) |
+@([pscustomobject]@{ script = $script; review_state = 'ready'; script_sha256 = $scriptHash }) |
   Export-Csv -LiteralPath $gate -NoTypeInformation -Encoding utf8
 $gateHash = (Get-FileHash -LiteralPath $gate -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($gateHash -cne $oldGateHash) { throw 'Fixture gate did not return to its original hash' }
