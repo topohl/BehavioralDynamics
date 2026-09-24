@@ -277,4 +277,17 @@ for (entry in list(
             !any(grepl('analysis_ready/12_systems_neuroscience_summary', probe,
                        fixed = TRUE)))
 }
+components <- readLines("Testing/audits/audit_hmm_state_architecture_components.R",
+                        warn = FALSE)
+invisible(parse(text = components))
+stopifnot(any(grepl('mmm_behavior_audit_replay_output_root(', components,
+                   fixed = TRUE)),
+          sum(grepl('mmm_behavior_numbered_source_root(', components,
+                    fixed = TRUE)) == 3L,
+          any(grepl('path <- file.path(hmm_root, resolution, "tables", filename)',
+                    components, fixed = TRUE)),
+          !any(grepl('resolve_configured_hmm_artifact(', components,
+                     fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary',
+                     components, fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

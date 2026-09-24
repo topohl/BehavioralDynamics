@@ -164,7 +164,10 @@ or prepared any live source.
    of these calculations were rerun. The standalone HMM identifiability,
    partition robustness, and semantic erasure probes now read retained Stage
    01/08 inputs and write to separate replay folders. They were not rerun.
-   That leaves 13 unresolved rows.
+   The HMM component foundation audit now resolves all Stage 01, 08, and 14
+   original inputs through the archive receipt and writes to its own replay
+   folder. Its heavy calculations have not been rerun; downstream audits still
+   need to read that replay output. That leaves 12 unresolved rows.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

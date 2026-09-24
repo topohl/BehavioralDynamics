@@ -83,13 +83,16 @@ setup_path <- repo_candidates[file.exists(repo_candidates)][1]
 if (is.na(setup_path)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(setup_path)
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-audit_out <- file.path(
-  project_root,
-  "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture"
-)
-ensure_dir(audit_out)
+project_root <- mmm_project_root()
+audit_out <- mmm_behavior_audit_replay_output_root(
+  "hmm_architecture_components", project_root)
+stage14_root <- file.path(mmm_behavior_numbered_source_root(
+  "12_systems_neuroscience_summary", project_root), "5min_based")
+deriv_root <- mmm_behavior_numbered_source_root("03_derived_metrics", project_root)
+hmm_root <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", project_root), "hmm_states")
 
 resolutions <- c("5min_based", "10min_based")
 roster_bin_level <- "5min_based" # matches Stage 08 hmm_roster_bin_level default
@@ -106,7 +109,7 @@ cat("================================================================\n\n")
 # 1. Canonical 111-animal roster, derived exactly as Stage 08 derives it
 # --------------------------------------------------------------------------------
 canonical_roster_file <- file.path(
-  project_root, "analysis_ready/03_derived_metrics", roster_bin_level, "all_behavior_metrics.csv"
+  deriv_root, roster_bin_level, "all_behavior_metrics.csv"
 )
 if (!file.exists(canonical_roster_file)) {
   stop("Canonical Stage 01 roster input is missing: ", canonical_roster_file, call. = FALSE)
@@ -132,7 +135,10 @@ cat("\n")
 # 2. Load + identity-audit every HMM table at both resolutions
 # --------------------------------------------------------------------------------
 hmm_artifact <- function(resolution, filename) {
-  resolve_configured_hmm_artifact(project_root, resolution, filename, required = TRUE)$path
+  path <- file.path(hmm_root, resolution, "tables", filename)
+  if (!file.exists(path)) stop("Retained HMM artifact is missing: ", path,
+                               call. = FALSE)
+  path
 }
 
 load_and_audit <- function(resolution, filename) {
@@ -184,8 +190,7 @@ for (res in resolutions) {
 # hence every HMM state assignment -- are derived. It is therefore an upstream
 # measurement-coverage variable, not a downstream behavioural one.
 chip_loss_path <- file.path(
-  project_root,
-  "analysis_ready/12_systems_neuroscience_summary/5min_based/tables/qc_chip_loss_flags.csv"
+  stage14_root, "tables/qc_chip_loss_flags.csv"
 )
 if (!file.exists(chip_loss_path)) {
   stop("Stage 14 chip-loss QC table is missing: ", chip_loss_path, call. = FALSE)
@@ -239,6 +244,7 @@ print(as.data.frame(identity_summary_tbl %>% select(
 )))
 stopifnot(all(identity_summary_tbl$passed))
 cat("    -> all identity audits PASSED\n\n")
+ensure_dir(audit_out)
 write_table(identity_summary_tbl, file.path(audit_out, "hmm_architecture_identity_audit_summary.csv"))
 
 # --------------------------------------------------------------------------------
@@ -726,9 +732,7 @@ write_table(check_b, file.path(audit_out, "hmm_architecture_check_b_composite_re
 # disk, not only against a re-run of build_hmm_epoch_scores(). This is what makes
 # the foundation table THE manuscript quantity rather than a look-alike.
 shipped_scores_path <- file.path(
-  project_root,
-  "analysis_ready/12_systems_neuroscience_summary/5min_based/tables",
-  "systems_hmm_epoch_scores_by_resolution.csv"
+  stage14_root, "tables", "systems_hmm_epoch_scores_by_resolution.csv"
 )
 if (file.exists(shipped_scores_path)) {
   shipped_scores <- readr::read_csv(
@@ -1303,9 +1307,7 @@ sensitivity <- bind_rows(sens_rows) %>%
 # the SHIPPED primary FDR family (18 tests: displayed domains x 3 contrasts within
 # resolution x Sex x Phase) is NOT redefined here. It is joined for reference.
 shipped_sens_path <- file.path(
-  project_root,
-  "analysis_ready/12_systems_neuroscience_summary/5min_based/stats_tables",
-  "systems_sis_hmm_resolution_sensitivity.csv"
+  stage14_root, "stats_tables", "systems_sis_hmm_resolution_sensitivity.csv"
 )
 if (file.exists(shipped_sens_path)) {
   shipped_primary <- readr::read_csv(shipped_sens_path, progress = FALSE, show_col_types = FALSE) %>%
