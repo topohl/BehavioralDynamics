@@ -3,8 +3,8 @@
 # MMMSociability
 # ================================================================
 # The legacy first-night analysis is PRESERVED, not replaced: this script reads
-# both shipped artifacts and writes an explicit row-by-row comparison so a reader
-# can see exactly what changed and, for each change, WHY.
+# both shipped artifacts and writes an explicit row-by-row comparison into a
+# fresh replay folder so a reader can see exactly what changed and WHY.
 #
 # Nothing here rewrites a historical result. The legacy five-domain outputs under
 # analysis_ready/12_systems_neuroscience_summary/5min_based/first_night/ are left
@@ -34,8 +34,7 @@ source_mmm_helper("rfid_domain_core.R")
 ROOT <- mmm_project_root()
 LEGACY <- mmm_behavior_output_active_root("first_night_10min", project_root = ROOT)
 NEWDIR <- file.path(behavior_stage_dir(ROOT, "28", "rfid_behavioral_domains", "10min"), "tables")
-OUT <- mmm_behavior_output_active_root("rfid_domain_comparison_audit", project_root = ROOT)
-if (!dir.exists(OUT)) dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
+OUT <- mmm_behavior_audit_replay_output_root("rfid_legacy_vs_new_domains", ROOT)
 
 need <- function(p) { if (!file.exists(p)) stop("Missing input: ", p, call. = FALSE); p }
 legacy_contrasts <- read_csv(need(file.path(LEGACY, "first_night_group_contrasts.csv")),
@@ -83,6 +82,7 @@ crosswalk <- tribble(
     new_multiplicity = ifelse(is.na(.data$new_domain), NA_character_,
                               "HIERARCHICAL: BH over 4 domain omnibus Group tests per Sex, then Holm over 3 pairwise contrasts WITHIN a domain whose parent survived; interaction family n=4"),
     legacy_preserved_at = LEGACY)
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(crosswalk, file.path(OUT, "domain_crosswalk.csv"))
 
 # ---------------------------------------- contrast-level old vs new table

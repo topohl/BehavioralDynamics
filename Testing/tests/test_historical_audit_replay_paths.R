@@ -377,4 +377,14 @@ stopifnot(any(grepl('"hmm_architecture_redundancy", project_root)',
                     fixed = TRUE)),
           any(grepl('foundation_path <- file.path(FOUNDATION,', construct,
                     fixed = TRUE)))
+
+rfid_comparison <- readLines(
+  "Testing/audits/audit_rfid_legacy_vs_new_domains.R", warn = FALSE)
+invisible(parse(text = rfid_comparison))
+stopifnot(any(grepl('mmm_behavior_output_active_root("first_night_10min",',
+                   rfid_comparison, fixed = TRUE)),
+          any(grepl('mmm_behavior_audit_replay_output_root("rfid_legacy_vs_new_domains", ROOT)',
+                    rfid_comparison, fixed = TRUE)),
+          !any(grepl('mmm_behavior_output_active_root("rfid_domain_comparison_audit",',
+                     rfid_comparison, fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

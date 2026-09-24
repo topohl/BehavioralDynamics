@@ -184,8 +184,15 @@ or prepared any live source.
    outputs are requested. Its Stage 09 legacy fallback resolves an archived
    numbered root while preserving its explicit baseline provenance. Synthetic
    driver tests passed, including an activated archive receipt; no live
-   comparison was rerun. One special-case row remains: the active RFID domain
-   comparison producer.
+   comparison was rerun. The final special-case row, the active RFID domain
+   comparison producer, now reads the receipt-selected five-domain first-
+   night results and Stage 28 tables, then writes any rerun into a fresh
+   `rfid_legacy_vs_new_domains` replay folder. The four saved supporting
+   tables under `analyses/rfid_domain_comparison_audit/` remain the activated
+   copy and are not overwritten. The new replay has not been run or promoted.
+   All 37 queue rows are path-prepared, but none is `ready` for the live
+   numbered-root archive gate until the scientific replay and writer review
+   is complete.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

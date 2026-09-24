@@ -760,8 +760,12 @@ stopifnot(grepl('mmm_behavior_output_active_root("dyadic_contacts")', stage02,
 comparison_writer <- paste(readLines(
   "Testing/audits/audit_rfid_legacy_vs_new_domains.R", warn = FALSE),
   collapse = "\n")
-stopifnot(grepl('mmm_behavior_output_active_root("rfid_domain_comparison_audit", project_root = ROOT)',
+stopifnot(grepl('mmm_behavior_output_active_root("first_night_10min", project_root = ROOT)',
                comparison_writer, fixed = TRUE),
+          grepl('mmm_behavior_audit_replay_output_root("rfid_legacy_vs_new_domains", ROOT)',
+                comparison_writer, fixed = TRUE),
+          !grepl('mmm_behavior_output_active_root("rfid_domain_comparison_audit", project_root = ROOT)',
+                 comparison_writer, fixed = TRUE),
           !grepl('"5min_based", "audit_rfid_legacy_vs_new"',
                  comparison_writer, fixed = TRUE))
 seed_writer <- paste(readLines(

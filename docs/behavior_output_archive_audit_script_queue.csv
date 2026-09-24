@@ -32,7 +32,7 @@
 "Testing/audits/audit_hmm_state_architecture_semantic_erasure.R","True","True","True","True","False","path_prepared_unvalidated"
 "Testing/audits/audit_hmm_state_architecture_temporal_components.R","True","True","True","True","False","path_prepared_unvalidated"
 "Testing/audits/audit_phase_bug_impact.R","True","False","True","True","True","path_prepared_unvalidated"
-"Testing/audits/audit_rfid_legacy_vs_new_domains.R","False","False","True","True","True","needs_reader_writer_review"
+"Testing/audits/audit_rfid_legacy_vs_new_domains.R","False","False","True","True","True","path_prepared_unvalidated"
 "Testing/audits/audit_stage09_stale_artifacts.R","True","True","True","True","False","path_prepared_unvalidated"
 "Testing/audits/audit_stage10_semantic_discovery_parity.R","False","True","False","False","False","path_prepared_unvalidated"
 "Testing/audits/compare_identity_correction_before_after.R","False","True","False","True","True","path_prepared_unvalidated"
