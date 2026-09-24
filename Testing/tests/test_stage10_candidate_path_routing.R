@@ -69,4 +69,22 @@ missing_target <- tryCatch({
 }, error = conditionMessage)
 stopifnot(is.character(missing_target),
           grepl("missing or renamed destination", missing_target, fixed = TRUE))
+
+# Fresh migration manifests can appear in the numbered discovery root after
+# the saved source audit. Exercise the production exclusion expressions so
+# these metadata files never become candidate feature tables.
+guard <- new.env(parent = globalenv())
+guard$`%>%` <- magrittr::`%>%`
+guard$str_replace_all <- stringr::str_replace_all
+guard$candidate_paths <- file.path(ready, "06_behavioral_dynamics", "dyadic_contacts",
+                                   "tables", c("input_output_manifest.csv",
+                                               "output_figure_inventory.csv",
+                                               "output_folder_summary.csv",
+                                               "output_manifest.csv",
+                                               "animal_features.csv"))
+for (name in c("clean_name", "self_artifact_stubs", "is_self_artifact",
+               "self_dir_markers", "in_self_dir", "excluded")) {
+  eval(assignment(name), envir = guard)
+}
+stopifnot(identical(unname(guard$excluded), c(TRUE, TRUE, TRUE, TRUE, FALSE)))
 cat("Stage 10 candidate-path routing and exact source audit: PASS\n")

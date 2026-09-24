@@ -185,6 +185,20 @@ basename as loaded. Stage 10 models have not been rerun or compared numerically
 after this routing change, and the numbered root remains necessary for the
 unmapped historical branches.
 
+A read-only scan on 2026-09-24 found 602 CSV/TSV/Excel files under the
+numbered `06_behavioral_dynamics/` search root, compared with 536 paths in
+the September 22 Stage 10 source audit. All 66 additional paths have one of
+four basenames: `input_output_manifest.csv`, `output_figure_inventory.csv`,
+`output_folder_summary.csv`, or `output_manifest.csv`. Stage 10's existing
+self-ingestion guard excludes all four before feature routing. The 66 paths
+include 45 with migration-plan targets and 21 retained numbered-only metadata
+files. A scan of the semantic group roots found no CSV/TSV/Excel file outside
+the reviewed migration plan. This checks current discovery and metadata
+exclusion, not the numerical equivalence of a Stage 10 model rerun.
+
+The current scan also sees the expected 26 nonlinear-dynamics and 55
+systems-phenotyping candidates through their activated semantic roots.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX
