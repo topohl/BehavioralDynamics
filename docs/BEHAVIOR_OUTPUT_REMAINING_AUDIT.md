@@ -228,8 +228,9 @@ remains historical and has not been regenerated. The three files under
 family has now been activated as `analyses/inactive_phase_qc_audit/` after
 receipt-aware writer, registry, and exact hash-plan checks. The numbered
 originals remain and the proposed QC rule remains unadopted.
-The six `audit_rfid_*` families depend partly on untracked scripts and
-cross-read one another; they remain outside the next automatic batch.
+At that checkpoint, the six `audit_rfid_*` families still needed separate
+writer and cross-reader review, so they were excluded from the dashboard
+batch. All six were later activated independently as described below.
 
 The five-minute Stage 14 dashboard now has a separate receipt-aware path
 contract, `systems_dashboard_5min`, targeting `analyses/systems_dashboard/5min/`.
@@ -304,7 +305,8 @@ All six RFID audit groups are now activated as independent semantic copies:
 4 comparison, 12 leading-bin, 11 construct, 11 conservatism, 10 alternative
 inference, and 7 reliability files. All 55 numbered originals remain. This
 path cutover did not rerun any scientific audit or promote an exploratory
-result to a manuscript claim. The live index has 51 rows. See the activation
+result to a manuscript claim. The live index had 51 rows at that cutover; it
+was subsequently refreshed to 54 rows. See the activation
 record and separate plans for exact hashes and receipts. The paragraphs below
 also preserve the sequence of the earlier, separate cutovers.
 
