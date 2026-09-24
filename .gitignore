@@ -17,3 +17,4 @@ manuscript/archive/BehavioralDynamics_schema_preproduction_audit/rendered/
 # root, never into the repository. This rule only guards against an accidental
 # in-repo build target.
 releases/
+Rplots.pdf
