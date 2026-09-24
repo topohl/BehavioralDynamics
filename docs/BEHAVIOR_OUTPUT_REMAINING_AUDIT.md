@@ -126,6 +126,13 @@ by an explicit path. A path-length regression test still scans the old Stage 16 
 task's blocked candidate maps propose semantic `history/` paths; all 122
 numbered originals remain and no copy or receipt was created.
 
+Stage 16's nine Stage 09 manuscript sources also selected canonical paths in
+the current provenance. Their declared fallback directory,
+`06_behavioral_dynamics/early_prediction_model_ladder/10min_based/`, is absent
+from the live tree. Stage 16 no longer offers those nonfunctional fallbacks;
+required Stage 09 sources fail closed when a canonical file is missing. This
+change leaves the separate Stage 09 resolver used by other analyses intact.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX

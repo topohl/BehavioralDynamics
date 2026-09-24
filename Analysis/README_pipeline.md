@@ -70,7 +70,7 @@ The bounded Stage 03/09/10 migration uses:
 - `figures/`
 - `audit/`
 
-Canonical migrated roots are `analysis_ready/pipeline/03_movement_phase_stats/10min/`, `analysis_ready/pipeline/09_early_prediction/10min/`, and `analysis_ready/pipeline/10_systems_prediction/10min/`. Resolution tokens use `10min`, not `10min_based`. Future writes go only to the canonical location. Stage 16 reads Stage 03 from the canonical path only: its eight historical counterparts differ and cannot safely substitute for missing current files. The documented Stage 09 fallback still warns and is recorded in provenance. Historical legacy directories are retained but are not rewritten by Stage 16.
+Canonical migrated roots are `analysis_ready/pipeline/03_movement_phase_stats/10min/`, `analysis_ready/pipeline/09_early_prediction/10min/`, and `analysis_ready/pipeline/10_systems_prediction/10min/`. Resolution tokens use `10min`, not `10min_based`. Future writes go only to the canonical location. Stage 16 reads Stages 03 and 09 from canonical paths only. Stage 03's historical counterparts differ from the current files, and Stage 09's former fallback folder is absent. Historical legacy directories remain available to explicit comparison audits; Stage 16 does not rewrite them.
 
 `analysis_ready/README.md` and `analysis_ready/output_index.csv` are the human and machine-readable navigation entry points. Stages not listed above retain their current layout until a later migration.
 
@@ -96,7 +96,7 @@ After the required canonical Stage 09 and selected Stage 03 outputs have been ge
 source("Analysis/16_manuscript_behavior_report.R")
 ```
 
-Stage 16 may read documented legacy Stage 09 outputs during the transition. Stage 03 reporting requires the current canonical files. The manuscript package is written only to `analysis_ready/manuscript/behavior/`.
+Stage 16 requires the current canonical Stage 03 and Stage 09 sources. The manuscript package is written only to `analysis_ready/manuscript/behavior/`.
 
 ## Old-to-New Filename Map
 
