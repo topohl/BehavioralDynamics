@@ -119,6 +119,26 @@ they are not a count of active scientific consumers. Each script needs an
 explicit current-reader versus historical-replay decision before its path is
 changed.
 
+The executable references have different roles, so a blanket text replacement
+would be unsafe:
+
+| Reference | Current role | Archive implication |
+| --- | --- | --- |
+| `Functions/project_paths.R::mmm_behavior_output_layout_state()` | An activated group requires both its semantic target and retained numbered source. | **Blocking runtime contract** for any root move, even when the stage reads the semantic copy. |
+| `Functions/project_paths.R::mmm_behavior_route_historical_feature_sources()` | Stage 10 discovers historical feature files in the numbered tree, then routes receipt-selected files to their semantic copies. | **Blocking live discovery path** until discovery uses a reviewed semantic manifest. |
+| `Analysis/14_systems_neuroscience_summary_dashboard.R` | The five-minute writer uses the activated semantic root; its other-resolution branch still constructs `12_systems_neuroscience_summary/<resolution>`. | Preserve the numbered fallback for any non-primary resolution until that branch has an explicit policy and test. |
+| `Analysis/_pipeline_setup.R::resolve_stage09_early_prediction_artifact()` | An explicit canonical-then-legacy lookup for Stage 09; the old candidate is under `06_behavioral_dynamics`. | Retain the fallback contract or explicitly retire it after verifying that no supported replay needs it. |
+| `Analysis/run_cookiehab_preprocessing_and_metrics.R` | Explicit output overrides under the separate `cookiehab/analysis_ready/` tree. | Do not rewrite these to main-experiment semantic paths; audit the cookie-habituation tree separately. |
+| `Testing/audits/audit_first_night_*.R` and `audit_hmm_state_architecture_*.R` | Many scripts construct numbered input paths, and some create output directories inside the old Stage 14 HMM audit tree. | Treat as historical replay scripts until each script's input lineage and write destination are reviewed. Running one after a root move could recreate the old root or write a scientifically mixed audit. |
+| `Analysis/16_manuscript_behavior_report.R` | Numbered paths in the output registry are explicit historical provenance fields. | Keep these historical strings as provenance; update only the active canonical path when its own registry contract changes. |
+| `Analysis/27_build_behavior_main_figure.R`, `Analysis/02_build_dyadic_rfid_contacts.R`, `Analysis/10_systems_feature_prediction_ladder.R`, and `Analysis/15_behavior_proteomics_integration.R` | The matching numbered strings are source labels or comments, not live writes to those roots. | Review them as documentation/provenance, not migration blockers by themselves. |
+
+This classification is based on the executable code as checked on 2026-09-24;
+it is not a claim that every manual audit script is safe to rerun. In
+particular, retaining the old Stage 14 HMM audit tree is still necessary for
+historical replay, and the current HMM revalidation has its own separate
+semantic output directory.
+
 The safe archive sequence is: (1) classify those readers and preserve the
 ones intentionally tied to the original path; (2) add a versioned archive
 manifest and an independent receipt state that can attest to a relocated
