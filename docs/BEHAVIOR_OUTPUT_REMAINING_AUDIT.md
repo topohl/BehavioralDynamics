@@ -353,8 +353,10 @@ The HMM follow-up inventories 183 retained files: 86 under
 `first_night_domain_heatmap/` and 97 at the audit root. Exact-basename
 search found 402 reference lines across 43 code files; direct writer
 matching remains incomplete, particularly for dynamic or multiline writes.
-Four files are named in the manuscript registry across conditional active,
-unpromoted inactive, and excluded first-night/occupancy claims. Neither
+At the original snapshot, four files were named in the manuscript registry
+across conditional active, unpromoted inactive, and excluded first-night or
+occupancy claims. The current registry retains old paths only for the two
+excluded first-night dwell files; the HMM revalidation rows use new paths. Neither
 partition is yet a migration group. No HMM destination or receipt was created.
 
 The entire HMM audit tree has September 2–4 modification dates, whereas the
@@ -367,6 +369,19 @@ when their companion outputs are included; a blocked candidate map is in the
 task's HMM boundary report. A scientific provenance review is required before
 any HMM copy is presented as current analysis evidence or its registry path
 is changed.
+
+A further file-level writer review covers all 183 retained files in the task
+deliverable `stage14_hmm_audit_writer_map_20260924.csv` (SHA-256
+`2F87CCAE5536F57F7D760D74A88BDB68FACF8A473B01C443F415FFA8556CE29D`).
+There are 144 single-writer same-line matches and 32 writer candidates
+supported by a nearby multiline call, assigned output variable, or figure
+helper. Seven filenames have two explicit writer scripts. Six collisions are in the
+first-night audit generations; the seventh is
+`phaseA_issue4_gapaware_contrast_comparison.csv`. The map records code
+references as well as the previous source hashes. Rehashing every live source
+found 183/183 unchanged. These historical files still have no migration
+receipt: copying them into a current-looking `analyses/` folder would obscure
+their older input lineage and the order-dependent overwrites.
 
 ## 2026-09-24 scientific revalidation update
 
