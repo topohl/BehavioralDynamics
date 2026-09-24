@@ -1,5 +1,50 @@
 # Behavioral output cutover record — 2026-09-23
 
+## 2026-09-24 historical resolution copy activation
+
+The nine groups in `BEHAVIOR_HISTORICAL_MIGRATION_PLAN.csv` were opened from
+`blocked_review` to `ready` after a fresh read-only `Inspect` found matching
+source hashes, no destination directories, and no staging directories. Each
+group then passed `Prepare`, `Verify`, and `Activate` with `hashes=PASS` and
+`originals_retained=true`:
+
+| Semantic group | Files |
+| --- | ---: |
+| `history/social_networks/10sec/` | 92 |
+| `history/social_networks/1min/` | 92 |
+| `history/social_networks/10min/` | 92 |
+| `history/social_networks/30min/` | 88 |
+| `history/state_space/1min/` | 61 |
+| `history/state_space/10min/` | 95 |
+| `history/temporal_instability/1min/` | 125 |
+| `history/temporal_instability/5min/` | 210 |
+| `history/gamm_features/30min/` | 9 |
+
+All nine plan-bound receipts under `analysis_ready/_migration_control/` have
+`state=activated`; their file counts match the plan, the numbered originals
+remain, and no group staging directory remains. An independent read-only pass
+matched all 864 source hashes and all 864 destination hashes against the plan.
+
+The Stage 10 read-only candidate check retained 607 filtered paths in order.
+It routed 330 historical paths to the semantic copies, including 85
+`AnimalNum` candidates, with unchanged basenames, unique paths, and equal
+file sizes. All nine direct historical-resolution helpers select their
+semantic directories. Stage 10 models and Stages 14–16 scientific analyses
+were not rerun.
+
+The live 63-row `output_index.csv` was refreshed from the Stage 16 definition.
+Exactly 18 cells changed: `canonical_path` and `status` in the nine history
+detail rows. All canonical directories exist, and a subsequent comparison
+found the live index identical to the Stage 16 definition. Its previous
+SHA-256 was
+`5c438f0f041a17087c5758e89b351b62cc19398e006d8166faa78f51f33e0546`;
+the backup is
+`analysis_ready/_migration_control/output_index_before_history_activation_20260924.csv`.
+The refreshed index SHA-256 is
+`d5088becd4ab42a19ce01b893e92a3a0c6dc4a90a387b33fe560062972321eb6`.
+These copies improve navigation and reader routing; they do not revalidate
+the older scientific runs or change manuscript authority.
+
 ## Scientific revalidation and provisional QC — later 2026-09-24 update
 
 The Stage 00 writer made one pooled-resolution diagnostic run at

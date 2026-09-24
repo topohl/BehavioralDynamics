@@ -268,14 +268,16 @@ exact numbered source roots, matching relative file paths, and the matching
 contract, complete-tree and hash checks, retained originals, and receipt
 requirements remain mandatory. A synthetic blocked-to-activated history
 fixture is included in `Testing/tests/test_behavior_output_migration.ps1`.
-This mode is not an approval to activate the live historical folders.
+Live historical activation is recorded in `BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md`.
 
 The separate `docs/BEHAVIOR_HISTORICAL_MIGRATION_PLAN.csv` records 864 exact
-files across nine older resolution groups. Every row is `blocked_review`.
+files across nine older resolution groups. Every row is `ready`; the nine
+groups were activated on 2026-09-24 after a fresh read-only inspection.
 Its shared code contract is
 `docs/behavior_output_code_contracts/historical_resolution_readers.csv`.
 The live `Inspect` action passed for all nine groups with matching source
-hashes and no staged or destination directory. For one read-only group check:
+hashes and no staged or destination directory before activation. For one
+read-only group check:
 
 ```powershell
 & .\Maintenance\Invoke-BehaviorOutputMigration.ps1 `
@@ -285,9 +287,11 @@ hashes and no staged or destination directory. For one read-only group check:
   -AnalysisReadyRoot 'S:\Lab_Member\Tobi\Experiments\Exp9_Social-Stress\Analysis\Behavior\RFID\analysis_ready'
 ```
 
-Stage 16 now has nine receipt-aware history detail rows alongside its four
-aggregate family rows, and the live navigation index was refreshed without
-running the manuscript pipeline. The blocked gate remains until the
-historical consumer paths and Stage 10 candidate set are reviewed as a
-cutover unit. `Inspect` verifies the retained source inventory; it does not
-make the old runs current scientific evidence.
+Stage 16 has nine receipt-aware history detail rows alongside its four
+aggregate family rows. The live navigation index now selects their semantic
+paths, and its previous version is backed up under `_migration_control/`.
+Stage 10's read-only candidate check found 607 filtered paths, including 330
+history routes and 85 eligible `AnimalNum` files; their order, basenames, and
+sizes were preserved. No Stage 10 model or manuscript pipeline was rerun.
+The originals and their scientific provenance remain unchanged. A semantic
+copy does not make an older run current scientific evidence.
