@@ -70,12 +70,25 @@ Grouped by subject:
   `audit_step6_longitudinal_gapaware_robustness.R`: component decomposition,
   identifiability, gap-aware fitting, partition robustness, cross-optimum
   robustness, semantic erasure, read-density sensitivity.
+
+The two registry-linked active-persistence audit scripts now require an
+explicit `--output-dir=` one level under
+`analysis_ready/analyses/hmm_revalidation_runs/`. They read the active
+Stage 01 and Stage 08 paths and reject an existing output filename. This is
+an isolated scientific revalidation route; neither audit has been rerun, and
+its new results require review before any registry or release decision.
 - **Phase classification impact** — `audit_phase_bug_impact.R`.
 - **Inactive-phase QC redesign** — `audit_inactive_phase_qc_redesign.R`.
 - **Stage 09 artifact hygiene** — `audit_stage09_stale_artifacts.R`.
 - **Identity validation** — `compare_identity_correction_before_after.R`,
   `validate_cross_scale_animal_identity.R`,
   `repair_existing_metrics_identity_utility.R`.
+
+The cross-scale validator reads the receipt-selected Stage 01 metrics. New
+manual reports go to `analysis_ready/analyses/cross_scale_identity_validation/`;
+its August reports under `03_derived_metrics/qc/` remain historical. The
+older first-night, HMM, phase-impact, and Stage 09 forensic audits retain
+their numbered Stage 01 paths and require input-lineage review before rerun.
 - **Data-dependent contract checks** — `test_animal_identity_contract.R` and
   `test_reporting_architecture.R`.
 

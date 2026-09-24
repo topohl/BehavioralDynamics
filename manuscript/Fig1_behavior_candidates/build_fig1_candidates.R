@@ -35,6 +35,7 @@ repo_candidates <- unique(c(
 repo_root <- repo_candidates[file.exists(file.path(repo_candidates, "Analysis", "_pipeline_setup.R"))][1]
 if (is.na(repo_root)) stop("Could not locate repository root containing Analysis/_pipeline_setup.R", call. = FALSE)
 source(file.path(repo_root, "Analysis", "_pipeline_setup.R"))
+source_mmm_helper("project_paths.R")
 
 project_root <- Sys.getenv(
   "MMM_BEHAVIOR_PROJECT_ROOT",
@@ -43,7 +44,7 @@ project_root <- Sys.getenv(
 
 stage09_dir <- behavior_stage_dir(project_root, "09", "early_prediction", resolution = "10min_based")
 stage03_dir <- behavior_stage_dir(project_root, "03", "movement_phase_stats", resolution = "10min_based")
-stage14_dir <- file.path(project_root, "analysis_ready", "12_systems_neuroscience_summary", "5min_based")
+stage14_dir <- mmm_behavior_output_active_root("systems_dashboard_5min", project_root)
 stage16_dir <- behavior_manuscript_dir(project_root, "behavior")
 
 out_root <- file.path(repo_root, "manuscript", "Fig1_behavior_candidates", "rendered")

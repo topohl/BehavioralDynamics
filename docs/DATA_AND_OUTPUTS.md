@@ -52,26 +52,53 @@ Within `MMMSociability/`:
 ## The `analysis_ready` role
 
 `analysis_ready/` is the single output root. Its own `README.md` states the
-entry point, and `output_index.csv` is the machine-readable map of every stage:
-canonical path, producer script, manuscript role, migration status and legacy
-path.
+entry point. Stage 16 generates `output_index.csv`, a stage and output-group
+navigation map: path, producer, manuscript role, migration status and historical
+location. It is not the file-level migration plan; see
+`docs/BEHAVIOR_OUTPUT_MIGRATION_PLAN.csv`. The live index was refreshed from
+the current Stage 16 source definition after the bounded Stage 14/19,
+Stage 02/06, Stage 07, Stage 05, Stage 08, Stage 04, Stage 15, Stage 11–13,
+two manual supporting-analysis cutovers, and the inactive-phase QC audit cutover;
+prior copies are
+preserved under
+`analysis_ready/_migration_control/`.
+For the activated first-night, spatial, dyadic, five-minute social, and
+ten-minute trajectory-feature, five-minute state-space, HMM, and ten-second
+temporal-instability, behavior-proteomics, and current ten-minute adaptation,
+sleep-like inactivity, phase-organization, nonlinear-dynamics, and
+systems-phenotyping, and inactive-phase QC audit groups,
+the source definition reads
+the migration receipt for each group: an activated receipt records the semantic
+path, while a blocked or prepared group remains at its current path. The full
+Stage 16 exporter was not rerun for the cutover.
 
-### Canonical (migrated) layout
+### Active semantic analysis outputs
+
+The twenty-one activated groups from Stages 02, 04–08, 11–15, and 19, two
+manual supporting analyses, and one manual QC audit are
+under `analysis_ready/analyses/`. See its `README.md` and the live
+`output_index.csv` for their semantic names and retained source paths.
+
+### Stage-addressed pipeline layout
 
 ```text
 analysis_ready/pipeline/<stage_id>_<stage_name>/<resolution>/{tables,figures,audit}/
 ```
 
-Only two stages are migrated so far:
+Current migrated writer roots include:
 
 ```text
 analysis_ready/pipeline/03_movement_phase_stats/10min/
 analysis_ready/pipeline/09_early_prediction/10min/
+analysis_ready/pipeline/10_systems_prediction/10min/
 ```
 
-These are exactly the two stages that carry manuscript claims. Migrated trees use
-only `tables/`, `figures/` and `audit/` — note there is no `publication_panels/`
-level, unlike the pre-migration trees.
+Stages 03 and 09 supply selected manuscript claims; Stage 10 is an exploratory
+systems extension. Manually run scientific and manuscript stages 20–27 also use
+`pipeline/`. Local Stage 28 outputs exist under `pipeline/28_rfid_behavioral_domains/`,
+but its producer is currently untracked work and is not a release contract.
+Migrated trees use `tables/`, `figures/` and `audit/` rather than the older
+`publication_panels/` level.
 
 ### Manuscript package
 
@@ -84,13 +111,19 @@ The recommended entry point for anyone reading the results:
 `supplementary_results.csv`, three source-data tables, `provenance.csv`,
 `validation.csv` and `manifest.csv`.
 
-### Not-yet-migrated stages
+### Remaining historical output branches
 
-Stages 00, 01, 02, 04–08 and 10–15 still write to historical locations such as
-`analysis_ready/03_derived_metrics/`, `analysis_ready/06_behavioral_dynamics/`
-and `analysis_ready/12_systems_neuroscience_summary/`. This is recorded per stage
-in `output_index.csv` as `legacy_pending_migration`. Migration was deliberately
-out of scope for the publication restructuring.
+Some active or historical groups remain in numbered locations, including
+older resolutions under
+`analysis_ready/06_behavioral_dynamics/`, and
+`analysis_ready/12_systems_neuroscience_summary/`. Their status is recorded
+per output group in `output_index.csv`. Stage 01 now reads and writes through
+`analysis_ready/foundations/behavior_metrics/`; its 20 current metric/QC
+files were copied from `03_derived_metrics/` with identical hashes. The
+numbered root retains all 52 originals, including separate identity-audit
+and spatial outputs. Twenty-two activated groups retain their numbered
+originals for provenance. Remaining branches need separate dependency review
+before any further migration.
 
 ### Quarantine
 

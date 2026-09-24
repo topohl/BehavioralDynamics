@@ -65,7 +65,7 @@ contrast** (min BH q = 0.0699) and must be captioned as such.
 
 | candidate stem | content | binding caveat |
 |---|---|---|
-| `ed_candidate_first_night_domain_map` | first-night domain contrasts, 5×3 per sex | first night and Active phase ONLY — never label "longitudinal". 1 of 30 cells FDR-supported. |
+| `ed_candidate_first_night_domain_map` | first-night domain contrasts, 5×3 per sex | first night and Active phase ONLY — never label "longitudinal". **0 of 30** cells FDR-supported (min q = 0.0893); corrected 2026-09-23, was stated as 1 of 30 pre-leading-bin-fix. |
 | `ed_candidate_broad_domain_map_phase_resolved` | 7 domains × phase × sex | **all 8** FDR-supported cells are Inactive-phase, which `KNOWN_LIMITATIONS.md` item 3 forbids reading as biology; scores use `na.rm = TRUE` + coalesce-to-zero; in no registry row |
 | `ed_candidate_longitudinal_movement_by_cage_change` | movement across CC1–CC4 × light phase | descriptive framework; no contrast drawn |
 

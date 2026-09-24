@@ -6,7 +6,7 @@ This folder is organized as a staged, reviewer-safe pipeline. The scripts remain
 
 | Stage | Script | Role | Inputs | Main outputs |
 |---:|---|---|---|---|
-| 00 | `00_qc_tracking_integrity.R` | Non-destructive RFID/tracking integrity QC | Preprocessed or derived movement/entropy/proximity files | QC tables, Excel report, QC figures |
+| 00 (manual diagnostic) | `00_qc_tracking_integrity.R` | Provisional RFID/tracking integrity QC; requires an explicit single resolution and new run ID | Stage 01 10-second metrics | QC tables, Excel report, QC figures; no exclusion decision |
 | 01 | `01_build_multiscale_behavior_metrics.R` | Canonical multiscale behavior metrics | Preprocessed RFID position data | `all_behavior_metrics.csv` at multiple bin levels |
 | 02 | `02_build_dyadic_rfid_contacts.R` | Dyadic RFID contact table | Preprocessed position data | Dyadic contact tables and network-ready edge table |
 | 03 | `03_primary_raw_movement_phase_stats.R` | Secondary phenotype/group characterization using broad raw movement | Stage 01 metrics | Raw movement endpoints, planned pairwise statistics, publication panels |
@@ -151,10 +151,51 @@ contain no model call at all.
 | 26 | `26_build_gamm_manuscript_outputs.R` | assembler | GAMM manuscript/Extended Data products. |
 | 27 | `27_build_behavior_main_figure.R` | assembler | The four-panel behavior main figure. |
 
-## The runner covers stages 00-15 only
+## Stage 28 — four core raw-RFID behavioural domains
 
-`run_all_analysis.R` registers stages 00-15. Stages 16 and 19-27 and the
-endpoint producer are run **deliberately and individually**.
+`28_rfid_behavioral_domains.R` is a **secondary, descriptive** characterisation
+and is run deliberately and individually, like 16 and 19-27. It is additive: it
+neither modifies nor re-runs Stage 01 or Stage 09, and it does not touch the
+legacy five-domain first-night producer
+(`Functions/first_night_domain_driver.R`), whose artifacts remain the
+conservative flat-family sensitivity.
+
+It produces two analyses over four CORE domains — spatial entropy dynamics,
+social-spatial organization, cross-channel behavioral volatility, and movement
+output:
+
+1. **First night (CC1)** — `lmer(~ Group + Batch + (1|CageEpochID))` within Sex,
+   with legacy-LM, batch-LM and CR2 cluster-robust variants reported alongside.
+   Multiplicity is hierarchical: BH over exactly four domain omnibus Group tests
+   per Sex, then Holm over three pairwise contrasts inside a *supported* domain.
+2. **Longitudinal (CC1-CC4)** — equivalent acute 12 h windows after each cage
+   change, scored with scaling parameters **fixed** from the CC1 within-Sex
+   distribution. The primary adaptation test is the joint `Group x CageChange`
+   interaction.
+
+The window rule has exactly one implementation in the repository:
+`Functions/rfid_acute_window_helpers.R` calls
+`mmm_select_first_night_window()` once per cage change rather than
+reimplementing it, so the Stage 09 parity gate still applies unchanged.
+
+Supporting audits: `Testing/audits/audit_rfid_domain_construct_blind.R`
+(phenotype-blind construct audit, run before any group inference is
+interpreted), `audit_rfid_legacy_vs_new_domains.R`, and
+`audit_rfid_leading_bin_seed_sensitivity.R`. Contract:
+`Testing/tests/test_rfid_domain_contract.R`. See
+`docs/RFID_FOUR_DOMAIN_RECONCILIATION.md`.
+
+## The runner covers stages 01-15 only
+
+`run_all_analysis.R` registers stages 01-15. Stage 00 is an unvalidated
+manual diagnostic; its row-count thresholds are not chip-loss or exclusion
+criteria. It now requires a single resolution and a fresh run ID, for example:
+
+```powershell
+Rscript Analysis/00_qc_tracking_integrity.R --input-scale=10sec_based --run-id=review_YYYYMMDD
+```
+
+Stages 16, 19-27 and 28 and the endpoint producer are run **deliberately and individually**.
 
 This is a declaration, not a backlog. Stage 27's absence is asserted by
 `Testing/tests/test_behavior_main_figure_contracts.R`: an assembler must not be
@@ -174,17 +215,27 @@ identify the stage.**
 
 | Script | Writes into |
 |---|---|
-| `01_build_multiscale_behavior_metrics.R` | `analysis_ready/03_derived_metrics/` |
-| `02_build_dyadic_rfid_contacts.R` | `analysis_ready/06_behavioral_dynamics/dyadic_contacts/` |
-| `04`, `05`, `06`, `07`, `08`, `10`, `15` | other children of `analysis_ready/06_behavioral_dynamics/` |
-| `11_behavioral_adaptation_kinetics.R` | `analysis_ready/15_behavioral_adaptation_kinetics/` |
-| `12_sleep_like_quiescence_metrics.R` | `analysis_ready/16_sleep_like_inactivity_metrics/` |
-| `13_ethological_phase_organization.R` | `analysis_ready/17_ethological_phase_organization/` |
-| `14_systems_neuroscience_summary_dashboard.R` | `analysis_ready/12_systems_neuroscience_summary/` |
+| `00_qc_tracking_integrity.R` | `analysis_ready/quality_control/tracking_integrity/runs/<new_run_id>/` for provisional single-resolution diagnostics; the May 2026 snapshot stays under `00_qc_tracking_integrity/` as an optional historical source |
+| `01_build_multiscale_behavior_metrics.R` | `analysis_ready/foundations/behavior_metrics/` (numbered originals retained) |
+| `02_build_dyadic_rfid_contacts.R` | `analysis_ready/analyses/dyadic_contacts/` (historical source retained) |
+| `06_dynamic_social_networks.R` | `analysis_ready/analyses/dynamic_social_networks/5min/` (older resolutions retained under `06_behavioral_dynamics/`) |
+| `07_gamm_trajectory_features.R` | `analysis_ready/analyses/gamm_trajectory_features/10min/` (historical 30-minute input retained) |
+| `05_behavioral_state_space.R` | `analysis_ready/analyses/behavioral_state_space/5min/` (older resolutions retained) |
+| `08_hmm_behavioral_states_optional.R` | `analysis_ready/analyses/hmm_states/{10min,5min}/` (originals retained for historical audits) |
+| `04_temporal_instability.R` | `analysis_ready/analyses/temporal_instability/10sec/` (older resolutions retained) |
+| `15_behavior_proteomics_integration.R` | `analysis_ready/analyses/behavior_proteomics/proteomics_mnn_{primary,sensitivity}/` (old map and outputs retained) |
+| `10` | other children of `analysis_ready/06_behavioral_dynamics/` |
+| `11_behavioral_adaptation_kinetics.R` | `analysis_ready/analyses/adaptation_kinetics/10min/` (older five-minute tree retained) |
+| `12_sleep_like_quiescence_metrics.R` | `analysis_ready/analyses/sleep_like_inactivity/10min/` (older five-minute tree retained) |
+| `13_ethological_phase_organization.R` | `analysis_ready/analyses/phase_organization/10min/` (older five-minute tree retained) |
+| `14_systems_neuroscience_summary_dashboard.R` | `analysis_ready/analyses/systems_dashboard/5min/` (numbered dashboard and separate audit originals retained) |
+| `_supporting/13_nonlinear_systems_dynamics.R` | `analysis_ready/analyses/nonlinear_dynamics/5min/` (numbered original retained) |
+| `_supporting/14_nextgen_behavioral_phenotyping.R` | `analysis_ready/analyses/systems_phenotyping/5min/` (numbered original retained) |
+| `Testing/audits/audit_inactive_phase_qc_redesign.R` | `analysis_ready/analyses/inactive_phase_qc_audit/` (manual QC proposal; numbered original retained) |
 
-Stages 03, 09 and 20-27 write under `analysis_ready/pipeline/<stage>_<name>/`,
-which is the intended shape. Renumbering the rest is deferred to after the
-manuscript freeze; see `docs/FUTURE_REPO_RESTRUCTURE_PLAN.md`.
+Stages 03, 09 and 20-27 write under `analysis_ready/pipeline/<stage>_<name>/`.
+The remaining numbered output roots need separate dependency review; see
+`docs/BEHAVIOR_OUTPUT_MIGRATION.md`.
 
 ## Resolutions are declared, not discovered
 
@@ -205,8 +256,9 @@ the owning producer at its declared resolution instead.
 
 `_supporting/` holds `13_nonlinear_systems_dynamics.R` and
 `14_nextgen_behavioral_phenotyping.R`. Their filename numbers correspond to no
-current logical stage — they are exploratory, unregistered in the runner, and
-their output trees are named after those historical numbers.
+current logical stage. They are exploratory and unregistered in the runner.
+Their active five-minute outputs are under `analysis_ready/analyses/` with
+semantic names; the numbered originals remain available for provenance.
 
 `_archive/` holds superseded producers, including the `18*` movement lineage
 that `03_primary_raw_movement_phase_stats.R` replaced. Their output trees are

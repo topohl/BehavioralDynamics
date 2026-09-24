@@ -23,10 +23,15 @@ and bin levels).
 **Forbids:** treating any single HMM fit as *the* state model, or reporting a
 latent-state result without cross-optimum robustness evidence.
 
-**Mitigation in place:** the cross-optimum audit refits across five distinct
-gap-aware optima and reports sign stability per contrast
-(`hmm_cross_optimum_gapaware_claim_verdicts.csv`). Only contrasts that are
-sign-stable across all optima may be reported, and even those carry this caveat.
+**Mitigation in place:** the cross-optimum audit refits five seeded models and
+reports sign stability per contrast. A 2026-09-24 rerun against the current
+Stage 01/08 inputs reached three log-likelihood levels at printed precision
+across those five fits; the five fits must not be described as five distinct
+optima or as an exhaustive search. Its isolated outputs are under
+`analysis_ready/analyses/hmm_revalidation_runs/current_stage08_review_20260924/`.
+The manuscript registry still cites the older audit and its numerical ranges.
+Only contrasts supported by a reviewed current audit may be reported, and
+they retain the identifiability caveat.
 
 ---
 
@@ -71,9 +76,13 @@ robust across optima but are not attributable to behaviour rather than detection
 classification against same-`Batch × System × CageChange × Phase` cage-mates,
 with classes A (RFID-loss evidence, exclude), B (low density consistent with
 shared quiet, retain as rest-like biology) and C (uncertain, retain with a
-sensitivity flag), with the cut calibrated on known positives rather than
-assumed. It is **SPECIFIED, NOT IMPLEMENTED**: `chip_loss_qc_mode` remains
-`annotate_only`. Adopting it in production is an open decision.
+sensitivity flag). Its proposed cut was separated using eight Active epochs
+already labelled `exclude_after_dropout` by Stage 14 and `usable` epochs as
+comparators. These are internal proxy labels, **not independently confirmed
+chip-loss cases**, so this is not an externally validated sensitivity or
+specificity estimate. It is **SPECIFIED, NOT IMPLEMENTED**:
+`chip_loss_qc_mode` remains `annotate_only`. Adopting it in production is an
+open decision.
 
 ---
 
@@ -169,11 +178,14 @@ Two further mechanical differences, neither a defect:
 - `Movement` is an extensive per-bin count, so its absolute scale roughly halves
   at 5 min. Rank correlations are unaffected; regression coefficients and figure
   axes are not comparable across resolutions.
-- Window completeness differs by construction: 50 of 111 animals have a complete
-  window at 10 min versus 33 of 111 at 5 min, because a finer grid resolves the
-  same post-18:30 entry delay into more missing *leading* slots. Interior and
-  trailing gaps are **zero at both resolutions**, so no gap is bridged by the
-  non-adjacency-aware estimators at either.
+- Window completeness *used to* differ by resolution: before the 2026-09-22
+  leading-bin fix, 50 of 111 animals had a complete window at 10 min versus 33 of
+  111 at 5 min, because a finer grid resolved the same post-18:30 entry delay into
+  more missing *leading* slots. **This no longer holds.** After the fix,
+  completeness is **111 of 111 at both resolutions** (72/72 slots at 10 min,
+  144/144 at 5 min), with leading, interior and trailing gaps all zero. Verified
+  against the regenerated canonical tables on 2026-09-23; see
+  [RFID_FOUR_DOMAIN_RECONCILIATION.md](RFID_FOUR_DOMAIN_RECONCILIATION.md).
 
 Duration sensitivity for the primary model remains recorded as unavailable
 rather than silently omitted, and is unchanged by this work.
@@ -266,6 +278,39 @@ figures directly to `figures/`. That panel therefore resolves through the
 documented legacy fallback rather than the canonical path. It is recorded in
 `staging_status.csv` rather than failing silently. Left unchanged during the
 restructuring because altering artifact resolution is a behavioural change.
+
+---
+
+## 12. Stage 00 tracking QC thresholds are provisional
+
+Stage 00 originally pooled six Stage 01 resolutions within each animal/window
+while applying zero-run thresholds counted in rows. That pooled diagnostic
+cannot give a resolution-specific chip-loss assessment. A 2026-09-24 run using
+only the 10-second input removed the pooling but still flagged both row-count
+zero-run checks in **all 888 windows** and all 111 animals for high-suspicion
+manual review. Against the current Stage 14 QC, after applying the shared
+`canonical_animal_id()` contract, all 888 animal/window keys align without
+duplicates. Stage 00 marks all 450 Stage 14 `usable` windows at least moderate
+suspicion (267 high, 183 moderate). The May raw-tracking audit marks all 117
+of its animal rows `pass` (115 unique canonical IDs); all 111 current animals
+overlap after canonicalizing IDs, but that earlier result predates the current
+Stage 01 inputs.
+The four canonical IDs in the May raw QC table but absent from the current
+behaviour set are all on `raw_data/excluded_animals.csv`; none of the current
+111 is on that list. The preprocessing producer filters this list before
+writing Stage 01 inputs. In the current 10-second metrics, `Movement == 0`
+in 93.8% of Active bins and 99.35% of Inactive bins. Stage 01 carries the
+last known position forward between raw RFID events; its positive derived
+`observation_seconds` is inferred occupancy time, not proof of a fresh read
+in each zero-movement bin.
+
+**Forbids:** interpreting a Stage 00 flag as established chip loss, using it
+to exclude animals, or promoting these provisional tables into manuscript or
+release readers. The current script requires an explicit 10-second input and
+fresh run ID; it is outside the bulk runner. The 2026-09-24 diagnostics are
+under `analysis_ready/quality_control/tracking_integrity/`, with review notes
+beside the output tables. Validation requires independent raw-tracking review
+and a scientifically specified threshold or discriminator.
 
 ---
 

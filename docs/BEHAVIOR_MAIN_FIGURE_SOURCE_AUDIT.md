@@ -111,9 +111,17 @@ Chosen because it is the table named in `docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv`
 **first-night and Active-phase only** — one 12 h window, not a longitudinal
 record. The proposed story arc says "broad *longitudinal* characterisation"; this
 table cannot support the word *longitudinal*. The panel is therefore labelled
-"first night". Additionally, only 50 of 111 animals have a complete window, and
-**1 of 30 cells** is FDR-supported (Female RES-CON, behavioural
-volatility/fragmentation, `g = -1.009`, `q = 0.0201`).
+"first night". Additionally, **0 of 30 cells** are FDR-supported (minimum
+`q = 0.0893`; 6 cells nominally `p < 0.05`). The strongest cell is Female RES-CON,
+behavioural volatility/fragmentation, `g = -0.844`, `raw p = 0.00595`,
+`q = 0.0893`.
+
+> **Corrected 2026-09-23.** Two numbers in this paragraph were stale. Window
+> completeness is now **111 of 111**, not 50 of 111, after the 2026-09-22
+> leading-bin fix; and the previously reported single FDR-supported cell
+> (`g = -1.009`, `q = 0.0201`) no longer exists — that value predated both the
+> CombZ correction and the leading-bin rebuild. See
+> [RFID_FOUR_DOMAIN_RECONCILIATION.md](RFID_FOUR_DOMAIN_RECONCILIATION.md).
 `docs/MANUSCRIPT_PANEL_PROPOSAL.md` explicitly recommends *against* main-figure
 placement on exactly that ground — "it would invite it to be read as a
 multi-domain signature".
@@ -551,7 +559,7 @@ while the new stem does.
 ## Extended Data candidates after this pass
 
 - broad phase-resolved domain map (unregistered; all FDR cells Inactive)
-- registry-cleared first-night domain map (1 of 30 cells FDR-supported)
+- registry-cleared first-night domain map (0 of 30 cells FDR-supported; min q = 0.0893)
 - longitudinal movement across CC1–CC4 × phase (registry-cleared, descriptive)
 - panel candidates: CombZ distribution, rank-space association, sex-faceted
   association, null summary-interval view
