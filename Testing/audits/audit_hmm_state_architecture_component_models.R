@@ -72,13 +72,16 @@ setup_path <- repo_candidates[file.exists(repo_candidates)][1]
 if (is.na(setup_path)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(setup_path)
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-audit_out <- file.path(
-  project_root,
-  "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture"
-)
-ensure_dir(audit_out)
+project_root <- mmm_project_root()
+INPUT <- mmm_behavior_audit_replay_input_root(
+  "hmm_architecture_components", project_root)
+audit_out <- mmm_behavior_audit_replay_output_root(
+  "hmm_architecture_component_models", project_root)
+deriv_root <- mmm_behavior_numbered_source_root("03_derived_metrics", project_root)
+hmm_root <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", project_root), "hmm_states")
 
 resolutions <- c("5min_based", "10min_based")
 roster_bin_level <- "5min_based"
@@ -93,7 +96,7 @@ cat("================================================================\n\n")
 # 1. Canonical 111-animal roster, derived exactly as Stage 08 derives it
 # --------------------------------------------------------------------------------
 canonical_roster_file <- file.path(
-  project_root, "analysis_ready/03_derived_metrics", roster_bin_level, "all_behavior_metrics.csv"
+  deriv_root, roster_bin_level, "all_behavior_metrics.csv"
 )
 if (!file.exists(canonical_roster_file)) {
   stop("Canonical Stage 01 roster input is missing: ", canonical_roster_file, call. = FALSE)
@@ -117,7 +120,7 @@ cat("[1] canonical roster animals:", nrow(canonical_roster), "\n\n")
 # --------------------------------------------------------------------------------
 # 2. Foundation component table (identity-audited on load)
 # --------------------------------------------------------------------------------
-comp_path <- file.path(audit_out, "hmm_architecture_component_epoch_metrics.csv")
+comp_path <- file.path(INPUT, "hmm_architecture_component_epoch_metrics.csv")
 if (!file.exists(comp_path)) {
   stop("Foundation component table is missing. Run ",
     "Testing/audits/audit_hmm_state_architecture_components.R first: ", comp_path, call. = FALSE)
@@ -229,7 +232,7 @@ if (length(missing_cols) > 0L) {
 
 top_prox_states <- map_dfr(resolutions, function(res) {
   ss <- readr::read_csv(
-    resolve_configured_hmm_artifact(project_root, res, "hmm_state_summary.csv", required = TRUE)$path,
+    file.path(hmm_root, res, "tables/hmm_state_summary.csv"),
     col_types = readr::cols(State = readr::col_character()), progress = FALSE, show_col_types = FALSE
   )
   lab <- annotate_hmm_semantic_states(ss, res)
@@ -438,6 +441,7 @@ results <- results %>%
     primary_heatmap_family_untouched
   )
 
+ensure_dir(audit_out)
 results_path <- file.path(audit_out, "hmm_architecture_component_results.csv")
 write_table(results, results_path)
 cat("[9] wrote", results_path, "-", nrow(results), "rows x", ncol(results), "cols\n\n")

@@ -57,11 +57,20 @@ setup_path <- repo_candidates[file.exists(repo_candidates)][1]
 if (is.na(setup_path)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(setup_path)
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-stage14_dir <- file.path(project_root, "analysis_ready/12_systems_neuroscience_summary/5min_based")
-audit_out <- file.path(stage14_dir, "audit_hmm_state_architecture")
-ensure_dir(audit_out)
+project_root <- mmm_project_root()
+stage14_dir <- file.path(mmm_behavior_numbered_source_root(
+  "12_systems_neuroscience_summary", project_root), "5min_based")
+FOUNDATION <- mmm_behavior_audit_replay_input_root(
+  "hmm_architecture_components", project_root)
+REDUNDANCY <- mmm_behavior_audit_replay_input_root(
+  "hmm_architecture_redundancy", project_root)
+audit_out <- mmm_behavior_audit_replay_output_root(
+  "hmm_architecture_construct_comparison", project_root)
+deriv_root <- mmm_behavior_numbered_source_root("03_derived_metrics", project_root)
+hmm_root <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", project_root), "hmm_states")
 
 resolutions <- c("5min_based", "10min_based")
 roster_bin_level <- "5min_based"
@@ -79,7 +88,7 @@ cat("================================================================\n\n")
 # 1. Canonical 111-animal roster, exactly as Stage 08 derives it
 # --------------------------------------------------------------------------------
 canonical_roster_file <- file.path(
-  project_root, "analysis_ready/03_derived_metrics", roster_bin_level, "all_behavior_metrics.csv"
+  deriv_root, roster_bin_level, "all_behavior_metrics.csv"
 )
 if (!file.exists(canonical_roster_file)) stop("Missing roster input: ", canonical_roster_file, call. = FALSE)
 canonical_roster <- build_canonical_identity_roster(
@@ -102,7 +111,9 @@ stopifnot(nrow(canonical_roster) == 111L)
 # 2. Load + identity-audit the HMM tables actually needed here
 # --------------------------------------------------------------------------------
 load_and_audit <- function(resolution, filename) {
-  path <- resolve_configured_hmm_artifact(project_root, resolution, filename, required = TRUE)$path
+  path <- file.path(hmm_root, resolution, "tables", filename)
+  if (!file.exists(path)) stop("Retained HMM artifact is missing: ", path,
+                               call. = FALSE)
   dat <- readr::read_csv(
     path,
     col_types = readr::cols(AnimalNum = readr::col_character()),
@@ -121,7 +132,7 @@ for (res in resolutions) {
   trp <- load_and_audit(res, "hmm_transition_probabilities.csv")
   asg <- load_and_audit(res, "hmm_state_assignments.csv")
   state_summary <- readr::read_csv(
-    resolve_configured_hmm_artifact(project_root, res, "hmm_state_summary.csv", required = TRUE)$path,
+    file.path(hmm_root, res, "tables/hmm_state_summary.csv"),
     col_types = readr::cols(State = readr::col_character()),
     progress = FALSE, show_col_types = FALSE
   )
@@ -740,13 +751,14 @@ agreement_animal <- map_dfr(resolutions, function(res) {
 agreement <- bind_rows(agreement_epoch, agreement_animal)
 cat("\n[4a] construct agreement, epoch level and animal level:\n")
 print(as.data.frame(agreement))
+ensure_dir(audit_out)
 write_table(agreement, file.path(audit_out, "hmm_architecture_construct_agreement.csv"))
 
 # --- 4a2. read-density confound check applied to EVERY construct ---------------
 # The component audit found the shipped composite strongly confounded with RFID
 # read density (observed_fraction = n_reads / expected_reads). It would be
 # irresponsible to propose C without subjecting it to the same test.
-foundation_path <- file.path(audit_out, "hmm_architecture_component_epoch_metrics.csv")
+foundation_path <- file.path(FOUNDATION, "hmm_architecture_component_epoch_metrics.csv")
 readdensity <- NULL
 if (file.exists(foundation_path)) {
   obs_frac <- readr::read_csv(
@@ -845,7 +857,7 @@ res_agree <- contrast_rows %>%
 # --- 4b1. cross-check C against the redundancy deliverable's OWN contrast table -
 # My C is computed from the raw Viterbi assignments; theirs from the foundation
 # component table. Agreement is therefore an independent implementation check.
-proposal_path <- file.path(audit_out, "hmm_architecture_proposed_construct_contrasts.csv")
+proposal_path <- file.path(REDUNDANCY, "hmm_architecture_proposed_construct_contrasts.csv")
 proposal_crosscheck <- NULL
 if (file.exists(proposal_path)) {
   theirs <- readr::read_csv(proposal_path, progress = FALSE, show_col_types = FALSE) %>%

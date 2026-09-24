@@ -352,4 +352,29 @@ stopifnot(any(grepl('mmm_behavior_audit_replay_output_root(', profile,
                      fixed = TRUE)),
           !any(grepl('analysis_ready/12_systems_neuroscience_summary',
                      profile, fixed = TRUE)))
+
+for (entry in list(
+  c("audit_hmm_state_architecture_component_models.R", "hmm_architecture_component_models"),
+  c("audit_hmm_state_architecture_longitudinal.R", "hmm_architecture_longitudinal"),
+  c("audit_hmm_state_architecture_construct_comparison.R", "hmm_architecture_construct_comparison"))) {
+  model <- readLines(file.path("Testing/audits", entry[[1L]]), warn = FALSE)
+  invisible(parse(text = model))
+  stopifnot(any(grepl('"hmm_architecture_components", project_root)', model,
+                     fixed = TRUE)),
+            any(grepl('mmm_behavior_audit_replay_output_root(', model,
+                      fixed = TRUE)),
+            any(grepl(paste0('"', entry[[2L]], '", project_root)'), model,
+                      fixed = TRUE)),
+            !any(grepl('analysis_ready/12_systems_neuroscience_summary',
+                       model, fixed = TRUE)))
+}
+construct <- readLines(
+  "Testing/audits/audit_hmm_state_architecture_construct_comparison.R",
+  warn = FALSE)
+stopifnot(any(grepl('"hmm_architecture_redundancy", project_root)',
+                   construct, fixed = TRUE)),
+          any(grepl('proposal_path <- file.path(REDUNDANCY,', construct,
+                    fixed = TRUE)),
+          any(grepl('foundation_path <- file.path(FOUNDATION,', construct,
+                    fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

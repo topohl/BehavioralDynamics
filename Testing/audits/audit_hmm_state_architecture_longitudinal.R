@@ -76,13 +76,14 @@ setup_path <- repo_candidates[file.exists(repo_candidates)][1]
 if (is.na(setup_path)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(setup_path)
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-audit_out <- file.path(
-  project_root,
-  "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture"
-)
-ensure_dir(audit_out)
+project_root <- mmm_project_root()
+INPUT <- mmm_behavior_audit_replay_input_root(
+  "hmm_architecture_components", project_root)
+audit_out <- mmm_behavior_audit_replay_output_root(
+  "hmm_architecture_longitudinal", project_root)
+deriv_root <- mmm_behavior_numbered_source_root("03_derived_metrics", project_root)
 
 resolutions <- c("5min_based", "10min_based")
 roster_bin_level <- "5min_based"
@@ -96,7 +97,7 @@ cat("================================================================\n\n")
 # 1. Canonical 111-animal roster, exactly as Stage 08 derives it
 # --------------------------------------------------------------------------------
 canonical_roster_file <- file.path(
-  project_root, "analysis_ready/03_derived_metrics", roster_bin_level, "all_behavior_metrics.csv"
+  deriv_root, roster_bin_level, "all_behavior_metrics.csv"
 )
 if (!file.exists(canonical_roster_file)) stop("Missing roster input: ", canonical_roster_file)
 canonical_roster <- build_canonical_identity_roster(
@@ -120,7 +121,7 @@ cat("\n")
 # --------------------------------------------------------------------------------
 # 2. Foundation table (deliverable 1 of this audit), identity-audited
 # --------------------------------------------------------------------------------
-comp_path <- file.path(audit_out, "hmm_architecture_component_epoch_metrics.csv")
+comp_path <- file.path(INPUT, "hmm_architecture_component_epoch_metrics.csv")
 if (!file.exists(comp_path)) stop("Foundation table missing: ", comp_path, call. = FALSE)
 components_raw <- readr::read_csv(
   comp_path,
@@ -695,6 +696,7 @@ longitudinal <- longitudinal %>%
   ) %>%
   arrange(outcome, scaling, resolution, PhaseClass, Sex, model_type, CageChangeIndex, contrast)
 
+ensure_dir(audit_out)
 out_main <- file.path(audit_out, "hmm_architecture_longitudinal_results.csv")
 write_table(longitudinal, out_main)
 cat("\n[7] WROTE", out_main, "\n    ", nrow(longitudinal), "rows x", ncol(longitudinal), "cols\n\n")

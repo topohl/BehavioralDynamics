@@ -176,7 +176,12 @@ or prepared any live source.
    not rerun. The component redundancy audit now reads both foundation epoch
    metrics and its length-bias check from the same replay id. The HMM profile
    audit reads retained Stage 01/08 originals. Both write distinct new folders
-   and were not rerun. That leaves 5 unresolved rows.
+   and were not rerun. The component-model and longitudinal audits now consume
+   the same-run foundation; the construct comparison also consumes the same-run
+   redundancy proposal and retained Stage 14 comparison table. Each writes a
+   separate replay folder. None of their models were rerun. That leaves two
+   special-case rows unresolved: the active RFID domain comparison producer
+   and the identity-correction baseline comparison.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.
