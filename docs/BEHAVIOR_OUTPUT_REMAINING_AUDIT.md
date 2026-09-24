@@ -138,6 +138,18 @@ the current `manuscript/behavior/` directory through their writer helpers. Its
 overlong old Stage 15 path remains as a synthetic regression example only;
 it no longer uses numbered report files to judge today's output budget.
 
+The live 54-row `output_index.csv` was refreshed as navigation metadata after
+the Stage 03/09 reader and Stage 15 source-contract corrections. A read-only
+comparison found exactly eight changed cells: the Stage 09 status and notes
+for Stage 03, Stage 09, three historical phase branches, and two Stage 15
+integration rows. No row identity or path changed. The prior file is retained
+under `_migration_control/` with SHA-256
+`6D9EFE910ADE4C35FC9A37BC94183B1B15E94998E21DC6B628B0B03464361AF1`;
+the refreshed index is
+`EE7DC09EE2F0E03ECF700F77613575082AE71D4B488AE2A854BBF2190A4340FF`.
+The post-refresh comparison reports zero drift from the repository definition.
+No Stage 16 manuscript product or scientific output was regenerated.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX
@@ -247,10 +259,18 @@ The old pre-HMM-identity-fix effects file is now read explicitly from the
 retained numbered root; Stage 14 no longer creates a supposed pre-fix file
 from a corrected current result. Stage 27's optional broad-domain Source Data
 label uses the resolved input path. Its full read-only contract test passed.
-The exact-basename consumer scan is lower-bound evidence: eleven manual audit
-scripts still reference selected dashboard artifacts while writing into
-historical audit trees. Their reruns must be routed and revalidated before
-being presented as current-dashboard audits.
+The exact-basename consumer scan is lower-bound evidence: eleven historical
+manual audit scripts still reference selected dashboard artifacts. Ten also
+write outputs into the numbered first-night or HMM-audit trees; the remaining
+`audit_first_night_window_provenance.R` prints a cross-source comparison
+without writing a file. Their source hashes, dashboard basenames, and matching
+reference lines are in the task deliverable
+`stage14_historical_manual_audit_boundary_20260924.csv`. One further script,
+`audit_inactive_phase_qc_redesign.R`, already uses its separate activated audit
+root. The eleven historical scripts mix retained Stage 14 paths with older HMM
+and audit inputs, so pointing only their dashboard reads at the semantic copy
+would create an unreviewed mixed-lineage result. Keep them pinned for replay;
+any current-input rerun needs a separate reader, writer, and scientific review.
 The migration tool now regenerates the seven derived figure-index and
 folder-guide files after copying the authored dashboard products and before
 activating the receipt. An isolated fixture covered an interrupted move with
