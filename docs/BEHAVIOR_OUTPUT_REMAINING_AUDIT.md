@@ -225,6 +225,19 @@ actual count, size, dates, manifest producer, missing declarations, and
 file enumeration and hashes, a named provenance role, and a Stage 10
 candidate-set check before its receipt is activated.
 
+A read-only draft file map now covers all 864 files with source SHA-256,
+byte size, UTC modification time, and distinct proposed targets under
+`analysis_ready/history/<family>/<resolution>/...` (`10sec`, `1min`,
+`5min`, `10min`, or `30min` as applicable). Its task artifact is
+`stage10_historical_resolution_file_map_20260924.csv` (SHA-256
+`009EAB5881C050C2BE04307A3C4441F6A9F87067A4900E0F6C5329B5D41EB2C1`).
+It includes all 85 `AnimalNum` candidates; no proposed target exists yet.
+This is a migration proposal, not an activated plan or proof that the older
+outputs are reproducible with the current scripts. The next gate is a
+consumer and candidate-set parity test using explicit historical-root
+selection, followed by a copy/hash check. No historical file was moved or
+copied during this inventory.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX
