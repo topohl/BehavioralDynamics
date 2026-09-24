@@ -6,14 +6,27 @@ suppressPackageStartupMessages({library(dplyr); library(tidyr); library(readr); 
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("phase_classification_helpers.R"); source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R"); source_mmm_helper("hmm_revalidation_paths.R")
 PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-H <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
-OUT <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture")
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) != 1L || !grepl("^--output-dir=.+", args[[1L]])) {
+  stop("Use --output-dir=<absolute analysis_ready/analyses/hmm_revalidation_runs/run_name>.",
+       call. = FALSE)
+}
+OUT <- mmm_hmm_revalidation_output_dir(
+  PROJ, sub("^--output-dir=", "", args[[1L]]),
+  "step6_longitudinal_gapaware_contrasts.csv",
+  allowed_existing = c("hmm_cross_optimum_gapaware_state_profiles.csv",
+                       "hmm_cross_optimum_gapaware_contrasts.csv",
+                       "hmm_cross_optimum_gapaware_sign_stability.csv",
+                       "hmm_cross_optimum_gapaware_claim_verdicts.csv"))
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 K <- 4L
 ent <- function(p) { p <- p[is.finite(p) & p > 0]; if (!length(p)) return(NA_real_); -sum(p * log(p)) }
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(mmm_derived_metrics_output_root(PROJ),
+                     "5min_based/all_behavior_metrics.csv"),
     col_types = cols(.default = col_skip(), AnimalNum = col_character(),
                      Group = col_character(), Sex = col_character()), progress = FALSE), "roster")
 
@@ -48,7 +61,8 @@ METRICS <- c("occupancy_entropy", "state_switch_rate", "self_transition_probabil
 out <- list()
 for (res in c("10min_based", "5min_based")) {
   bs <- if (res == "10min_based") 600 else 300
-  a <- read_csv(file.path(H, res, "tables/hmm_state_assignments.csv"),
+  a <- read_csv(file.path(mmm_hmm_resolution_root(res, PROJ),
+                          "tables/hmm_state_assignments.csv"),
                 col_types = cols(AnimalNum = col_character(), State = col_character(),
                                  SequenceBlockID = col_character(), .default = col_guess()))
   stopifnot("SequenceBlockID" %in% names(a))
