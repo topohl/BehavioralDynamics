@@ -1,5 +1,31 @@
 # Behavioral output cutover record — 2026-09-23
 
+## 2026-09-24 navigation and Stage 14 residual check
+
+The root and analyses folder guides were refreshed from the repository
+templates, and `analysis_ready/history/README.md` was added to explain the
+nine older-resolution groups. The two replaced live guides were backed up
+under `_migration_control/` as
+`analysis_ready_README_before_history_navigation_20260924.md` (SHA-256
+`afc52d5c89d4a4b1a053af6a4f36cc120424105fbdcf5b09e935bb73c1b16696`)
+and `analyses_README_before_history_navigation_20260924.md` (SHA-256
+`665265014589dedbdc9ba04c83558035fd1b5da312c1d235e3328ff8abb11f46`).
+The new live guide hashes are respectively
+`903bb02c117574135465fb91ae293035c39da5aef7416ac65b28ff002336a409`,
+`5d3a4d5406ddedcd175e35c38d82522432db20a7a767bf966a414c5ae07f8902`,
+and `ff9e8a418d041eff4a535de2d45c391ff9b388aa3af381eb218027263889e17e`
+for root, analyses, and history. No scientific file was changed.
+
+The activated Stage 14 dashboard and RFID audit plans and 700-row ownership
+snapshot were copied byte-for-byte into
+`docs/behavior_output_activated_plans/`. A repository read-only check matched
+the ten relevant activation receipts, all 371 planned source and destination
+hashes, and the generated dashboard metadata. Of 700 numbered Stage 14
+files, 329 remain only there: 183 historical HMM audit files with hashes
+matching the retained writer map, 132 byte-identical QC mirrors of authored
+figures, one QC README, and 13 other historical records. This check did not
+rerun an audit or promote the older HMM results.
+
 ## 2026-09-24 Stage 10 discovery follow-up
 
 After the history copies were activated, Stage 10 feature discovery was

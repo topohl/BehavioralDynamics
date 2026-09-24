@@ -13,8 +13,8 @@ described below were subsequently activated as verified copies under
 `analysis_ready/history/`. All 864 numbered originals remain, and the
 original/destination hashes match the approved plan. The plan gates are now
 `ready`, all nine receipts are `activated`, and the live output index selects
-the semantic paths. Stage 10 still scans the numbered root and routes the
-330 matching filtered candidates in place. The sections below preserve the
+the semantic paths. Stage 10 subsequently switched to receipt-selected group
+discovery, as documented below. The sections below preserve the
 pre-activation audit sequence; their earlier references to blocked gates,
 absent destinations, and zero historical rewrites describe that prior state.
 See `BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md` for the cutover checks and hashes.
@@ -51,6 +51,31 @@ From the repository root, rerun the check with:
 ```powershell
 Rscript Testing/audits/audit_stage10_semantic_discovery_parity.R `
   'S:\Lab_Member\Tobi\Experiments\Exp9_Social-Stress\Analysis\Behavior\RFID'
+```
+
+### Stage 14 residual inventory after activated cutovers
+
+The exact activated dashboard and RFID-audit plans, plus the 700-row Stage 14
+ownership snapshot, are now retained in
+`docs/behavior_output_activated_plans/`. They are byte-identical to the
+reviewed task artifacts. `Maintenance/Test-BehaviorStage14ResidualInventory.ps1`
+checks their group hashes against the activation receipts, rehashes every
+planned original and copy, checks each semantic target inventory, and
+classifies the files still present only in the numbered Stage 14 tree.
+
+The live check found 700 numbered files. Activated plans cover 371 originals
+across ten groups. The 329 retained-only files comprise 183 older HMM audit
+files, 132 byte-identical QC mirrors of planned authored figures, one QC
+README, and 13 manifests or other records. The 183 older audit hashes match
+the separately retained per-file writer map. This is an inventory and
+provenance boundary, not a decision to promote the old HMM results or copy
+the remaining files. The HMM audit has a separate current revalidation run;
+the 13 other records include historical manifests and pre-fix evidence that
+must retain their original lineage.
+
+```powershell
+& .\Maintenance\Test-BehaviorStage14ResidualInventory.ps1 `
+  -AnalysisReadyRoot 'S:\Lab_Member\Tobi\Experiments\Exp9_Social-Stress\Analysis\Behavior\RFID\analysis_ready'
 ```
 
 On 2026-09-24, two HMM audits were rerun against current inputs in the

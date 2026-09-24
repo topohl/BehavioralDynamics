@@ -15,14 +15,13 @@ historical path of each group, see `../output_index.csv`.
 - `dyadic_contacts/`: current Stage 02 dyadic RFID contacts, including the
   network-ready table used by Stage 06.
 - `dynamic_social_networks/5min/`: current Stage 06 five-minute outputs.
-  The older 10-second, 1-minute, 10-minute, and 30-minute runs remain in
-  `../06_behavioral_dynamics/social_networks/` under their historical names.
+  The older 10-second, 1-minute, 10-minute, and 30-minute copies are under
+  `../history/social_networks/`; numbered originals remain for provenance.
 - `gamm_trajectory_features/10min/`: current Stage 07 trajectory features.
-  The separate 30-minute tree remains under
-  `../06_behavioral_dynamics/gamm_features/` as a historical Stage 15 input.
+  The separate 30-minute historical copy is under
+  `../history/gamm_features/30min/` as an optional Stage 15 input.
 - `behavioral_state_space/5min/`: current Stage 05 state-space outputs.
-  Older 1-minute and 10-minute branches remain under
-  `../06_behavioral_dynamics/state_space/`.
+  Older 1-minute and 10-minute copies are under `../history/state_space/`.
 - `hmm_states/10min/`: Stage 08's declared HMM primary output.
 - `hmm_states/5min/`: Stage 08's HMM sensitivity output. Historical audit
   scripts can still read the retained originals in
@@ -33,7 +32,7 @@ historical path of each group, see `../output_index.csv`.
   manuscript registry links remain under the numbered Stage 14 root.
 - `temporal_instability/10sec/`: current Stage 04 temporal-instability outputs,
   including large rolling-metric tables. Older 1-minute and 5-minute branches
-  remain under `../06_behavioral_dynamics/temporal_instability/`.
+  have copies under `../history/temporal_instability/`.
 - `adaptation_kinetics/10min/`: current Stage 11 adaptation and recovery
   outputs. Its older five-minute branch remains under
   `../15_behavioral_adaptation_kinetics/`.

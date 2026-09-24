@@ -133,8 +133,9 @@ must enumerate every file under the selected source root, give each file an
 as `ready`. The exact manifest hash is bound to the prepared receipt and must
 be supplied unchanged for verification and activation. Unexpected files,
 wrong ownership, and files still awaiting review fail closed. The Stage 14
-700-file ownership manifest and 293-file hash plan in the task deliverables
-have completed technical review. Their selected rows and gate were set to
+700-file ownership manifest and 293-file hash plan are retained under
+`docs/behavior_output_activated_plans/`, along with the four activated RFID
+audit plans. Their selected rows and gate were set to
 `ready` for the separate dashboard activation. Its 293
 authored files have verified semantic copies, and seven derived metadata files
 were regenerated. The numbered originals remain. See the Stage 14 entry in
