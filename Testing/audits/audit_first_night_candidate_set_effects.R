@@ -59,7 +59,6 @@ INPUT <- mmm_behavior_audit_replay_input_root(
 OUT <- mmm_behavior_audit_replay_output_root(
   "first_night_candidate_set_effects", PROJ)
 DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
-dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
 THIS_SCRIPT  <- "Testing/audits/audit_first_night_candidate_set_effects.R"
 UPSTREAM     <- "Testing/audits/audit_first_night_candidate_set_scores.R"
@@ -255,6 +254,7 @@ effects_out <- effects %>%
          interpretation_guard, significance_role, source_table, source_script, script) %>%
   arrange(bin_resolution != "10min_based", row_id, Sex, contrast)
 
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(effects_out, file.path(OUT, "first_night_10domain_effects.csv"))
 cat("WROTE", file.path(OUT, "first_night_10domain_effects.csv"), "rows:", nrow(effects_out), "\n")
 

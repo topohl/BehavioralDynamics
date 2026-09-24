@@ -36,8 +36,8 @@
 ##     a DESCRIPTIVE association with later phenotype -- never prospective, never causal.
 ##   - SEX-DIFFERENTIAL LANGUAGE REQUIRES THE FORMAL Group:Sex INTERACTION.
 ##
-## READ-ONLY with respect to Analysis/ and Functions/. Writes only into
-##   <STAGE14>/audit_hmm_state_architecture/first_night_domain_heatmap/
+## Requires an explicit MMM_BEHAVIOR_AUDIT_REPLAY_ID. Reads the score and
+## effect outputs from that replay and writes into a new decision output folder.
 ## and never to the production figure basenames (Fig_first_night_domain_heatmap,
 ## Fig_first_night_hmm_components).
 ## ===========================================================================
@@ -51,11 +51,15 @@ setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
+source_mmm_helper("project_paths.R")
 
-PROJ    <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-STAGE14 <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based")
-OUT     <- file.path(STAGE14, "audit_hmm_state_architecture/first_night_domain_heatmap")
-stopifnot(dir.exists(OUT))
+PROJ <- mmm_project_root()
+SCORES_INPUT <- mmm_behavior_audit_replay_input_root(
+  "first_night_candidate_set_scores", PROJ)
+EFFECTS_INPUT <- mmm_behavior_audit_replay_input_root(
+  "first_night_candidate_set_effects", PROJ)
+OUT <- mmm_behavior_audit_replay_output_root(
+  "first_night_candidate_set_decision", PROJ)
 
 THIS_SCRIPT <- "Testing/audits/audit_first_night_candidate_set_decision.R"
 PRIMARY_RES <- "10min_based"
@@ -83,12 +87,12 @@ assert_that <- function(label, ok, evidence, method) {
 ## ---------------------------------------------------------------------------
 sec("STEP 1  structural inputs (no significance information read)")
 
-f_scores   <- file.path(OUT, "first_night_10domain_scores.csv")
-f_overlap  <- file.path(OUT, "first_night_10domain_formula_overlap.csv")
-f_redund   <- file.path(OUT, "first_night_10domain_redundancy.csv")
-f_locodom  <- file.path(OUT, "first_night_10domain_locomotion_dominance.csv")
-f_effects  <- file.path(OUT, "first_night_10domain_effects.csv")
-f_interact <- file.path(OUT, "first_night_group_sex_interactions.csv")
+f_scores   <- file.path(SCORES_INPUT, "first_night_10domain_scores.csv")
+f_overlap  <- file.path(SCORES_INPUT, "first_night_10domain_formula_overlap.csv")
+f_redund   <- file.path(SCORES_INPUT, "first_night_10domain_redundancy.csv")
+f_locodom  <- file.path(EFFECTS_INPUT, "first_night_10domain_locomotion_dominance.csv")
+f_effects  <- file.path(EFFECTS_INPUT, "first_night_10domain_effects.csv")
+f_interact <- file.path(EFFECTS_INPUT, "first_night_group_sex_interactions.csv")
 stopifnot(all(file.exists(f_scores, f_overlap, f_redund, f_locodom, f_effects, f_interact)))
 
 scores <- read_csv(f_scores, show_col_types = FALSE)
@@ -402,6 +406,7 @@ decision <- decision %>%
          coalesce_and_score_mean_semantics, fdr_family_primary, fdr_family_sensitivity,
          inferential_unit, interpretation_guard, source_script, script)
 
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_table(decision, file.path(OUT, "first_night_final_domain_decision.csv"))
 cat("wrote first_night_final_domain_decision.csv  (", nrow(decision), " rows, ",
     ncol(decision), " cols )\n", sep = "")

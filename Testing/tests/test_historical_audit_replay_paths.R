@@ -71,4 +71,17 @@ stopifnot(any(grepl('mmm_behavior_audit_replay_input_root(', effects,
                    fixed = TRUE)),
           !any(grepl('analysis_ready/12_systems_neuroscience_summary', effects,
                      fixed = TRUE)))
+decision <- readLines("Testing/audits/audit_first_night_candidate_set_decision.R",
+                      warn = FALSE)
+invisible(parse(text = decision))
+stopifnot(sum(grepl('mmm_behavior_audit_replay_input_root(', decision,
+                   fixed = TRUE)) == 2L,
+          any(grepl('f_scores   <- file.path(SCORES_INPUT,', decision,
+                   fixed = TRUE)),
+          any(grepl('f_effects  <- file.path(EFFECTS_INPUT,', decision,
+                   fixed = TRUE)),
+          any(grepl('mmm_behavior_audit_replay_output_root(', decision,
+                   fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary', decision,
+                     fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

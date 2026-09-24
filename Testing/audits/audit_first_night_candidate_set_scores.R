@@ -62,7 +62,6 @@ OUT <- mmm_behavior_audit_replay_output_root(
 HMM <- file.path(mmm_behavior_numbered_source_root("06_behavioral_dynamics", PROJ),
                  "hmm_states")
 DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
-dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
 THIS_SCRIPT  <- "Testing/audits/audit_first_night_candidate_set_scores.R"
 GROUP_LEVELS <- c("CON", "RES", "SUS")
@@ -449,6 +448,7 @@ scores <- map_dfr(RESOLUTIONS, function(res) {
          coalesce_and_score_mean_semantics, feature_origin, displayed_in_current_7,
          candidate_status, score_formula, interpretation_guard, significance_role, script)
 
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(scores, file.path(OUT, "first_night_10domain_scores.csv"))
 cat("wrote first_night_10domain_scores.csv  rows =", nrow(scores), "\n")
 
