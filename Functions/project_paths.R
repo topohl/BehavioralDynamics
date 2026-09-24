@@ -85,6 +85,408 @@ mmm_project_root <- function() {
   normalizePath(root, winslash = "/", mustWork = FALSE)
 }
 
+# Semantic output groups for bounded, receipt-activated migrations.
+# Direct callers can request a layout explicitly. Active callers use the
+# validated per-group migration receipt below; directory existence never
+# chooses a scientific input. Without a receipt, the current layout is used.
+mmm_behavior_output_group_root <- function(group,
+                                           layout = c("current", "semantic"),
+                                           project_root = mmm_project_root()) {
+  layout <- match.arg(layout)
+  paths <- list(
+    behavior_metrics_foundation = c(
+      current = "03_derived_metrics",
+      semantic = "foundations/behavior_metrics"),
+    systems_dashboard_5min = c(
+      current = "12_systems_neuroscience_summary/5min_based",
+      semantic = "analyses/systems_dashboard/5min"),
+    first_night_10min = c(
+      current = "12_systems_neuroscience_summary/5min_based/first_night/10min_based",
+      semantic = "analyses/first_night_five_domain_characterization/10min"),
+    first_night_5min = c(
+      current = "12_systems_neuroscience_summary/5min_based/first_night/5min_based",
+      semantic = "analyses/first_night_five_domain_characterization/5min"),
+    spatial_tables = c(current = "03_derived_metrics/spatial_occupancy",
+                       semantic = "analyses/spatial_occupancy/tables"),
+    spatial_audit = c(current = "03_derived_metrics/spatial_occupancy",
+                      semantic = "analyses/spatial_occupancy/audit"),
+    spatial_models = c(current = "04_model_outputs/spatial_occupancy",
+                       semantic = "analyses/spatial_occupancy/models"),
+    spatial_figures = c(current = "05_figures/spatial_occupancy",
+                        semantic = "analyses/spatial_occupancy/figures"),
+    dyadic_contacts = c(current = "06_behavioral_dynamics/dyadic_contacts",
+                        semantic = "analyses/dyadic_contacts"),
+    social_networks_5min = c(
+      current = "06_behavioral_dynamics/social_networks/5min_based",
+      semantic = "analyses/dynamic_social_networks/5min"),
+    gamm_features_10min = c(
+      current = "06_behavioral_dynamics/gamm_features/10min_based",
+      semantic = "analyses/gamm_trajectory_features/10min"),
+    state_space_5min = c(
+      current = "06_behavioral_dynamics/state_space/5min_based",
+      semantic = "analyses/behavioral_state_space/5min"),
+    hmm_states_10min = c(
+      current = "06_behavioral_dynamics/hmm_states/10min_based",
+      semantic = "analyses/hmm_states/10min"),
+    hmm_states_5min = c(
+      current = "06_behavioral_dynamics/hmm_states/5min_based",
+      semantic = "analyses/hmm_states/5min"),
+    temporal_instability_10sec = c(
+      current = "06_behavioral_dynamics/temporal_instability/10sec_based",
+      semantic = "analyses/temporal_instability/10sec"),
+    proteomics_mnn_primary = c(
+      current = "06_behavioral_dynamics/proteomics_mnn_primary",
+      semantic = "analyses/behavior_proteomics/proteomics_mnn_primary"),
+    proteomics_mnn_sensitivity = c(
+      current = "06_behavioral_dynamics/proteomics_mnn_sensitivity",
+      semantic = "analyses/behavior_proteomics/proteomics_mnn_sensitivity"),
+    adaptation_kinetics_10min = c(
+      current = "15_behavioral_adaptation_kinetics/10min_based",
+      semantic = "analyses/adaptation_kinetics/10min"),
+    sleep_like_inactivity_10min = c(
+      current = "16_sleep_like_inactivity_metrics/10min_based",
+      semantic = "analyses/sleep_like_inactivity/10min"),
+    phase_organization_10min = c(
+      current = "17_ethological_phase_organization/10min_based",
+      semantic = "analyses/phase_organization/10min"),
+    nonlinear_dynamics_5min = c(
+      current = "13_nonlinear_systems_dynamics/5min_based",
+      semantic = "analyses/nonlinear_dynamics/5min"),
+    systems_phenotyping_5min = c(
+      current = "14_nextgen_behavioral_phenotyping/5min_based",
+      semantic = "analyses/systems_phenotyping/5min"),
+    inactive_phase_qc_audit = c(
+      current = "12_systems_neuroscience_summary/5min_based/audit_inactive_phase_qc",
+      semantic = "analyses/inactive_phase_qc_audit"),
+    rfid_domain_comparison_audit = c(
+      current = "12_systems_neuroscience_summary/5min_based/audit_rfid_legacy_vs_new",
+      semantic = "analyses/rfid_domain_comparison_audit"),
+    rfid_leading_bin_seed_audit = c(
+      current = "12_systems_neuroscience_summary/5min_based/audit_rfid_leading_bin_seed",
+      semantic = "analyses/rfid_leading_bin_seed_audit"),
+    rfid_construct_audit = c(
+      current = "12_systems_neuroscience_summary/5min_based/audit_rfid_domain_construct_blind",
+      semantic = "analyses/rfid_construct_audit"),
+    rfid_conservatism_audit = c(
+      current = "12_systems_neuroscience_summary/5min_based/audit_rfid_conservatism",
+      semantic = "analyses/rfid_conservatism_audit"),
+    rfid_alternative_inference_audit = c(
+      current = "12_systems_neuroscience_summary/5min_based/audit_rfid_alternative_inference",
+      semantic = "analyses/rfid_alternative_inference_audit"),
+    rfid_reliability_audit = c(
+      current = "12_systems_neuroscience_summary/5min_based/audit_rfid_reliability_improvement",
+      semantic = "analyses/rfid_reliability_audit")
+  )
+  if (length(group) != 1L || is.na(group) || !group %in% names(paths)) {
+    stop("Unknown behavioral output group: ", paste(group, collapse = ", "),
+         call. = FALSE)
+  }
+  file.path(project_root, "analysis_ready", paths[[group]][[layout]])
+}
+
+# The migration receipt is the explicit per-group layout switch. The semantic
+# directory alone never selects a scientific input. Intermediate and corrupted
+# migration states fail closed rather than silently returning to the old tree.
+mmm_behavior_output_layout_state <- function(group, project_root = mmm_project_root()) {
+  current <- mmm_behavior_output_group_root(group, "current", project_root)
+  semantic <- mmm_behavior_output_group_root(group, "semantic", project_root)
+  receipt_path <- file.path(project_root, "analysis_ready", "_migration_control",
+                            paste0(group, ".json"))
+  if (!file.exists(receipt_path)) {
+    if (file.exists(semantic) || dir.exists(semantic)) {
+      stop("Semantic output exists without an activation receipt for ", group,
+           ": ", semantic, call. = FALSE)
+    }
+    return("current")
+  }
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("jsonlite is required to validate a behavioral migration receipt.",
+         call. = FALSE)
+  }
+  receipt <- tryCatch(jsonlite::fromJSON(receipt_path),
+                      error = function(e) stop("Invalid migration receipt: ",
+                                               receipt_path, ": ", conditionMessage(e),
+                                               call. = FALSE))
+  # Compare normalized absolute roots instead of relying on machine-specific
+  # slash spelling in the receipt.
+  recorded_target <- if (is.character(receipt$target_root_rel) &&
+                         length(receipt$target_root_rel) == 1L) {
+    file.path(project_root, "analysis_ready", receipt$target_root_rel)
+  } else NA_character_
+  if (!identical(receipt$group, group) ||
+      !isTRUE(receipt$source_retained) ||
+      !is.character(receipt$group_plan_sha256) ||
+      length(receipt$group_plan_sha256) != 1L ||
+      !grepl("^[0-9a-f]{64}$", receipt$group_plan_sha256) ||
+      !is.character(receipt$contract_sha256) ||
+      length(receipt$contract_sha256) != 1L ||
+      !grepl("^[0-9a-f]{64}$", receipt$contract_sha256) ||
+      !is.numeric(receipt$files) || length(receipt$files) != 1L ||
+      is.na(receipt$files) || receipt$files < 1L ||
+      is.na(recorded_target) ||
+      !identical(normalizePath(recorded_target, winslash = "/", mustWork = FALSE),
+                 normalizePath(semantic, winslash = "/", mustWork = FALSE))) {
+    stop("Migration receipt does not match output group ", group, ": ",
+         receipt_path, call. = FALSE)
+  }
+  if (identical(receipt$state, "prepared")) {
+    if (file.exists(semantic) || dir.exists(semantic)) {
+      stop("Prepared migration has an activated destination for ", group,
+           "; finish or repair activation before running analyses.", call. = FALSE)
+    }
+    return("current")
+  }
+  if (identical(receipt$state, "activated")) {
+    if (!dir.exists(semantic) || !dir.exists(current)) {
+      stop("Activated migration is missing a destination or retained source for ",
+           group, call. = FALSE)
+    }
+    return("semantic")
+  }
+  stop("Unknown migration receipt state for ", group, ": ", receipt$state,
+       call. = FALSE)
+}
+
+mmm_behavior_output_active_root <- function(group, project_root = mmm_project_root()) {
+  mmm_behavior_output_group_root(
+    group, layout = mmm_behavior_output_layout_state(group, project_root),
+    project_root = project_root)
+}
+
+# Stage 01's explicit output override is used by the separate cookie-habituation
+# runner. Only the default main-experiment root follows an activation receipt.
+mmm_derived_metrics_output_root <- function(project_root = mmm_project_root(),
+                                            configured_root = getOption("mmm.derived_metrics_dir", NULL)) {
+  if (!is.null(configured_root)) {
+    if (!is.character(configured_root) || length(configured_root) != 1L ||
+        is.na(configured_root) || !nzchar(configured_root)) {
+      stop("mmm.derived_metrics_dir must be one nonempty path.", call. = FALSE)
+    }
+    return(configured_root)
+  }
+  mmm_behavior_output_active_root("behavior_metrics_foundation", project_root)
+}
+
+# The eight May 2026 QC products have no proved lineage to the current Stage 01
+# files. A new Stage 00 run must not overwrite them or silently replace the
+# optional manuscript/release sources before its results are reviewed.
+mmm_tracking_qc_historical_root <- function(project_root = mmm_project_root()) {
+  file.path(project_root, "analysis_ready", "00_qc_tracking_integrity")
+}
+
+mmm_tracking_qc_new_run_root <- function(project_root = mmm_project_root()) {
+  file.path(project_root, "analysis_ready", "quality_control",
+            "tracking_integrity")
+}
+
+mmm_source_relative_path <- function(path, project_root = mmm_project_root()) {
+  root <- normalizePath(file.path(project_root, "analysis_ready"),
+                        winslash = "/", mustWork = FALSE)
+  if (length(path) != 1L || is.na(path) || !nzchar(path)) {
+    stop("Expected one analysis_ready source path.", call. = FALSE)
+  }
+  normalized <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  prefix <- paste0(root, "/")
+  if (!startsWith(normalized, prefix)) {
+    stop("Source path escaped analysis_ready: ", path, call. = FALSE)
+  }
+  substring(normalized, nchar(prefix) + 1L)
+}
+
+# Only the current five-minute social producer participates in this migration.
+# Other resolution runs retain their historical paths and provenance.
+mmm_social_network_resolution_root <- function(resolution,
+                                               project_root = mmm_project_root()) {
+  if (length(resolution) == 0L || anyNA(resolution) ||
+      any(!resolution %in% c("10sec_based", "1min_based", "5min_based",
+                             "10min_based", "30min_based"))) {
+    stop("Unknown social-network resolution: ", paste(resolution, collapse = ", "),
+         call. = FALSE)
+  }
+  vapply(resolution, function(one) {
+    if (identical(one, "5min_based")) {
+      mmm_behavior_output_active_root("social_networks_5min", project_root)
+    } else {
+      file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
+                "social_networks", one)
+    }
+  }, character(1), USE.NAMES = FALSE)
+}
+
+# Stage 07 currently writes 10-minute features. The separate 30-minute tree
+# remains at its recorded location for Stage 15's historical optional input.
+mmm_gamm_features_resolution_root <- function(resolution,
+                                              project_root = mmm_project_root()) {
+  if (length(resolution) == 0L || anyNA(resolution) ||
+      any(!resolution %in% c("10sec_based", "1min_based", "5min_based",
+                             "10min_based", "30min_based"))) {
+    stop("Unknown GAMM-feature resolution: ", paste(resolution, collapse = ", "),
+         call. = FALSE)
+  }
+  vapply(resolution, function(one) {
+    if (identical(one, "10min_based")) {
+      mmm_behavior_output_active_root("gamm_features_10min", project_root)
+    } else {
+      file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
+                "gamm_features", one)
+    }
+  }, character(1), USE.NAMES = FALSE)
+}
+
+# Stage 05's declared five-minute output moves independently of older
+# one- and ten-minute state-space trees.
+mmm_state_space_resolution_root <- function(resolution,
+                                            project_root = mmm_project_root()) {
+  if (length(resolution) == 0L || anyNA(resolution) ||
+      any(!resolution %in% c("10sec_based", "1min_based", "5min_based",
+                             "10min_based", "30min_based"))) {
+    stop("Unknown state-space resolution: ", paste(resolution, collapse = ", "),
+         call. = FALSE)
+  }
+  vapply(resolution, function(one) {
+    if (identical(one, "5min_based")) {
+      mmm_behavior_output_active_root("state_space_5min", project_root)
+    } else {
+      file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
+                "state_space", one)
+    }
+  }, character(1), USE.NAMES = FALSE)
+}
+
+# The declared HMM primary and sensitivity resolutions activate as a pair.
+# Other opt-in resolutions remain at their historical paths.
+mmm_hmm_resolution_root <- function(resolution,
+                                    project_root = mmm_project_root()) {
+  if (length(resolution) == 0L || anyNA(resolution) ||
+      any(!resolution %in% c("10sec_based", "1min_based", "5min_based",
+                             "10min_based", "30min_based"))) {
+    stop("Unknown HMM resolution: ", paste(resolution, collapse = ", "),
+         call. = FALSE)
+  }
+  vapply(resolution, function(one) {
+    if (identical(one, "10min_based")) {
+      mmm_behavior_output_active_root("hmm_states_10min", project_root)
+    } else if (identical(one, "5min_based")) {
+      mmm_behavior_output_active_root("hmm_states_5min", project_root)
+    } else {
+      file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
+                "hmm_states", one)
+    }
+  }, character(1), USE.NAMES = FALSE)
+}
+
+# Stage 04 currently produces 10-second outputs; older one- and five-minute
+# trees remain at their recorded locations.
+mmm_temporal_instability_resolution_root <- function(resolution,
+                                                     project_root = mmm_project_root()) {
+  if (length(resolution) == 0L || anyNA(resolution) ||
+      any(!resolution %in% c("10sec_based", "1min_based", "5min_based",
+                             "10min_based", "30min_based"))) {
+    stop("Unknown temporal-instability resolution: ",
+         paste(resolution, collapse = ", "), call. = FALSE)
+  }
+  vapply(resolution, function(one) {
+    if (identical(one, "10sec_based")) {
+      mmm_behavior_output_active_root("temporal_instability_10sec", project_root)
+    } else {
+      file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
+                "temporal_instability", one)
+    }
+  }, character(1), USE.NAMES = FALSE)
+}
+
+# Stages 11-13 currently produce ten-minute results. Their older five-minute
+# branches remain at the original paths for historical and optional readers.
+mmm_phase_analysis_resolution_root <- function(analysis, resolution,
+                                               project_root = mmm_project_root()) {
+  old_roots <- c(adaptation_kinetics = "15_behavioral_adaptation_kinetics",
+                 sleep_like_inactivity = "16_sleep_like_inactivity_metrics",
+                 phase_organization = "17_ethological_phase_organization")
+  if (length(analysis) != 1L || is.na(analysis) ||
+      !analysis %in% names(old_roots) || length(resolution) == 0L ||
+      anyNA(resolution) || any(!resolution %in% c("5min_based", "10min_based"))) {
+    stop("Unknown phase-analysis group or resolution.", call. = FALSE)
+  }
+  vapply(resolution, function(one) {
+    if (identical(one, "10min_based")) {
+      mmm_behavior_output_active_root(paste0(analysis, "_10min"), project_root)
+    } else {
+      file.path(project_root, "analysis_ready", old_roots[[analysis]], one)
+    }
+  }, character(1), USE.NAMES = FALSE)
+}
+
+# The two manual supporting analyses declare five-minute outputs. Selecting a
+# single receipt-controlled root prevents Stage 10 from scanning both copies.
+mmm_supporting_resolution_root <- function(analysis, resolution,
+                                           project_root = mmm_project_root()) {
+  old_roots <- c(nonlinear_dynamics = "13_nonlinear_systems_dynamics",
+                 systems_phenotyping = "14_nextgen_behavioral_phenotyping")
+  group_names <- c(nonlinear_dynamics = "nonlinear_dynamics_5min",
+                   systems_phenotyping = "systems_phenotyping_5min")
+  allowed <- c("10sec_based", "1min_based", "5min_based",
+               "10min_based", "30min_based")
+  if (length(analysis) != 1L || is.na(analysis) ||
+      !analysis %in% names(old_roots) || length(resolution) == 0L ||
+      anyNA(resolution) || any(!resolution %in% allowed)) {
+    stop("Unknown supporting analysis or resolution.", call. = FALSE)
+  }
+  vapply(resolution, function(one) {
+    if (identical(one, "5min_based")) {
+      mmm_behavior_output_active_root(group_names[[analysis]], project_root)
+    } else {
+      file.path(project_root, "analysis_ready", old_roots[[analysis]], one)
+    }
+  }, character(1), USE.NAMES = FALSE)
+}
+
+mmm_behavior_proteomics_base_dir <- function(project_root = mmm_project_root()) {
+  groups <- c("proteomics_mnn_primary", "proteomics_mnn_sensitivity")
+  mmm_behavior_output_assert_uniform_layout(groups, project_root,
+                                            "Stage 15 behavior-proteomics")
+  layout <- mmm_behavior_output_layout_state(groups[[1]], project_root)
+  file.path(project_root, "analysis_ready",
+            if (identical(layout, "semantic")) "analyses/behavior_proteomics"
+            else "06_behavioral_dynamics")
+}
+
+mmm_behavior_output_assert_uniform_layout <- function(groups,
+                                                       project_root = mmm_project_root(),
+                                                       producer = "Producer") {
+  if (length(groups) == 0L || anyDuplicated(groups)) {
+    stop("Output layout guard needs distinct groups.", call. = FALSE)
+  }
+  states <- vapply(groups, mmm_behavior_output_layout_state, character(1),
+                   project_root = project_root)
+  if (length(unique(states)) != 1L) {
+    stop(producer, " output migration is partly activated; complete its group set ",
+         "before rerunning the producer: ",
+         paste(paste(names(states), states, sep = "="), collapse = ", "),
+         call. = FALSE)
+  }
+  invisible(states[[1]])
+}
+
+mmm_behavior_output_index_entry <- function(group, project_root = mmm_project_root()) {
+  state <- mmm_behavior_output_layout_state(group, project_root)
+  ready_root <- normalizePath(file.path(project_root, "analysis_ready"),
+                              winslash = "/", mustWork = FALSE)
+  relative <- function(layout) {
+    path <- normalizePath(mmm_behavior_output_group_root(group, layout, project_root),
+                          winslash = "/", mustWork = FALSE)
+    prefix <- paste0(ready_root, "/")
+    if (!startsWith(path, prefix)) {
+      stop("Output group escaped analysis_ready: ", group, call. = FALSE)
+    }
+    paste0("analysis_ready/", substring(path, nchar(prefix) + 1L), "/")
+  }
+  list(canonical_path = if (identical(state, "semantic")) relative("semantic")
+       else NA_character_,
+       legacy_path = relative("current"),
+       status = if (identical(state, "semantic")) "migrated_source_retained"
+                else "legacy_pending_migration")
+}
+
 .mmm_require_pipeline_setup <- function() {
   needed <- c("behavior_stage_dir", "behavior_stage_tables",
               "behavior_manuscript_dir", "behavior_analysis_ready_dir")
@@ -258,9 +660,8 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
         "Analysis/14_systems_neuroscience_summary_dashboard.R"),
       resolution = "10min",
       analysis_role = "secondary descriptive characterisation",
-      dir = function(root) file.path(
-        behavior_analysis_ready_dir(root), "12_systems_neuroscience_summary",
-        "5min_based", "first_night", "10min_based"),
+      dir = function(root) mmm_behavior_output_active_root(
+        "first_night_10min", project_root = root),
       files = c(group_contrasts = "first_night_group_contrasts.csv")
     ),
 
@@ -283,8 +684,8 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
       resolution = "MISLABELLED UPSTREAM: the file's resolution column reads 10min_based for all rows but describes only the HMM contributor; six of seven domains come from the 5min backbone",
       analysis_role = "exploratory/secondary; not registry-declared",
       dir = function(root) file.path(
-        behavior_analysis_ready_dir(root), "12_systems_neuroscience_summary",
-        "5min_based", "stats_tables"),
+        mmm_behavior_output_active_root("systems_dashboard_5min", root),
+        "stats_tables"),
       files = c(domain_effects = "systems_sis_domain_effect_summary.csv")
     ),
 
@@ -321,8 +722,8 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
       resolution = "5min backbone; CombZ itself has no resolution",
       analysis_role = "endpoint-association source data",
       dir = function(root) file.path(
-        behavior_analysis_ready_dir(root), "12_systems_neuroscience_summary",
-        "5min_based", "tables"),
+        mmm_behavior_output_active_root("systems_dashboard_5min", root),
+        "tables"),
       files = c(component_scores = "systems_sis_first_active_12h_domain_scores.csv")
     ),
 
