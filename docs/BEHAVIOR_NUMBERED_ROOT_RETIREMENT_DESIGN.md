@@ -117,9 +117,11 @@ or prepared any live source.
    anchor from retained audit provenance, and requires
    `MMM_BEHAVIOR_AUDIT_REPLAY_ID` to create a new output directory under
    `analyses/historical_audit_replays/<run-id>/first_night_candidate_set_scores/`.
-   Its queue row is `path_prepared_unvalidated`: the script was parsed and its
-   path contract tested, but no scientific replay was run or validated. All
-   other rows still need reader/writer review.
+   `audit_first_night_candidate_set_effects.R` reads those new scores from the
+   *same* replay id and writes to its own unused folder. Both queue rows are
+   `path_prepared_unvalidated`: the scripts were parsed and their path
+   contracts tested, but no scientific replay was run or validated. The other
+   35 rows still need reader/writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

@@ -29,7 +29,12 @@ stopifnot(identical(out, file.path(ready, "analyses", "historical_audit_replays"
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 stopifnot(inherits(try(mmm_behavior_audit_replay_output_root(
   "first_night_candidate_set_scores", root, "review_20260924"), silent = TRUE),
-  "try-error"))
+  "try-error"),
+  identical(mmm_behavior_audit_replay_input_root(
+    "first_night_candidate_set_scores", root, "review_20260924"), out),
+  inherits(try(mmm_behavior_audit_replay_input_root(
+    "first_night_candidate_set_effects", root, "review_20260924"),
+    silent = TRUE), "try-error"))
 
 archived06 <- file.path(ready, "history", "original_layout", "06_behavioral_dynamics")
 dir.create(dirname(archived06), recursive = TRUE, showWarnings = FALSE)
@@ -54,5 +59,16 @@ stopifnot(any(grepl('anchor_long_path <- file.path(HIST_AUDIT,', script,
           any(grepl('mmm_behavior_audit_replay_output_root(', script,
                    fixed = TRUE)),
           !any(grepl('analysis_ready/12_systems_neuroscience_summary', script,
+                     fixed = TRUE)))
+effects <- readLines("Testing/audits/audit_first_night_candidate_set_effects.R",
+                     warn = FALSE)
+invisible(parse(text = effects))
+stopifnot(any(grepl('mmm_behavior_audit_replay_input_root(', effects,
+                   fixed = TRUE)),
+          any(grepl('SCORES_CSV   <- file.path(INPUT,', effects,
+                   fixed = TRUE)),
+          any(grepl('mmm_behavior_audit_replay_output_root(', effects,
+                   fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary', effects,
                      fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

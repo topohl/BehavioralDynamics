@@ -8,7 +8,8 @@
 ##   (4) resolution agreement (10min primary vs 5min sensitivity) and locomotion dominance.
 ##
 ## INPUT (built and verified upstream; NOT recomputed here):
-##   OUT/first_night_10domain_scores.csv  <- Testing/audits/audit_first_night_candidate_set_scores.R
+##   <same replay id>/first_night_candidate_set_scores/first_night_10domain_scores.csv
+##     <- Testing/audits/audit_first_night_candidate_set_scores.R
 ##   That script owns the window derivation, the phase rule, the nine raw z-features, the
 ##   z-within-SEX-ONLY standardization contract and the score_mean()/coalesce(x,0) semantics.
 ##   This script performs NO feature engineering: it only models the delivered per-animal scores.
@@ -37,8 +38,8 @@
 ##     within-Female contrast alongside a null within-Male contrast is NOT evidence of a sex
 ##     difference. Enforced mechanically by sex_differential_language_supported.
 ##
-## READ-ONLY with respect to Analysis/ and Functions/. Writes only into
-##   <STAGE14>/audit_hmm_state_architecture/first_night_domain_heatmap/
+## Requires an explicit MMM_BEHAVIOR_AUDIT_REPLAY_ID. Reads the previous
+## replay step and retained original roster; writes to a new per-script folder.
 ## ===========================================================================
 
 suppressMessages({
@@ -50,16 +51,23 @@ setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
+source_mmm_helper("project_paths.R")
 
-PROJ    <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-STAGE14 <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based")
-OUT     <- file.path(STAGE14, "audit_hmm_state_architecture/first_night_domain_heatmap")
-DERIV   <- file.path(PROJ, "analysis_ready/03_derived_metrics")
-stopifnot(dir.exists(OUT))
+PROJ <- mmm_project_root()
+INPUT <- mmm_behavior_audit_replay_input_root(
+  "first_night_candidate_set_scores", PROJ)
+OUT <- mmm_behavior_audit_replay_output_root(
+  "first_night_candidate_set_effects", PROJ)
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
 THIS_SCRIPT  <- "Testing/audits/audit_first_night_candidate_set_effects.R"
 UPSTREAM     <- "Testing/audits/audit_first_night_candidate_set_scores.R"
-SCORES_CSV   <- file.path(OUT, "first_night_10domain_scores.csv")
+SCORES_CSV   <- file.path(INPUT, "first_night_10domain_scores.csv")
+if (!file.exists(SCORES_CSV)) {
+  stop("Missing prerequisite candidate-set scores: ", SCORES_CSV,
+       call. = FALSE)
+}
 GROUP_LEVELS <- c("CON", "RES", "SUS")
 SEX_LEVELS   <- c("Female", "Male")
 RESOLUTIONS  <- c("10min_based", "5min_based")

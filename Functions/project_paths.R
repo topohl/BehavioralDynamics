@@ -310,11 +310,11 @@ mmm_behavior_numbered_source_root <- function(root_name,
 
 # A replay requires an explicit run identifier and a previously unused output
 # directory. No historical original or prior replay output may be overwritten.
-mmm_behavior_audit_replay_output_root <- function(script_id,
-                                                  project_root = mmm_project_root(),
-                                                  run_id = Sys.getenv(
-                                                    "MMM_BEHAVIOR_AUDIT_REPLAY_ID",
-                                                    unset = "")) {
+mmm_behavior_audit_replay_path <- function(script_id,
+                                           project_root = mmm_project_root(),
+                                           run_id = Sys.getenv(
+                                             "MMM_BEHAVIOR_AUDIT_REPLAY_ID",
+                                             unset = "")) {
   valid <- function(x) is.character(x) && length(x) == 1L && !is.na(x) &&
     grepl("^[a-z0-9][a-z0-9_-]{2,63}$", x)
   if (!valid(script_id) || !valid(run_id)) {
@@ -323,8 +323,30 @@ mmm_behavior_audit_replay_output_root <- function(script_id,
   }
   path <- file.path(project_root, "analysis_ready", "analyses",
                     "historical_audit_replays", run_id, script_id)
+  path
+}
+
+mmm_behavior_audit_replay_output_root <- function(script_id,
+                                                  project_root = mmm_project_root(),
+                                                  run_id = Sys.getenv(
+                                                    "MMM_BEHAVIOR_AUDIT_REPLAY_ID",
+                                                    unset = "")) {
+  path <- mmm_behavior_audit_replay_path(script_id, project_root, run_id)
   if (file.exists(path) || dir.exists(path)) {
     stop("Historical audit replay output already exists: ", path,
+         call. = FALSE)
+  }
+  path
+}
+
+mmm_behavior_audit_replay_input_root <- function(script_id,
+                                                 project_root = mmm_project_root(),
+                                                 run_id = Sys.getenv(
+                                                   "MMM_BEHAVIOR_AUDIT_REPLAY_ID",
+                                                   unset = "")) {
+  path <- mmm_behavior_audit_replay_path(script_id, project_root, run_id)
+  if (!dir.exists(path)) {
+    stop("Missing prerequisite historical audit replay: ", path,
          call. = FALSE)
   }
   path
