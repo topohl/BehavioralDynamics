@@ -211,4 +211,14 @@ stopifnot(any(grepl('mmm_behavior_audit_replay_output_root("stage09_stale_artifa
                      fixed = TRUE)),
           !any(grepl('file.path(AR,"06_behavioral_dynamics/', stage09,
                      fixed = TRUE)))
+
+stage10 <- readLines("Testing/audits/audit_stage10_semantic_discovery_parity.R",
+                     warn = FALSE)
+invisible(parse(text = stage10))
+stopifnot(any(grepl('numbered_root <- mmm_behavior_numbered_source_root(',
+                   stage10, fixed = TRUE)),
+          any(grepl('recorded_old_map <- normalizePath(file.path(ready, old_map_rel)',
+                    stage10, fixed = TRUE)),
+          !any(grepl('numbered_root <- file.path(ready, "06_behavioral_dynamics")',
+                     stage10, fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

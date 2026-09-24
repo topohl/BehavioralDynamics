@@ -150,8 +150,12 @@ or prepared any live source.
    scientific calculations have not been rerun. The Stage 09 stale-artifact
    audit now reads the retained Stage 01 and legacy Stage 09 families through
    archive-aware roots, retains its snapshot comparison, and writes its report
-   to a separate replay folder. It was not rerun. The other 22 rows still need
-   reader/writer review.
+   to a separate replay folder. It was not rerun. The read-only Stage 10 discovery parity audit now
+   resolves the retained original through the archive receipt and constructs
+   its expected semantic list from the reviewed source-to-target plans. It
+   passed on the live pre-archive tree (1,459 mapped originals, 606 ordered
+   candidates); the archived-location run remains untested. The other 21 rows
+   still need reader/writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

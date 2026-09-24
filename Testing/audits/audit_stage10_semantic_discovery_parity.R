@@ -1,5 +1,5 @@
-# Read-only comparison of Stage 10's numbered-root scan with receipt-selected
-# semantic output groups. This does not execute Stage 10 models or write S:.
+# Read-only comparison of retained originals with receipt-selected semantic
+# output groups. This does not execute Stage 10 models or write S:.
 # Run from the repository root with the RFID project root as the sole argument.
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 1L || !dir.exists(args[[1L]])) {
@@ -17,8 +17,7 @@ assignment <- function(name) {
   if (length(hit) != 1L) stop("Missing or duplicate Stage 10 assignment: ", name)
   hit[[1L]]
 }
-for (name in c("route_activated_feature_sources", "stage10_scan_feature_paths",
-               "clean_name")) eval(assignment(name))
+for (name in c("stage10_scan_feature_paths", "clean_name")) eval(assignment(name))
 bin_level <- "10min_based"
 eval(assignment("feature_search_groups"))
 eval(assignment("feature_search_dirs"))
@@ -33,15 +32,12 @@ scan <- function(dirs) {
   normalizePath(paths, winslash = "/", mustWork = TRUE)
 }
 ready <- file.path(base_dir, "analysis_ready")
-numbered_root <- file.path(ready, "06_behavioral_dynamics")
+numbered_root <- mmm_behavior_numbered_source_root("06_behavioral_dynamics", base_dir)
 other_dirs <- feature_search_dirs[-seq_along(feature_search_groups)]
 candidate_paths <- scan(c(numbered_root, other_dirs))
 for (name in c("self_artifact_stubs", "is_self_artifact", "self_dir_markers",
                "in_self_dir", "excluded")) eval(assignment(name))
 numbered_filtered <- candidate_paths[!excluded]
-current <- route_activated_feature_sources(
-  numbered_filtered, base_dir, "docs/BEHAVIOR_OUTPUT_MIGRATION_PLAN.csv")
-current <- mmm_behavior_route_historical_feature_sources(current, base_dir)
 
 columns <- c("group", "source_rel", "target_root_rel", "target_file")
 plans <- rbind(
@@ -50,6 +46,22 @@ plans <- rbind(
   utils::read.csv("docs/BEHAVIOR_HISTORICAL_MIGRATION_PLAN.csv",
                   check.names = FALSE)[, columns])
 plans <- plans[startsWith(plans$source_rel, "06_behavioral_dynamics/"), , drop = FALSE]
+source_prefix <- paste0(normalizePath(numbered_root, winslash = "/", mustWork = TRUE), "/")
+old_map_rel <- "06_behavioral_dynamics/proteomics_integration_output_dir_map.csv"
+from_original <- startsWith(numbered_filtered, source_prefix)
+filtered_rel <- paste0("06_behavioral_dynamics/",
+                       substring(numbered_filtered[from_original],
+                                 nchar(source_prefix) + 1L))
+mapped_index <- match(filtered_rel, plans$source_rel)
+if (any(is.na(mapped_index) & filtered_rel != old_map_rel)) {
+  stop("Unmapped retained Stage 10 candidate source after archive routing.")
+}
+current <- numbered_filtered
+mapped <- which(from_original)[!is.na(mapped_index)]
+current[mapped] <- file.path(ready,
+                            plans$target_root_rel[mapped_index[!is.na(mapped_index)]],
+                            plans$target_file[mapped_index[!is.na(mapped_index)]])
+current <- normalizePath(current, winslash = "/", mustWork = TRUE)
 numbered_all <- list.files(numbered_root, all.files = TRUE, recursive = TRUE,
                            full.names = TRUE, include.dirs = FALSE)
 numbered_all <- numbered_all[file.info(numbered_all)$isdir %in% FALSE &
@@ -57,7 +69,6 @@ numbered_all <- numbered_all[file.info(numbered_all)$isdir %in% FALSE &
 numbered_rel <- paste0("06_behavioral_dynamics/",
                        substring(normalizePath(numbered_all, winslash = "/"),
                                  nchar(normalizePath(numbered_root, winslash = "/")) + 2L))
-old_map_rel <- "06_behavioral_dynamics/proteomics_integration_output_dir_map.csv"
 stopifnot(nrow(plans) == 1459L, length(numbered_rel) == 1460L,
           !anyDuplicated(plans$source_rel),
           setequal(numbered_rel, c(plans$source_rel, old_map_rel)))
@@ -85,10 +96,14 @@ semantic_self_dir <- vapply(proposed, function(path)
     grepl(marker, path, fixed = TRUE), logical(1))), logical(1))
 proposed <- proposed[!(semantic_self | semantic_self_dir)]
 
-old_map <- normalizePath(file.path(ready, old_map_rel), winslash = "/")
+old_map <- normalizePath(file.path(numbered_root,
+                                   "proteomics_integration_output_dir_map.csv"),
+                         winslash = "/", mustWork = TRUE)
+recorded_old_map <- normalizePath(file.path(ready, old_map_rel),
+                                  winslash = "/", mustWork = FALSE)
 audit <- utils::read.csv(file.path(ready, "pipeline", "10_systems_prediction",
                                    "10min", "tables", "feature_source_audit.csv"))
-record <- audit[audit$source_file == old_map, , drop = FALSE]
+record <- audit[audit$source_file == recorded_old_map, , drop = FALSE]
 header <- names(utils::read.csv(old_map, nrows = 0L, check.names = FALSE))
 stopifnot(nrow(record) == 1L, isFALSE(record$loaded_as_feature_table[[1L]]),
           !"AnimalNum" %in% header, sum(current == old_map) == 1L,
