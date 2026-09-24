@@ -18,7 +18,6 @@ on.exit(setwd(old_wd), add = TRUE)
 
 pipeline <- tibble::tribble(
   ~script, ~stage, ~optional_flag, ~role,
-  "00_qc_tracking_integrity.R", "00", NA_character_, "tracking integrity QC",
   "01_build_multiscale_behavior_metrics.R", "01", NA_character_, "canonical multiscale behavior metrics",
   "02_build_dyadic_rfid_contacts.R", "02", NA_character_, "dyadic RFID contacts for network analyses",
   "03_primary_raw_movement_phase_stats.R", "03", NA_character_, "primary raw movement broad phase statistics",

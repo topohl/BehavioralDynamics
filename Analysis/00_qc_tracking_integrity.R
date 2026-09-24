@@ -1,24 +1,23 @@
 # ================================================================
-# RFID CHIP LOSS / TRACKING INTEGRITY QC
+# PROVISIONAL RFID TRACKING INTEGRITY QC
 # MMMSociability
 # ================================================================
 # Goal:
-#   Detect animals whose RFID-based trajectories are likely invalid because
-#   the chip was lost, stationary in the bedding, or otherwise no longer
-#   reflects the animal's true position.
+#   Describe stationary or low-variation RFID trajectories for review.
+#   These metrics alone do not establish chip loss or an invalid trajectory.
 #
 # Important principle:
 #   This script is diagnostic and non-destructive. It does NOT remove animals
 #   from the data. It produces QC tables, plots, and suggested flags that can
-#   be reviewed before updating excluded_animals.csv or a future
-#   chip_loss_qc.csv / valid_until table.
+#   be reviewed against independent raw-read evidence. They are not an
+#   exclusion or valid-until decision.
 #
 # Recommended use:
 #   1. Run after preprocessing / multiscale metric generation.
 #   2. Inspect QC tables and plots.
-#   3. Decide whether animals should be globally excluded or censored after a
-#      conservative valid_until time.
-#   4. Keep final exclusion decisions in a small manually reviewed CSV.
+#   3. Compare any flagged interval with raw reads and known chip-loss cases.
+#   4. Keep any independently established exclusion decision in a separate
+#      manually reviewed record.
 #
 # Why this matters:
 #   Unknown RFID chip loss can create pseudo-data: the chip may still be read,
@@ -30,36 +29,15 @@
 # 0. USER SETTINGS
 # -----------------------------
 
-# Leave NULL to auto-detect likely metric files. Otherwise provide paths.
-input_base <- paste0(
-  "S:\\Lab_Member\\Tobi\\Experiments\\Exp9_Social-Stress\\Analysis\\",
-  "Behavior\\RFID\\analysis_ready\\03_derived_metrics"
-)
-INPUT_FILES <- list.files(
-  input_base,
-  pattern = "all_behavior_metrics\\.csv$",
-  full.names = TRUE,
-  recursive = TRUE
-)
+# Stage 01 inputs are selected after the shared path helper is loaded below.
+INPUT_FILES <- NULL
 
 # Project output root used by the analysis pipeline.
 PROJECT_BASE_DIR <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 
-# Optional: restrict auto-detection to these directories if they exist.
-SEARCH_DIRS <- c(
-  file.path(PROJECT_BASE_DIR, "analysis_ready"),
-  file.path(PROJECT_BASE_DIR, "analysis_ready/03_derived_metrics"),
-  file.path(PROJECT_BASE_DIR, "analysis_ready/03_derived_metrics/phase_based"),
-  file.path(PROJECT_BASE_DIR, "analysis_ready/03_derived_metrics/halfhour_based"),
-  "analysis_ready",
-  "analysis_ready/03_derived_metrics",
-  "analysis_ready/03_derived_metrics/phase_based",
-  "analysis_ready/03_derived_metrics/halfhour_based",
-  "Results",
-  "Formatting"
-)
+SEARCH_DIRS <- NULL
 
-OUT_DIR <- file.path(PROJECT_BASE_DIR, "analysis_ready", "00_qc_tracking_integrity")
+OUT_DIR <- NULL
 
 # Metrics used for RFID-loss suspicion.
 # Adjust after inspecting the output distributions.
@@ -105,7 +83,20 @@ invisible(lapply(required_packages, library, character.only = TRUE))
   file.path(dirname(tryCatch(normalizePath(sys.frame(1)$ofile, winslash = "/", mustWork = FALSE), error = function(e) getwd())), "_pipeline_setup.R")
 )
 .pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
-if (!is.na(.pipeline_setup)) source(.pipeline_setup)
+if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
+source(.pipeline_setup)
+source_mmm_helper("project_paths.R")
+source_mmm_helper("tracking_qc_run_config.R")
+input_base <- mmm_derived_metrics_output_root(PROJECT_BASE_DIR)
+run_config <- mmm_tracking_qc_run_config(
+  PROJECT_BASE_DIR, input_base, commandArgs(trailingOnly = TRUE))
+OUT_DIR <- run_config$output_dir
+INPUT_FILES <- run_config$input_files
+# The fallback scan uses one selected Stage 01 root, so an activated copy
+# cannot be counted alongside its retained numbered original.
+SEARCH_DIRS <- c(input_base, "Results", "Formatting")
+message("Provisional diagnostic QC at ", run_config$input_scale,
+        "; thresholds require validation before any exclusion decision.")
 
 # -----------------------------
 # 2. HELPERS
@@ -611,7 +602,10 @@ flagged_animals <- qc_by_animal %>%
   pull(AnimalID) %>%
   unique()
 
-if (length(flagged_animals) > 0 && any(!is.na(rolling_qc$DateTime))) {
+if (length(flagged_animals) > 40L) {
+  message("Skipping rolling plot for ", length(flagged_animals),
+          " flagged animals; review the QC tables before plotting individual traces.")
+} else if (length(flagged_animals) > 0 && any(!is.na(rolling_qc$DateTime))) {
   p_roll <- rolling_qc %>%
     filter(AnimalID %in% flagged_animals) %>%
     mutate(Window = paste(Batch, CageChange, Phase, sep = "_")) %>%
@@ -653,11 +647,13 @@ save_svg(file.path(figures_dir, "qc_suggested_decision_summary.svg"), p_summary,
 methods_note <- c(
   "RFID tracking integrity QC",
   "",
-  "Animals were screened for potential RFID-chip loss or detached-chip artifacts using a non-destructive QC layer applied before downstream behavioral analyses.",
+  "PROVISIONAL DIAGNOSTIC RUN: thresholds have not been validated as chip-loss or exclusion criteria.",
+  paste0("Input resolution: ", run_config$input_scale, "; run ID: ", run_config$run_id, "."),
+  "Stationary or low-variation RFID trajectories were described by a non-destructive diagnostic layer. These derived metrics alone cannot establish chip loss.",
   "QC metrics included the fraction of zero-movement bins, longest zero-movement run, dominant-position occupancy, transition rate, mean entropy, and rolling zero-movement collapse within animal-by-cage-change-by-phase windows.",
   "Animals or windows exceeding multiple QC criteria were flagged for manual review rather than automatically excluded.",
-  "Where the timing of RFID loss could not be reliably established, whole-animal exclusion is conservative because detached chips can remain detectable and produce non-biological pseudo-movement.",
-  "Where a defensible last valid interval can be established, animals can instead be retained up to that point and censored thereafter."
+  "Zero movement can reflect ordinary immobility. Derived observation time may carry a position forward between RFID events and does not confirm a fresh read in every bin.",
+  "Any chip-loss or censoring decision requires independent raw-read evidence and manual review."
 )
 writeLines(methods_note, file.path(OUT_DIR, "rfid_tracking_qc_methods_note.txt"))
 
@@ -668,7 +664,7 @@ if (exists("write_output_manifest")) {
     analysis_name = "RFID tracking integrity QC",
     input_files = INPUT_FILES,
     output_directory = OUT_DIR,
-    bin_level = "auto_detected",
+    bin_level = run_config$input_scale,
     key_parameters = QC_THRESHOLDS,
     primary_tables = c(
       "tables/tracking_qc_by_animal_phase.csv",
@@ -680,7 +676,7 @@ if (exists("write_output_manifest")) {
       "figures/qc/qc_flag_count_heatmap.svg",
       "figures/qc/qc_suggested_decision_summary.svg"
     ),
-    notes = c("Diagnostic, non-destructive QC layer; flags require manual review before exclusion.")
+    notes = c("Provisional diagnostic QC; flags require resolution-specific validation and manual review before exclusion.")
   )
 }
 
