@@ -255,7 +255,9 @@ argument and the identity comparison's separate baseline and provenance
 requirement. Those two cannot be treated as ordinary unattended Rscript calls.
 The identity comparison must not infer a pristine pre-correction baseline.
 The reviewed gate must still be built from validated replays and pinned script
-hashes; every queue row remains `path_prepared_unvalidated` now.
+hashes. The queue has 34 `path_prepared_unvalidated` rows, two
+`live_read_only_checked` rows, and one `live_numbered_only_checked` row; none
+is `ready` for the archive gate.
 Five first-night audits previously printed failed assertion rows while exiting
 successfully. They now print the same diagnostics and then stop on any `FAIL`.
 A focused synthetic test exercised the actual assertion branches with passing
@@ -281,6 +283,8 @@ and found 12-hour first blocks at both HMM resolutions for 109 animals. The
 Stage 10 discovery parity check had previously passed on the live numbered
 tree. These results do not mark the 37-script queue `ready`, and the
 archived-location Stage 10 run remains untested.
+The queue records the two console checks as `live_read_only_checked` and Stage
+10 as `live_numbered_only_checked`; both states remain below `ready`.
 
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination
