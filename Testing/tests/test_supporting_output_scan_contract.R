@@ -54,3 +54,35 @@ for (group in names(groups)) {
             sum(startsWith(candidates, old)) == 0L)
 }
 cat("PASS: Stage 10 selects one supporting feature root per activated group\n")
+
+# The Stage 09 model input is required from its canonical pipeline location.
+# Exercise Stage 10's actual resolver call with a legacy-only decoy.
+source("Analysis/_pipeline_setup.R")
+resolver_start <- grep("^input_08b_resolution <- resolve_behavior_artifact\\($", lines)
+stopifnot(length(resolver_start) == 1L)
+resolver_end <- resolver_start + which(lines[resolver_start:length(lines)] == ")")[1L] - 1L
+resolver_expr <- parse(text = paste(lines[resolver_start:resolver_end], collapse = "\n"))
+input_root <- file.path(tempdir(), paste0("stage10_canonical_input_contract_",
+                                         as.integer(runif(1L, 1L, 1e9))))
+canonical <- file.path(behavior_stage_tables(input_root, "09", "early_prediction",
+                                             "10min_based"), "model_ladder_input.csv")
+legacy <- file.path(input_root, "analysis_ready", "06_behavioral_dynamics",
+                    "early_prediction_model_ladder", "10min_based", "tables",
+                    "model_ladder_input.csv")
+dir.create(dirname(legacy), recursive = TRUE, showWarnings = FALSE)
+writeLines("legacy decoy", legacy)
+resolver_env <- new.env(parent = globalenv())
+resolver_env$input_08b <- canonical
+missing_canonical <- tryCatch({
+  eval(resolver_expr, envir = resolver_env)
+  NULL
+}, error = conditionMessage)
+stopifnot(is.character(missing_canonical),
+          grepl("Missing required behavioral artifact", missing_canonical,
+                fixed = TRUE))
+dir.create(dirname(canonical), recursive = TRUE, showWarnings = FALSE)
+writeLines("canonical input", canonical)
+eval(resolver_expr, envir = resolver_env)
+stopifnot(identical(resolver_env$input_08b_resolution$path, canonical),
+          identical(resolver_env$input_08b_resolution$resolution, "canonical"))
+cat("PASS: Stage 10 requires the canonical Stage 09 model input\n")

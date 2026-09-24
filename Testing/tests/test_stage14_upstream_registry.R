@@ -197,4 +197,57 @@ check(!grepl("06_behavioral_dynamics/burstiness", stage14_src, fixed = TRUE), "T
 check(!grepl('06_behavioral_dynamics/early_prediction"', stage14_src, fixed = TRUE), "Test 5: no hardcoded reference to the never-real early_prediction/ (without _model_ladder) path may remain")
 check(!grepl("06_behavioral_dynamics/early_prediction[/,]", stage14_src), "Test 5: no hardcoded reference to the never-real early_prediction/ (without _model_ladder) path may remain")
 
+# Stage 07's declared 10-minute output is selected through its activated
+# path group. The former gamm_trajectory_features/ branch never existed.
+check(!grepl("06_behavioral_dynamics/gamm_trajectory_features", stage14_src,
+             fixed = TRUE),
+      "Stage 14 must not use the absent legacy GAMM branch")
+check(lengths(regmatches(stage14_src,
+                        gregexpr("mmm_gamm_features_resolution_root\\(",
+                                 stage14_src))) >= 4,
+      "Stage 14 GAMM reader and provenance paths must use the path registry")
+
+# Evaluate the reader's actual path expression with an activated fixture and
+# a decoy in the never-real branch; this avoids running the dashboard models.
+source("Functions/project_paths.R")
+stage14_exprs <- as.list(parse(file = stage14_path))
+reader_defs <- Filter(function(expr) is.call(expr) && identical(expr[[1L]], as.name("<-")) &&
+                        identical(expr[[2L]], as.name("load_gamm_shape_features")),
+                      stage14_exprs)
+check(length(reader_defs) == 1L, "Stage 14 must define one GAMM reader")
+reader_path_assignment <- reader_defs[[1L]][[3L]][[3L]][[2L]]
+check(identical(reader_path_assignment[[2L]], as.name("path")),
+      "GAMM reader must resolve its path first")
+gamm_root <- file.path(tempdir(), paste0("stage14_gamm_reader_",
+                                        as.integer(runif(1L, 1L, 1e9))))
+ready_root <- file.path(gamm_root, "analysis_ready")
+semantic_root <- mmm_behavior_output_group_root("gamm_features_10min", "semantic",
+                                                 gamm_root)
+old_root <- mmm_behavior_output_group_root("gamm_features_10min", "current",
+                                            gamm_root)
+semantic_file <- file.path(semantic_root, "tables", "combined_gamm_features.csv")
+decoy_file <- file.path(ready_root, "06_behavioral_dynamics",
+                        "gamm_trajectory_features", "10min_based", "tables",
+                        "gamm_trajectory_features.csv")
+write_stub(semantic_file, "semantic")
+dir.create(old_root, recursive = TRUE, showWarnings = FALSE)
+write_stub(decoy_file, "dead-branch decoy")
+dir.create(file.path(ready_root, "_migration_control"), recursive = TRUE,
+           showWarnings = FALSE)
+jsonlite::write_json(list(group = "gamm_features_10min", state = "activated",
+                          files = 1L, target_root_rel =
+                            "analyses/gamm_trajectory_features/10min",
+                          group_plan_sha256 = paste(rep("a", 64L), collapse = ""),
+                          contract_sha256 = paste(rep("b", 64L), collapse = ""),
+                          source_retained = TRUE),
+                     file.path(ready_root, "_migration_control",
+                               "gamm_features_10min.json"), auto_unbox = TRUE)
+reader_env <- new.env(parent = globalenv())
+reader_env$project_root <- gamm_root
+reader_env$scale_label <- "10min_based"
+reader_env$first_existing_path <- function(paths) paths[file.exists(paths)][1L]
+eval(reader_path_assignment, envir = reader_env)
+check(identical(reader_env$path, semantic_file),
+      "GAMM reader must select the activated Stage 07 table despite the decoy")
+
 cat("Stage 14 upstream registry contract checks: PASS\n")

@@ -4,6 +4,10 @@ source_file <- "Analysis/15_behavior_proteomics_integration.R"
 source_text <- readLines(source_file, warn = FALSE)
 stopifnot(any(grepl("assert_verified_phase_source(path, source_label, scale_label)",
                   source_text, fixed = TRUE)))
+stopifnot(!any(grepl('"gamm_trajectory_features", trajectory_bin_level',
+                   source_text, fixed = TRUE)),
+          any(grepl('mmm_gamm_features_resolution_root(trajectory_bin_level, project_root)',
+                    source_text, fixed = TRUE)))
 
 # The required Stage 09 input is resolved at ten minutes. Its inventory scale
 # must use that same resolution and must not fall back to old five-minute trees.

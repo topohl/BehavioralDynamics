@@ -704,9 +704,9 @@ build_behavior_feature_matrix <- function() {
       file.path(mmm_hmm_resolution_root(behavior_bin_level, project_root), "tables", "hmm_state_occupancy.csv"),
       file.path(mmm_hmm_resolution_root(behavior_bin_level, project_root), "tables", "hmm_state_dwell_times.csv"),
       file.path(mmm_hmm_resolution_root(behavior_bin_level, project_root), "tables", "hmm_transition_probabilities.csv"),
-      first_existing_path(c(
-        file.path(mmm_gamm_features_resolution_root(trajectory_bin_level, project_root), "tables", "combined_gamm_features.csv"),
-        file.path(analysis_ready_dir, "06_behavioral_dynamics", "gamm_trajectory_features", trajectory_bin_level, "tables", "combined_gamm_features.csv")
+      first_existing_path(file.path(
+        mmm_gamm_features_resolution_root(trajectory_bin_level, project_root),
+        "tables", "combined_gamm_features.csv"
       )),
       file.path(mmm_supporting_resolution_root("nonlinear_dynamics", behavior_bin_level, project_root), "derived_data", "animal_level_nonlinear_feature_matrix.csv"),
       file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", phase_analysis_bin_level, project_root), "tables", "adaptation_kinetics_features.csv"),

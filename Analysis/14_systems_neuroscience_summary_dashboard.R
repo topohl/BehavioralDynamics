@@ -738,7 +738,8 @@ paths <- tibble(
     stage09_early_prediction_primary$path,
     file.path(mmm_social_network_resolution_root(primary_bin_level, project_root), "tables"),
     file.path(mmm_hmm_resolution_root(hmm_primary_bin_level, project_root), "tables"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", primary_bin_level, "tables"),
+    file.path(mmm_gamm_features_resolution_root(
+      domain_bin_preference("adaptive_recovery")[1], project_root), "tables"),
     file.path(mmm_supporting_resolution_root("nonlinear_dynamics", primary_bin_level, project_root), "derived_data"),
     # These three are 10min-only producers (Analysis/11:34, 12:33, 13:35), so
     # recording them at primary_bin_level (5min) made the provenance registry
@@ -1361,9 +1362,9 @@ load_hmm_system_features <- function(scale_label = primary_bin_level) {
 }
 
 load_gamm_shape_features <- function(scale_label = primary_bin_level) {
-  path <- first_existing_path(c(
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", scale_label, "tables/gamm_trajectory_features.csv"),
-    file.path(mmm_gamm_features_resolution_root(scale_label, project_root), "tables/combined_gamm_features.csv")
+  path <- first_existing_path(file.path(
+    mmm_gamm_features_resolution_root(scale_label, project_root),
+    "tables/combined_gamm_features.csv"
   ))
   dat <- read_any_table(path)
   if (is.null(dat) || nrow(dat) == 0) return(tibble())
@@ -2067,10 +2068,9 @@ integration_audit_registry <- tibble(
     stage09_early_prediction_primary$tried,
     file.path(mmm_social_network_resolution_root(domain_bin_preference("social_reorganization"), project_root), "tables/animal_level_social_dynamics.csv"),
     file.path(mmm_hmm_resolution_root(hmm_primary_bin_level, project_root), "tables/hmm_state_occupancy.csv"),
-    c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", domain_bin_preference("adaptive_recovery"), "tables/combined_gamm_features.csv"),
-      file.path(mmm_gamm_features_resolution_root(domain_bin_preference("adaptive_recovery"), project_root), "tables/combined_gamm_features.csv")
-    ),
+    file.path(mmm_gamm_features_resolution_root(
+      domain_bin_preference("adaptive_recovery"), project_root),
+      "tables/combined_gamm_features.csv"),
     file.path(mmm_supporting_resolution_root("nonlinear_dynamics", domain_bin_preference("nonlinear_systems"), project_root), "derived_data/animal_level_nonlinear_feature_matrix.csv"),
     file.path(mmm_supporting_resolution_root("systems_phenotyping", domain_bin_preference("nonlinear_systems"), project_root), "tables/nextgen_behavioral_phenotype_matrix.csv"),
     file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", domain_bin_preference("adaptive_recovery"), project_root), "tables/adaptation_kinetics_features.csv"),
@@ -3791,7 +3791,8 @@ sis_dependency_audit <- tibble(
     resolve_stage09_early_prediction_artifact(project_root, "primary_prediction_performance.csv", domain_bin_preference("early_prediction"))$path,
     first_existing_path(file.path(mmm_social_network_resolution_root(domain_bin_preference("social_reorganization"), project_root), "tables")),
     file.path(mmm_hmm_resolution_root(hmm_primary_bin_level, project_root), "tables"),
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", domain_bin_preference("adaptive_recovery"), "tables")),
+    first_existing_path(file.path(mmm_gamm_features_resolution_root(
+      domain_bin_preference("adaptive_recovery"), project_root), "tables")),
     first_existing_path(mmm_supporting_resolution_root("nonlinear_dynamics", domain_bin_preference("nonlinear_systems"), project_root)),
     first_existing_path(file.path(mmm_supporting_resolution_root("systems_phenotyping", domain_bin_preference("nonlinear_systems"), project_root), "tables")),
     first_existing_path(file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", domain_bin_preference("adaptive_recovery"), project_root), "tables/adaptation_kinetics_features.csv")),

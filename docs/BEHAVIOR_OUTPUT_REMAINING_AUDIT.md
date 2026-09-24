@@ -150,6 +150,19 @@ the refreshed index is
 The post-refresh comparison reports zero drift from the repository definition.
 No Stage 16 manuscript product or scientific output was regenerated.
 
+A later direct-path sweep found that the literal
+`06_behavioral_dynamics/gamm_trajectory_features/` branch does not exist.
+Stage 14 now resolves its GAMM reader and provenance paths through the
+receipt-aware Stage 07 group; its ten-minute source matches the numbered
+original by SHA-256. Stage 15 no longer lists the absent branch as a fallback,
+but its separate thirty-minute GAMM input still deliberately resolves within
+the retained numbered `gamm_features/` tree. Stage 10's required Stage 09
+model input now accepts only its canonical pipeline path; the removed
+`early_prediction_model_ladder/` fallback is absent on disk. Stage 10 still
+scans the broader numbered `06_behavioral_dynamics/` root for optional
+features, so that root is not ready for a whole-directory rename. These code
+edits have not rerun Stages 10, 14, or 15.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX

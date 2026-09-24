@@ -77,12 +77,8 @@ input_08b <- file.path(
   behavior_stage_tables(base_dir, "09", "early_prediction", bin_level),
   "model_ladder_input.csv"
 )
-legacy_input_08b <- file.path(
-  base_dir, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder",
-  bin_level, "tables/model_ladder_input.csv"
-)
 input_08b_resolution <- resolve_behavior_artifact(
-  input_08b, legacy_input_08b, required = TRUE, source_id = "stage09_model_input"
+  input_08b, required = TRUE, source_id = "stage09_model_input"
 )
 input_08b <- input_08b_resolution$path
 
