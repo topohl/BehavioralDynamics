@@ -292,6 +292,24 @@ archived-location Stage 10 run remains untested.
 The queue records the two console checks as `live_read_only_checked` and Stage
 10 as `live_numbered_only_checked`; both states remain below `ready`.
 
+## Archive gate scope still to settle
+
+The current transaction requires every queued audit row to say `ready` before
+it can prepare a numbered-root move. Its script-hash check, path fixtures,
+writer guards, complete source manifests, and live Stage 10 discovery parity
+establish mechanical path safety. They do not establish that a full scientific
+rerun reproduces every old audit result. A full 37-script replay is currently
+impossible because the identity comparison has no verified independent
+pre-correction baseline. The user confirmed that no such baseline is available.
+
+One reviewable path is to make `ready` an explicit **archive path and writer
+review** decision, retain the numerical replay status in a separate evidence
+record, and leave the identity comparison unvalidated. That would permit the
+folder move after the remaining archive-path checks and a separate live
+activation approval. Requiring all numerical replays keeps the gate closed
+until a suitable identity baseline exists. Neither gate interpretation has
+been applied here; the queue and transaction still reject live `Prepare`.
+
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination
 inside a source, failed move, stale manifest, invalid receipt, and an old path
