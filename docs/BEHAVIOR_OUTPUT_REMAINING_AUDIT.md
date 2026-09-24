@@ -147,7 +147,9 @@ interrupted archive transitions with missing, extra, and changed files; (4)
 verify source and archive hashes and all reader paths on the live tree; and
 (5) only then consider moving a numbered root. This is a separate migration
 from the completed semantic-copy cutovers. None of the numbered roots has
-been moved or hidden.
+been moved or hidden. The proposed destination, separate receipt states,
+interruption checks, and reader/writer gates are specified in
+`BEHAVIOR_NUMBERED_ROOT_RETIREMENT_DESIGN.md`.
 
 On 2026-09-24, two HMM audits were rerun against current inputs in the
 separate `analyses/hmm_revalidation_runs/current_stage08_review_20260924/`
