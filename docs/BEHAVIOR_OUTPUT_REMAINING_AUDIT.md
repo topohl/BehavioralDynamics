@@ -106,6 +106,29 @@ The numbered originals are still required by activation receipts and some
 historical readers. This inventory does not authorize moving or deleting
 them.
 
+### Gate before removing numbered folders from the top level
+
+The current receipt resolver checks that both the semantic directory and the
+numbered source directory still exist. An archive move would therefore break
+active path resolution unless a separately reviewed archive receipt and
+source-location rule were implemented first. A coarse repository text search
+also finds numbered-path references in 16 audit scripts for
+`06_behavioral_dynamics/`, 34 for `12_systems_neuroscience_summary/`, and 28
+for `03_derived_metrics/`. These counts include historical replay scripts;
+they are not a count of active scientific consumers. Each script needs an
+explicit current-reader versus historical-replay decision before its path is
+changed.
+
+The safe archive sequence is: (1) classify those readers and preserve the
+ones intentionally tied to the original path; (2) add a versioned archive
+manifest and an independent receipt state that can attest to a relocated
+source without rewriting the activation receipt; (3) test failed and
+interrupted archive transitions with missing, extra, and changed files; (4)
+verify source and archive hashes and all reader paths on the live tree; and
+(5) only then consider moving a numbered root. This is a separate migration
+from the completed semantic-copy cutovers. None of the numbered roots has
+been moved or hidden.
+
 On 2026-09-24, two HMM audits were rerun against current inputs in the
 separate `analyses/hmm_revalidation_runs/current_stage08_review_20260924/`
 directory. The old 183-file HMM audit tree remains in its numbered location
