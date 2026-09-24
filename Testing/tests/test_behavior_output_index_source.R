@@ -662,6 +662,12 @@ stopifnot(grepl('mmm_behavior_output_active_root("inactive_phase_qc_audit", PROJ
                 inactive_qc_audit, fixed = TRUE),
           !grepl('OUT <- file.path(ST14, "audit_inactive_phase_qc")',
                  inactive_qc_audit, fixed = TRUE))
+registry <- utils::read.csv("docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv",
+                            check.names = FALSE, na.strings = "NA")
+first_night <- registry[registry$analysis_id == "FIRSTNIGHT_5DOMAIN_PANEL", , drop = FALSE]
+stopifnot(nrow(first_night) == 1L,
+          identical(first_night$source_artifact,
+                    "analysis_ready/analyses/first_night_five_domain_characterization/10min/first_night_group_contrasts.csv"))
 stopifnot(grepl('mmm_behavior_output_active_root(group, project_root = project_root)', stage14,
                fixed = TRUE),
           grepl('mmm_behavior_output_active_root("spatial_models", project_root = RFID_ROOT)',

@@ -271,6 +271,18 @@ root. The eleven historical scripts mix retained Stage 14 paths with older HMM
 and audit inputs, so pointing only their dashboard reads at the semantic copy
 would create an unreviewed mixed-lineage result. Keep them pinned for replay;
 any current-input rerun needs a separate reader, writer, and scientific review.
+
+The September 23 file inventory's manuscript/release flags were based on
+basenames and are a historical lower bound, not proof that the current readers
+use the numbered copies. A fresh path check found that the release builder
+resolves its three first-night audit-basename matches through the activated
+`first_night_10min` group, while the two formerly flagged longitudinal HMM
+registry artifacts now point to the separate current-input revalidation run.
+The two first-night dwell stability files remain referenced by an `EXCLUDED`
+registry row as retained historical evidence. The registry's five-domain
+panel row also now names its activated first-night contrast path; its numbered
+original and semantic copy have the same SHA-256. No claim or statistic was
+changed by that metadata correction.
 The migration tool now regenerates the seven derived figure-index and
 folder-guide files after copying the authored dashboard products and before
 activating the receipt. An isolated fixture covered an interrupted move with
