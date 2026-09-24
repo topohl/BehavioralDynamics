@@ -13,7 +13,7 @@ area under the same `analysis_ready/` volume:
 
 | Present path under `analysis_ready/` | Proposed retained-original path | Live inventory at review |
 | --- | --- | ---: |
-| `03_derived_metrics/` | `history/original_layout/03_derived_metrics/` | 52 files |
+| `03_derived_metrics/` | `history/original_layout/03_derived_metrics/` | 53 files (52 at initial review) |
 | `06_behavioral_dynamics/` | `history/original_layout/06_behavioral_dynamics/` | 1,469 files, including 9 hidden `Thumbs.db` |
 | `12_systems_neuroscience_summary/` | `history/original_layout/12_systems_neuroscience_summary/` | 702 files, including 2 hidden `Thumbs.db` |
 
@@ -22,7 +22,7 @@ original layout and gives historical paths an unambiguous mapping. It disappears
 from the human-facing top level. `history/original_layout/` must not be treated
 as a current analysis input or mixed with the receipt-selected resolution
 copies already under `history/social_networks/`, `history/state_space/`, etc.
-The 2,223-file complete inventory includes 2,212 ordinary files counted in
+The current 2,224-file complete inventory includes 2,213 ordinary files counted in
 the scientific audits and 11 hidden Windows thumbnail caches. It includes
 retained-only records as well as originals with active semantic copies; an
 archive manifest must cover every file, not just the activation plans.
@@ -64,12 +64,21 @@ source hash passes wrote these versioned manifests in the repository:
 | Source root | Complete files | Manifest SHA-256 |
 | --- | ---: | --- |
 | `03_derived_metrics/` | 52 | `601a7a1ad84720dd8049a8faf9211f0facc75679688dbf47709cb3fae1d69f4b` |
+| `03_derived_metrics/` (2026-09-24 candidate) | 53 | `53265050b732fd4e14ebef273e608453ec551e4362c292b4e5589320e811c5dd` |
 | `06_behavioral_dynamics/` | 1,469 | `17777e9cdf5c4176671748faf6d5bf6caa394fbd359b615fc1fd0f4b941364c0` |
 | `12_systems_neuroscience_summary/` | 702 | `a1b551f0da80fa39b62a72c74c6c02e65539f507f746e1f60a52ed519ed4fc5c` |
 
 All three manifests passed a separate live `Verify` pass after `Build`.
 They remain snapshots. A future `Activate` must rerun `Verify`; even a Windows
 thumbnail-cache change will invalidate its snapshot until reviewed.
+On 2026-09-24, Stage 01 wrote a new `qc/first_night_seed_provenance.csv`
+(58,105 bytes) under `03_derived_metrics/`. The original 52-file manifest was
+preserved and now fails `Inspect` on the file count. The versioned 53-file
+candidate was built and independently verified against the live source. All
+52 old entries retain identical paths, sizes, and SHA-256 values; the new QC
+file is the sole addition. Read-only `Inspect` still passed for the unchanged
+1,469-file `06` and 702-file `12` manifests. No root archive receipt was
+prepared and no source was moved.
 `Maintenance/Invoke-BehaviorNumberedRootArchive.ps1` implements those actions
 against the exact paths above. Temporary fixtures passed activation, repeat
 activation refusal, changed-source refusal, rollback from activated state,
