@@ -22,8 +22,9 @@ original layout and gives historical paths an unambiguous mapping. It disappears
 from the human-facing top level. `history/original_layout/` must not be treated
 as a current analysis input or mixed with the receipt-selected resolution
 copies already under `history/social_networks/`, `history/state_space/`, etc.
-The current 2,224-file complete inventory includes 2,213 ordinary files counted in
-the scientific audits and 11 hidden Windows thumbnail caches. It includes
+The current 2,224-file complete inventory includes 2,213 ordinary files
+(2,212 at the initial audit, plus the new Stage 01 QC file) and 11 hidden
+Windows thumbnail caches. It includes
 retained-only records as well as originals with active semantic copies; an
 archive manifest must cover every file, not just the activation plans.
 
