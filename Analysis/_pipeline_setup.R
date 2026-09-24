@@ -234,16 +234,15 @@ resolve_behavior_artifact <- function(canonical_path,
   )
 }
 
-# Stage 04 (temporal instability) has not been migrated to the canonical
-# analysis_ready/pipeline/ layout in this pass; its only real output location
-# is analysis_ready/06_behavioral_dynamics/temporal_instability/<resolution>/
-# tables/. There is no legacy fallback because that is already its one true
-# location (the historical ".../burstiness/..." path some consumers guessed
-# was never actually written by any version of Stage 04).
+# Stage 04's current 10-second branch follows its explicit migration receipt.
+# Older resolutions remain at their historical locations. The guessed
+# ".../burstiness/..." path was never a Stage 04 writer location.
 resolve_stage04_temporal_instability_artifact <- function(base_dir,
                                                            filename,
                                                            resolutions,
                                                            required = FALSE) {
+  if (!exists("mmm_temporal_instability_resolution_root", mode = "function",
+              inherits = TRUE)) source_mmm_helper("project_paths.R")
   .resolve_stage_artifact_across_resolutions(
     filename = filename,
     resolutions = resolutions,
@@ -251,10 +250,8 @@ resolve_stage04_temporal_instability_artifact <- function(base_dir,
     stage_label = "Stage 04 (temporal instability)",
     candidate_fn = function(resolution) {
       list(
-        canonical = file.path(
-          behavior_analysis_ready_dir(base_dir), "06_behavioral_dynamics", "temporal_instability",
-          resolution, "tables", filename
-        ),
+        canonical = file.path(mmm_temporal_instability_resolution_root(
+          resolution, base_dir), "tables", filename),
         legacy = character()
       )
     }

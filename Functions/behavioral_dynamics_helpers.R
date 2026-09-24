@@ -218,10 +218,20 @@ analysis_output_dirs <- function(output_dir) {
 }
 
 classify_output_figure <- function(path) {
-  rel <- tolower(gsub("\\\\", "/", path))
+  normalized <- tolower(gsub("\\\\", "/", path))
+  # The project/output root can contain words such as "systems". Only the
+  # location within figures/ and the file name can describe a figure's role.
+  rel <- if (grepl("/figures/", normalized, fixed = TRUE)) {
+    sub("^.*/figures/", "", normalized)
+  } else {
+    basename(normalized)
+  }
+  folder <- strsplit(rel, "/", fixed = TRUE)[[1]][1]
+  canonical <- c("publication_panels", "qc", "supplementary", "exploratory", "interactive")
+  if (folder %in% canonical) return(folder)
   nm <- basename(rel)
   if (grepl("\\.html?$", rel) || grepl("interactive|plotly", rel)) return("interactive")
-  if (grepl("qc|quality|chip|dropout|batch|system|robust|sensitivity|duration|diagnostic", rel)) return("qc")
+  if (grepl("qc|quality|chip|dropout|batch|robust|sensitivity|duration|diagnostic", rel)) return("qc")
   if (grepl("explor|umap|phate|nonlinear|attractor|energy|recurrence|landscape|nextgen", rel)) return("exploratory")
   if (grepl("publication|overview|dashboard|fig|primary|main|heatmap|effect_size|model_ladder|prediction", rel) ||
       grepl("^fig|^fig[0-9]|dashboard", nm)) {
@@ -303,12 +313,13 @@ harmonize_analysis_outputs <- function(output_dir,
                    mmm_refresh_mirror_copy)
     }
 
+    indexed_files <- if (isTRUE(copy_figures)) target_files else figure_files_norm
     info <- file.info(figure_files)
     inventory <- tibble(
       file = basename(figure_files),
       relative_path = gsub(paste0("^", gsub("\\\\", "/", normalizePath(output_dir, winslash = "/", mustWork = FALSE)), "/?"), "", figure_files_norm),
       figure_class = class_vec,
-      harmonized_path = gsub(paste0("^", gsub("\\\\", "/", normalizePath(output_dir, winslash = "/", mustWork = FALSE)), "/?"), "", normalizePath(target_files, winslash = "/", mustWork = FALSE)),
+      harmonized_path = gsub(paste0("^", gsub("\\\\", "/", normalizePath(output_dir, winslash = "/", mustWork = FALSE)), "/?"), "", normalizePath(indexed_files, winslash = "/", mustWork = FALSE)),
       file_size_bytes = as.numeric(info$size),
       modified_time = as.POSIXct(info$mtime)
     ) %>%

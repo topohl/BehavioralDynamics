@@ -11,6 +11,7 @@
 suppressPackageStartupMessages({ library(dplyr); library(readr); library(tibble) })
 
 source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
 source_mmm_helper("phase_classification_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
 source_mmm_helper("acute_active_window_helpers.R")
@@ -69,7 +70,7 @@ ok(sprintf("proof: %d blocks, %d START (= blocks + gaps)", pf$n_blocks, pf$n_STA
 # ------------------------------------------------------------ 2. real data
 cat("\n2. real CC1 Inactive window\n")
 PROJECT_ROOT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-dat <- read_csv(file.path(PROJECT_ROOT, "analysis_ready/03_derived_metrics/10min_based",
+dat <- read_csv(file.path(mmm_derived_metrics_output_root(PROJECT_ROOT), "10min_based",
                           "all_behavior_metrics.csv"),
                 col_select = c("AnimalNum","Batch","CageChange","Group","Sex","Phase",
                                "BinStart","BinSizeSec","Movement","SourceFile"),

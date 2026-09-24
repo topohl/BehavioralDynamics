@@ -32,7 +32,6 @@ suppressPackageStartupMessages({
 
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 bin_level_priority <- c("10min_based", "5min_based", "30min_based", "1min_based")
-input_candidates <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level_priority, "all_behavior_metrics.csv")
 analysis_name <- "03_primary_raw_movement_phase_stats"
 min_bins_per_animal <- 2
 export_global_family_corrections <- FALSE
@@ -47,6 +46,9 @@ combz_endpoint_sheet <- "zScore"
 .pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
 if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(.pipeline_setup)
+source_mmm_helper("project_paths.R")
+input_candidates <- file.path(mmm_derived_metrics_output_root(base_dir),
+                              bin_level_priority, "all_behavior_metrics.csv")
 
 if (!exists("ensure_dir")) {
   ensure_dir <- function(path) {
@@ -206,7 +208,8 @@ save_plot <- function(plot, filename_base, width = 170, height = 100, units = "m
 # ------------------------------------------------
 
 hits <- input_candidates[file.exists(input_candidates)]
-if (length(hits) == 0) stop("No all_behavior_metrics.csv found in analysis_ready/03_derived_metrics.", call. = FALSE)
+if (length(hits) == 0) stop("No all_behavior_metrics.csv found under the active Stage 01 root: ",
+                            mmm_derived_metrics_output_root(base_dir), call. = FALSE)
 input_file <- hits[1]
 bin_level <- bin_level_priority[match(input_file, input_candidates)]
 output_dir <- behavior_stage_dir(

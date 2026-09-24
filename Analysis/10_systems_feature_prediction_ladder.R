@@ -54,6 +54,7 @@ suppressPackageStartupMessages({
 .pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
 if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(.pipeline_setup)
+source_mmm_helper("project_paths.R")
 
 # Optional packages. The script runs without them.
 has_glmnet <- requireNamespace("glmnet", quietly = TRUE)
@@ -87,18 +88,20 @@ input_08b <- input_08b_resolution$path
 
 # Optional: search these analysis folders for additional animal-level feature
 # tables. The script only uses files with an AnimalNum column and numeric
-# features that pass leakage filters.
+# features that pass leakage filters. Stage 19's 04_model_outputs/ and
+# 05_figures/ are model-result and presentation trees, not feature sources:
+# the recorded 10min feature_source_audit.csv lists four spatial model CSVs,
+# all with loaded_as_feature_table=FALSE, and no loaded spatial figure. Do not
+# scan those trees, including after their semantic-folder migration.
 feature_search_dirs <- c(
-  file.path(base_dir, "analysis_ready/04_model_outputs"),
-  file.path(base_dir, "analysis_ready/05_figures"),
   file.path(base_dir, "analysis_ready/06_behavioral_dynamics"),
   file.path(base_dir, "analysis_ready/07_behavioral_state_space"),
   file.path(base_dir, "analysis_ready/08_early_prediction"),
   file.path(base_dir, "analysis_ready/09_dynamic_social_networks"),
   file.path(base_dir, "analysis_ready/10_hmm_behavioral_states"),
   file.path(base_dir, "analysis_ready/11_gamm_trajectory_features"),
-  file.path(base_dir, "analysis_ready/13_nonlinear_systems_dynamics"),
-  file.path(base_dir, "analysis_ready/14_nextgen_behavioral_phenotyping")
+  mmm_supporting_resolution_root("nonlinear_dynamics", "5min_based", base_dir),
+  mmm_supporting_resolution_root("systems_phenotyping", "5min_based", base_dir)
 )
 
 output_dir <- behavior_stage_dir(

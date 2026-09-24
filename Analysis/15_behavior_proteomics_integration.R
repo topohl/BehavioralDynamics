@@ -20,6 +20,7 @@ suppressPackageStartupMessages({
 .pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
 if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(.pipeline_setup)
+source_mmm_helper("project_paths.R")
 
 # ------------------------------------------------
 # 1) Paths
@@ -64,7 +65,7 @@ behavior_file <- resolve_stage09_early_prediction_artifact(
 
 proteomics_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/proteomics"
 
-base_output_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics"
+base_output_dir <- mmm_behavior_proteomics_base_dir(project_root)
 
 behavior_bin_level <- "5min_based"
 
@@ -497,7 +498,7 @@ load_curated_behavior_table <- function(path,
 }
 
 load_hmm_summary_features <- function(scale_label = behavior_bin_level) {
-  hmm_dir <- file.path(analysis_ready_dir, "06_behavioral_dynamics", "hmm_states", scale_label, "tables")
+  hmm_dir <- file.path(mmm_hmm_resolution_root(scale_label, project_root), "tables")
   occ <- read_optional_table(file.path(hmm_dir, "hmm_state_occupancy.csv"))
   dwell <- read_optional_table(file.path(hmm_dir, "hmm_state_dwell_times.csv"))
   trans <- read_optional_table(file.path(hmm_dir, "hmm_transition_probabilities.csv"))
@@ -660,33 +661,33 @@ build_behavior_feature_matrix <- function() {
       behavior_bin_level
     ),
     Path = c(
-      file.path(analysis_ready_dir, "03_derived_metrics", canonical_behavior_bin_level, "all_behavior_metrics.csv"),
-      first_existing_path(file.path(analysis_ready_dir, "06_behavioral_dynamics", "temporal_instability", optional_behavior_bin_levels, "tables", "temporal_instability_metrics_per_animal_all_metrics.csv")),
-      file.path(analysis_ready_dir, "06_behavioral_dynamics", "state_space", behavior_bin_level, "tables", "state_diversity_metrics.csv"),
-      file.path(analysis_ready_dir, "06_behavioral_dynamics", "state_space", behavior_bin_level, "tables", "state_switching_metrics.csv"),
+      file.path(mmm_derived_metrics_output_root(project_root), canonical_behavior_bin_level, "all_behavior_metrics.csv"),
+      first_existing_path(file.path(mmm_temporal_instability_resolution_root(optional_behavior_bin_levels, project_root), "tables", "temporal_instability_metrics_per_animal_all_metrics.csv")),
+      file.path(mmm_state_space_resolution_root(behavior_bin_level, project_root), "tables", "state_diversity_metrics.csv"),
+      file.path(mmm_state_space_resolution_root(behavior_bin_level, project_root), "tables", "state_switching_metrics.csv"),
       first_existing_path(c(
         behavior_file,
         file.path(analysis_ready_dir, "06_behavioral_dynamics", "early_prediction", behavior_bin_level, "tables", "early_behavior_features_wide.csv"),
         file.path(analysis_ready_dir, "06_behavioral_dynamics", "early_prediction_model_ladder", behavior_bin_level, "tables", "early_behavior_features_wide.csv")
       )),
-      file.path(analysis_ready_dir, "06_behavioral_dynamics", "social_networks", behavior_bin_level, "tables", "animal_level_social_dynamics.csv"),
-      file.path(analysis_ready_dir, "06_behavioral_dynamics", "social_networks", behavior_bin_level, "tables", "dyadic_node_summary.csv"),
-      file.path(analysis_ready_dir, "06_behavioral_dynamics", "hmm_states", behavior_bin_level, "tables", "hmm_state_occupancy.csv"),
-      file.path(analysis_ready_dir, "06_behavioral_dynamics", "hmm_states", behavior_bin_level, "tables", "hmm_state_dwell_times.csv"),
-      file.path(analysis_ready_dir, "06_behavioral_dynamics", "hmm_states", behavior_bin_level, "tables", "hmm_transition_probabilities.csv"),
+      file.path(mmm_social_network_resolution_root(behavior_bin_level, project_root), "tables", "animal_level_social_dynamics.csv"),
+      file.path(mmm_social_network_resolution_root(behavior_bin_level, project_root), "tables", "dyadic_node_summary.csv"),
+      file.path(mmm_hmm_resolution_root(behavior_bin_level, project_root), "tables", "hmm_state_occupancy.csv"),
+      file.path(mmm_hmm_resolution_root(behavior_bin_level, project_root), "tables", "hmm_state_dwell_times.csv"),
+      file.path(mmm_hmm_resolution_root(behavior_bin_level, project_root), "tables", "hmm_transition_probabilities.csv"),
       first_existing_path(c(
-        file.path(analysis_ready_dir, "06_behavioral_dynamics", "gamm_features", trajectory_bin_level, "tables", "combined_gamm_features.csv"),
+        file.path(mmm_gamm_features_resolution_root(trajectory_bin_level, project_root), "tables", "combined_gamm_features.csv"),
         file.path(analysis_ready_dir, "06_behavioral_dynamics", "gamm_trajectory_features", trajectory_bin_level, "tables", "combined_gamm_features.csv")
       )),
-      file.path(analysis_ready_dir, "13_nonlinear_systems_dynamics", behavior_bin_level, "derived_data", "animal_level_nonlinear_feature_matrix.csv"),
-      file.path(analysis_ready_dir, "15_behavioral_adaptation_kinetics", behavior_bin_level, "tables", "adaptation_kinetics_features.csv"),
-      file.path(analysis_ready_dir, "15_behavioral_adaptation_kinetics", behavior_bin_level, "tables", "distance_to_control_trajectories.csv"),
-      file.path(analysis_ready_dir, "16_sleep_like_inactivity_metrics", behavior_bin_level, "tables", "sleep_like_inactivity_features.csv"),
-      file.path(analysis_ready_dir, "17_ethological_phase_organization", behavior_bin_level, "tables", "phase_contrast_features.csv"),
-      file.path(analysis_ready_dir, "17_ethological_phase_organization", behavior_bin_level, "tables", "phase_timing_features.csv"),
-      file.path(analysis_ready_dir, "17_ethological_phase_organization", behavior_bin_level, "tables", "phase_fragmentation_features.csv"),
-      file.path(analysis_ready_dir, "17_ethological_phase_organization", behavior_bin_level, "tables", "phase_recovery_kinetics.csv"),
-      file.path(analysis_ready_dir, "17_ethological_phase_organization", behavior_bin_level, "tables", "phase_predictability_features.csv")
+      file.path(mmm_supporting_resolution_root("nonlinear_dynamics", behavior_bin_level, project_root), "derived_data", "animal_level_nonlinear_feature_matrix.csv"),
+      file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", behavior_bin_level, project_root), "tables", "adaptation_kinetics_features.csv"),
+      file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", behavior_bin_level, project_root), "tables", "distance_to_control_trajectories.csv"),
+      file.path(mmm_phase_analysis_resolution_root("sleep_like_inactivity", behavior_bin_level, project_root), "tables", "sleep_like_inactivity_features.csv"),
+      file.path(mmm_phase_analysis_resolution_root("phase_organization", behavior_bin_level, project_root), "tables", "phase_contrast_features.csv"),
+      file.path(mmm_phase_analysis_resolution_root("phase_organization", behavior_bin_level, project_root), "tables", "phase_timing_features.csv"),
+      file.path(mmm_phase_analysis_resolution_root("phase_organization", behavior_bin_level, project_root), "tables", "phase_fragmentation_features.csv"),
+      file.path(mmm_phase_analysis_resolution_root("phase_organization", behavior_bin_level, project_root), "tables", "phase_recovery_kinetics.csv"),
+      file.path(mmm_phase_analysis_resolution_root("phase_organization", behavior_bin_level, project_root), "tables", "phase_predictability_features.csv")
     )
   )
 

@@ -8,6 +8,7 @@ suppressPackageStartupMessages({
 
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
 fail <- function(msg) stop("FAIL: ", msg, call. = FALSE)
 check <- function(cond, msg) if (!isTRUE(cond)) fail(msg) else invisible(TRUE)
@@ -168,10 +169,8 @@ check(
 )
 
 # C. The full E9 fixture/data check is enabled automatically when S: is present.
-full_data_path <- paste0(
-  "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/",
-  "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"
-)
+full_data_path <- file.path(mmm_derived_metrics_output_root(),
+                            "5min_based", "all_behavior_metrics.csv")
 if (file.exists(full_data_path)) {
   full_roster_input <- read_csv(
     full_data_path,
@@ -188,11 +187,8 @@ if (file.exists(full_data_path)) {
 
   for (resolution in c("5min_based", "10min_based")) {
     hmm_table_dir <- file.path(
-      dirname(dirname(dirname(full_data_path))),
-      "06_behavioral_dynamics/hmm_states",
-      resolution,
-      "tables"
-    )
+      mmm_hmm_resolution_root(resolution, dirname(dirname(dirname(dirname(full_data_path))))),
+      "tables")
     qc_path <- file.path(hmm_table_dir, "hmm_model_qc.csv")
     occupancy_path <- file.path(hmm_table_dir, "hmm_state_occupancy.csv")
     if (file.exists(qc_path) && file.exists(occupancy_path)) {
@@ -216,10 +212,9 @@ if (file.exists(full_data_path)) {
     }
   }
 
-  stage14_dir <- file.path(
-    dirname(dirname(dirname(full_data_path))),
-    "12_systems_neuroscience_summary/5min_based"
-  )
+  stage14_dir <- mmm_behavior_output_active_root(
+    "systems_dashboard_5min",
+    dirname(dirname(dirname(dirname(full_data_path)))))
   stage14_identity_path <- file.path(stage14_dir, "tables/systems_hmm_identity_summary.csv")
   stage14_coverage_path <- file.path(stage14_dir, "tables/systems_stage14_hmm_coverage_audit.csv")
   stage14_context_path <- file.path(stage14_dir, "tables/systems_hmm_standardization_context_audit.csv")

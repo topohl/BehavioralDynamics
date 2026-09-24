@@ -134,8 +134,9 @@ cat("Stage 19 label-preservation checks (1-3): PASS\n")
 # ---------------------------------------------------------------------------
 # 4-8. Verified against the produced outputs when a validated run is present.
 # ---------------------------------------------------------------------------
-OUT <- Sys.getenv("MMM_STAGE19_OUT", unset = "C:/tmp/s19v")
-D <- file.path(OUT, "analysis_ready/03_derived_metrics/spatial_occupancy")
+source("Functions/project_paths.R")
+OUT <- Sys.getenv("MMM_STAGE19_OUT", unset = mmm_project_root())
+D <- mmm_behavior_output_active_root("spatial_tables", project_root = OUT)
 if (dir.exists(D) && file.exists(file.path(D, "animal_level_reader_occupancy_summary.csv"))) {
   a <- read_csv(file.path(D, "animal_level_reader_occupancy_summary.csv"),
                 show_col_types = FALSE, progress = FALSE,
@@ -156,8 +157,10 @@ if (dir.exists(D) && file.exists(file.path(D, "animal_level_reader_occupancy_sum
   check(n_distinct(r$AnimalNum) == 111,
         paste0("6: canonical roster must be 111 animals; found ", n_distinct(r$AnimalNum)))
   g <- r %>% count(Group)
-  check(g$n[g$Group == "CON"] == 24 && g$n[g$Group == "RES"] == 49 && g$n[g$Group == "SUS"] == 38,
-        "6: roster must be 24 CON / 49 RES / 38 SUS")
+  # The corrected canonical Stage 01 roster is 24/53/34. Four female animals
+  # (OR424, OR430, OR434, OR554) moved from SUS to RES in the endpoint repair.
+  check(g$n[g$Group == "CON"] == 24 && g$n[g$Group == "RES"] == 53 && g$n[g$Group == "SUS"] == 34,
+        "6: roster must be 24 CON / 53 RES / 34 SUS")
   s <- r %>% count(Sex)
   check(s$n[s$Sex == "Female"] == 58 && s$n[s$Sex == "Male"] == 53,
         "6: roster must be 58 Female / 53 Male")

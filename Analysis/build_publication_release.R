@@ -41,6 +41,7 @@ if (!file.exists(.pipeline_setup)) {
   if (file.exists(cand)) .pipeline_setup <- cand
 }
 source(.pipeline_setup)
+source_mmm_helper("project_paths.R")
 
 if (!requireNamespace("digest", quietly = TRUE)) {
   stop("Package 'digest' is required to hash release artifacts.", call. = FALSE)
@@ -132,9 +133,9 @@ S09_SENS_AUDIT <- file.path(behavior_stage_dir(PROJECT_ROOT, "09", "early_predic
 S09_FIG <- file.path(behavior_stage_dir(PROJECT_ROOT, "09", "early_prediction", "10min"), "figures")
 S03_FIG <- file.path(behavior_stage_dir(PROJECT_ROOT, "03", "movement_phase_stats", "10min"), "figures")
 MANU <- behavior_manuscript_dir(PROJECT_ROOT, "behavior")
-FIRSTNIGHT <- file.path(ANALYSIS_READY, "12_systems_neuroscience_summary", "5min_based",
-                        "first_night", "10min_based")
-QC <- file.path(ANALYSIS_READY, "00_qc_tracking_integrity", "tables")
+FIRSTNIGHT <- mmm_behavior_output_active_root("first_night_10min",
+                                              project_root = PROJECT_ROOT)
+QC <- file.path(mmm_tracking_qc_historical_root(PROJECT_ROOT), "tables")
 
 a <- function(artifact_id, source_path, bundle_subdir, required = TRUE, role = "",
               dest_name = NULL) {
@@ -193,8 +194,8 @@ plan <- bind_rows(
   a("s09sens_permutation",    file.path(S09_SENS, "primary_prediction_permutation_test.csv"),      "tables/supplementary", TRUE, "SENSITIVITY 5-min permutation"),
   a("s09sens_window",         file.path(S09_SENS, "early_window_contract_summary.csv"),            "provenance",           TRUE, "SENSITIVITY 5-min window contract", dest_name = "stage09_5min_early_window_contract_summary.csv"),
   a("s09sens_comparison",     file.path(S09_SENS_AUDIT, "stage09_resolution_sensitivity_comparison.csv"), "provenance",     TRUE, "10-min versus 5-min comparison of the same fixed analysis"),
-  a("qc_by_animal",              file.path(QC, "tracking_qc_by_animal.csv"),                      "qc",              FALSE, "Tracking integrity"),
-  a("qc_manual_review",          file.path(QC, "suggested_animals_for_manual_tracking_review.csv"), "qc",            FALSE, "Manual-review suggestions"),
+  a("qc_by_animal",              file.path(QC, "tracking_qc_by_animal.csv"),                      "qc",              FALSE, "Historical May 2026 tracking QC; current Stage 01 lineage unverified"),
+  a("qc_manual_review",          file.path(QC, "suggested_animals_for_manual_tracking_review.csv"), "qc",            FALSE, "Historical May 2026 manual-review suggestions; no automatic exclusions"),
 
   # ---- figures
   a("fig_s09_associations",      file.path(S09_FIG, "primary_movement_entropyacf1_vs_combz.svg"), "figures/main",    FALSE, "Fig: feature associations"),

@@ -42,10 +42,11 @@ for (h in c("phase_classification_helpers.R", "animalpos_preprocessing_helpers.R
             "mmm_publication_theme.R", "stratified_gamm_driver.R",
             "stratified_stage_runner.R")) source_mmm_helper(h)
 
+source_mmm_helper("project_paths.R")
 project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 bin_level <- "10min_based"; bin_size_sec <- 600L; target_cc <- "CC1"
 
-input_file <- file.path(project_root, "analysis_ready/03_derived_metrics", bin_level,
+input_file <- file.path(mmm_derived_metrics_output_root(project_root), bin_level,
                         "all_behavior_metrics.csv")
 output_dir <- behavior_stage_dir(project_root, "21", "cc1_active_longitudinal_gamm", bin_level)
 dirs <- analysis_output_dirs(output_dir)

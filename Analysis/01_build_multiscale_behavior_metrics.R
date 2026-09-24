@@ -10,12 +10,13 @@
 #   preprocessed_data/*_preprocessed.csv
 #
 # Output:
-#   analysis_ready/03_derived_metrics/{10sec,1min,5min,10min,30min}_based/all_behavior_metrics.csv
-#   analysis_ready/03_derived_metrics/phase_based/all_behavior_metrics.csv
-#   analysis_ready/03_derived_metrics/qc/multiscale_behavior_metrics_qc.csv
-#   analysis_ready/03_derived_metrics/qc/animal_group_sex_assignment_qc.csv
-#   analysis_ready/03_derived_metrics/qc/reference_ids_not_found_in_preprocessed_data.csv
-#   analysis_ready/03_derived_metrics/qc/group_sex_assignment_summary.csv
+#   Receipt-selected Stage 01 root (currently analysis_ready/03_derived_metrics):
+#   {10sec,1min,5min,10min,30min}_based/all_behavior_metrics.csv
+#   phase_based/all_behavior_metrics.csv
+#   qc/multiscale_behavior_metrics_qc.csv
+#   qc/animal_group_sex_assignment_qc.csv
+#   qc/reference_ids_not_found_in_preprocessed_data.csv
+#   qc/group_sex_assignment_summary.csv
 #
 # Recovering after an animal-identity correction (e.g. a canonical_animal_id()
 # change in Functions/behavioral_dynamics_helpers.R):
@@ -60,16 +61,15 @@ if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", 
 source(.pipeline_setup)
 source_mmm_helper("duration_normalization_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
+source_mmm_helper("project_paths.R")
 
 # ------------------------------------------------
 # USER INPUT
 # ------------------------------------------------
 
 existing_default_input_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/preprocessed_data"
-existing_default_output_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics"
-
 input_dir <- getOption("mmm.preprocessed_dir", existing_default_input_dir)
-output_root <- getOption("mmm.derived_metrics_dir", existing_default_output_root)
+output_root <- mmm_derived_metrics_output_root()
 dataset_id <- getOption("mmm.dataset_id", "sis_cc")
 
 # Optional animal reference lists. These are one-ID-per-line CSV/text files.

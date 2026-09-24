@@ -186,13 +186,11 @@ assert_hmm_identity_audit <- function(audit) {
 }
 
 resolve_configured_hmm_artifact <- function(project_root, resolution, filename = "hmm_state_occupancy.csv", required = TRUE) {
-  path <- file.path(
-    project_root,
-    "analysis_ready/06_behavioral_dynamics/hmm_states",
-    resolution,
-    "tables",
-    filename
-  )
+  if (!exists("mmm_hmm_resolution_root", mode = "function", inherits = TRUE)) {
+    stop("HMM artifact resolver requires Functions/project_paths.R", call. = FALSE)
+  }
+  path <- file.path(mmm_hmm_resolution_root(resolution, project_root),
+                    "tables", filename)
   exists <- file.exists(path)
   if (required && !exists) {
     stop("Configured HMM artifact is missing for ", resolution, ": ", path, call. = FALSE)

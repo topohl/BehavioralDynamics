@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
 })
 
 source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
 source_mmm_helper("phase_classification_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
 source_mmm_helper("first_night_window_helpers.R")
@@ -154,7 +155,7 @@ project_root <- getOption("mmm.project_root",
   "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID")
 for (res_label in c("10min_based", "5min_based")) {
   bs <- if (res_label == "10min_based") 600 else 300
-  f <- file.path(project_root, "analysis_ready/03_derived_metrics", res_label, "all_behavior_metrics.csv")
+  f <- file.path(mmm_derived_metrics_output_root(project_root), res_label, "all_behavior_metrics.csv")
   if (!file.exists(f)) {
     message("SKIP live parity for ", res_label, ": input not available at ", f)
     next

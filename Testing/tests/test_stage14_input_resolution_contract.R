@@ -92,7 +92,10 @@ check(any(grepl("assert_not_pre_phase_fix", s14[fep:body_end], fixed = TRUE)),
 ok("guard defined and called from first_existing_path()")
 
 for (src in c("15_behavioral_adaptation_kinetics", "16_sleep_like_inactivity_metrics",
-              "17_ethological_phase_organization")) {
+              "17_ethological_phase_organization",
+              "analyses/adaptation_kinetics/10min",
+              "analyses/sleep_like_inactivity/10min",
+              "analyses/phase_organization/10min")) {
   check(any(grepl(src, s14, fixed = TRUE)),
         paste0("phase-dependent source '", src, "' is no longer gated"))
 }
@@ -129,6 +132,17 @@ check(!identical(res, "no_error"),
 check(grepl("STALE PHASE-DEPENDENT INPUT", res, fixed = TRUE),
       paste0("the guard errored but not with the expected message: ", substr(res, 1, 120)))
 ok("pre-fix phase-dependent tree is refused with a specific error")
+
+semantic <- file.path(tempdir(), "s14guard", "analyses", "phase_organization",
+                      "10min", "tables", "phase_contrast_features.csv")
+dir.create(dirname(semantic), recursive = TRUE, showWarnings = FALSE)
+writeLines("a,b\n1,2", semantic)
+Sys.setFileTime(semantic, as.POSIXct("2026-05-22 14:13:07", tz = "UTC"))
+semantic_result <- tryCatch({ env$assert_not_pre_phase_fix(semantic); "no_error" },
+                            error = function(e) conditionMessage(e))
+check(grepl("STALE PHASE-DEPENDENT INPUT", semantic_result, fixed = TRUE),
+      "the semantic phase-organization path bypassed the stale-input guard")
+ok("semantic phase-dependent tree is also refused when stale")
 
 # Post-fix mtime -> must pass.
 Sys.setFileTime(stale, as.POSIXct("2026-09-09 12:00:00", tz = "UTC"))

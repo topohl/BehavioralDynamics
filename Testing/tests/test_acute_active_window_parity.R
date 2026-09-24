@@ -18,6 +18,7 @@ suppressPackageStartupMessages({
 })
 
 source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
 source_mmm_helper("phase_classification_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
 source_mmm_helper("first_night_window_helpers.R")
@@ -31,7 +32,7 @@ PROJECT_ROOT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Beha
 BIN_LEVEL <- "10min_based"
 BIN_SIZE_SEC <- 600
 
-input_file <- file.path(PROJECT_ROOT, "analysis_ready/03_derived_metrics", BIN_LEVEL,
+input_file <- file.path(mmm_derived_metrics_output_root(PROJECT_ROOT), BIN_LEVEL,
                         "all_behavior_metrics.csv")
 check(file.exists(input_file), paste0("Stage 01 input must exist: ", input_file))
 

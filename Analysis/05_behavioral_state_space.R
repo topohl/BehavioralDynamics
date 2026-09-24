@@ -35,14 +35,15 @@ if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", 
 source(.pipeline_setup)
 source_mmm_helper("behavioral_dynamics_stats_helpers.R")
 source_mmm_helper("duration_normalization_helpers.R")
+source_mmm_helper("project_paths.R")
 
 # ------------------------------------------------
 # USER INPUT
 # ------------------------------------------------
 
 bin_level <- "5min_based"
-input_file <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
-output_dir <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/state_space", bin_level)
+input_file <- file.path(mmm_derived_metrics_output_root(), bin_level, "all_behavior_metrics.csv")
+output_dir <- mmm_state_space_resolution_root(bin_level)
 n_states <- 4
 
 # Use normalized proximity for state-space analyses. Raw proximity seconds scale

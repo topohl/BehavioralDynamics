@@ -37,6 +37,7 @@ if (is.na(repo) || !nzchar(repo)) {
 setwd(repo)
 source(file.path(repo, "Functions", "behavioral_dynamics_helpers.R"))
 source(file.path(repo, "Functions", "animalpos_preprocessing_helpers.R"))
+source(file.path(repo, "Functions", "project_paths.R"))
 
 check <- function(cond, msg) if (!isTRUE(cond)) stop("FAIL: ", msg, call. = FALSE)
 load_defs <- function(path, want, env = new.env(parent = globalenv())) {
@@ -145,7 +146,7 @@ bad_batch <- clean; bad_batch$Batch_norm[2] <- "B2"
 check(nrow(conflict_rows(bad_batch)) == 1, "4: conflicting Batch must be flagged")
 
 # 3. Roster contract, checked against the canonical Stage 01 export when present.
-s01 <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics/10min_based/all_behavior_metrics.csv"
+s01 <- file.path(mmm_derived_metrics_output_root(), "10min_based", "all_behavior_metrics.csv")
 if (file.exists(s01)) {
   r <- read_csv(s01, show_col_types = FALSE, progress = FALSE,
                 col_types = cols_only(AnimalNum = col_character(), Group = col_character(),

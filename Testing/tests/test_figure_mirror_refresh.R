@@ -110,5 +110,74 @@ for (fn in c("harmonize_analysis_outputs", "mirror_plot_to_standard_folder")) {
 }
 ok("both mirror sites route through the verified refresh helper")
 
+# The Stage 14 output root contains "systems". Its name must not turn every
+# publication figure into QC, and already categorized figures must stay put.
+cat("\n[6] figure roles follow the figures/ subtree, not its ancestor\n")
+stage14_like <- file.path(root, "12_systems_neuroscience_summary", "5min_based")
+pub <- file.path(stage14_like, "figures", "publication_panels", "Fig_systems_effect_size_heatmap.svg")
+qc <- file.path(stage14_like, "figures", "qc", "Fig_chip_loss_diagnostics.svg")
+plain <- file.path(stage14_like, "figures", "Fig_behavior_overview.svg")
+dir.create(dirname(pub), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(qc), recursive = TRUE, showWarnings = FALSE)
+writeLines("publication fixture", pub)
+writeLines("QC fixture", qc)
+writeLines("uncategorized fixture", plain)
+check(identical(classify_output_figure(pub), "publication_panels"),
+      "the ancestor name overrode a publication figure's canonical folder")
+check(identical(classify_output_figure(qc), "qc"), "canonical QC folder lost its role")
+check(identical(classify_output_figure(plain), "publication_panels"),
+      "an uncategorized figure was classified from the project ancestor")
+check(identical(classify_output_figure(file.path(stage14_like, "figures", "Fig_integrated_systems_dashboard.svg")),
+                "publication_panels"),
+      "the word systems in a dashboard name was treated as QC")
+inventory <- harmonize_analysis_outputs(stage14_like)
+pub_row <- inventory[inventory$file == basename(pub), ]
+qc_row <- inventory[inventory$file == basename(qc), ]
+check(nrow(pub_row) == 1L && identical(pub_row$figure_class[[1]], "publication_panels"),
+      "the written inventory misclassified the publication figure")
+check(nrow(qc_row) == 1L && identical(qc_row$figure_class[[1]], "qc"),
+      "the written inventory misclassified the QC figure")
+check(grepl("figures/publication_panels/", gsub("\\\\", "/", pub_row$harmonized_path[[1]]), fixed = TRUE),
+      "the publication figure's harmonized path points to another folder")
+check(file.exists(file.path(stage14_like, "figures", "publication_panels", basename(plain))),
+      "the uncategorized publication figure was not mirrored")
+dashboard_base <- file.path(stage14_like, "figures", "Fig_integrated_systems_dashboard")
+writeLines("dashboard fixture", paste0(dashboard_base, ".svg"))
+mirror_plot_to_standard_folder(dashboard_base)
+check(file.exists(file.path(stage14_like, "figures", "publication_panels",
+                            "Fig_integrated_systems_dashboard.svg")),
+      "the figure writer mirrored a systems dashboard into the wrong folder")
+ok("classifier and inventory preserve publication and QC roles")
+
+# A future semantic dashboard copy omits byte-identical legacy mirrors and
+# regenerates its index from the copied authored files without a science rerun.
+cat("\n[7] a copied dashboard rebuilds figure metadata without new mirrors\n")
+semantic <- file.path(root, "analysis_ready", "analyses", "systems_dashboard", "5min")
+semantic_pub <- file.path(semantic, "figures", "publication_panels", "Fig_dashboard_example.svg")
+semantic_qc <- file.path(semantic, "figures", "qc", "Fig_chip_loss_example.svg")
+semantic_root_figure <- file.path(semantic, "figures", "Fig_integrated_systems_dashboard.svg")
+dir.create(dirname(semantic_pub), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(semantic_qc), recursive = TRUE, showWarnings = FALSE)
+writeLines("authored publication figure", semantic_pub)
+writeLines("authored QC figure", semantic_qc)
+writeLines("authored root figure", semantic_root_figure)
+semantic_index <- harmonize_analysis_outputs(semantic, copy_figures = FALSE)
+check(nrow(semantic_index) == 3L,
+      "semantic metadata included absent or historical mirror figures")
+check(setequal(semantic_index$figure_class, c("publication_panels", "qc")),
+      "semantic figure classes do not match authored folders")
+root_row <- semantic_index[semantic_index$file == basename(semantic_root_figure), ]
+check(nrow(root_row) == 1L &&
+        identical(gsub("\\\\", "/", root_row$harmonized_path[[1]]),
+                  "figures/Fig_integrated_systems_dashboard.svg"),
+      "copy-free metadata points to an absent mirror instead of the authored root figure")
+check(file.exists(file.path(semantic, "tables", "output_figure_inventory.csv")) &&
+        file.exists(file.path(semantic, "tables", "output_folder_summary.csv")),
+      "semantic figure metadata was not regenerated")
+check(length(list.files(file.path(semantic, "figures"), pattern = "\\.svg$",
+                        recursive = TRUE)) == 3L,
+      "metadata refresh made a new mirror")
+ok("semantic figure metadata is regenerated from authored files only")
+
 unlink(root, recursive = TRUE)
 cat("\nFigure mirror refresh checks: PASS\n")

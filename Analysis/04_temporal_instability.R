@@ -41,14 +41,15 @@ if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", 
 source(.pipeline_setup)
 source_mmm_helper("behavioral_dynamics_stats_helpers.R")
 source_mmm_helper("duration_normalization_helpers.R")
+source_mmm_helper("project_paths.R")
 
 # ------------------------------------------------
 # USER INPUT
 # ------------------------------------------------
 
 bin_level <- "10sec_based"
-input_file <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
-output_dir <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/temporal_instability", bin_level)
+input_file <- file.path(mmm_derived_metrics_output_root(), bin_level, "all_behavior_metrics.csv")
+output_dir <- mmm_temporal_instability_resolution_root(bin_level)
 
 # Movement is the primary metric for temporal instability.
 # Entropy and proximity are retained as secondary exploratory readouts.

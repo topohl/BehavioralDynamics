@@ -38,6 +38,7 @@ if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", 
 source(.pipeline_setup)
 source_mmm_helper("duration_normalization_helpers.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -51,6 +52,11 @@ hmm_primary_bin_level <- getOption("mmm.hmm.primary_bin_level", "10min_based")
 hmm_sensitivity_bin_levels <- getOption("mmm.hmm.sensitivity_bin_levels", "5min_based")
 hmm_roster_bin_level <- getOption("mmm.hmm.roster_bin_level", "5min_based")
 hmm_run_bin_levels <- unique(c(hmm_primary_bin_level, hmm_sensitivity_bin_levels))
+if (setequal(hmm_run_bin_levels, c("10min_based", "5min_based"))) {
+  mmm_behavior_output_assert_uniform_layout(
+    c("hmm_states_10min", "hmm_states_5min"), project_root,
+    "Stage 08 HMM")
+}
 hmm_fit_seeds <- as.integer(getOption("mmm.hmm.fit_seeds", c(1L, 11L, 101L)))
 hmm_em_tolerance <- as.numeric(getOption("mmm.hmm.em_tolerance", 1e-6))
 hmm_em_max_iterations <- as.integer(getOption("mmm.hmm.em_max_iterations", 500L))
@@ -136,8 +142,7 @@ initialize_hmm_from_kmeans <- function(mod, hmm_dat, n_states, seed, sd_floor = 
 }
 
 canonical_roster_file <- file.path(
-  project_root,
-  "analysis_ready/03_derived_metrics",
+  mmm_derived_metrics_output_root(project_root),
   hmm_roster_bin_level,
   "all_behavior_metrics.csv"
 )
@@ -165,16 +170,11 @@ hmm_script_path <- file.path(MMM_ANALYSIS_DIR, "08_hmm_behavioral_states_optiona
 
 run_hmm_resolution <- function(bin_level) {
   input_file <- file.path(
-    project_root,
-    "analysis_ready/03_derived_metrics",
+    mmm_derived_metrics_output_root(project_root),
     bin_level,
     "all_behavior_metrics.csv"
   )
-  output_dir <- file.path(
-    project_root,
-    "analysis_ready/06_behavioral_dynamics/hmm_states",
-    bin_level
-  )
+  output_dir <- mmm_hmm_resolution_root(bin_level, project_root)
   ensure_dir(output_dir)
   ensure_dir(file.path(output_dir, "tables"))
   ensure_dir(file.path(output_dir, "figures"))

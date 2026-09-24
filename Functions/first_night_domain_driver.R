@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
 
 if (exists("source_mmm_helper", mode = "function", inherits = TRUE)) {
   source_mmm_helper("first_night_domain_helpers.R")
+  source_mmm_helper("project_paths.R")
 }
 
 #' Build the complete first-night domain analysis for ONE bin level.
@@ -32,7 +33,7 @@ build_first_night_domain_analysis <- function(bin_level,
   ensure_dir(output_dir)
 
   # (1) Stage 01 input for THIS resolution.
-  input_file <- file.path(project_root, "analysis_ready/03_derived_metrics", bin_level,
+  input_file <- file.path(mmm_derived_metrics_output_root(project_root), bin_level,
                           "all_behavior_metrics.csv")
   if (!file.exists(input_file)) {
     stop("First-night Stage 01 input is missing for ", bin_level, ": ", input_file, call. = FALSE)

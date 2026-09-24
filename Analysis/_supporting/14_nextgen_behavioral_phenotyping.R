@@ -37,9 +37,10 @@ suppressPackageStartupMessages({
 project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 repo_root <- "C:/Users/topohl/Documents/GitHub/MMMSociability"
 bin_level <- "5min_based"
+source(file.path(repo_root, "Functions/project_paths.R"))
 
-input_file <- file.path(project_root, "analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
-output_dir <- file.path(project_root, "analysis_ready/14_nextgen_behavioral_phenotyping", bin_level)
+input_file <- file.path(mmm_derived_metrics_output_root(project_root), bin_level, "all_behavior_metrics.csv")
+output_dir <- mmm_supporting_resolution_root("systems_phenotyping", bin_level, project_root)
 data_dir <- file.path(output_dir, "derived_data")
 stats_dir <- file.path(output_dir, "statistical_results")
 first_active_figure_dir <- file.path(output_dir, "figures/first_cage_change_active_12h")

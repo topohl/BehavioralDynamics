@@ -1215,9 +1215,11 @@ if (!is.null(broad) && all(c("Domain", "PhaseClass", "Sex", "contrast",
   fm <- mmm_export_figure(pB_alt, dirs$figures_ed,
                           "ed_candidate_broad_domain_map_phase_resolved",
                           W * 0.72, 78, png_preview = FALSE)
+  broad_source_path <- inputs_seen[["behavior.rfid_domain_summary_broad/domain_effects"]]
+  broad_source_rel <- mmm_source_relative_path(broad_source_path, project_root)
   srcB_alt <- bmf_source_data(
     broad_plot, "B-alt", "14",
-    "12_systems_neuroscience_summary/5min_based/stats_tables/systems_sis_domain_effect_summary.csv",
+    broad_source_rel,
     intersect(c("Domain", "PhaseClass", "Sex", "contrast", "n_ref_animals",
                 "n_comp_animals", "hedges_g", "mixed_model_estimate",
                 "mixed_model_SE", "mixed_model_p", "FDR_q",

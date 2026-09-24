@@ -27,6 +27,7 @@ suppressPackageStartupMessages({
 .pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
 if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(.pipeline_setup)
+source_mmm_helper("project_paths.R")
 
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 bin_level <- "10min"
@@ -44,7 +45,7 @@ stage03_dir <- behavior_stage_dir(base_dir, "03", "movement_phase_stats", bin_le
 legacy_stage03_dir <- file.path(
   analysis_ready_dir, "03_primary_raw_movement_phase_stats", legacy_bin_level
 )
-qc_dir <- file.path(base_dir, "analysis_ready", "00_qc_tracking_integrity")
+qc_dir <- mmm_tracking_qc_historical_root(base_dir)
 output_dir <- behavior_manuscript_dir(base_dir, "behavior")
 
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -114,8 +115,8 @@ source_registry <- tribble(
   "s09_sens5_associations", "09", FALSE, "Analysis/09_early_prediction_model_ladder.R", "primary_movement_entropyacf1_associations.csv", file.path(stage09_sensitivity_dir, "tables/primary_movement_entropyacf1_associations.csv"), NA_character_, "resolution sensitivity", "Declared 5-min resolution sensitivity; supplementary only.",
   "s09_sens5_prediction_performance", "09", FALSE, "Analysis/09_early_prediction_model_ladder.R", "primary_prediction_performance.csv", file.path(stage09_sensitivity_dir, "tables/primary_prediction_performance.csv"), NA_character_, "resolution sensitivity", "Declared 5-min resolution sensitivity; supplementary only.",
   "s09_sens5_comparison", "09", FALSE, "Analysis/09_early_prediction_model_ladder.R", "stage09_resolution_sensitivity_comparison.csv", file.path(stage09_sensitivity_dir, "audit/stage09_resolution_sensitivity_comparison.csv"), NA_character_, "resolution sensitivity", "Direct 10-min versus 5-min comparison of the same fixed analysis.",
-  "qc_animal_summary", "00", FALSE, "Analysis/00_qc_tracking_integrity.R", "tracking_qc_by_animal.csv", file.path(qc_dir, "tables/tracking_qc_by_animal.csv"), NA_character_, "diagnostic/QC", "Tracking integrity summary.",
-  "qc_manual_review", "00", FALSE, "Analysis/00_qc_tracking_integrity.R", "suggested_animals_for_manual_tracking_review.csv", file.path(qc_dir, "tables/suggested_animals_for_manual_tracking_review.csv"), NA_character_, "diagnostic/QC", "Manual-review suggestions only."
+  "qc_animal_summary", "00", FALSE, "Analysis/00_qc_tracking_integrity.R", "tracking_qc_by_animal.csv", file.path(qc_dir, "tables/tracking_qc_by_animal.csv"), NA_character_, "diagnostic/QC", "Historical May 2026 tracking QC snapshot; current Stage 01 input lineage unverified.",
+  "qc_manual_review", "00", FALSE, "Analysis/00_qc_tracking_integrity.R", "suggested_animals_for_manual_tracking_review.csv", file.path(qc_dir, "tables/suggested_animals_for_manual_tracking_review.csv"), NA_character_, "diagnostic/QC", "Historical May 2026 manual-review suggestions; not automatic exclusions."
 ) %>%
   mutate(
     resolved = pmap(
@@ -916,14 +917,14 @@ if (nrow(qc_summary) > 0L) {
   qc_animal_rows <- qc_summary %>%
     mutate(
       qc_record_type = "Stage 00 animal-level tracking QC",
-      qc_reporting_status = "Diagnostic/manual-review status only; no automatic exclusion decision is encoded by Stage 00.",
+      qc_reporting_status = "Historical May 2026 diagnostic snapshot; current Stage 01 input lineage unverified. No automatic exclusion decision is encoded by Stage 00.",
       source_table = "analysis_ready/00_qc_tracking_integrity/tables/tracking_qc_by_animal.csv"
     )
 } else if (nrow(qc_review) > 0L) {
   qc_animal_rows <- qc_review %>%
     mutate(
       qc_record_type = "Stage 00 suggested manual tracking review",
-      qc_reporting_status = "Suggested manual review only; not an automatic exclusion decision.",
+      qc_reporting_status = "Historical May 2026 suggestions; current Stage 01 input lineage unverified. Not an automatic exclusion decision.",
       source_table = "analysis_ready/00_qc_tracking_integrity/tables/suggested_animals_for_manual_tracking_review.csv"
     )
 } else {
@@ -1940,43 +1941,93 @@ readr::write_csv(movement_phase_source_data, artifact_paths[["movement_source"]]
 readr::write_csv(provenance, artifact_paths[["provenance"]], na = "NA")
 readr::write_csv(validation, artifact_paths[["validation"]], na = "NA")
 
-# The machine-readable stage map. Two properties matter and were both broken:
-#
-#   * TRUTHFULNESS. Stage 10 claimed status "producer_migrated_..." against
-#     canonical_path analysis_ready/pipeline/10_systems_prediction/10min/, but
-#     that directory has never been created. A status of "migrated" against a
-#     tree that does not exist is worse than no entry, because it tells a reader
-#     the migration is done.
-#   * COVERAGE. The index stopped at Stage 19 while the repository had grown a
-#     canonical endpoint producer and Stages 20-27, including every stage that
-#     owns a manuscript claim. A map that omits the claim-owning stages cannot
-#     be used to answer "what produced this number".
+# The machine-readable stage map records current producer locations. It is not
+# the file-level migration plan: docs/BEHAVIOR_OUTPUT_MIGRATION_PLAN.csv owns
+# approved old-to-new paths and hashes. Keep this stage map aligned with the
+# live writer paths when a producer changes, even if Stage 16 has not been run.
 #
 # runner_registration makes the runner's SCOPE explicit rather than inferred.
 # run_all_analysis.R deliberately covers the 00-15 generation only; later stages
 # are run deliberately and individually. Recording "manual" is a declaration,
 # not a TODO - Stage 27's absence from the runner is asserted by
 # Testing/tests/test_behavior_main_figure_contracts.R and must stay that way.
+output_group_index <- function(group) {
+  mmm_behavior_output_index_entry(group, project_root = base_dir)
+}
+fn10 <- output_group_index("first_night_10min")
+behavior_metrics_foundation <- output_group_index("behavior_metrics_foundation")
+fn5 <- output_group_index("first_night_5min")
+spatial_tables <- output_group_index("spatial_tables")
+spatial_audit <- output_group_index("spatial_audit")
+spatial_models <- output_group_index("spatial_models")
+spatial_figures <- output_group_index("spatial_figures")
+dyadic_contacts <- output_group_index("dyadic_contacts")
+social_networks_5min <- output_group_index("social_networks_5min")
+gamm_features_10min <- output_group_index("gamm_features_10min")
+state_space_5min <- output_group_index("state_space_5min")
+hmm_states_10min <- output_group_index("hmm_states_10min")
+hmm_states_5min <- output_group_index("hmm_states_5min")
+temporal_instability_10sec <- output_group_index("temporal_instability_10sec")
+adaptation_kinetics_10min <- output_group_index("adaptation_kinetics_10min")
+sleep_like_inactivity_10min <- output_group_index("sleep_like_inactivity_10min")
+phase_organization_10min <- output_group_index("phase_organization_10min")
+nonlinear_dynamics_5min <- output_group_index("nonlinear_dynamics_5min")
+systems_phenotyping_5min <- output_group_index("systems_phenotyping_5min")
+inactive_phase_qc_audit <- output_group_index("inactive_phase_qc_audit")
+rfid_domain_comparison_audit <- output_group_index("rfid_domain_comparison_audit")
+rfid_leading_bin_seed_audit <- output_group_index("rfid_leading_bin_seed_audit")
+rfid_construct_audit <- output_group_index("rfid_construct_audit")
+rfid_conservatism_audit <- output_group_index("rfid_conservatism_audit")
+rfid_alternative_inference_audit <- output_group_index("rfid_alternative_inference_audit")
+rfid_reliability_audit <- output_group_index("rfid_reliability_audit")
+systems_dashboard_5min <- output_group_index("systems_dashboard_5min")
+proteomics_mnn_primary <- output_group_index("proteomics_mnn_primary")
+proteomics_mnn_sensitivity <- output_group_index("proteomics_mnn_sensitivity")
 output_index <- tribble(
   ~stage, ~analysis, ~resolution, ~artifact_type, ~canonical_path, ~producer, ~manuscript_role, ~status, ~legacy_path, ~notes, ~runner_registration,
-  "00", "QC tracking integrity", NA_character_, "pipeline output group", NA_character_, "Analysis/00_qc_tracking_integrity.R", "technical QC", "legacy_pending_migration", "analysis_ready/00_qc_tracking_integrity/", "Diagnostic and non-destructive; not migrated in this task.", "run_all_analysis.R",
-  "01", "Multiscale behavior metrics", "multiple", "pipeline output group", NA_character_, "Analysis/01_build_multiscale_behavior_metrics.R", "canonical input layer", "legacy_pending_migration", "analysis_ready/03_derived_metrics/", "Canonical upstream metrics remain in place.", "run_all_analysis.R",
-  "02", "Dyadic RFID contacts", "multiple", "pipeline output group", NA_character_, "Analysis/02_build_dyadic_rfid_contacts.R", "secondary/social source", "legacy_pending_migration", "analysis_ready/06_behavioral_dynamics/dyadic_contacts/", "Not migrated in this task.", "run_all_analysis.R",
+  "00", "QC tracking integrity", NA_character_, "manual diagnostic output group", NA_character_, "Analysis/00_qc_tracking_integrity.R", "technical QC", "legacy_pending_migration", "analysis_ready/00_qc_tracking_integrity/", "May 2026 historical optional QC snapshot; current Stage 01 lineage unverified. September 2026 pooled and 10-second diagnostic runs under quality_control/tracking_integrity/ are unpromoted and unsuitable for exclusions.", "manual diagnostic",
+  "01", "Multiscale behavior metrics", "multiple", "pipeline output group", behavior_metrics_foundation$canonical_path, "Analysis/01_build_multiscale_behavior_metrics.R", "canonical input layer", behavior_metrics_foundation$status, behavior_metrics_foundation$legacy_path, "Current Stage 01 metrics; separate identity-audit and spatial outputs retain distinct owners.", "run_all_analysis.R",
+  "02", "Dyadic RFID contacts", "10min contact bins", "pipeline output group", dyadic_contacts$canonical_path, "Analysis/02_build_dyadic_rfid_contacts.R", "secondary/social source", dyadic_contacts$status, dyadic_contacts$legacy_path, "Current Stage 02 output; cookie-habituation uses a separate explicit output override.", "run_all_analysis.R",
   "03", "Movement phase statistics", "10min", "pipeline output group", "analysis_ready/pipeline/03_movement_phase_stats/10min/", "Analysis/03_primary_raw_movement_phase_stats.R", "secondary manuscript evidence", "producer_migrated_legacy_artifacts_retained", "analysis_ready/03_primary_raw_movement_phase_stats/10min_based/", "New writes use tables, figures, and audit only; Stage 16 records fallback use.", "run_all_analysis.R",
-  "04", "Temporal instability", "10sec", "pipeline output group", NA_character_, "Analysis/04_temporal_instability.R", "mechanistic/secondary", "legacy_pending_migration", "analysis_ready/06_behavioral_dynamics/temporal_instability/", "Reviewed but not included in Stage 16 primary reporting.", "run_all_analysis.R",
-  "05", "Behavioral state space", "5min", "pipeline output group", NA_character_, "Analysis/05_behavioral_state_space.R", "exploratory/mechanistic", "legacy_pending_migration", "analysis_ready/06_behavioral_dynamics/state_space/", "Not promoted into Stage 16.", "run_all_analysis.R",
-  "06", "Dynamic social networks", "5min", "pipeline output group", NA_character_, "Analysis/06_dynamic_social_networks.R", "secondary/social", "legacy_pending_migration", "analysis_ready/06_behavioral_dynamics/social_networks/", "Not included without a selected manuscript result.", "run_all_analysis.R",
-  "07", "GAMM trajectory features", "10min", "pipeline output group", NA_character_, "Analysis/07_gamm_trajectory_features.R", "mechanistic/secondary", "legacy_pending_migration", "analysis_ready/06_behavioral_dynamics/gamm_features/", "Not promoted into Stage 16.", "run_all_analysis.R",
-  "08", "Optional HMM states", "10min", "pipeline output group", NA_character_, "Analysis/08_hmm_behavioral_states_optional.R", "exploratory", "legacy_pending_migration", "analysis_ready/06_behavioral_dynamics/hmm_states/", "Optional latent-state analysis; not primary evidence.", "run_all_analysis.R (opt-in: RUN_OPTIONAL_HMM)",
+  "04", "Temporal instability", "10sec", "pipeline output subgroup", temporal_instability_10sec$canonical_path, "Analysis/04_temporal_instability.R", "mechanistic/secondary", temporal_instability_10sec$status, temporal_instability_10sec$legacy_path, "Current Stage 04 branch; not included in Stage 16 primary reporting.", "run_all_analysis.R",
+  "04-history", "Historical temporal-instability resolutions", "1min, 5min", "historical output group", NA_character_, "Historical temporal-instability runs", "historical provenance", "historical_source_retained", "analysis_ready/06_behavioral_dynamics/temporal_instability/", "Current Stage 04 writes 10sec only; older branches remain unmigrated.", "manual historical",
+  "05", "Behavioral state space", "5min", "pipeline output subgroup", state_space_5min$canonical_path, "Analysis/05_behavioral_state_space.R", "exploratory/mechanistic", state_space_5min$status, state_space_5min$legacy_path, "Current Stage 05 writer; not promoted into Stage 16.", "run_all_analysis.R",
+  "05-history", "Historical state-space resolutions", "1min, 10min", "historical output group", NA_character_, "Historical state-space runs", "historical provenance", "historical_source_retained", "analysis_ready/06_behavioral_dynamics/state_space/", "Current Stage 05 writes 5min only; older branches remain unmigrated.", "manual historical",
+  "06", "Dynamic social networks", "5min", "pipeline output subgroup", social_networks_5min$canonical_path, "Analysis/06_dynamic_social_networks.R", "secondary/social", social_networks_5min$status, social_networks_5min$legacy_path, "Current Stage 06 writer; not included without a selected manuscript result.", "run_all_analysis.R",
+  "06-history", "Historical social-network resolutions", "10sec, 1min, 10min, 30min", "historical output group", NA_character_, "Historical network runs", "historical provenance", "historical_source_retained", "analysis_ready/06_behavioral_dynamics/social_networks/", "Older resolution runs are excluded from the five-minute cutover.", "manual historical",
+  "07", "GAMM trajectory features", "10min", "pipeline output subgroup", gamm_features_10min$canonical_path, "Analysis/07_gamm_trajectory_features.R", "mechanistic/secondary", gamm_features_10min$status, gamm_features_10min$legacy_path, "Current Stage 07 writer; not promoted into Stage 16.", "run_all_analysis.R",
+  "07-history", "Historical GAMM trajectory features", "30min", "historical output group", NA_character_, "Historical trajectory run", "historical optional input", "historical_source_retained", "analysis_ready/06_behavioral_dynamics/gamm_features/30min_based/", "Stage 15 still reads this separately; current Stage 07 writes 10min only.", "manual historical",
+  "08", "Optional HMM states", "10min primary", "pipeline output subgroup", hmm_states_10min$canonical_path, "Analysis/08_hmm_behavioral_states_optional.R", "exploratory", hmm_states_10min$status, hmm_states_10min$legacy_path, "Optional latent-state analysis; not primary evidence.", "run_all_analysis.R (opt-in: RUN_OPTIONAL_HMM)",
+  "08-5min", "Optional HMM states sensitivity", "5min sensitivity", "pipeline output subgroup", hmm_states_5min$canonical_path, "Analysis/08_hmm_behavioral_states_optional.R", "sensitivity", hmm_states_5min$status, hmm_states_5min$legacy_path, "Secondary HMM resolution; does not replace the declared 10-minute primary.", "run_all_analysis.R (opt-in: RUN_OPTIONAL_HMM)",
+  "08-audit-current", "HMM gap-aware revalidation", "10min primary; 5min sensitivity", "manual audit output group", "analysis_ready/analyses/hmm_revalidation_runs/current_stage08_review_20260924/", "Testing/audits/audit_step6_longitudinal_gapaware_robustness.R; Testing/audits/audit_hmm_cross_optimum_gapaware.R", "scientific review only", "current_revalidation_unpromoted", "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/", "Five current-input tables; the registry and release still cite older audit evidence and no claim was promoted.", "manual audit",
+  "08-audit-history", "Historical HMM architecture audits", "mixed", "historical output group", NA_character_, "Testing/audits/audit_hmm_state_architecture_*.R; Testing/audits/audit_first_night_*.R", "historical provenance", "historical_source_retained", "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/", "183 files dated September 2-4 2026; inputs predate the current Stage 01 and Stage 08 runs and many scripts still use this path.", "manual historical",
   "09", "Early prediction", "10min", "pipeline output group", "analysis_ready/pipeline/09_early_prediction/10min/", "Analysis/09_early_prediction_model_ladder.R", "primary manuscript evidence", "producer_migrated_legacy_artifacts_retained", "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder/10min_based/", "Canonical feature, model, source-data, and prediction tables.", "run_all_analysis.R",
-  "10", "Systems prediction", "10min", "pipeline output group", NA_character_, "Analysis/10_systems_feature_prediction_ladder.R", "exploratory systems extension", "legacy_pending_migration", "analysis_ready/06_behavioral_dynamics/systems_feature_prediction_ladder/10min_based/", "Was recorded as producer_migrated against analysis_ready/pipeline/10_systems_prediction/10min/, but that directory has never been created; the stage still writes only the legacy path. Opt-in and not promoted to primary evidence.", "run_all_analysis.R (opt-in: RUN_SYSTEMS_EXTENSION)",
-  "11", "Adaptation kinetics", "10min", "pipeline output group", NA_character_, "Analysis/11_behavioral_adaptation_kinetics.R", "mechanistic/secondary", "legacy_pending_migration", "analysis_ready/15_behavioral_adaptation_kinetics/", "Not included without a selected manuscript result.", "run_all_analysis.R",
-  "12", "Sleep-like quiescence", "10min", "pipeline output group", NA_character_, "Analysis/12_sleep_like_quiescence_metrics.R", "secondary", "legacy_pending_migration", "analysis_ready/16_sleep_like_inactivity_metrics/", "Not EEG-validated; excluded from current Stage 16.", "run_all_analysis.R",
-  "13", "Phase organization", "10min", "pipeline output group", NA_character_, "Analysis/13_ethological_phase_organization.R", "mechanistic/secondary", "legacy_pending_migration", "analysis_ready/17_ethological_phase_organization/", "Not included without a selected manuscript result.", "run_all_analysis.R",
-  "14", "Systems summary", "5min", "pipeline output group", NA_character_, "Analysis/14_systems_neuroscience_summary_dashboard.R", "exploratory systems layer", "legacy_pending_migration", "analysis_ready/12_systems_neuroscience_summary/5min_based/", "Remains outside primary Stage 16 claims.", "run_all_analysis.R",
-  "15", "Behavior-proteomics integration", NA_character_, "pipeline output group", NA_character_, "Analysis/15_behavior_proteomics_integration.R", "separate exploratory evidentiary layer", "legacy_pending_migration", "analysis_ready/proteomics/", "Keep separate from the behavioral source-data workbook.", "run_all_analysis.R (opt-in: RUN_BEHAVIOR_PROTEOMICS)",
+  "10", "Systems prediction", "10min", "pipeline output group", "analysis_ready/pipeline/10_systems_prediction/10min/", "Analysis/10_systems_feature_prediction_ladder.R", "exploratory systems extension", "producer_migrated_legacy_artifacts_retained", NA_character_, "Current writer uses pipeline/10_systems_prediction. Historical self-ingested outputs are archived and forbidden as input; the systems extension is not primary manuscript evidence.", "run_all_analysis.R (RUN_SYSTEMS_EXTENSION, default TRUE)",
+  "11", "Adaptation kinetics", "10min", "pipeline output subgroup", adaptation_kinetics_10min$canonical_path, "Analysis/11_behavioral_adaptation_kinetics.R", "mechanistic/secondary", adaptation_kinetics_10min$status, adaptation_kinetics_10min$legacy_path, "Current Stage 11 output; not included without a selected manuscript result.", "run_all_analysis.R",
+  "11-history", "Historical adaptation kinetics", "5min", "historical output group", NA_character_, "Historical adaptation run", "historical optional input", "historical_source_retained", "analysis_ready/15_behavioral_adaptation_kinetics/5min_based/", "Older five-minute branch remains for historical and Stage 15 optional reads.", "manual historical",
+  "12", "Sleep-like quiescence", "10min", "pipeline output subgroup", sleep_like_inactivity_10min$canonical_path, "Analysis/12_sleep_like_quiescence_metrics.R", "secondary", sleep_like_inactivity_10min$status, sleep_like_inactivity_10min$legacy_path, "Current Stage 12 output; not EEG-validated or included in current Stage 16.", "run_all_analysis.R",
+  "12-history", "Historical sleep-like inactivity", "5min", "historical output group", NA_character_, "Historical quiescence run", "historical optional input", "historical_source_retained", "analysis_ready/16_sleep_like_inactivity_metrics/5min_based/", "Older five-minute branch remains for historical and Stage 15 optional reads.", "manual historical",
+  "13", "Phase organization", "10min", "pipeline output subgroup", phase_organization_10min$canonical_path, "Analysis/13_ethological_phase_organization.R", "mechanistic/secondary", phase_organization_10min$status, phase_organization_10min$legacy_path, "Current Stage 13 output; not included without a selected manuscript result.", "run_all_analysis.R",
+  "13-history", "Historical phase organization", "5min", "historical output group", NA_character_, "Historical phase-organization run", "historical optional input", "historical_source_retained", "analysis_ready/17_ethological_phase_organization/5min_based/", "Older five-minute branch remains for historical and Stage 15 optional reads.", "manual historical",
+  "14", "Systems summary", "5min", "pipeline output group", systems_dashboard_5min$canonical_path, "Analysis/14_systems_neuroscience_summary_dashboard.R", "exploratory systems layer", systems_dashboard_5min$status, systems_dashboard_5min$legacy_path, "Stage 14 dashboard products only; first-night and manual audit families have separate output groups. Remains outside primary Stage 16 claims.", "run_all_analysis.R",
+  "14-first-night-10min", "First-night five-domain characterization", "10min primary", "pipeline output subgroup", fn10$canonical_path, "Functions/first_night_domain_driver.R via Analysis/14_systems_neuroscience_summary_dashboard.R", "secondary first-night source and extended-data candidate", fn10$status, fn10$legacy_path, "Ten primary files; separate from Stage 14 dashboard exports and Stage 28's four-domain analysis.", "run_all_analysis.R via Stage 14",
+  "14-first-night-5min", "First-night five-domain characterization", "5min sensitivity", "pipeline output subgroup", fn5$canonical_path, "Functions/first_night_domain_driver.R via Analysis/14_systems_neuroscience_summary_dashboard.R", "sensitivity", fn5$status, fn5$legacy_path, "Ten sensitivity files; this resolution cannot replace the declared 10-minute primary.", "run_all_analysis.R via Stage 14",
+  "14-inactive-qc-audit", "Inactive-phase QC redesign audit", NA_character_, "manual audit output group", inactive_phase_qc_audit$canonical_path, "Testing/audits/audit_inactive_phase_qc_redesign.R", "unpromoted QC proposal", inactive_phase_qc_audit$status, inactive_phase_qc_audit$legacy_path, "Three audit tables; the proposed rule has not been adopted in production.", "manual audit",
+  "14-rfid-domain-comparison-audit", "Legacy and four-domain RFID comparison", "10min", "manual audit output group", rfid_domain_comparison_audit$canonical_path, "Testing/audits/audit_rfid_legacy_vs_new_domains.R", "supporting construct and inference audit", rfid_domain_comparison_audit$status, rfid_domain_comparison_audit$legacy_path, "Four comparison tables; reads activated first-night and local Stage 28 outputs. No manuscript claim is promoted by this path change.", "manual audit",
+  "14-rfid-leading-bin-seed-audit", "RFID leading-bin seed sensitivity", "10min", "manual audit output group", rfid_leading_bin_seed_audit$canonical_path, "Testing/audits/audit_rfid_leading_bin_seed_sensitivity.R", "supporting robustness audit", rfid_leading_bin_seed_audit$status, rfid_leading_bin_seed_audit$legacy_path, "Twelve audit tables; Stage 28 contract reads the burden-by-cage-change and burden-change-by-group tables. Primary analysis keeps the full window.", "manual audit",
+  "14-rfid-construct-audit", "RFID phenotype-blind construct audit", "10min and 5min", "manual audit output group", rfid_construct_audit$canonical_path, "Testing/audits/audit_rfid_domain_construct_blind.R", "supporting construct audit", rfid_construct_audit$status, rfid_construct_audit$legacy_path, "Eleven audit tables; no formula or domain is changed automatically by this audit.", "manual audit",
+  "14-rfid-conservatism-audit", "RFID conservatism diagnostic", "10min", "manual audit output group", rfid_conservatism_audit$canonical_path, "Testing/audits/audit_rfid_conservatism.R", "exploratory precision and power diagnostic", rfid_conservatism_audit$status, rfid_conservatism_audit$legacy_path, "Eleven audit tables; exploratory p-values do not select a primary analysis.", "manual audit",
+  "14-rfid-alternative-inference-audit", "RFID alternative inference diagnostic", "10min", "manual audit output group", rfid_alternative_inference_audit$canonical_path, "Testing/audits/audit_rfid_alternative_inference.R", "exploratory inference diagnostic", rfid_alternative_inference_audit$status, rfid_alternative_inference_audit$legacy_path, "Ten audit tables; no Stage 28 decision changes from a path migration.", "manual audit",
+  "14-rfid-reliability-audit", "RFID reliability and stability diagnostic", "10min", "manual audit output group", rfid_reliability_audit$canonical_path, "Testing/audits/audit_rfid_reliability_and_improvement.R", "diagnostic reliability audit", rfid_reliability_audit$status, rfid_reliability_audit$legacy_path, "Seven audit tables; cross-occasion stability is distinct from instrument reliability.", "manual audit",
+  "15-primary", "Behavior-proteomics MNN primary", NA_character_, "pipeline output group", proteomics_mnn_primary$canonical_path, "Analysis/15_behavior_proteomics_integration.R", "exploratory cross-modal layer", proteomics_mnn_primary$status, proteomics_mnn_primary$legacy_path, "Full proteomics label is in proteomics_integration_output_dir_map.csv; analysis_ready/proteomics/ holds inputs.", "run_all_analysis.R (RUN_BEHAVIOR_PROTEOMICS, default FALSE)",
+  "15-sensitivity", "Behavior-proteomics MNN sensitivity", NA_character_, "pipeline output group", proteomics_mnn_sensitivity$canonical_path, "Analysis/15_behavior_proteomics_integration.R", "exploratory cross-modal sensitivity", proteomics_mnn_sensitivity$status, proteomics_mnn_sensitivity$legacy_path, "Full proteomics label is in proteomics_integration_output_dir_map.csv; analysis_ready/proteomics/ holds inputs.", "run_all_analysis.R (RUN_BEHAVIOR_PROTEOMICS, default FALSE)",
   "16", "Manuscript behavior report", "10min", "manuscript reporting group", "analysis_ready/manuscript/behavior/", "Analysis/16_manuscript_behavior_report.R", "recommended manuscript entry point", "canonical", "analysis_ready/16_manuscript_behavior_report/10min_based/", "Exporter only; no statistical refitting or canonical-value recomputation.", "manual",
-  "19", "Spatial occupancy", NA_character_, "pipeline output group", NA_character_, "Analysis/19_spatial_occupancy_maps.R", "secondary/spatial", "legacy_pending_migration", "analysis_ready/03_derived_metrics/spatial_occupancy/", "Position-level source and separate legacy publication paths; not included in Stage 16.", "manual",
+  "19-tables", "Spatial occupancy derived tables", NA_character_, "pipeline output subgroup", spatial_tables$canonical_path, "Analysis/19_spatial_occupancy_maps.R", "secondary/spatial", spatial_tables$status, spatial_tables$legacy_path, "Six result tables; selected tables also have publication_ready copies.", "manual",
+  "19-audit", "Spatial occupancy audit and provenance", NA_character_, "pipeline output subgroup", spatial_audit$canonical_path, "Analysis/19_spatial_occupancy_maps.R", "supporting audit", spatial_audit$status, spatial_audit$legacy_path, "Eight QC and provenance files; the current layout shares the result-table directory.", "manual",
+  "19-models", "Spatial occupancy models", NA_character_, "pipeline output group", spatial_models$canonical_path, "Analysis/19_spatial_occupancy_maps.R", "secondary/spatial", spatial_models$status, spatial_models$legacy_path, "Six model and contrast files; Stage 10 excludes this result tree from feature discovery.", "manual",
+  "19-figures", "Spatial occupancy figures", NA_character_, "pipeline output group", spatial_figures$canonical_path, "Analysis/19_spatial_occupancy_maps.R", "secondary/spatial", spatial_figures$status, spatial_figures$legacy_path, "Five SVGs; separate copies are retained in publication_ready.", "manual",
+  "support-13", "Nonlinear systems dynamics", "5min", "supporting pipeline output group", nonlinear_dynamics_5min$canonical_path, "Analysis/_supporting/13_nonlinear_systems_dynamics.R", "exploratory input to Stages 10, 14 and 15", nonlinear_dynamics_5min$status, nonlinear_dynamics_5min$legacy_path, "Manual supporting producer; original September run retained and not regenerated by run_all_analysis.R.", "manual supporting script",
+  "support-14", "Next-generation behavioral phenotyping", "5min", "supporting pipeline output group", systems_phenotyping_5min$canonical_path, "Analysis/_supporting/14_nextgen_behavioral_phenotyping.R", "exploratory input to Stages 10 and 14", systems_phenotyping_5min$status, systems_phenotyping_5min$legacy_path, "Manual supporting producer; original September run retained and not regenerated by run_all_analysis.R.", "manual supporting script",
   "endpoint", "Later outcome composite (CombZ)", NA_character_, "canonical endpoint", "analysis_ready/canonical/later_outcome_combz/tables/", "Analysis/build_later_outcome_combz.R", "canonical outcome definition", "canonical", NA_character_, "Reproduces the upstream workbook endpoint exactly and hard-stops on parity failure. Cross-stage shared input, owned by no numbered stage.", "manual",
   "20", "First-night Active GAMM", "10min", "pipeline output group", "analysis_ready/pipeline/20_first_night_gamm/10min/", "Analysis/20_first_night_gamm.R", "primary manuscript evidence", "canonical", NA_character_, "Owns CLAIM_GAMM_01/02. Ten stale first_night_*.csv files from a superseded run sit beside the current first_active_*.csv and are read by nothing.", "manual",
   "21", "CC1 Active longitudinal GAMM", "10min", "pipeline output group", "analysis_ready/pipeline/21_cc1_active_longitudinal_gamm/10min/", "Analysis/21_cc1_active_longitudinal_gamm.R", "extended data", "canonical", NA_character_, "Nights within CC1.", "manual",
@@ -1985,29 +2036,21 @@ output_index <- tribble(
   "24", "CC1 Inactive longitudinal GAMM", "10min", "pipeline output group", "analysis_ready/pipeline/24_cc1_inactive_longitudinal_gamm/10min/", "Analysis/24_cc1_inactive_longitudinal_gamm.R", "extended data", "canonical", NA_character_, "All contrasts null.", "manual",
   "25", "Repeated cage-change Inactive GAMM", "10min", "pipeline output group", "analysis_ready/pipeline/25_repeated_cagechange_inactive_gamm/10min/", "Analysis/25_repeated_cagechange_inactive_gamm.R", "extended data", "canonical", NA_character_, "No supported repeated Inactive adaptation.", "manual",
   "26", "GAMM manuscript outputs", "10min", "manuscript assembly group", "analysis_ready/pipeline/26_gamm_manuscript_outputs/10min/", "Analysis/26_build_gamm_manuscript_outputs.R", "publication product", "canonical", NA_character_, "Assembly only; fits nothing. Read by Stage 27 for the claim boundary, so it is not a pure terminal product.", "manual",
-  "27", "Behavior main figure", NA_character_, "manuscript assembly group", "analysis_ready/pipeline/27_behavior_main_figure/", "Analysis/27_build_behavior_main_figure.R", "publication product", "canonical", NA_character_, "Assembly only. Deliberately absent from run_all_analysis.R; that absence is asserted by Testing/tests/test_behavior_main_figure_contracts.R.", "manual"
+  "27", "Behavior main figure", NA_character_, "manuscript assembly group", "analysis_ready/pipeline/27_behavior_main_figure/", "Analysis/27_build_behavior_main_figure.R", "publication product", "canonical", NA_character_, "Assembly only. Deliberately absent from run_all_analysis.R; that absence is asserted by Testing/tests/test_behavior_main_figure_contracts.R.", "manual",
+  "28", "RFID four-domain characterization", "10min primary; 5min sensitivity", "local pipeline output group", "analysis_ready/pipeline/28_rfid_behavioral_domains/", "Analysis/28_rfid_behavioral_domains.R", "secondary descriptive candidate", "local_untracked_candidate", NA_character_, "Local Stage 28 producer and outputs are present, but the producer has not yet been committed or promoted to a release contract.", "manual"
 )
 if (anyDuplicated(na.omit(output_index$canonical_path))) {
   stop("output_index.csv contains duplicate canonical paths.", call. = FALSE)
 }
 readr::write_csv(output_index, file.path(analysis_ready_dir, "output_index.csv"), na = "NA")
-writeLines(
-  c(
-    "# Behavioral analysis outputs",
-    "",
-    "Start manuscript reporting at `manuscript/behavior/Behavioral_Source_Data.xlsx`.",
-    "Machine-readable result, source-data, provenance, validation, and manifest CSVs are beside the workbook.",
-    "",
-    "Canonical migrated pipeline outputs live under `pipeline/` and use only `tables/`, `figures/`, and `audit/`.",
-    "`output_index.csv` is the machine-readable map for migrated and not-yet-migrated stages.",
-    "",
-    "Readers resolve canonical paths first and a single documented legacy path second. Any legacy fallback is warned and recorded in manuscript provenance; no newest-file guessing is allowed.",
-    "Historical output folders are retained and are not rewritten by Stage 16.",
-    "",
-    "Stage 09 is the primary prospective layer. Stage 03 is secondary phenotype/group characterization. Stage 10/14, HMM/state, nonlinear, systems-composite, spatial, and behavior-proteomics analyses remain exploratory or separate unless a later reporting decision promotes a specific result."
-  ),
-  file.path(analysis_ready_dir, "README.md")
-)
+navigation_source <- file.path(MMM_REPO_ROOT, "docs",
+                               "BEHAVIOR_ANALYSIS_READY_DIRECTORY_README.md")
+if (!file.exists(navigation_source) ||
+    !file.copy(navigation_source, file.path(analysis_ready_dir, "README.md"),
+               overwrite = TRUE)) {
+  stop("Could not refresh analysis_ready navigation from: ", navigation_source,
+       call. = FALSE)
+}
 
 wb <- openxlsx::createWorkbook(creator = "MMMSociability Stage 16")
 openxlsx::modifyBaseFont(

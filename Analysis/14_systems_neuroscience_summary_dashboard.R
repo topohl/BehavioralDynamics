@@ -64,6 +64,7 @@ source_mmm_helper("animalpos_preprocessing_helpers.R")
 source_mmm_helper("first_night_window_helpers.R")
 source_mmm_helper("first_night_domain_helpers.R")
 source_mmm_helper("first_night_domain_driver.R")
+source_mmm_helper("project_paths.R")
 
 # ------------------------------------------------
 # USER CONFIGURATION
@@ -72,6 +73,17 @@ source_mmm_helper("first_night_domain_driver.R")
 # Project root used in your existing scripts. Change only if needed.
 project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 repo_root <- MMM_REPO_ROOT
+
+# Refuse a partially activated first-night migration before any Stage 14 writes.
+first_night_primary_bin_level <- getOption("mmm.first_night.primary_bin_level", "10min_based")
+first_night_sensitivity_bin_level <- getOption("mmm.first_night.sensitivity_bin_level", "5min_based")
+first_night_bin_levels <- c(first_night_primary_bin_level, first_night_sensitivity_bin_level)
+first_night_roles <- c("primary", "sensitivity")
+if (setequal(first_night_bin_levels, c("10min_based", "5min_based"))) {
+  mmm_behavior_output_assert_uniform_layout(
+    c("first_night_10min", "first_night_5min"),
+    project_root = project_root, producer = "Stage 14 first-night")
+}
 
 # Main scale for the publication summary. Use 5min_based for the ACF/entropy story;
 # use 10min_based for lower noise and prediction sensitivity.
@@ -122,7 +134,11 @@ domain_bin_preference <- function(domain = "general") {
 }
 
 # Main output root.
-output_dir <- file.path(project_root, "analysis_ready/12_systems_neuroscience_summary", primary_bin_level)
+output_dir <- if (identical(primary_bin_level, "5min_based")) {
+  mmm_behavior_output_active_root("systems_dashboard_5min", project_root)
+} else {
+  file.path(project_root, "analysis_ready/12_systems_neuroscience_summary", primary_bin_level)
+}
 
 # Optional endpoint file for physiology/behavioral burden/proteomics module data.
 # Expected: one row per animal, with an AnimalNum-like column and endpoint columns.
@@ -384,7 +400,10 @@ MMM_PHASE_CLASSIFIER_FIX_UTC <- as.POSIXct("2026-09-03 15:24:07 +0200",
 MMM_PHASE_DEPENDENT_SOURCES <- c(
   "15_behavioral_adaptation_kinetics",
   "16_sleep_like_inactivity_metrics",
-  "17_ethological_phase_organization"
+  "17_ethological_phase_organization",
+  "analyses/adaptation_kinetics/10min",
+  "analyses/sleep_like_inactivity/10min",
+  "analyses/phase_organization/10min"
 )
 
 #' Fail loudly if a resolved input predates the phase-classifier fix.
@@ -713,27 +732,27 @@ paths <- tibble(
     "nextgen_selective"
   ),
   Path = c(
-    file.path(project_root, "analysis_ready/03_derived_metrics", primary_bin_level, "all_behavior_metrics.csv"),
+    file.path(mmm_derived_metrics_output_root(project_root), primary_bin_level, "all_behavior_metrics.csv"),
     stage04_temporal_instability_primary$path,
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", primary_bin_level, "tables"),
+    file.path(mmm_state_space_resolution_root(primary_bin_level, project_root), "tables"),
     stage09_early_prediction_primary$path,
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", primary_bin_level, "tables"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", hmm_primary_bin_level, "tables"),
+    file.path(mmm_social_network_resolution_root(primary_bin_level, project_root), "tables"),
+    file.path(mmm_hmm_resolution_root(hmm_primary_bin_level, project_root), "tables"),
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", primary_bin_level, "tables"),
-    file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", primary_bin_level, "derived_data"),
+    file.path(mmm_supporting_resolution_root("nonlinear_dynamics", primary_bin_level, project_root), "derived_data"),
     # These three are 10min-only producers (Analysis/11:34, 12:33, 13:35), so
     # recording them at primary_bin_level (5min) made the provenance registry
     # describe a resolution this stage does not actually read - and in the
     # adaptation case a resolution that no longer has a producer at all.
     # Record the resolution the domain preference will really resolve to.
-    file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics",
-              domain_bin_preference("adaptive_recovery")[1], "tables"),
-    file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics",
-              domain_bin_preference("sleep_like_inactivity")[1], "tables"),
-    file.path(project_root, "analysis_ready/17_ethological_phase_organization",
-              domain_bin_preference("phase_organization")[1], "tables"),
+    file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics",
+              domain_bin_preference("adaptive_recovery")[1], project_root), "tables"),
+    file.path(mmm_phase_analysis_resolution_root("sleep_like_inactivity",
+              domain_bin_preference("sleep_like_inactivity")[1], project_root), "tables"),
+    file.path(mmm_phase_analysis_resolution_root("phase_organization",
+              domain_bin_preference("phase_organization")[1], project_root), "tables"),
     file.path(project_root, "analysis_ready/12_behavior_proteomics_integration", "tables"),
-    file.path(project_root, "analysis_ready/14_nextgen_behavioral_phenotyping", primary_bin_level, "tables")
+    file.path(mmm_supporting_resolution_root("systems_phenotyping", primary_bin_level, project_root), "tables")
   )
 )
 
@@ -1242,7 +1261,7 @@ load_optional_animal_table <- function(path, source_label, domain_label, scale_l
 }
 
 load_hmm_system_features <- function(scale_label = primary_bin_level) {
-  hmm_dir <- file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", scale_label, "tables")
+  hmm_dir <- file.path(mmm_hmm_resolution_root(scale_label, project_root), "tables")
   occ <- read_any_table(file.path(hmm_dir, "hmm_state_occupancy.csv"))
   dwell <- read_any_table(file.path(hmm_dir, "hmm_state_dwell_times.csv"))
   trans <- read_any_table(file.path(hmm_dir, "hmm_transition_probabilities.csv"))
@@ -1344,7 +1363,7 @@ load_hmm_system_features <- function(scale_label = primary_bin_level) {
 load_gamm_shape_features <- function(scale_label = primary_bin_level) {
   path <- first_existing_path(c(
     file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", scale_label, "tables/gamm_trajectory_features.csv"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_features", scale_label, "tables/combined_gamm_features.csv")
+    file.path(mmm_gamm_features_resolution_root(scale_label, project_root), "tables/combined_gamm_features.csv")
   ))
   dat <- read_any_table(path)
   if (is.null(dat) || nrow(dat) == 0) return(tibble())
@@ -1387,7 +1406,7 @@ load_gamm_shape_features <- function(scale_label = primary_bin_level) {
 }
 
 load_nextgen_selective_features <- function(scale_label = primary_bin_level) {
-  ng_dir <- file.path(project_root, "analysis_ready/14_nextgen_behavioral_phenotyping", scale_label, "tables")
+  ng_dir <- file.path(mmm_supporting_resolution_root("systems_phenotyping", scale_label, project_root), "tables")
   candidate_tables <- tibble(
     source_label = c("nextgen_complexity", "nextgen_early_warning", "nextgen_energy_landscape", "nextgen_coupling", "nextgen_integrated"),
     domain_label = c("nonlinear_dynamics", "nonlinear_dynamics", "nonlinear_dynamics", "social_topology", "systems_integration"),
@@ -1418,7 +1437,7 @@ load_nextgen_selective_features <- function(scale_label = primary_bin_level) {
 }
 
 load_graph_period_features <- function(scale_label = primary_bin_level) {
-  path <- file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", scale_label, "tables/dyadic_graph_period_summary.csv")
+  path <- file.path(mmm_social_network_resolution_root(scale_label, project_root), "tables/dyadic_graph_period_summary.csv")
   dat <- read_any_table(path)
   if (is.null(dat) || nrow(dat) == 0) return(tibble())
   group_col <- first_existing_col(dat, c("Group", "Phenotype", "Condition", "Treatment", "StressGroup"), TRUE, "group")
@@ -1459,20 +1478,20 @@ optional_files <- tibble(
   ),
   path = c(
     stage04_temporal_instability_primary$path,
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_diversity_metrics.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_switching_metrics.csv")),
+    first_existing_path(file.path(mmm_state_space_resolution_root(domain_bin_preference("latent_state"), project_root), "tables/state_diversity_metrics.csv")),
+    first_existing_path(file.path(mmm_state_space_resolution_root(domain_bin_preference("latent_state"), project_root), "tables/state_switching_metrics.csv")),
     stage09_early_prediction_primary$path,
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables/animal_level_social_dynamics.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables/dyadic_node_summary.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", domain_bin_preference("nonlinear_systems"), "derived_data/animal_level_nonlinear_feature_matrix.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", domain_bin_preference("adaptive_recovery"), "tables/adaptation_kinetics_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", domain_bin_preference("adaptive_recovery"), "tables/distance_to_control_trajectories.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", domain_bin_preference("sleep_like_inactivity"), "tables/sleep_like_inactivity_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_contrast_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_timing_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_fragmentation_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_recovery_kinetics.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_predictability_features.csv"))
+    first_existing_path(file.path(mmm_social_network_resolution_root(domain_bin_preference("social_reorganization"), project_root), "tables/animal_level_social_dynamics.csv")),
+    first_existing_path(file.path(mmm_social_network_resolution_root(domain_bin_preference("social_reorganization"), project_root), "tables/dyadic_node_summary.csv")),
+    first_existing_path(file.path(mmm_supporting_resolution_root("nonlinear_dynamics", domain_bin_preference("nonlinear_systems"), project_root), "derived_data/animal_level_nonlinear_feature_matrix.csv")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", domain_bin_preference("adaptive_recovery"), project_root), "tables/adaptation_kinetics_features.csv")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", domain_bin_preference("adaptive_recovery"), project_root), "tables/distance_to_control_trajectories.csv")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("sleep_like_inactivity", domain_bin_preference("sleep_like_inactivity"), project_root), "tables/sleep_like_inactivity_features.csv")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("phase_organization", domain_bin_preference("phase_organization"), project_root), "tables/phase_contrast_features.csv")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("phase_organization", domain_bin_preference("phase_organization"), project_root), "tables/phase_timing_features.csv")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("phase_organization", domain_bin_preference("phase_organization"), project_root), "tables/phase_fragmentation_features.csv")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("phase_organization", domain_bin_preference("phase_organization"), project_root), "tables/phase_recovery_kinetics.csv")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("phase_organization", domain_bin_preference("phase_organization"), project_root), "tables/phase_predictability_features.csv"))
   )
 )
 
@@ -2039,24 +2058,24 @@ integration_audit_registry <- tibble(
     "00_qc_tracking_integrity.R"
   ),
   expected_outputs = I(list(
-    file.path(project_root, "analysis_ready/03_derived_metrics", primary_bin_level, "all_behavior_metrics.csv"),
+    file.path(mmm_derived_metrics_output_root(project_root), primary_bin_level, "all_behavior_metrics.csv"),
     stage04_temporal_instability_primary$tried,
     c(
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_diversity_metrics.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables/state_switching_metrics.csv")
+      file.path(mmm_state_space_resolution_root(domain_bin_preference("latent_state"), project_root), "tables/state_diversity_metrics.csv"),
+      file.path(mmm_state_space_resolution_root(domain_bin_preference("latent_state"), project_root), "tables/state_switching_metrics.csv")
     ),
     stage09_early_prediction_primary$tried,
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables/animal_level_social_dynamics.csv"),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", hmm_primary_bin_level, "tables/hmm_state_occupancy.csv"),
+    file.path(mmm_social_network_resolution_root(domain_bin_preference("social_reorganization"), project_root), "tables/animal_level_social_dynamics.csv"),
+    file.path(mmm_hmm_resolution_root(hmm_primary_bin_level, project_root), "tables/hmm_state_occupancy.csv"),
     c(
       file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", domain_bin_preference("adaptive_recovery"), "tables/combined_gamm_features.csv"),
-      file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_features", domain_bin_preference("adaptive_recovery"), "tables/combined_gamm_features.csv")
+      file.path(mmm_gamm_features_resolution_root(domain_bin_preference("adaptive_recovery"), project_root), "tables/combined_gamm_features.csv")
     ),
-    file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", domain_bin_preference("nonlinear_systems"), "derived_data/animal_level_nonlinear_feature_matrix.csv"),
-    file.path(project_root, "analysis_ready/14_nextgen_behavioral_phenotyping", domain_bin_preference("nonlinear_systems"), "tables/nextgen_behavioral_phenotype_matrix.csv"),
-    file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", domain_bin_preference("adaptive_recovery"), "tables/adaptation_kinetics_features.csv"),
-    file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", domain_bin_preference("sleep_like_inactivity"), "tables/sleep_like_inactivity_features.csv"),
-    file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables/phase_contrast_features.csv"),
+    file.path(mmm_supporting_resolution_root("nonlinear_dynamics", domain_bin_preference("nonlinear_systems"), project_root), "derived_data/animal_level_nonlinear_feature_matrix.csv"),
+    file.path(mmm_supporting_resolution_root("systems_phenotyping", domain_bin_preference("nonlinear_systems"), project_root), "tables/nextgen_behavioral_phenotype_matrix.csv"),
+    file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", domain_bin_preference("adaptive_recovery"), project_root), "tables/adaptation_kinetics_features.csv"),
+    file.path(mmm_phase_analysis_resolution_root("sleep_like_inactivity", domain_bin_preference("sleep_like_inactivity"), project_root), "tables/sleep_like_inactivity_features.csv"),
+    file.path(mmm_phase_analysis_resolution_root("phase_organization", domain_bin_preference("phase_organization"), project_root), "tables/phase_contrast_features.csv"),
     c(
       proteomics_module_file,
       file.path(project_root, "analysis_ready/12_behavior_proteomics_integration", "tables/behavior_proteomics_merged.csv")
@@ -3768,16 +3787,16 @@ sis_dependency_audit <- tibble(
   ExpectedPath = c(
     base_file,
     stage04_temporal_instability_primary$path,
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/state_space", domain_bin_preference("latent_state"), "tables")),
+    first_existing_path(file.path(mmm_state_space_resolution_root(domain_bin_preference("latent_state"), project_root), "tables")),
     resolve_stage09_early_prediction_artifact(project_root, "primary_prediction_performance.csv", domain_bin_preference("early_prediction"))$path,
-    first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/social_networks", domain_bin_preference("social_reorganization"), "tables")),
-    file.path(project_root, "analysis_ready/06_behavioral_dynamics/hmm_states", hmm_primary_bin_level, "tables"),
+    first_existing_path(file.path(mmm_social_network_resolution_root(domain_bin_preference("social_reorganization"), project_root), "tables")),
+    file.path(mmm_hmm_resolution_root(hmm_primary_bin_level, project_root), "tables"),
     first_existing_path(file.path(project_root, "analysis_ready/06_behavioral_dynamics/gamm_trajectory_features", domain_bin_preference("adaptive_recovery"), "tables")),
-    first_existing_path(file.path(project_root, "analysis_ready/13_nonlinear_systems_dynamics", domain_bin_preference("nonlinear_systems"))),
-    first_existing_path(file.path(project_root, "analysis_ready/14_nextgen_behavioral_phenotyping", domain_bin_preference("nonlinear_systems"), "tables")),
-    first_existing_path(file.path(project_root, "analysis_ready/15_behavioral_adaptation_kinetics", domain_bin_preference("adaptive_recovery"), "tables/adaptation_kinetics_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", domain_bin_preference("sleep_like_inactivity"), "tables/sleep_like_inactivity_features.csv")),
-    first_existing_path(file.path(project_root, "analysis_ready/17_ethological_phase_organization", domain_bin_preference("phase_organization"), "tables"))
+    first_existing_path(mmm_supporting_resolution_root("nonlinear_dynamics", domain_bin_preference("nonlinear_systems"), project_root)),
+    first_existing_path(file.path(mmm_supporting_resolution_root("systems_phenotyping", domain_bin_preference("nonlinear_systems"), project_root), "tables")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", domain_bin_preference("adaptive_recovery"), project_root), "tables/adaptation_kinetics_features.csv")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("sleep_like_inactivity", domain_bin_preference("sleep_like_inactivity"), project_root), "tables/sleep_like_inactivity_features.csv")),
+    first_existing_path(file.path(mmm_phase_analysis_resolution_root("phase_organization", domain_bin_preference("phase_organization"), project_root), "tables"))
   )
 ) %>%
   mutate(
@@ -5411,7 +5430,7 @@ sis_domain_interpretation <- tibble(
 write_table(sis_domain_interpretation, file.path(output_dir, "tables/systems_sis_domain_interpretation_guide.csv"))
 
 sleep_candidate_bin_levels <- domain_bin_preference("sleep_like_inactivity")
-sleep_candidate_files <- file.path(project_root, "analysis_ready/16_sleep_like_inactivity_metrics", sleep_candidate_bin_levels, "tables/sleep_like_inactivity_features.csv")
+sleep_candidate_files <- file.path(mmm_phase_analysis_resolution_root("sleep_like_inactivity", sleep_candidate_bin_levels, project_root), "tables/sleep_like_inactivity_features.csv")
 sleep_features_epoch_path <- first_existing_path(sleep_candidate_files)
 sleep_features_epoch_bin_level <- if (!is.na(sleep_features_epoch_path)) basename(dirname(dirname(sleep_features_epoch_path))) else NA_character_
 sleep_features_epoch_audit <- tibble(
@@ -5762,16 +5781,18 @@ write_table(first_active_prediction_table, file.path(output_dir, "stats_tables/s
 # does NOT reconstruct the first 12 h. Those HMM analyses remain HMM-specific
 # supplementary material.
 
-first_night_primary_bin_level <- getOption("mmm.first_night.primary_bin_level", "10min_based")
-first_night_sensitivity_bin_level <- getOption("mmm.first_night.sensitivity_bin_level", "5min_based")
-first_night_bin_levels <- c(first_night_primary_bin_level, first_night_sensitivity_bin_level)
-first_night_roles <- c("primary", "sensitivity")
-
 first_night_results <- map2(first_night_bin_levels, first_night_roles, function(bl, role) {
+  group <- paste0("first_night_", sub("_based$", "", bl))
+  first_night_output_dir <- if (group %in% c("first_night_10min", "first_night_5min")) {
+    mmm_behavior_output_active_root(group, project_root = project_root)
+  } else {
+    # Preserve the existing explicit override interface for other bin widths.
+    file.path(output_dir, "first_night", bl)
+  }
   build_first_night_domain_analysis(
     bin_level = bl,
     project_root = project_root,
-    output_dir = file.path(output_dir, "first_night", bl),
+    output_dir = first_night_output_dir,
     canonical_roster = canonical_stage01_roster,
     resolution_role = role
   )
@@ -5890,10 +5911,11 @@ sis_heatmap_domains <- c(
 )
 
 domain_effect_path <- file.path(output_dir, "stats_tables/systems_sis_domain_effect_summary.csv")
-pre_fix_effect_path <- file.path(output_dir, "stats_tables/systems_sis_domain_effect_summary_pre_hmm_identity_fix.csv")
-if (file.exists(domain_effect_path) && !file.exists(pre_fix_effect_path)) {
-  file.copy(domain_effect_path, pre_fix_effect_path, overwrite = FALSE)
-}
+# The pre-fix table is frozen historical evidence, not a Stage 14 output.
+# Never populate it from a current result after a dashboard path cutover.
+pre_fix_effect_path <- file.path(
+  mmm_behavior_output_group_root("systems_dashboard_5min", "current", project_root),
+  "stats_tables/systems_sis_domain_effect_summary_pre_hmm_identity_fix.csv")
 
 non_hmm_domain_scores <- sis_domain_scores %>%
   filter(Domain != "Behavioral state architecture")

@@ -26,17 +26,18 @@ suppressPackageStartupMessages({
 })
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
 source_mmm_helper("phase_classification_helpers.R")
 source_mmm_helper("hmm_stage14_helpers.R")
 
 PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-ST14 <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based")
-OUT <- file.path(ST14, "audit_inactive_phase_qc")
+ST14 <- mmm_behavior_output_active_root("systems_dashboard_5min", PROJ)
+OUT <- mmm_behavior_output_active_root("inactive_phase_qc_audit", PROJ)
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 hr <- function(x) cat("\n########", x, "########\n")
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(mmm_derived_metrics_output_root(PROJ), "5min_based/all_behavior_metrics.csv"),
            col_types = cols(.default = col_skip(), AnimalNum = col_character(),
                             Group = col_character(), Sex = col_character()), progress = FALSE),
   "Stage 01 roster")
@@ -48,7 +49,7 @@ qc <- read_csv(file.path(ST14, "tables/qc_chip_loss_flags.csv"),
          PhaseClass = mmm_phase_class(Phase),
          CageChangeIndex = as.integer(str_extract(as.character(CageChange), "[0-9]+")))
 
-bins <- read_csv(file.path(PROJ, "analysis_ready/03_derived_metrics/10min_based/all_behavior_metrics.csv"),
+bins <- read_csv(file.path(mmm_derived_metrics_output_root(PROJ), "10min_based/all_behavior_metrics.csv"),
                  col_types = cols(AnimalNum = col_character(), .default = col_guess()), progress = FALSE) %>%
   mutate(AnimalNum = canonical_animal_id(AnimalNum), PhaseClass = mmm_phase_class(Phase))
 

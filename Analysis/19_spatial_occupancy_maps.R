@@ -55,6 +55,13 @@ if (!file.exists(.mmm_identity)) {
 }
 source(.mmm_identity)
 
+.mmm_paths <- file.path(.mmm_repo, "Functions", "project_paths.R")
+if (!file.exists(.mmm_paths)) {
+  stop("Cannot locate project_paths.R at ", .mmm_paths, ". Set MMM_REPO_DIR.",
+       call. = FALSE)
+}
+source(.mmm_paths)
+
 # -----------------------------
 # User options
 # -----------------------------
@@ -107,14 +114,18 @@ POSITION_MAP <- tibble::tibble(
 # outputs to the same RFID root the input is pinned to.
 RFID_ROOT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 
-DIR_DERIVED <- file.path(RFID_ROOT, "analysis_ready/03_derived_metrics/spatial_occupancy")
-DIR_MODELS  <- file.path(RFID_ROOT, "analysis_ready/04_model_outputs/spatial_occupancy")
-DIR_FIGS    <- file.path(RFID_ROOT, "analysis_ready/05_figures/spatial_occupancy")
+spatial_groups <- c("spatial_tables", "spatial_audit", "spatial_models", "spatial_figures")
+mmm_behavior_output_assert_uniform_layout(spatial_groups, project_root = RFID_ROOT,
+                                          producer = "Stage 19 spatial")
+DIR_DERIVED <- mmm_behavior_output_active_root("spatial_tables", project_root = RFID_ROOT)
+DIR_AUDIT   <- mmm_behavior_output_active_root("spatial_audit", project_root = RFID_ROOT)
+DIR_MODELS  <- mmm_behavior_output_active_root("spatial_models", project_root = RFID_ROOT)
+DIR_FIGS    <- mmm_behavior_output_active_root("spatial_figures", project_root = RFID_ROOT)
 DIR_PUBTAB  <- file.path(RFID_ROOT, "publication_ready/tables/spatial_occupancy")
 DIR_PUBFIG  <- file.path(RFID_ROOT, "publication_ready/figures/single_panels/spatial_occupancy")
 
 purrr::walk(
-  c(DIR_DERIVED, DIR_MODELS, DIR_FIGS, DIR_PUBTAB, DIR_PUBFIG),
+  c(DIR_DERIVED, DIR_AUDIT, DIR_MODELS, DIR_FIGS, DIR_PUBTAB, DIR_PUBFIG),
   ~ dir.create(.x, recursive = TRUE, showWarnings = FALSE)
 )
 
@@ -416,7 +427,7 @@ all_pos <- all_pos %>%
 metadata_qc <- all_pos %>%
   distinct(AnimalID_raw, AnimalID_norm, Batch, CageChange, System, Sex, Group, ReferenceGroup, ReferenceSex, SourceFile) %>%
   arrange(Batch, CageChange, System, AnimalID_norm)
-write_csv2(metadata_qc, file.path(DIR_DERIVED, "raw_position_metadata_assignment_qc.csv"))
+write_csv2(metadata_qc, file.path(DIR_AUDIT, "raw_position_metadata_assignment_qc.csv"))
 
 # ------------------------------------------------
 # CANONICAL ANIMAL IDENTITY CONTRACT
@@ -440,7 +451,7 @@ identity_conflicts <- all_pos %>%
     .groups = 'drop'
   ) %>%
   filter(n_groups > 1 | n_sexes > 1 | n_batches > 1)
-write_csv2(identity_conflicts, file.path(DIR_DERIVED, 'canonical_identity_conflicts.csv'))
+write_csv2(identity_conflicts, file.path(DIR_AUDIT, 'canonical_identity_conflicts.csv'))
 if (nrow(identity_conflicts) > 0) {
   stop('Canonical animal identity conflict for ', nrow(identity_conflicts),
        ' animal(s): ', paste(identity_conflicts$AnimalNum, collapse = ', '),
@@ -454,7 +465,7 @@ alias_merge_qc <- all_pos %>%
   summarise(n_raw_spellings = dplyr::n(),
             raw_spellings = paste(sort(unique(AnimalID_source)), collapse = '|'),
             .groups = 'drop')
-write_csv2(alias_merge_qc, file.path(DIR_DERIVED, 'canonical_identity_alias_merge.csv'))
+write_csv2(alias_merge_qc, file.path(DIR_AUDIT, 'canonical_identity_alias_merge.csv'))
 
 identity_roster <- all_pos %>% distinct(AnimalNum, Group, Sex)
 identity_summary <- tibble::tibble(
@@ -469,7 +480,7 @@ identity_summary <- tibble::tibble(
   n_Male = sum(identity_roster$Sex == 'Male', na.rm = TRUE),
   identity_conflicts = nrow(identity_conflicts)
 )
-write_csv2(identity_summary, file.path(DIR_DERIVED, 'canonical_identity_summary.csv'))
+write_csv2(identity_summary, file.path(DIR_AUDIT, 'canonical_identity_summary.csv'))
 message('Stage 19 canonical identity: ', identity_summary$n_canonical_animals,
         ' animals from ', identity_summary$n_raw_spellings, ' raw spellings (',
         identity_summary$n_aliases_merged, ' merged); ',
@@ -556,7 +567,7 @@ message(sprintf(
 occupancy_intervals <- occupancy_intervals %>% filter(!is.na(Phase)) %>% select(-PhaseBlockIndex)
 
 write_csv2(phase_boundary_audit,
-           file.path(DIR_DERIVED, "phase_boundary_and_gap_rule_audit.csv"))
+           file.path(DIR_AUDIT, "phase_boundary_and_gap_rule_audit.csv"))
 
 .straddle <- sum(animalpos_phase_block_index(occupancy_intervals$IntervalStart) !=
                  animalpos_phase_block_index(as.POSIXct(as.numeric(occupancy_intervals$IntervalEnd) - 1e-3,
@@ -689,7 +700,7 @@ label_contract_summary <- tibble::tibble(
   n_rows_missing_group = sum(is.na(occ_animal$Group)),
   n_rows_missing_sex = sum(is.na(occ_animal$Sex))
 )
-write_csv2(label_contract_summary, file.path(DIR_DERIVED, 'group_sex_label_contract.csv'))
+write_csv2(label_contract_summary, file.path(DIR_AUDIT, 'group_sex_label_contract.csv'))
 message('Stage 19 label contract: ', label_contract_summary$n_animals, ' animals; ',
         label_contract_summary$n_CON, ' CON / ', label_contract_summary$n_RES, ' RES / ',
         label_contract_summary$n_SUS, ' SUS; ', label_contract_summary$n_Female,
@@ -1029,9 +1040,9 @@ log_tbl <- tibble(
   )
 )
 
-write_csv2(log_tbl, file.path(DIR_DERIVED, "spatial_occupancy_run_log.csv"))
+write_csv2(log_tbl, file.path(DIR_AUDIT, "spatial_occupancy_run_log.csv"))
 
-sink(file.path(DIR_DERIVED, "session_info.txt"))
+sink(file.path(DIR_AUDIT, "session_info.txt"))
 print(sessionInfo())
 sink()
 

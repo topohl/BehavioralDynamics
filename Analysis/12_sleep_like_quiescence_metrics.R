@@ -29,11 +29,12 @@ suppressPackageStartupMessages({
 if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(.pipeline_setup)
 source_mmm_helper("duration_normalization_helpers.R")
+source_mmm_helper("project_paths.R")
 
 bin_level <- "10min_based"
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-input_file <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
-output_dir <- file.path(base_dir, "analysis_ready/16_sleep_like_inactivity_metrics", bin_level)
+input_file <- file.path(mmm_derived_metrics_output_root(base_dir), bin_level, "all_behavior_metrics.csv")
+output_dir <- mmm_phase_analysis_resolution_root("sleep_like_inactivity", bin_level, base_dir)
 proximity_col <- "ProximityFraction"
 low_activity_quantile <- 0.20
 prolonged_inactivity_min <- 30

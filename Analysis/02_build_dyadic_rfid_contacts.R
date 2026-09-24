@@ -49,16 +49,17 @@ if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", 
 source(.pipeline_setup)
 source_mmm_helper("duration_normalization_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
+source_mmm_helper("project_paths.R")
 
 # ------------------------------------------------
 # USER INPUT
 # ------------------------------------------------
 
 existing_default_input_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/preprocessed_data"
-existing_default_output_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/dyadic_contacts"
-
 input_dir <- getOption("mmm.preprocessed_dir", existing_default_input_dir)
-output_dir <- getOption("mmm.dyadic_contacts_dir", existing_default_output_dir)
+configured_output_dir <- getOption("mmm.dyadic_contacts_dir", NULL)
+output_dir <- if (is.null(configured_output_dir))
+  mmm_behavior_output_active_root("dyadic_contacts") else configured_output_dir
 
 # The aggregation bin determines the temporal resolution of the dyadic table.
 # 1800 sec = 30 min, matching the current main analysis scale.

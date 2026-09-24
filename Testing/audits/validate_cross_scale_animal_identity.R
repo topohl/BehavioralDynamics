@@ -32,6 +32,7 @@ suppressPackageStartupMessages({
 })
 
 source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
 source("Functions/animal_identity_invariants_helpers.R")
 
 run_cross_scale_identity_validation <- function(base_dir = "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID",
@@ -44,7 +45,7 @@ run_cross_scale_identity_validation <- function(base_dir = "S:/Lab_Member/Tobi/E
                                                 stage03_resolution = "10min",
                                                 stage09_resolution = "10min",
                                                 write_report = TRUE) {
-  derived_metrics_root <- file.path(base_dir, "analysis_ready/03_derived_metrics")
+  derived_metrics_root <- mmm_derived_metrics_output_root(base_dir)
 
   read_scale <- function(scale_label) {
     path <- file.path(derived_metrics_root, paste0(scale_label, "_based"), "all_behavior_metrics.csv")
@@ -127,7 +128,11 @@ run_cross_scale_identity_validation <- function(base_dir = "S:/Lab_Member/Tobi/E
   )
 
   if (isTRUE(write_report)) {
-    out_dir <- file.path(derived_metrics_root, "qc")
+    # The retained numbered qc/ reports describe an older Stage 01 run.
+    # Keep a new validation run separate from both those reports and Stage 01's
+    # own scientific QC products.
+    out_dir <- file.path(base_dir, "analysis_ready", "analyses",
+                         "cross_scale_identity_validation")
     ensure_dir(out_dir)
     write_csv(result$format_checks, file.path(out_dir, "cross_scale_identity_format_checks.csv"))
     write_csv(result$group_sex_checks_within_scale, file.path(out_dir, "cross_scale_identity_group_sex_within_scale.csv"))

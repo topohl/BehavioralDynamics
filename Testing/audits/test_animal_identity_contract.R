@@ -6,13 +6,15 @@ suppressPackageStartupMessages({
 })
 
 source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
 
 examples <- c("3", "0003", "4", "0004", "303", "00303", "OR004", "OR111", "OQ754")
 expected <- c("3", "3", "4", "4", "303", "303", "OR004", "OR111", "OQ754")
 stopifnot(identical(canonical_animal_id(examples), expected))
 
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-metrics_path <- file.path(base_dir, "analysis_ready/03_derived_metrics/10min_based/all_behavior_metrics.csv")
+metrics_path <- file.path(mmm_derived_metrics_output_root(base_dir),
+                          "10min_based/all_behavior_metrics.csv")
 metrics <- read_csv(
   metrics_path,
   show_col_types = FALSE,
