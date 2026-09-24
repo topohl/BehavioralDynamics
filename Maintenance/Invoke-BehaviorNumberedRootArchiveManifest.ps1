@@ -40,6 +40,10 @@ if (-not (Test-Path -LiteralPath $ready -PathType Container) -or
     -not (Test-Path -LiteralPath $source -PathType Container)) {
   throw "Missing analysis_ready or numbered source root: $source"
 }
+if (((Get-Item -LiteralPath $source -Force).Attributes -band
+      [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+  throw "Numbered source is a reparse point: $source"
+}
 if ($Location -ceq 'Archived' -and (Test-Path -LiteralPath $original)) {
   throw "Archived verification found a recreated original root: $original"
 }

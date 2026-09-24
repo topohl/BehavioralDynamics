@@ -111,8 +111,9 @@ them.
 The current receipt resolver checks that both the semantic directory and the
 retained source directory still exist. A separate archive receipt can now
 select an exact `history/original_layout/` source location, but no such receipt
-exists on the live tree and the transaction tool is not yet implemented. An
-archive move without those gates would still break active path resolution. A
+exists on the live tree. The separate transaction tool is fixture-tested and
+requires a reviewed audit-reader gate that is not yet satisfied. An archive
+move without those gates would still break active path resolution. A
 coarse repository text search
 also finds numbered-path references in 16 audit scripts for
 `06_behavioral_dynamics/`, 34 for `12_systems_neuroscience_summary/`, and 28

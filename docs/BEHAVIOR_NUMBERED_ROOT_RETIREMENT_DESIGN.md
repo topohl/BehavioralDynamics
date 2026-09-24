@@ -1,6 +1,6 @@
 # Retiring numbered behavioral output roots: proposed transaction
 
-Status: design and resolver foundation for review, 2026-09-24. No numbered source directory has been
+Status: prepared tooling and unresolved reader gate, 2026-09-24. No numbered source directory has been
 moved, renamed, hidden, or deleted. The receipt-activated semantic copies are
 already selected by current readers. This design is a separate operation from
 the completed copy activations.
@@ -39,9 +39,10 @@ state must stop affected readers. The original `source_retained=true` promise
 remains true after relocation, but the resolver needs an explicit archived
 source-location rule before any source is moved.
 
-The tool interface should have independent `Inspect`, `Prepare`, `Verify`,
-`Activate`, and `Rollback` actions. `Inspect` is read-only. `Prepare` freezes and
-hashes the complete source inventory and checks for a vacant archive target.
+The transaction tool now has independent `Inspect`, `Prepare`, `Verify`,
+`Activate`, and `Rollback` actions. `Inspect` is read-only. `Prepare` pins the
+reviewed manifest and reader gate, rehashes the complete source inventory, and
+checks for a vacant archive target.
 `Verify` repeats the hashes and checks the receipt and all paths. `Activate`
 marks the root `transferring`, moves the directory on the same volume, verifies
 the archived inventory, then marks it `activated`. An interruption must leave
@@ -69,7 +70,15 @@ source hash passes wrote these versioned manifests in the repository:
 All three manifests passed a separate live `Verify` pass after `Build`.
 They remain snapshots. A future `Activate` must rerun `Verify`; even a Windows
 thumbnail-cache change will invalidate its snapshot until reviewed.
-The transaction actions above remain design work.
+`Maintenance/Invoke-BehaviorNumberedRootArchive.ps1` implements those actions
+against the exact paths above. Temporary fixtures passed activation, repeat
+activation refusal, changed-source refusal, rollback from activated state,
+and rollback after interruptions on either side of the directory move. It
+requires a SHA-pinned reader gate with one `ready` row for every script in the
+queue before `Prepare` or `Activate`. A live read-only `Inspect` of the Stage 14
+root passed with 702 manifest files; `Prepare` using the current unresolved
+queue was refused and created no receipt. The transaction tool has not moved
+or prepared any live source.
 
 ## Reader and writer gate before `Activate`
 
@@ -78,8 +87,8 @@ The transaction actions above remain design work.
    location. Until an archive receipt is activated, the old path is required
    exactly as today. Temporary-fixture tests cover prepared, transferring,
    activated, invalid, and interrupted locations; no receipt was created on
-   the live tree. The transaction tool and manual audit reader changes are
-   still required before a live move.
+   the live tree. Manual audit reader/writer review and a separately approved
+   live `Activate` are still required before a live move.
 2. Keep Stage 10's current 18-group semantic discovery and its 606-path parity
    check. Its virtual numbered-path sort key preserves input precedence; the
    current group scan does not require the numbered `06` root.
