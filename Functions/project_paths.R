@@ -290,6 +290,46 @@ mmm_behavior_retained_source_root <- function(group,
        receipt$state, call. = FALSE)
 }
 
+# Historical audit replays read the retained original lineage, regardless of
+# whether its top-level numbered root has later been archived.
+mmm_behavior_numbered_source_root <- function(root_name,
+                                              project_root = mmm_project_root()) {
+  representative <- c(
+    "03_derived_metrics" = "behavior_metrics_foundation",
+    "06_behavioral_dynamics" = "dyadic_contacts",
+    "12_systems_neuroscience_summary" = "systems_dashboard_5min")
+  if (length(root_name) != 1L || is.na(root_name) ||
+      !root_name %in% names(representative)) {
+    stop("Unknown numbered behavioral source root: ", root_name,
+         call. = FALSE)
+  }
+  path <- mmm_behavior_retained_source_root(representative[[root_name]],
+                                           project_root)
+  if (identical(root_name, "03_derived_metrics")) path else dirname(path)
+}
+
+# A replay requires an explicit run identifier and a previously unused output
+# directory. No historical original or prior replay output may be overwritten.
+mmm_behavior_audit_replay_output_root <- function(script_id,
+                                                  project_root = mmm_project_root(),
+                                                  run_id = Sys.getenv(
+                                                    "MMM_BEHAVIOR_AUDIT_REPLAY_ID",
+                                                    unset = "")) {
+  valid <- function(x) is.character(x) && length(x) == 1L && !is.na(x) &&
+    grepl("^[a-z0-9][a-z0-9_-]{2,63}$", x)
+  if (!valid(script_id) || !valid(run_id)) {
+    stop("Historical audit replay needs a safe script id and explicit run id ",
+         "(MMM_BEHAVIOR_AUDIT_REPLAY_ID).", call. = FALSE)
+  }
+  path <- file.path(project_root, "analysis_ready", "analyses",
+                    "historical_audit_replays", run_id, script_id)
+  if (file.exists(path) || dir.exists(path)) {
+    stop("Historical audit replay output already exists: ", path,
+         call. = FALSE)
+  }
+  path
+}
+
 # The migration receipt is the explicit per-group layout switch. The semantic
 # directory alone never selects a scientific input. Intermediate and corrupted
 # migration states fail closed rather than silently returning to the old tree.

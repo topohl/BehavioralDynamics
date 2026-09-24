@@ -110,8 +110,16 @@ or prepared any live source.
    or reuse an existing replay output folder.
    `behavior_output_archive_audit_script_queue.csv` lists all 37 audit scripts
    naming at least one of the three roots, with separate reference and common
-   write-call flags. Every row remains `needs_reader_writer_review`; the flags
-   are deliberately not a live-consumer classification.
+   write-call flags from the baseline scan. The flags are deliberately not a
+   live-consumer classification and are not regenerated as scripts are edited.
+   `audit_first_night_candidate_set_scores.R` now resolves its three historical
+   input roots through the archive-aware accessor, reads its prerequisite
+   anchor from retained audit provenance, and requires
+   `MMM_BEHAVIOR_AUDIT_REPLAY_ID` to create a new output directory under
+   `analyses/historical_audit_replays/<run-id>/first_night_candidate_set_scores/`.
+   Its queue row is `path_prepared_unvalidated`: the script was parsed and its
+   path contract tested, but no scientific replay was run or validated. All
+   other rows still need reader/writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

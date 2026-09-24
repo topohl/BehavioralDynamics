@@ -2,7 +2,7 @@
 "Testing/audits/audit_first_night_candidate_set_algebra_crosscheck.R","True","False","False","False","False","needs_reader_writer_review"
 "Testing/audits/audit_first_night_candidate_set_decision.R","False","False","True","True","False","needs_reader_writer_review"
 "Testing/audits/audit_first_night_candidate_set_effects.R","True","False","True","True","False","needs_reader_writer_review"
-"Testing/audits/audit_first_night_candidate_set_scores.R","True","True","True","True","True","needs_reader_writer_review"
+"Testing/audits/audit_first_night_candidate_set_scores.R","True","True","True","True","True","path_prepared_unvalidated"
 "Testing/audits/audit_first_night_domain_scores_v2.R","True","True","True","True","True","needs_reader_writer_review"
 "Testing/audits/audit_first_night_domain_scores.R","True","True","True","True","True","needs_reader_writer_review"
 "Testing/audits/audit_first_night_dwell_partition_stability.R","True","False","True","True","False","needs_reader_writer_review"

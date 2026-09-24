@@ -38,8 +38,8 @@
 ##   - Significance plays NO role in this script. No domain is added or dropped on a p-value.
 ##     This script computes NO group contrast at all.
 ##
-## READ-ONLY with respect to Analysis/ and Functions/. Writes only into
-##   <STAGE14>/audit_hmm_state_architecture/first_night_domain_heatmap/
+## Reads the retained original lineage. A replay requires an explicit
+## MMM_BEHAVIOR_AUDIT_REPLAY_ID and writes into a new per-script output folder.
 ## ===========================================================================
 
 suppressMessages({
@@ -51,12 +51,17 @@ setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
+source_mmm_helper("project_paths.R")
 
-PROJ    <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-STAGE14 <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based")
-OUT     <- file.path(STAGE14, "audit_hmm_state_architecture/first_night_domain_heatmap")
-HMM     <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
-DERIV   <- file.path(PROJ, "analysis_ready/03_derived_metrics")
+PROJ       <- mmm_project_root()
+HIST_AUDIT <- file.path(
+  mmm_behavior_numbered_source_root("12_systems_neuroscience_summary", PROJ),
+  "5min_based/audit_hmm_state_architecture/first_night_domain_heatmap")
+OUT <- mmm_behavior_audit_replay_output_root(
+  "first_night_candidate_set_scores", PROJ)
+HMM <- file.path(mmm_behavior_numbered_source_root("06_behavioral_dynamics", PROJ),
+                 "hmm_states")
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
 THIS_SCRIPT  <- "Testing/audits/audit_first_night_candidate_set_scores.R"
@@ -160,7 +165,7 @@ stopifnot(nrow(roster) == 111L, nrow(roster) == n_distinct(roster$AnimalNum))
 ## ==========================================================================
 hr("STEP 1. Canonical clock window + the NINE raw z-features + raw domains")
 ## ==========================================================================
-anchor_long_path <- file.path(OUT, "first_night_time_anchor_audit_long.csv")
+anchor_long_path <- file.path(HIST_AUDIT, "first_night_time_anchor_audit_long.csv")
 stopifnot(file.exists(anchor_long_path))
 anchor_long <- read_csv(anchor_long_path,
                         col_types = cols(AnimalNum = col_character(), .default = col_guess()),
