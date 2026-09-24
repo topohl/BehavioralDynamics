@@ -308,4 +308,22 @@ for (entry in list(
             !any(grepl('analysis_ready/12_systems_neuroscience_summary',
                        provenance, fixed = TRUE)))
 }
+
+for (entry in list(
+  c("audit_hmm_state_architecture_phaseA_formula_units_qc.R", "hmm_architecture_phasea_formula_units_qc"),
+  c("audit_hmm_state_architecture_phaseA_gapaware_contrasts.R", "hmm_architecture_phasea_gapaware_contrasts"),
+  c("audit_hmm_state_architecture_phaseA_partition_and_gap.R", "hmm_architecture_phasea_partition_and_gap"))) {
+  phase_a <- readLines(file.path("Testing/audits", entry[[1L]]),
+                       warn = FALSE)
+  invisible(parse(text = phase_a))
+  stopifnot(any(grepl('mmm_behavior_audit_replay_input_root("hmm_architecture_components", PROJ)',
+                     phase_a, fixed = TRUE)),
+            any(grepl(paste0('mmm_behavior_audit_replay_output_root("',
+                              entry[[2L]], '", PROJ)'), phase_a,
+                      fixed = TRUE)),
+            any(grepl('read_csv(file.path(INPUT,', phase_a,
+                      fixed = TRUE)),
+            !any(grepl('analysis_ready/12_systems_neuroscience_summary',
+                       phase_a, fixed = TRUE)))
+}
 cat("Historical audit replay source and fresh-output paths: PASS\n")

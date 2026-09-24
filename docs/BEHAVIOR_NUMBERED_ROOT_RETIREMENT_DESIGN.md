@@ -170,7 +170,10 @@ or prepared any live source.
    need to read that replay output. The independent Stage 14 provenance audit
    and its addendum now read retained Stage 01 and Stage 08 inputs, then write
    to separate replay folders. Their numerical checks were not rerun. That
-   leaves 10 unresolved rows.
+   The three Phase A follow-ups now consume the same-run HMM component
+   foundation and write to distinct replay folders, with their additional
+   Stage 01, 08, and 14 inputs resolved from retained originals. They were
+   not rerun. That leaves 7 unresolved rows.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

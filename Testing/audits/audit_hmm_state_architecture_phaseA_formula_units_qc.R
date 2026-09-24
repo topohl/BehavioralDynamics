@@ -2,11 +2,16 @@
 suppressMessages({library(dplyr); library(tidyr); library(readr); library(stringr); library(purrr)})
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R"); source_mmm_helper("hmm_stage14_helpers.R")
-A <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture"
-B <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based"
-HMM <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/hmm_states"
+source_mmm_helper("project_paths.R")
+PROJ <- mmm_project_root()
+INPUT <- mmm_behavior_audit_replay_input_root("hmm_architecture_components", PROJ)
+A <- mmm_behavior_audit_replay_output_root("hmm_architecture_phasea_formula_units_qc", PROJ)
+B <- file.path(mmm_behavior_numbered_source_root(
+  "12_systems_neuroscience_summary", PROJ), "5min_based")
+HMM <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", PROJ), "hmm_states")
 
-comp <- read_csv(file.path(A, "hmm_architecture_component_epoch_metrics.csv"),
+comp <- read_csv(file.path(INPUT, "hmm_architecture_component_epoch_metrics.csv"),
                  col_types = cols(AnimalNum = col_character(), .default = col_guess()))
 
 cat("################ ISSUE 1: FORMULA PRESERVATION ################\n")
@@ -39,6 +44,7 @@ issue1 <- tibble(
   identical_to_shipped = c(TRUE, TRUE, FALSE),
   status = c("shipped", "SAFE: description-only change, coefficient preserved",
              "POST-HOC REWEIGHTING: new sensitivity construct, must be labelled as such"))
+dir.create(A, recursive = TRUE, showWarnings = FALSE)
 write_csv(issue1, file.path(A, "phaseA_issue1_formula_preservation.csv"))
 
 cat("\n################ ISSUE 2: DWELL-TIME UNITS ################\n")

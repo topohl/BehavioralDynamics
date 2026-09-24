@@ -4,8 +4,11 @@
 suppressMessages({library(dplyr); library(tidyr); library(readr); library(stringr); library(purrr)})
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R"); source_mmm_helper("hmm_stage14_helpers.R")
-OUT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture"
-PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+source_mmm_helper("project_paths.R")
+PROJ <- mmm_project_root()
+INPUT <- mmm_behavior_audit_replay_input_root("hmm_architecture_components", PROJ)
+OUT <- mmm_behavior_audit_replay_output_root("hmm_architecture_phasea_partition_and_gap", PROJ)
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 K <- 4L; sd_floor <- 0.05; SEEDS <- c(7L, 1L, 101L, 23L, 313L)
 PH_I <- "\\binactive\\b|\\blight\\b|\\bday\\b"; PH_A <- "\\bactive\\b|\\bdark\\b|\\bnight\\b"
 
@@ -39,10 +42,10 @@ init_km <- function(mod, hd, K, seed) {
 ent <- function(p) { p <- p[is.finite(p) & p > 0]; if (!length(p)) return(NA_real_); -sum(p*log(p)) }
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ,"analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(DERIV,"5min_based/all_behavior_metrics.csv"),
     col_types = cols(.default=col_skip(), AnimalNum=col_character(), Group=col_character(), Sex=col_character()),
     progress = FALSE), "roster")
-raw <- read_csv(file.path(PROJ,"analysis_ready/03_derived_metrics/10min_based/all_behavior_metrics.csv"),
+raw <- read_csv(file.path(DERIV,"10min_based/all_behavior_metrics.csv"),
                 col_types = cols(AnimalNum = col_character()), progress = FALSE, show_col_types = FALSE)
 idn <- audit_hmm_identity(raw, roster, "10min"); assert_hmm_identity_audit(idn)
 hd <- standardize_behavior_columns(idn$data, proximity_col = "ProximityFraction") %>%
@@ -98,6 +101,7 @@ for (sd_seed in SEEDS) {
       " occ", round(prof$occupancy_share[prof$State==top],3), "\n"); flush.console()
 }
 pf <- bind_rows(profiles); fr <- bind_rows(fracs); ct <- bind_rows(contrasts_l)
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(pf, file.path(OUT,"phaseA_issue3_topproximity_state_profiles.csv"))
 write_csv(ct, file.path(OUT,"phaseA_issue3_topproximity_partition_contrasts.csv"))
 
@@ -133,7 +137,7 @@ print(as.data.frame(ct %>% filter(Sex=="Female") %>% group_by(Domain, PhaseClass
 
 ## ---------------- ISSUE 4: explicit gap-aware sensitivity table ----------------
 cat("\n\n################ ISSUE 4: GAP-AWARE SENSITIVITY ################\n")
-comp <- read_csv(file.path(OUT,"hmm_architecture_component_epoch_metrics.csv"),
+comp <- read_csv(file.path(INPUT,"hmm_architecture_component_epoch_metrics.csv"),
                  col_types = cols(AnimalNum=col_character(), .default=col_guess()))
 cat("Gap detection: a new sequence/run boundary is inserted where diff(TimeIndex) > 1.5 * median(step).\n")
 print(as.data.frame(comp %>% group_by(resolution) %>%

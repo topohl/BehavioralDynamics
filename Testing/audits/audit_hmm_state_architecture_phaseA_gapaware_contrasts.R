@@ -4,8 +4,11 @@
 suppressMessages({library(dplyr); library(tidyr); library(readr); library(purrr)})
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R"); source_mmm_helper("hmm_stage14_helpers.R")
-OUT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture"
-comp <- read_csv(file.path(OUT,"hmm_architecture_component_epoch_metrics.csv"),
+source_mmm_helper("project_paths.R")
+PROJ <- mmm_project_root()
+INPUT <- mmm_behavior_audit_replay_input_root("hmm_architecture_components", PROJ)
+OUT <- mmm_behavior_audit_replay_output_root("hmm_architecture_phasea_gapaware_contrasts", PROJ)
+comp <- read_csv(file.path(INPUT,"hmm_architecture_component_epoch_metrics.csv"),
                  col_types = cols(AnimalNum=col_character(), .default=col_guess()))
 G <- c("transition_entropy","state_switch_rate","mean_dwell_bins","self_transition_probability")
 cmp <- list()
@@ -36,6 +39,7 @@ gcmp <- gt %>% select(resolution, Domain, PhaseClass, Sex, contrast, variant,
          ci_low_gapaware  = est_gapaware - 1.96*SE_gapaware,  ci_high_gapaware  = est_gapaware + 1.96*SE_gapaware,
          ci_overlap = pmin(ci_high_original, ci_high_gapaware) >= pmax(ci_low_original, ci_low_gapaware),
          gap_detection_rule = "new run/sequence boundary where diff(TimeIndex) > 1.5 * median(step)")
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(gcmp, file.path(OUT,"phaseA_issue4_gapaware_contrast_comparison.csv"))
 
 show <- function(rs, ph, sx) {
