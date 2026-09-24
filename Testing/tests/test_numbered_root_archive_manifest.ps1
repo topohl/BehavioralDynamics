@@ -54,4 +54,23 @@ $rows = @(Import-Csv -LiteralPath $manifest)
 $rows[0].relative_path = '../escape.csv'
 $rows | Export-Csv -LiteralPath $manifest -NoTypeInformation -Encoding utf8
 Expect-Failure { Invoke-Manifest 'Verify' }
+
+# Create a fresh fixture manifest before verifying the same files after a
+# same-volume move to the proposed archive location.
+$manifest = Join-Path $fixture 'archive-location-manifest.csv'
+Invoke-Manifest 'Build' | Out-Null
+$archived = Join-Path $ready 'history\original_layout\06_behavioral_dynamics'
+New-Item -ItemType Directory -Path (Split-Path -Parent $archived) -Force | Out-Null
+Move-Item -LiteralPath $source -Destination $archived
+$archiveCheck = & $tool -Action Verify -AnalysisReadyRoot $ready -RootName `
+  '06_behavioral_dynamics' -Manifest $manifest -Location Archived
+if ($archiveCheck.hashes -cne 'PASS' -or $archiveCheck.location -cne 'Archived') {
+  throw 'Archived source did not match the original manifest'
+}
+Expect-Failure { & $tool -Action Build -AnalysisReadyRoot $ready -RootName `
+  '06_behavioral_dynamics' -Manifest (Join-Path $fixture 'invalid-build.csv') `
+  -Location Archived }
+New-Item -ItemType Directory -Path $source -Force | Out-Null
+Expect-Failure { & $tool -Action Verify -AnalysisReadyRoot $ready -RootName `
+  '06_behavioral_dynamics' -Manifest $manifest -Location Archived }
 Write-Output 'Numbered root archive manifest fixture: PASS'

@@ -54,8 +54,10 @@ The manifest component is now implemented separately as
 `Maintenance/Invoke-BehaviorNumberedRootArchiveManifest.ps1`. `Build` writes a
 new UTF-8 CSV outside the numbered source and refuses to overwrite one;
 `Verify` rejects changed, missing, extra, duplicate, and unsafe paths after
-checking size and SHA-256. Its temporary-fixture test passed. It has not been
-used to move a live root or create an archive receipt. Three live read-only
+checking size and SHA-256. `Verify -Location Archived` checks the same manifest
+at the proposed retained-original path and rejects a recreated original root.
+Its temporary-fixture move and drift tests passed. It has not been used to
+move a live root or create an archive receipt. Three live read-only
 source hash passes wrote these versioned manifests in the repository:
 
 | Source root | Complete files | Manifest SHA-256 |

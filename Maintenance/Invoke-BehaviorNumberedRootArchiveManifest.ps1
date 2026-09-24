@@ -7,7 +7,9 @@ param(
   [ValidateSet('03_derived_metrics', '06_behavioral_dynamics',
                '12_systems_neuroscience_summary')]
   [string] $RootName,
-  [Parameter(Mandatory = $true)] [string] $Manifest
+  [Parameter(Mandatory = $true)] [string] $Manifest,
+  [ValidateSet('Original', 'Archived')]
+  [string] $Location = 'Original'
 )
 
 Set-StrictMode -Version Latest
@@ -27,11 +29,19 @@ function Sha256([string] $Path) {
 }
 
 $ready = FullPath $AnalysisReadyRoot
-$source = FullPath (Join-Path $ready $RootName)
+$original = FullPath (Join-Path $ready $RootName)
+$archived = FullPath (Join-Path $ready ("history\original_layout\$RootName"))
+$source = if ($Location -ceq 'Original') { $original } else { $archived }
 $manifestPath = FullPath $Manifest
+if ($Action -ceq 'Build' -and $Location -cne 'Original') {
+  throw 'Build is allowed only from the original numbered source'
+}
 if (-not (Test-Path -LiteralPath $ready -PathType Container) -or
     -not (Test-Path -LiteralPath $source -PathType Container)) {
   throw "Missing analysis_ready or numbered source root: $source"
+}
+if ($Location -ceq 'Archived' -and (Test-Path -LiteralPath $original)) {
+  throw "Archived verification found a recreated original root: $original"
 }
 if (IsChild $manifestPath $source -or $manifestPath -ceq $source) {
   throw 'The manifest cannot be written inside the source being inventoried'
@@ -107,6 +117,7 @@ if ($Action -ceq 'Build') {
 [pscustomobject]@{
   action = $Action
   root = $RootName
+  location = $Location
   files = $rows.Count
   bytes = [long](($rows | Measure-Object -Property size_bytes -Sum).Sum)
   manifest = $manifestPath
