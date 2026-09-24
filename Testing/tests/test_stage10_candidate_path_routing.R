@@ -70,6 +70,45 @@ missing_target <- tryCatch({
 stopifnot(is.character(missing_target),
           grepl("missing or renamed destination", missing_target, fixed = TRUE))
 
+# Historical resolution readers and Stage 10 share the same receipt switch.
+history_group <- "history_temporal_instability_1min"
+history_copy <- file.path(mmm_behavior_output_group_root(history_group, "semantic", root),
+                          "tables", "feature.csv")
+stopifnot(length(mmm_behavior_historical_resolution_groups) == 9L,
+          !anyDuplicated(mmm_behavior_historical_resolution_groups))
+for (group in unname(mmm_behavior_historical_resolution_groups)) {
+  stopifnot(identical(mmm_behavior_output_active_root(group, root),
+                      mmm_behavior_output_group_root(group, "current", root)))
+}
+stopifnot(identical(normalizePath(mmm_temporal_instability_resolution_root("1min_based", root),
+                                  winslash = "/"), dirname(dirname(historical))),
+          identical(mmm_behavior_route_historical_feature_sources(historical, root),
+                    normalizePath(historical, winslash = "/")))
+dir.create(dirname(history_copy), recursive = TRUE, showWarnings = FALSE)
+stopifnot(file.copy(historical, history_copy))
+stopifnot(inherits(try(mmm_temporal_instability_resolution_root("1min_based", root),
+                       silent = TRUE), "try-error"))
+jsonlite::write_json(list(
+  group = history_group, state = "activated", files = 1L,
+  target_root_rel = "history/temporal_instability/1min",
+  group_plan_sha256 = paste(rep("c", 64L), collapse = ""),
+  contract_sha256 = paste(rep("d", 64L), collapse = ""),
+  source_retained = TRUE),
+  file.path(control, paste0(history_group, ".json")), auto_unbox = TRUE)
+stopifnot(identical(normalizePath(mmm_temporal_instability_resolution_root("1min_based", root),
+                                  winslash = "/"),
+                    normalizePath(dirname(dirname(history_copy)), winslash = "/")),
+          identical(mmm_behavior_route_historical_feature_sources(historical, root),
+                    normalizePath(history_copy, winslash = "/")),
+          any(grepl("mmm_behavior_route_historical_feature_sources\\(candidate_paths, base_dir\\)",
+                    readLines("Analysis/10_systems_feature_prediction_ladder.R"))))
+writeLines("AnimalNum,value\n1,222", history_copy)
+stopifnot(inherits(try(mmm_behavior_route_historical_feature_sources(historical, root),
+                       silent = TRUE), "try-error"))
+unlink(history_copy)
+stopifnot(inherits(try(mmm_behavior_route_historical_feature_sources(historical, root),
+                       silent = TRUE), "try-error"))
+
 # Fresh migration manifests can appear in the numbered discovery root after
 # the saved source audit. Exercise the production exclusion expressions so
 # these metadata files never become candidate feature tables.

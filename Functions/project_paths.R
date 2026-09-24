@@ -134,6 +134,33 @@ mmm_behavior_output_group_root <- function(group,
     temporal_instability_10sec = c(
       current = "06_behavioral_dynamics/temporal_instability/10sec_based",
       semantic = "analyses/temporal_instability/10sec"),
+    history_social_networks_10sec = c(
+      current = "06_behavioral_dynamics/social_networks/10sec_based",
+      semantic = "history/social_networks/10sec"),
+    history_social_networks_1min = c(
+      current = "06_behavioral_dynamics/social_networks/1min_based",
+      semantic = "history/social_networks/1min"),
+    history_social_networks_10min = c(
+      current = "06_behavioral_dynamics/social_networks/10min_based",
+      semantic = "history/social_networks/10min"),
+    history_social_networks_30min = c(
+      current = "06_behavioral_dynamics/social_networks/30min_based",
+      semantic = "history/social_networks/30min"),
+    history_state_space_1min = c(
+      current = "06_behavioral_dynamics/state_space/1min_based",
+      semantic = "history/state_space/1min"),
+    history_state_space_10min = c(
+      current = "06_behavioral_dynamics/state_space/10min_based",
+      semantic = "history/state_space/10min"),
+    history_temporal_instability_1min = c(
+      current = "06_behavioral_dynamics/temporal_instability/1min_based",
+      semantic = "history/temporal_instability/1min"),
+    history_temporal_instability_5min = c(
+      current = "06_behavioral_dynamics/temporal_instability/5min_based",
+      semantic = "history/temporal_instability/5min"),
+    history_gamm_features_30min = c(
+      current = "06_behavioral_dynamics/gamm_features/30min_based",
+      semantic = "history/gamm_features/30min"),
     proteomics_mnn_primary = c(
       current = "06_behavioral_dynamics/proteomics_mnn_primary",
       semantic = "analyses/behavior_proteomics/proteomics_mnn_primary"),
@@ -293,6 +320,65 @@ mmm_source_relative_path <- function(path, project_root = mmm_project_root()) {
   substring(normalized, nchar(prefix) + 1L)
 }
 
+# Older resolution trees remain scientific inputs for optional readers. Keep
+# their nine independently reviewed history cutovers behind receipts; an
+# unmapped resolution retains its original path.
+mmm_behavior_historical_resolution_groups <- c(
+  "social_networks/10sec_based" = "history_social_networks_10sec",
+  "social_networks/1min_based" = "history_social_networks_1min",
+  "social_networks/10min_based" = "history_social_networks_10min",
+  "social_networks/30min_based" = "history_social_networks_30min",
+  "state_space/1min_based" = "history_state_space_1min",
+  "state_space/10min_based" = "history_state_space_10min",
+  "temporal_instability/1min_based" = "history_temporal_instability_1min",
+  "temporal_instability/5min_based" = "history_temporal_instability_5min",
+  "gamm_features/30min_based" = "history_gamm_features_30min"
+)
+
+mmm_behavior_historical_resolution_root <- function(family, resolution,
+                                                    project_root = mmm_project_root()) {
+  if (length(family) != 1L || is.na(family) ||
+      length(resolution) != 1L || is.na(resolution)) {
+    stop("Historical behavior lookup needs one family and resolution.", call. = FALSE)
+  }
+  key <- paste(family, resolution, sep = "/")
+  if (!key %in% names(mmm_behavior_historical_resolution_groups)) {
+    return(file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
+                     family, resolution))
+  }
+  mmm_behavior_output_active_root(mmm_behavior_historical_resolution_groups[[key]],
+                                  project_root)
+}
+
+# Stage 10 discovers files in the retained numbered root. Rewrite each
+# receipt-activated historical file in place so discovery order and basename
+# stay fixed. The numbered source still has to exist until discovery itself
+# is moved to a reviewed semantic manifest.
+mmm_behavior_route_historical_feature_sources <- function(paths,
+                                                          project_root = mmm_project_root()) {
+  if (length(paths) == 0L) return(paths)
+  routed <- normalizePath(paths, winslash = "/", mustWork = TRUE)
+  for (group in unname(mmm_behavior_historical_resolution_groups)) {
+    old <- normalizePath(mmm_behavior_output_group_root(group, "current", project_root),
+                         winslash = "/", mustWork = FALSE)
+    active <- mmm_behavior_output_active_root(group, project_root)
+    if (identical(normalizePath(active, winslash = "/", mustWork = FALSE), old)) next
+    matched <- which(startsWith(routed, paste0(old, "/")))
+    for (i in matched) {
+      suffix <- substring(routed[[i]], nchar(old) + 2L)
+      target <- file.path(active, suffix)
+      if (!file.exists(target) ||
+          !identical(file.info(routed[[i]])$size, file.info(target)$size)) {
+        stop("Activated historical feature is missing or size-mismatched: ",
+             routed[[i]], " -> ", target, call. = FALSE)
+      }
+      routed[[i]] <- normalizePath(target, winslash = "/", mustWork = TRUE)
+    }
+  }
+  if (anyDuplicated(routed)) stop("Historical feature routing produced duplicate paths.")
+  routed
+}
+
 # Only the current five-minute social producer participates in this migration.
 # Other resolution runs retain their historical paths and provenance.
 mmm_social_network_resolution_root <- function(resolution,
@@ -307,8 +393,7 @@ mmm_social_network_resolution_root <- function(resolution,
     if (identical(one, "5min_based")) {
       mmm_behavior_output_active_root("social_networks_5min", project_root)
     } else {
-      file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
-                "social_networks", one)
+      mmm_behavior_historical_resolution_root("social_networks", one, project_root)
     }
   }, character(1), USE.NAMES = FALSE)
 }
@@ -327,8 +412,7 @@ mmm_gamm_features_resolution_root <- function(resolution,
     if (identical(one, "10min_based")) {
       mmm_behavior_output_active_root("gamm_features_10min", project_root)
     } else {
-      file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
-                "gamm_features", one)
+      mmm_behavior_historical_resolution_root("gamm_features", one, project_root)
     }
   }, character(1), USE.NAMES = FALSE)
 }
@@ -347,8 +431,7 @@ mmm_state_space_resolution_root <- function(resolution,
     if (identical(one, "5min_based")) {
       mmm_behavior_output_active_root("state_space_5min", project_root)
     } else {
-      file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
-                "state_space", one)
+      mmm_behavior_historical_resolution_root("state_space", one, project_root)
     }
   }, character(1), USE.NAMES = FALSE)
 }
@@ -389,8 +472,7 @@ mmm_temporal_instability_resolution_root <- function(resolution,
     if (identical(one, "10sec_based")) {
       mmm_behavior_output_active_root("temporal_instability_10sec", project_root)
     } else {
-      file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
-                "temporal_instability", one)
+      mmm_behavior_historical_resolution_root("temporal_instability", one, project_root)
     }
   }, character(1), USE.NAMES = FALSE)
 }

@@ -639,6 +639,7 @@ candidate_paths <- route_activated_feature_sources(
   candidate_paths, base_dir,
   file.path(MMM_REPO_ROOT, "docs", "BEHAVIOR_OUTPUT_MIGRATION_PLAN.csv")
 )
+candidate_paths <- mmm_behavior_route_historical_feature_sources(candidate_paths, base_dir)
 
 candidate_feature_tables <- map(candidate_paths, ~summarise_candidate_features(read_candidate_file(.x), .x))
 names(candidate_feature_tables) <- candidate_paths

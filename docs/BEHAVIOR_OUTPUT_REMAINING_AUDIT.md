@@ -245,9 +245,9 @@ specification explicitly prefers the retained five-minute temporal table and
 the 30-minute GAMM table. Stage 16 records these resolution families as
 historical groups. Current Stage 04–07 producer defaults select 10-second,
 5-minute, 5-minute, and 10-minute outputs respectively, while the May
-manifests name predecessor scripts. An eventual cutover must update the
-resolution helpers and the Stage 10 discovery route together; changing only
-the Stage 10 scan would leave direct optional readers on the numbered paths.
+manifests name predecessor scripts. An eventual cutover must select the same
+historical receipts for both the resolution helpers and Stage 10 candidates;
+changing only Stage 10's scan would leave optional readers on numbered paths.
 
 The draft 864-file history map passed the separate read-only
 `Maintenance/Test-BehaviorHistoricalOutputMap.ps1` check on 2026-09-24:
@@ -256,6 +256,18 @@ unique proposed paths, and no existing destination root. The checker does not
 activate the map; the existing activation tool deliberately rejects `history/`
 destinations. Its synthetic fixture also passed the changed-source,
 unplanned-file, wrong-resolution, and existing-destination cases.
+
+The nine proposed historical roots now have receipt-aware entries in
+`Functions/project_paths.R`. The social-network, state-space,
+temporal-instability, and GAMM resolution helpers follow those entries, and
+Stage 10 rewrites any activated historical candidate in place after its
+current-group routing. Its live read-only scan still found 683 candidate
+paths and zero historical rewrites because no history receipt or destination
+exists. Temporary-folder tests cover the unchanged current path, an
+unreceipted semantic copy, activated selection, and missing or size-mismatched
+copies. Stage 10 still discovers candidates from the retained numbered root;
+this change prepares reader cutover but does not permit that root to be
+renamed or removed.
 
 ## Stage 00 QC follow-up and writer safeguard
 
