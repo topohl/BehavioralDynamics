@@ -1084,8 +1084,12 @@ first_cage_change <- get_first_cage_change(base$CageChange)
 # Clock-anchored first-night selection, shared with canonical Stage 09. The
 # previous row-count rule (`local_bin <= early_window_bins`) consumed a fixed
 # NUMBER of bins, so whenever night-1 bins were missing it reached into the
-# second dark block; it matched this window for only 50/111 animals at 10-min
-# and 33/111 at 5-min bins. There is no row-count fallback: if the window cannot
+# second dark block; on the PRE-2026-09-22 data it matched this window for only
+# 50/111 animals at 10-min and 33/111 at 5-min bins. Since the leading-bin fix
+# every window is complete, so the two rules now select identical rows for
+# 111/111 at both resolutions - but that is contingent on completeness, not
+# equivalence, and is not a reason to reinstate the count rule.
+# There is no row-count fallback: if the window cannot
 # be built the selector fails closed rather than silently substituting one.
 first_active <- mmm_select_first_night_window(
   base,
@@ -5864,8 +5868,10 @@ first_night_documentation <- tibble(
     "First encounter with social instability: first cage change, first Active phase, first 12 h, summarized to one value per animal before any contrast.",
     paste0("Clock-anchored 18:30 inclusive to 06:30 exclusive, exactly 12 h, per-session anchor. Selected by ",
            "Functions/first_night_window_helpers.R, which Testing/tests/test_first_night_window_parity.R asserts is ",
-           "identical to the canonical Stage 09 selector. Never a row count: the historical local_bin rule ",
-           "matched this window for only 50/111 animals at 10-min and 33/111 at 5-min bins."),
+           "identical to the canonical Stage 09 selector. Never a row count: on the pre-2026-09-22 data the ",
+           "historical local_bin rule matched this window for only 50/111 animals at 10-min and 33/111 at ",
+           "5-min bins. Since the leading-bin fix every window is complete and the two rules coincide for ",
+           "111/111 at both resolutions, which is contingent on completeness rather than equivalence."),
     paste0("Primary ", first_night_primary_bin_level, ", sensitivity ", first_night_sensitivity_bin_level,
            ". Chosen to match canonical Stage 09's resolution and window for the first-12-h question, not ",
            "because these Stage 14 endpoints were historically prespecified at 10 min, and not from any p/q value."),

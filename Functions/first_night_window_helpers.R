@@ -24,9 +24,17 @@
 #
 # Row-count selection (`local_bin <= 12h/bin`) is NOT equivalent and must not be
 # used: it consumes a fixed NUMBER of bins, so whenever night-1 bins are missing
-# it reaches into the second dark block. On the current 111-animal data the count
-# rule agrees with this clock window for only 50/111 animals at 10-min bins and
-# 33/111 at 5-min bins.
+# it reaches into the second dark block.
+#
+# On the current data the two rules happen to select identical rows for 111/111
+# animals at both 10-min and 5-min bins, verified 2026-09-24. That is NOT a
+# licence to use the count rule. The agreement is a consequence of the
+# leading-bin fix of 2026-09-22 (docs/FIRST_NIGHT_LEADING_BIN_GAP.md) having made
+# every window complete, so there are no missing bins left to push the count past
+# the window end. It is contingent on completeness, not equivalence: any future
+# dataset with a gap breaks it silently and the count rule reaches into night 2
+# again. Before the fix the count rule agreed for only 50/111 at 10 min and
+# 33/111 at 5 min.
 
 suppressPackageStartupMessages({
   library(dplyr)

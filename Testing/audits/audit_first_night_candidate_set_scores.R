@@ -9,7 +9,7 @@
 ##   Window code, phase rule, feature estimators, score_mean()/coalesce() semantics and the
 ##   z-within-SEX-ONLY standardization contract are reused VERBATIM from
 ##   Testing/audits/audit_first_night_domain_scores_v2.R (which supersedes v1's local_bin <= 12h/bin
-##   COUNT rule -- that rule matches the canonical clock window for only 50/111 animals at
+##   COUNT rule -- that rule matched the canonical clock window (pre-2026-09-22) for only 50/111 animals at
 ##   10 min and 33/111 at 5 min). Nothing in Analysis/ or Functions/ is modified or re-run.
 ##
 ## THE CANONICAL FIRST-NIGHT WINDOW (reconstructed FROM CODE:
