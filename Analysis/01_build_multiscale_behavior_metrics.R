@@ -627,7 +627,7 @@ seed_rows_for_file <- function(pos_one_file) {
     select(-all_of(time_derived)) %>%
     bind_cols(t0_row[rep(1, nrow(seeds)), time_derived]) %>%
     mutate(DateTime = t0, PositionID = as.integer(SeedPositionID)) %>%
-    select(-SeedPositionID, -SeedReadTime)
+    select(-SeedPositionID)   # SeedReadTime is kept for the provenance export
 }
 
 message("Seeding carry-forward positions from raw_data...")
@@ -640,7 +640,45 @@ if (nrow(seed_rows) > 0) {
   message("  injected ", nrow(seed_rows), " seed row(s) across ",
           dplyr::n_distinct(seed_rows$SourceFile), " file(s), covering ",
           dplyr::n_distinct(seed_rows$AnimalNum), " animal(s)")
-  all_pos <- bind_rows(all_pos, seed_rows) %>%
+
+  # Provenance export. A seed stamped at the window start is indistinguishable
+  # from one recovered 72 seconds earlier unless the ORIGINAL read time is
+  # recorded, and seed_rows_for_file() puts no lower bound on how far back it may
+  # reach. Without this table a stale seed - recovered hours before the window -
+  # is unauditable. Writing it changes no metric; it only exposes the lag.
+  seed_provenance <- seed_rows %>%
+    transmute(SourceFile, Batch, CageChange, System, AnimalNum,
+              window_start = DateTime, seed_read_time = SeedReadTime,
+              seed_lag_sec = as.numeric(difftime(DateTime, SeedReadTime,
+                                                 units = "secs")),
+              seed_lag_hours = seed_lag_sec / 3600,
+              seed_PositionID = PositionID) %>%
+    arrange(desc(seed_lag_sec))
+  write_table(seed_provenance,
+              file.path(output_root, "qc", "first_night_seed_provenance.csv"))
+  message("  seed lag: median ",
+          round(stats::median(seed_provenance$seed_lag_hours), 2), " h, max ",
+          round(max(seed_provenance$seed_lag_hours), 2),
+          " h -> qc/first_night_seed_provenance.csv")
+
+  # The lag IS bounded, but only implicitly: a seed can come only from its own
+  # file's raw recording, and every raw file starts after the preceding cage
+  # change (verified 2026-09-24: CC(n+1) recording begins 0.46-2.73 h after
+  # CC(n) recording ends, in all 18 transitions). So a seed is always from the
+  # current cage. On the 2026-09-22 data the lag ran 0.005-5.68 h, median 1.52 h.
+  # That guarantee depends on the recording protocol, not on this code, so it is
+  # checked here: a lag beyond one full 12 h phase would mean a raw file
+  # starting a day early, where a seed could predate the cage change.
+  MAX_SEED_LAG_HOURS <- 12
+  if (any(seed_provenance$seed_lag_hours > MAX_SEED_LAG_HOURS)) {
+    stale <- seed_provenance %>% filter(seed_lag_hours > MAX_SEED_LAG_HOURS)
+    warning(nrow(stale), " seed(s) come from more than ", MAX_SEED_LAG_HOURS,
+            " h before their window (max ", round(max(stale$seed_lag_hours), 1),
+            " h). Check the raw recording started after the cage change for: ",
+            paste(unique(stale$SourceFile), collapse = ", "), call. = FALSE)
+  }
+
+  all_pos <- bind_rows(all_pos, seed_rows %>% select(-SeedReadTime)) %>%
     arrange(SourceFile, Batch, CageChange, System, DateTime, AnimalID)
 } else {
   message("  no seed rows required")
