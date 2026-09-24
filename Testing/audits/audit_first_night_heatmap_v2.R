@@ -14,7 +14,7 @@
 ##   The anchor is a property of the experimental CLOCK, not of any animal.
 ##
 ## WHY NOT the production Stage 14 rule `local_bin <= 12h/bin`:
-##   that fixed BIN COUNT matches the clock window for only 50/111 animals at 10-min and
+##   that fixed BIN COUNT matched the clock window (pre-2026-09-22) for only 50/111 animals at 10-min and
 ##   33/111 at 5-min, because missing night-1 bins push the count into the SECOND dark block.
 ##
 ## WHAT THIS SCRIPT ADDS
@@ -40,8 +40,8 @@
 ##   * No row is added because it is significant or dropped because it is null; no resolution is
 ##     chosen on p-values; the shipped composite coefficient 0.5 is KEPT.
 ##
-## READ-ONLY w.r.t. Analysis/ and Functions/ and w.r.t. every production table/figure.
-## Writes only into <STAGE14>/audit_hmm_state_architecture/first_night_domain_heatmap/
+## Reads the same-run v2 score replay and retained originals. Writes into a
+## new per-script historical audit replay folder.
 ## ===========================================================================
 
 suppressMessages({
@@ -53,15 +53,17 @@ setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
+source_mmm_helper("project_paths.R")
 stopifnot(requireNamespace("emmeans", quietly = TRUE))
 
-PROJ    <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-STAGE14 <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based")
-OUT     <- file.path(STAGE14, "audit_hmm_state_architecture/first_night_domain_heatmap")
-DERIV   <- file.path(PROJ, "analysis_ready/03_derived_metrics")
+PROJ    <- mmm_project_root()
+STAGE14 <- file.path(mmm_behavior_numbered_source_root(
+  "12_systems_neuroscience_summary", PROJ), "5min_based")
+INPUT   <- mmm_behavior_audit_replay_input_root("first_night_domain_scores_v2", PROJ)
+OUT     <- mmm_behavior_audit_replay_output_root("first_night_heatmap_v2", PROJ)
+DERIV   <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 PROD_CC1 <- file.path(STAGE14, "tables/sis_CC1_first_active_domain_contrasts.csv")
 COMBZ_XLSX <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
-dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
 THIS_SCRIPT <- "Testing/audits/audit_first_night_heatmap_v2.R"
 UPSTREAM    <- "Testing/audits/audit_first_night_domain_scores_v2.R"
@@ -124,7 +126,7 @@ add_assert("canonical roster is exactly 111 animals",
            "build_canonical_identity_roster() on Stage 01 5min_based all_behavior_metrics.csv",
            nrow(roster) == 111L, sprintf("nrow(roster) = %d", nrow(roster)))
 
-scores <- read_csv(file.path(OUT, "first_night_domain_scores.csv"),
+scores <- read_csv(file.path(INPUT, "first_night_domain_scores.csv"),
                    col_types = cols(AnimalNum = col_character(), .default = col_guess()),
                    progress = FALSE) %>%
   mutate(AnimalNum = canonical_animal_id(AnimalNum))
@@ -157,13 +159,13 @@ DISPLAYED_DOMS <- DOM_META$Domain[DOM_META$displayed]
 ALL_DOMS       <- DOM_META$Domain
 cat("displayed domains:", length(DISPLAYED_DOMS), " | all candidate domains:", length(ALL_DOMS), "\n")
 
-hfeat <- read_csv(file.path(OUT, "first_night_hmm_component_features_v2.csv"),
+hfeat <- read_csv(file.path(INPUT, "first_night_hmm_component_features_v2.csv"),
                   col_types = cols(AnimalNum = col_character(), .default = col_guess()),
                   progress = FALSE) %>%
   mutate(AnimalNum = canonical_animal_id(AnimalNum))
 cat("first_night_hmm_component_features_v2.csv rows =", nrow(hfeat),
     " animals per resolution:", paste(hfeat %>% count(resolution) %>% pull(n), collapse = "/"), "\n")
-sem <- read_csv(file.path(OUT, "first_night_hmm_state_semantics_v2.csv"), col_types = cols(),
+sem <- read_csv(file.path(INPUT, "first_night_hmm_state_semantics_v2.csv"), col_types = cols(),
                 progress = FALSE)
 sec("Common (group-blind, longitudinal) HMM state space -- nothing refitted here")
 print(as.data.frame(sem %>% select(any_of(c("resolution", "State", "Movement_z", "Entropy_z",
@@ -240,7 +242,7 @@ eff <- map_dfr(RESOLUTIONS, function(res) {
                            "family is never used to reinterpret the primary one and resolution was never ",
                            "chosen on p-values."),
          interpretation = DESCRIPTIVE,
-         source_table = file.path(OUT, "first_night_domain_scores.csv"),
+         source_table = file.path(INPUT, "first_night_domain_scores.csv"),
          upstream_script = UPSTREAM, script = THIS_SCRIPT) %>%
   arrange(bin_resolution, display_order, Sex, contrast) %>%
   select(Domain, Sex, contrast, n_ref, n_comp, mean_ref, mean_comp, Hedges_g, model_estimate, SE,
@@ -249,11 +251,12 @@ eff <- map_dfr(RESOLUTIONS, function(res) {
          t_ratio, n_animals_in_model, group_ref, group_comp, display_order, status,
          feature_origin, inferential_unit, standardization, window, effect_size_definition,
          fdr_note, interpretation, source_table, upstream_script, script)
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(eff, file.path(OUT, "first_night_domain_effect_summary.csv"))
 cat("wrote first_night_domain_effect_summary.csv  rows =", nrow(eff), "\n")
 
 ## independent reproduction check against the upstream contrast table
-up <- read_csv(file.path(OUT, "first_night_domain_contrasts_v2.csv"), col_types = cols(),
+up <- read_csv(file.path(INPUT, "first_night_domain_contrasts_v2.csv"), col_types = cols(),
                progress = FALSE) %>%
   filter(displayed) %>% select(bin_resolution, Domain, Sex, contrast, estimate, hedges_g, p_value)
 cmp <- eff %>% mutate(contrast = as.character(contrast)) %>%
@@ -498,7 +501,7 @@ comp_res <- comp_res %>% left_join(agree, by = c("component", "Sex", "contrast")
                                               "selected on p-values (10-min is primary a priori, 5-min is ",
                                               "sensitivity)"),
          interpretation = DESCRIPTIVE,
-         source_table = file.path(OUT, "first_night_hmm_component_features_v2.csv"),
+         source_table = file.path(INPUT, "first_night_hmm_component_features_v2.csv"),
          upstream_script = UPSTREAM, script = THIS_SCRIPT,
          supersedes = paste0("Testing/audits/audit_first_night_hmm_components.R wrote an earlier ",
                              "first_night_hmm_component_results.csv on the first-contiguous-block window; ",
@@ -966,7 +969,7 @@ recon <- eff %>% filter(bin_resolution == PRIMARY_RES) %>%
                                "bins, Analysis/14 lines ~967-976) for the raw domains; the HMM domain is ",
                                "not windowed at all but taken from the Stage 08 CC1 x Active per-epoch ",
                                "table (~48 h, four dark blocks)"),
-    window_defect = paste0("The production count rule matches the canonical clock window for only 50/111 ",
+    window_defect = paste0("Pre-2026-09-22 the production count rule matched the canonical clock window for only 50/111 ",
                            "animals at 10-min and 33/111 at 5-min: whenever an animal has missing bins in ",
                            "night 1 the bin COUNT over-reaches into the SECOND dark block of CC1 (61/111 ",
                            "animals affected at 10-min, overshoot up to 12.67 h). Production is NOT ",
@@ -1089,7 +1092,7 @@ sprintf("Scores and HMM component features are consumed unchanged from `%s`.", U
 "property of the experimental clock, not of any animal, and is never shifted later.",
 "",
 "Stage 14's production CC1 rule is instead `local_bin <= 12h/bin`, a fixed **count** of Active bins. That count",
-"rule agrees with the clock window for only **50/111 animals at 10-min and 33/111 at 5-min**: whenever an animal",
+"rule agreed with the clock window (pre-2026-09-22) for only **50/111 animals at 10-min and 33/111 at 5-min**: whenever an animal",
 "has missing bins in night 1 the count runs past 06:30 and reaches into the **second** dark block of CC1",
 "(61/111 animals affected at 10-min, overshoot up to 12.67 h). Every raw domain here is therefore rebuilt on the",
 "clock window. The production table is left untouched; the two are compared cell by cell in",

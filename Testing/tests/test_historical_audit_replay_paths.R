@@ -168,4 +168,18 @@ stopifnot(any(grepl('mmm_behavior_audit_replay_input_root("first_night_dwell_par
                      fixed = TRUE)),
           !any(grepl('analysis_ready/12_systems_neuroscience_summary', dwell_compare,
                      fixed = TRUE)))
+
+for (name in c("audit_first_night_heatmap_v2.R",
+               "audit_first_night_window_sensitivity.R")) {
+  downstream <- readLines(file.path("Testing/audits", name), warn = FALSE)
+  invisible(parse(text = downstream))
+  stopifnot(any(grepl('mmm_behavior_audit_replay_input_root("first_night_domain_scores_v2", PROJ)',
+                     downstream, fixed = TRUE)),
+            any(grepl('mmm_behavior_audit_replay_output_root(', downstream,
+                      fixed = TRUE)),
+            any(grepl('read_csv(file.path(INPUT, "first_night_domain_scores.csv")',
+                      downstream, fixed = TRUE)),
+            !any(grepl('analysis_ready/12_systems_neuroscience_summary',
+                       downstream, fixed = TRUE)))
+}
 cat("Historical audit replay source and fresh-output paths: PASS\n")

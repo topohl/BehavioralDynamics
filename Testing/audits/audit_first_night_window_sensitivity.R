@@ -37,8 +37,8 @@
 ##   - top_proximity_state_fraction stays excluded (failed partition robustness) and is not
 ##     part of the displayed set audited here.
 ##
-## READ-ONLY with respect to Analysis/ and Functions/. Writes only into
-##   <STAGE14>/audit_hmm_state_architecture/first_night_domain_heatmap/
+## Reads the same-run v2 score replay and retained originals. Writes into a
+## new per-script historical audit replay folder.
 ## ===========================================================================
 
 suppressMessages({
@@ -50,13 +50,16 @@ setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
+source_mmm_helper("project_paths.R")
 
-PROJ    <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-STAGE14 <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based")
-OUT     <- file.path(STAGE14, "audit_hmm_state_architecture/first_night_domain_heatmap")
-HMM     <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
-DERIV   <- file.path(PROJ, "analysis_ready/03_derived_metrics")
-dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
+PROJ    <- mmm_project_root()
+STAGE14 <- file.path(mmm_behavior_numbered_source_root(
+  "12_systems_neuroscience_summary", PROJ), "5min_based")
+INPUT   <- mmm_behavior_audit_replay_input_root("first_night_domain_scores_v2", PROJ)
+OUT     <- mmm_behavior_audit_replay_output_root("first_night_window_sensitivity", PROJ)
+HMM     <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", PROJ), "hmm_states")
+DERIV   <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 
 THIS_SCRIPT  <- "Testing/audits/audit_first_night_window_sensitivity.R"
 GROUP_LEVELS <- c("CON", "RES", "SUS")
@@ -346,6 +349,7 @@ for (res in RESOLUTIONS) {
 }
 
 geom_all <- bind_rows(geom_store)
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(geom_all, file.path(OUT, "first_night_vs_all_cc1_active_epoch_geometry.csv"))
 
 ## ==========================================================================
@@ -393,9 +397,9 @@ for (res in RESOLUTIONS) {
                      format(max(abs(ha$`Latent-state occupancy organization` - ha$shipped_3component_form), na.rm = TRUE), scientific = TRUE),
                      all(hb1$social_state_fraction == 0)))
 }
-up_dom <- read_csv(file.path(OUT, "first_night_domain_scores.csv"),
+up_dom <- read_csv(file.path(INPUT, "first_night_domain_scores.csv"),
                    col_types = cols(AnimalNum = col_character(), .default = col_guess()), progress = FALSE)
-up_cmp <- read_csv(file.path(OUT, "first_night_hmm_component_features_v2.csv"),
+up_cmp <- read_csv(file.path(INPUT, "first_night_hmm_component_features_v2.csv"),
                    col_types = cols(AnimalNum = col_character(), .default = col_guess()), progress = FALSE)
 for (res in RESOLUTIONS) {
   mine <- bind_rows(

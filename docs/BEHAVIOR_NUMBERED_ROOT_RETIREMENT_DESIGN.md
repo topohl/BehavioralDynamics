@@ -140,8 +140,11 @@ or prepared any live source.
    retained Stage 01 and writes its own replay folder; the shipped-versus-refit
    audit reads that same-run prerequisite plus retained Stage 01 and 08, then
    writes a separate folder. These four scripts are path-prepared only; their
-   scientific calculations have not been rerun. The other 27 rows still need
-   reader/writer review.
+   scientific calculations have not been rerun. The v2 heatmap and window
+   sensitivity audits now consume the same-run v2 scores and component tables
+   from their replay folder, keep Stage 14 comparisons on retained originals,
+   and write to distinct replay folders. Their calculations and figures have
+   not been rerun. The other 25 rows still need reader/writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.
