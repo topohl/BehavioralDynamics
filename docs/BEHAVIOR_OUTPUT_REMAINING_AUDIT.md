@@ -298,6 +298,20 @@ A post-refresh definition comparison found zero drift. The release builder
 has no direct read of those nine old resolution paths. This was a navigation
 metadata refresh, not a scientific or manuscript rerun.
 
+A read-only Stage 10 candidate-order simulation applied the blocked history
+plan after the script's actual discovery and self-ingestion filters. The
+current filtered list has 607 paths; 330 are CSVs in the nine proposed
+historical roots, including all 85 with `AnimalNum`. In-place replacement
+preserves every basename and ordinal position, has no duplicate destination,
+and matches the pinned source sizes. The task report
+`stage10_history_candidate_path_parity_20260924.csv` records those 330
+positions (SHA-256
+`57C289E2186186BB683F1F26C0E0B434996913857916C656246A6F5FA21342DC`).
+The 331st unmapped numbered CSV is the root-level
+`proteomics_integration_output_dir_map.csv`, outside all nine resolution
+groups. This simulation verifies path-set shape only; content parity of
+future copies and Stage 10's numerical outputs remains untested.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX
