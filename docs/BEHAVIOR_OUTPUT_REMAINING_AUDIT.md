@@ -362,3 +362,15 @@ The machine-readable output index now has a separate
 `01-identity-history` entry for the eight August identity reports. Its
 canonical path is deliberately empty; future manual reports have a separate
 semantic write location. No residual file was copied, moved, or rerun.
+
+## 2026-09-24 Stage 15 historical phase-source guard
+
+Stage 15's feature loader now refuses an existing five-minute table from the
+adaptation, sleep-like inactivity, or phase-organization sources before reading
+it. Those eight optional tables still resolve to the retained historical
+folders, while the current Stage 11–13 producers declare ten-minute outputs.
+The guard identifies the exact refused path and requires source-validity review
+before a new integration run. It does not reclassify the old tables, change
+their paths, or revise the existing Stage 15 results. A portable contract test
+checks all three source families and leaves declared ten-minute and unrelated
+five-minute sources available.

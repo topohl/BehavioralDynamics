@@ -403,12 +403,29 @@ load_behavior_feature_table <- function(path, source_label, domain_label, scale_
   )
 }
 
+assert_verified_phase_source <- function(path, source_label, scale_label) {
+  phase_sources <- c("adaptation_kinetics", "sleep_like_inactivity",
+                     "phase_organization")
+  if (source_label %in% phase_sources && identical(scale_label, "5min_based") &&
+      !is.na(path) && file.exists(path)) {
+    stop(
+      "UNVERIFIED HISTORICAL PHASE INPUT refused for Stage 15: ", path,
+      "\nThe current Stage 11-13 producers declare ten-minute outputs; this five-minute",
+      " table has no verified post-fix producer lineage. Resolve and document its",
+      " validity before using it in a new integration run.",
+      call. = FALSE
+    )
+  }
+  invisible(path)
+}
+
 load_curated_behavior_table <- function(path,
                                         source_label,
                                         domain_label,
                                         scale_label = behavior_bin_level,
                                         numeric_keep,
                                         descriptor_keep = character()) {
+  assert_verified_phase_source(path, source_label, scale_label)
   dat <- read_optional_table(path)
 
   if (is.null(dat) || nrow(dat) == 0) {
