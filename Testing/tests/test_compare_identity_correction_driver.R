@@ -80,6 +80,7 @@ write_stub_table(new_root_4, "analysis_ready/pipeline/09_early_prediction/10min/
 
 result4 <- run_identity_correction_comparison(
   baseline_root = baseline_root_4, new_base_dir = new_root_4, write_outputs = TRUE,
+  replay_id = "identity_fixture_4",
   baseline_status = "mixed_partial_identity_repair",
   baseline_source_note = "synthetic fixture for test_compare_identity_correction_driver.R"
 )
@@ -92,7 +93,8 @@ check(isTRUE(all.equal(movement_mean_row$absolute_difference, 0.22)), "Test 4: e
 resolution_notes_row <- result4$resolution_notes[result4$resolution_notes$table_name == "primary_movement_entropyacf1_associations", ]
 check(all(resolution_notes_row$old_exists, resolution_notes_row$new_exists), "Test 4: both sides of the synthetic fixture should have resolved")
 
-out_dir_4 <- behavior_stage_audit(new_root_4, "09", "early_prediction", "10min")
+out_dir_4 <- file.path(new_root_4, "analysis_ready/analyses/historical_audit_replays",
+                       "identity_fixture_4/identity_correction_before_after")
 expected_outputs <- c(
   "identity_correction_before_after_detail.csv",
   "identity_correction_before_after_summary.csv",
@@ -104,6 +106,34 @@ expected_outputs <- c(
 for (f in expected_outputs) {
   check(file.exists(file.path(out_dir_4, f)), paste0("Test 4: expected output file missing: ", f))
 }
+check(inherits(try(mmm_behavior_audit_replay_output_root(
+  "identity_correction_before_after", new_root_4, "identity_fixture_4"),
+  silent = TRUE), "try-error"),
+  "Test 4: a second replay with the same id must refuse the existing output folder")
+
+archive_root_4 <- file.path(tempdir(), paste0("mmm_cmp_archived4_",
+                                                   as.integer(runif(1, 1, 1e9))))
+archived_legacy <- file.path(archive_root_4, "analysis_ready/history/original_layout",
+                             "06_behavioral_dynamics/early_prediction_model_ladder",
+                             "10min_based/tables/early_behavior_features.csv")
+dir.create(dirname(archived_legacy), recursive = TRUE, showWarnings = FALSE)
+write_csv(old_assoc, archived_legacy)
+receipt_dir <- file.path(archive_root_4, "analysis_ready/_migration_control",
+                         "numbered_root_archive")
+dir.create(receipt_dir, recursive = TRUE, showWarnings = FALSE)
+jsonlite::write_json(list(root = "06_behavioral_dynamics",
+                          source_root_rel = "06_behavioral_dynamics",
+                          archive_root_rel = "history/original_layout/06_behavioral_dynamics",
+                          state = "activated", files = 1L, bytes = 1L,
+                          manifest_sha256 = paste(rep("a", 64L), collapse = "")),
+                     file.path(receipt_dir, "06_behavioral_dynamics.json"),
+                     auto_unbox = TRUE)
+archived_resolved <- resolve_registered_table(
+  archive_root_4, "09", "early_behavior_features", "", NA_character_, "10min")
+check(isTRUE(archived_resolved$exists) &&
+        identical(normalizePath(archived_resolved$path, winslash = "/"),
+                  normalizePath(archived_legacy, winslash = "/")),
+      "Test 4: Stage 09 legacy fallback must resolve through an activated root archive receipt")
 check(normalizePath(out_dir_4, winslash = "/") != normalizePath(getwd(), winslash = "/"),
       "Test 4: outputs must be written under the data root, not the git working directory")
 check(!grepl(normalizePath(getwd(), winslash = "/"), normalizePath(out_dir_4, winslash = "/"), fixed = TRUE),
@@ -118,6 +148,7 @@ check("code_commit_sha" %in% names(meta4), "Test 4: audit_metadata must include 
 
 unlink(baseline_root_4, recursive = TRUE)
 unlink(new_root_4, recursive = TRUE)
+unlink(archive_root_4, recursive = TRUE)
 
 # ------------------------------------------------------------------
 # Test 5: baseline_status defaults to 'unknown_historical_state' and is NEVER

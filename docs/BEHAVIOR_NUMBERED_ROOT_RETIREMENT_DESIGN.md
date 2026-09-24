@@ -179,9 +179,13 @@ or prepared any live source.
    and were not rerun. The component-model and longitudinal audits now consume
    the same-run foundation; the construct comparison also consumes the same-run
    redundancy proposal and retained Stage 14 comparison table. Each writes a
-   separate replay folder. None of their models were rerun. That leaves two
-   special-case rows unresolved: the active RFID domain comparison producer
-   and the identity-correction baseline comparison.
+   separate replay folder. None of their models were rerun. The identity
+   correction baseline comparison now uses an explicit new replay folder when
+   outputs are requested. Its Stage 09 legacy fallback resolves an archived
+   numbered root while preserving its explicit baseline provenance. Synthetic
+   driver tests passed, including an activated archive receipt; no live
+   comparison was rerun. One special-case row remains: the active RFID domain
+   comparison producer.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

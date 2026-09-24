@@ -30,9 +30,8 @@
 #   unknown_historical_state       -- default; provenance not established
 # along with baseline_source_note describing how/when the baseline was made.
 #
-# Outputs are written under the NEW data's own audit/ folders on the data
-# drive (never into the git repository), so private/raw result data is never
-# committed.
+# Outputs are written into a fresh, explicitly named replay folder under the
+# new data root (never into the git repository).
 # ================================================================
 
 suppressPackageStartupMessages({
@@ -44,6 +43,7 @@ suppressPackageStartupMessages({
 
 source("Analysis/_pipeline_setup.R")
 source("Functions/identity_correction_comparison_helpers.R")
+source_mmm_helper("project_paths.R")
 
 resolve_identity_baseline_root <- function(explicit = NULL) {
   if (!is.null(explicit) && nzchar(explicit)) return(explicit)
@@ -118,7 +118,10 @@ resolve_registered_table <- function(root, stage, table_name, legacy_subfolder, 
     legacy <- file.path(root, "analysis_ready/03_primary_raw_movement_phase_stats", paste0(resolution_10min, "_based"), legacy_subfolder, paste0(table_name, ".csv"))
   } else if (identical(stage, "09")) {
     canonical <- file.path(behavior_stage_tables(root, "09", "early_prediction", resolution_10min), paste0(table_name, ".csv"))
-    legacy <- file.path(root, "analysis_ready/06_behavioral_dynamics/early_prediction_model_ladder", paste0(resolution_10min, "_based"), "tables", legacy_subfolder, paste0(legacy_filename, ".csv"))
+    legacy <- file.path(mmm_behavior_numbered_source_root(
+      "06_behavioral_dynamics", root), "early_prediction_model_ladder",
+      paste0(resolution_10min, "_based"), "tables", legacy_subfolder,
+      paste0(legacy_filename, ".csv"))
   } else {
     stop("Unknown stage in registry: ", stage, call. = FALSE)
   }
@@ -149,10 +152,13 @@ read_registered_table <- function(resolved) {
 run_identity_correction_comparison <- function(baseline_root = NULL,
                                                baseline_status = NULL,
                                                baseline_source_note = NULL,
-                                               new_base_dir = "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID",
+                                               new_base_dir = mmm_project_root(),
                                                resolution_10min = "10min",
                                                significance_threshold = 0.05,
-                                               write_outputs = TRUE) {
+                                               write_outputs = TRUE,
+                                               replay_id = Sys.getenv(
+                                                 "MMM_BEHAVIOR_AUDIT_REPLAY_ID",
+                                                 unset = "")) {
   baseline_root <- resolve_identity_baseline_root(baseline_root)
   if (is.na(baseline_root) || !nzchar(baseline_root)) {
     stop(
@@ -283,7 +289,8 @@ run_identity_correction_comparison <- function(baseline_root = NULL,
   )
 
   if (isTRUE(write_outputs)) {
-    out_dir <- behavior_stage_audit(new_base_dir, "09", "early_prediction", resolution_10min)
+    out_dir <- mmm_behavior_audit_replay_output_root(
+      "identity_correction_before_after", new_base_dir, replay_id)
     ensure_dir(out_dir)
     readr::write_csv(detail, file.path(out_dir, "identity_correction_before_after_detail.csv"), na = "NA")
     readr::write_csv(summary_tbl, file.path(out_dir, "identity_correction_before_after_summary.csv"), na = "NA")
