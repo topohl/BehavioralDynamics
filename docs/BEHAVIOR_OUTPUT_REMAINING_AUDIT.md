@@ -78,6 +78,34 @@ must retain their original lineage.
   -AnalysisReadyRoot 'S:\Lab_Member\Tobi\Experiments\Exp9_Social-Stress\Analysis\Behavior\RFID\analysis_ready'
 ```
 
+### Stage 01 foundation residue
+
+The reviewed 20-file Stage 01 plan and 52-row ownership snapshot are now
+retained in `docs/behavior_output_activated_plans/`. The live receipt and an
+independent source/destination hash check passed. The numbered
+`03_derived_metrics/` tree still has 52 files: 20 activated Stage 01
+originals and 32 retained-only files, split into eight cross-scale identity
+reports, fourteen Stage 19 spatial originals, and ten Stage 01 metadata files.
+`Maintenance/Test-BehaviorFoundationResidualInventory.ps1` repeats the
+read-only hash, receipt, and ownership checks:
+
+```powershell
+& .\Maintenance\Test-BehaviorFoundationResidualInventory.ps1 `
+  -AnalysisReadyRoot 'S:\Lab_Member\Tobi\Experiments\Exp9_Social-Stress\Analysis\Behavior\RFID\analysis_ready'
+```
+
+For the three largest numbered behavioral roots, current plan coverage is:
+
+| Numbered root | Total files | Activated copies | Retained-only files |
+| --- | ---: | ---: | ---: |
+| `03_derived_metrics/` | 52 | 20 | 32 |
+| `06_behavioral_dynamics/` | 1,460 | 1,459 | 1 historical Stage 15 map |
+| `12_systems_neuroscience_summary/` | 700 | 371 | 329 |
+
+The numbered originals are still required by activation receipts and some
+historical readers. This inventory does not authorize moving or deleting
+them.
+
 On 2026-09-24, two HMM audits were rerun against current inputs in the
 separate `analyses/hmm_revalidation_runs/current_stage08_review_20260924/`
 directory. The old 183-file HMM audit tree remains in its numbered location

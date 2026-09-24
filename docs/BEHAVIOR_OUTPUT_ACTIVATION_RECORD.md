@@ -1,5 +1,16 @@
 # Behavioral output cutover record — 2026-09-23
 
+## 2026-09-24 Stage 01 plan preservation
+
+The reviewed 20-file foundation plan and 52-row ownership snapshot were
+copied byte-for-byte into `docs/behavior_output_activated_plans/`. The live
+`behavior_metrics_foundation` receipt matches the plan and ownership hash.
+A read-only independent check matched all 20 numbered originals and all 20
+semantic copies to their pinned SHA-256 values. The other 32 numbered files
+remain assigned to eight identity reports, fourteen Stage 19 spatial
+originals, and ten Stage 01 metadata files. No metric was regenerated or
+source file changed.
+
 ## 2026-09-24 navigation and Stage 14 residual check
 
 The root and analyses folder guides were refreshed from the repository

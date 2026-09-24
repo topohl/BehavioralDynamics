@@ -153,6 +153,8 @@ until the metadata step succeeds. The scientific Stage 14 script is not run.
 
 All 938 files in the earlier activated groups matched their respective plans;
 the subsequent Stage 01 foundation cutover added 20 hash-matched copies.
+Its reviewed plan and ownership snapshot are retained under
+`docs/behavior_output_activated_plans/`.
 There are no group staging directories left.
 
 The remaining numbered roots are separate migration candidates. Stage 01's
