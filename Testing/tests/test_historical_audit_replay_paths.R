@@ -84,4 +84,12 @@ stopifnot(sum(grepl('mmm_behavior_audit_replay_input_root(', decision,
                    fixed = TRUE)),
           !any(grepl('analysis_ready/12_systems_neuroscience_summary', decision,
                      fixed = TRUE)))
+algebra <- readLines(
+  "Testing/audits/audit_first_night_candidate_set_algebra_crosscheck.R",
+  warn = FALSE)
+invisible(parse(text = algebra))
+stopifnot(any(grepl('mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)',
+                   algebra, fixed = TRUE)),
+          !any(grepl('analysis_ready/03_derived_metrics', algebra,
+                     fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

@@ -1,5 +1,5 @@
 "script","names_03_derived_metrics","names_06_behavioral_dynamics","names_12_systems_neuroscience_summary","common_write_call","directory_creation_call","review_state"
-"Testing/audits/audit_first_night_candidate_set_algebra_crosscheck.R","True","False","False","False","False","needs_reader_writer_review"
+"Testing/audits/audit_first_night_candidate_set_algebra_crosscheck.R","True","False","False","False","False","path_prepared_unvalidated"
 "Testing/audits/audit_first_night_candidate_set_decision.R","False","False","True","True","False","path_prepared_unvalidated"
 "Testing/audits/audit_first_night_candidate_set_effects.R","True","False","True","True","False","path_prepared_unvalidated"
 "Testing/audits/audit_first_night_candidate_set_scores.R","True","True","True","True","True","path_prepared_unvalidated"

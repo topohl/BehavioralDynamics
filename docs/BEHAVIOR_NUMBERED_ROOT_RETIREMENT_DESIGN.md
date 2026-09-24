@@ -123,7 +123,10 @@ or prepared any live source.
    folders from that id and writes into a third unused folder. These three
    queue rows are `path_prepared_unvalidated`: the scripts were parsed and
    their path contracts tested, but no scientific replay was run or validated.
-   The other 34 rows still need reader/writer review.
+   The console-only `audit_first_night_candidate_set_algebra_crosscheck.R`
+   now reads the retained Stage 01 original through the same archive accessor;
+   it creates no output directory. Its path is prepared but its calculation
+   was not rerun. The other 33 rows still need reader/writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.
