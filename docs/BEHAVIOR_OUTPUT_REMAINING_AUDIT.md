@@ -446,5 +446,7 @@ integration has the same count. Future code now classifies both HMM families
 as unstable and builds the default matrix only from rows allowed in primary
 axes. The full feature export retains excluded rows with their role flags.
 These code corrections do not validate or alter either existing integration;
-both need a reviewed rerun before scientific reuse. The live output index
-still describes the historical runs until a separate Stage 16 refresh.
+both need a reviewed rerun before scientific reuse. The live output index has
+since been refreshed as navigation metadata, and the Stage 15 manuscript
+registry row now identifies the saved integration as historical exploratory
+evidence. Neither metadata change promotes the old results.

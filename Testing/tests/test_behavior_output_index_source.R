@@ -668,6 +668,11 @@ first_night <- registry[registry$analysis_id == "FIRSTNIGHT_5DOMAIN_PANEL", , dr
 stopifnot(nrow(first_night) == 1L,
           identical(first_night$source_artifact,
                     "analysis_ready/analyses/first_night_five_domain_characterization/10min/first_night_group_contrasts.csv"))
+stage15_registry <- registry[registry$analysis_id == "S15_BEHAVIOR_PROTEOMICS", , drop = FALSE]
+stopifnot(nrow(stage15_registry) == 1L,
+          grepl("HISTORICAL EXPLORATORY", stage15_registry$current_status, fixed = TRUE),
+          grepl("reviewed rerun required", stage15_registry$current_status, fixed = TRUE),
+          identical(stage15_registry$publication_ready, "no"))
 stopifnot(grepl('mmm_behavior_output_active_root(group, project_root = project_root)', stage14,
                fixed = TRUE),
           grepl('mmm_behavior_output_active_root("spatial_models", project_root = RFID_ROOT)',
