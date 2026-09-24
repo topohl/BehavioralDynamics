@@ -249,6 +249,14 @@ manifests name predecessor scripts. An eventual cutover must update the
 resolution helpers and the Stage 10 discovery route together; changing only
 the Stage 10 scan would leave direct optional readers on the numbered paths.
 
+The draft 864-file history map passed the separate read-only
+`Maintenance/Test-BehaviorHistoricalOutputMap.ps1` check on 2026-09-24:
+nine complete source roots, 3,546,084,818 source bytes with matching SHA-256,
+unique proposed paths, and no existing destination root. The checker does not
+activate the map; the existing activation tool deliberately rejects `history/`
+destinations. Its synthetic fixture also passed the changed-source,
+unplanned-file, wrong-resolution, and existing-destination cases.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX

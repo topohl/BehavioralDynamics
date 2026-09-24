@@ -246,3 +246,16 @@ any other unplanned source file blocks migration.
 The index and path-source test is
 `Testing/tests/test_behavior_output_index_source.R`; run both from the
 repository root when reviewing a change to this plan.
+
+Historical-resolution maps use a separate read-only checker:
+`Maintenance/Test-BehaviorHistoricalOutputMap.ps1`. The activation tool above
+intentionally rejects `history/` destinations. The historical checker accepts
+the draft file-map columns `source_rel`, `proposed_target_rel`, `bytes`,
+`last_write_utc`, and `sha256`; it verifies allowed numbered source roots,
+exact `history/<family>/<resolution>/...` counterparts, complete source
+inventories, unchanged metadata and SHA-256, and absent destination roots.
+It ignores only Windows `Thumbs.db` cache files when checking completeness,
+as the activation tool does. It has no copy or activation action. Run its
+synthetic fixture with
+`Testing/tests/test_behavior_historical_output_map.ps1` before relying on a
+new version of the checker.
