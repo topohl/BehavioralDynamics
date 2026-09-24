@@ -258,6 +258,11 @@ The reviewed gate must still be built from validated replays and pinned script
 hashes. The queue has 34 `path_prepared_unvalidated` rows, two
 `live_read_only_checked` rows, and one `live_numbered_only_checked` row; none
 is `ready` for the archive gate.
+`Maintenance/New-BehaviorArchiveReaderGateTemplate.ps1 -Output <new CSV path>`
+creates a separate, non-overwriting 37-row review template with each current
+script hash and its existing queue state. Its fixture confirmed zero `ready`
+rows. Reviewing that template and changing states is a separate decision; the
+tool does not grant archive readiness.
 Five first-night audits previously printed failed assertion rows while exiting
 successfully. They now print the same diagnostics and then stop on any `FAIL`.
 A focused synthetic test exercised the actual assertion branches with passing
