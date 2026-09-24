@@ -213,6 +213,18 @@ and leakage filters. These historical resolutions therefore remain explicit
 Stage 10 dependencies until their file-level migration and model-input parity
 can be validated; the numbered root cannot yet be removed from discovery.
 
+The nine source resolution folders holding those 85 potential inputs contain
+864 files (3.55 GB) in total, dated May 18–19, 2026. Each has an old-format
+`output_manifest.csv` naming a predecessor script, but together the manifests
+declare only 59 file rows and 15 of those declared files are absent. These
+manifests therefore cannot serve as complete migration inventories or current
+producer proof. The task report
+`stage10_historical_resolution_inventory_20260924.csv` records each folder's
+actual count, size, dates, manifest producer, missing declarations, and
+`AnimalNum` candidate count. Any historical-resolution copy needs a fresh
+file enumeration and hashes, a named provenance role, and a Stage 10
+candidate-set check before its receipt is activated.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX
