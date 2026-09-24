@@ -45,6 +45,8 @@ source_mmm_helper("behavioral_dynamics_stats_helpers.R")
 source_mmm_helper("duration_normalization_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
 source_mmm_helper("figure1_prediction_contract.R")
+source_mmm_helper("stage09_loao_figure.R")
+source_mmm_helper("project_paths.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -52,7 +54,7 @@ source_mmm_helper("figure1_prediction_contract.R")
 
 bin_level <- Sys.getenv("MMM_STAGE09_BIN_LEVEL", unset = "10min_based")
 base_dir <- Sys.getenv("MMM_BEHAVIOR_PROJECT_ROOT", unset = "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID")
-input_file <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
+input_file <- file.path(mmm_derived_metrics_output_root(base_dir), bin_level, "all_behavior_metrics.csv")
 output_dir <- behavior_stage_dir(
   base_dir, "09", "early_prediction", resolution = bin_level
 )
@@ -2360,27 +2362,11 @@ p_behavior_cv <- repeated_cv_performance_all %>%
 
 save_stage09_plot(p_behavior_cv, file.path(output_dir, "figures", "behavior_only_repeated_cv_ladder"), width = 183, height = 82)
 
-primary_display_model_id <- "primary_behavior_family"
-primary_display_pred <- primary_prediction_predictions %>% filter(Model == primary_display_model_id)
-primary_display_perf <- primary_prediction_performance %>% filter(model_id == primary_display_model_id)
-
-p_pred <- primary_display_pred %>%
-  mutate(Group = factor(as.character(Group), levels = group_levels)) %>%
-  ggplot(aes(observed, predicted)) +
-  geom_abline(slope = 1, intercept = 0, linewidth = 0.25, linetype = "dashed", colour = "grey45") +
-  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, linewidth = 0.45, alpha = 0.10, colour = "grey20", fill = "grey70") +
-  geom_point(aes(colour = Group, fill = Group, shape = Group), size = 1.8, stroke = 0.25, alpha = 0.88) +
-  facet_grid(. ~ Sex) +
-  labs(
-    title = "Observed vs predicted stress burden: a priori primary behavior model",
-    subtitle = paste0("LOAO r=", round(primary_display_perf$pearson_r, 2), ", CV R2=", round(primary_display_perf$cv_r2, 2), ", outcome-permutation ", format_p(primary_display_perf$permutation_p)),
-    x = paste0("Observed ", outcome_col),
-    y = paste0("Predicted ", outcome_col)
-  ) +
-  scale_colour_manual(values = group_colors, drop = FALSE) +
-  scale_fill_manual(values = group_colors, drop = FALSE) +
-  scale_shape_manual(values = group_shape_values, drop = FALSE) +
-  make_publication_theme(base_size = 7)
+primary_display_model_id <- "movement_mean"
+p_pred <- stage09_loao_figure(
+  primary_prediction_predictions, primary_prediction_performance,
+  primary_prediction_permutation_draws, model_id = primary_display_model_id,
+  outcome = outcome_col)
 
 # Legacy filename retained for compatibility; the plotted model is fixed a priori.
 save_stage09_plot(p_pred, file.path(output_dir, "figures", "best_model_observed_vs_predicted"), width = 89, height = 78)
