@@ -34,14 +34,17 @@ suppressPackageStartupMessages({
 if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(.pipeline_setup)
 source_mmm_helper("behavioral_dynamics_stats_helpers.R")
+source_mmm_helper("project_paths.R")
 
 # ------------------------------------------------
 # USER INPUT
 # ------------------------------------------------
 
 bin_level <- "1min_based"
-input_file <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
-output_dir <- file.path("S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/06_behavioral_dynamics/early_prediction", bin_level)
+input_file <- file.path(mmm_behavior_numbered_source_root(
+  "03_derived_metrics", mmm_project_root()), bin_level, "all_behavior_metrics.csv")
+output_dir <- file.path(mmm_behavior_numbered_writer_root(
+  "06_behavioral_dynamics", mmm_project_root()), "early_prediction", bin_level)
 
 # Optional endpoint file. If NULL or missing, the script will try to use endpoints
 # already present in input_file.

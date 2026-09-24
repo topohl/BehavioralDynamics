@@ -308,6 +308,24 @@ mmm_behavior_numbered_source_root <- function(root_name,
   if (identical(root_name, "03_derived_metrics")) path else dirname(path)
 }
 
+# A historical or optional producer must not recreate a numbered top-level
+# root once its archive transaction has begun. Readers use the retained source
+# resolver above; writes need a separate, stricter guard.
+mmm_behavior_numbered_writer_root <- function(root_name,
+                                              project_root = mmm_project_root()) {
+  source <- mmm_behavior_numbered_source_root(root_name, project_root)
+  old <- file.path(project_root, "analysis_ready", root_name)
+  receipt <- file.path(project_root, "analysis_ready", "_migration_control",
+                       "numbered_root_archive", paste0(root_name, ".json"))
+  if (file.exists(receipt) ||
+      !identical(normalizePath(source, winslash = "/", mustWork = FALSE),
+                 normalizePath(old, winslash = "/", mustWork = FALSE))) {
+    stop("Numbered behavioral output root is under archive control; ",
+         "refusing to write: ", old, call. = FALSE)
+  }
+  old
+}
+
 # A replay requires an explicit run identifier and a previously unused output
 # directory. No historical original or prior replay output may be overwritten.
 mmm_behavior_audit_replay_path <- function(script_id,

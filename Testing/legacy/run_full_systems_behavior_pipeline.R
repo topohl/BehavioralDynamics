@@ -1,3 +1,7 @@
+source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
+mmm_behavior_numbered_writer_root("06_behavioral_dynamics", mmm_project_root())
+
 scripts_to_run <- c(
   "Testing/legacy/check_behavioral_dynamics_structure.R",
   "Analysis/06_burstiness_temporal_instability.R",

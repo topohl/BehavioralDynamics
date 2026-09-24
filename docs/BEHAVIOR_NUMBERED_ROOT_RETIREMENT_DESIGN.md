@@ -195,7 +195,18 @@ or prepared any live source.
    is complete.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
-   provenance labels to make past runs appear to have used semantic paths.
+   provenance labels to make past runs appear to have used semantic paths. The
+   historical HMM audit note now says reruns use fresh replay folders while
+   its legacy path remains the provenance of the saved files.
+6. The wider code scan found archive-sensitive writers outside the 37-audit
+   queue. The optional non-primary Stage 14 output branch, archived Stage 08
+   producer, and two stale legacy pipeline runners now call
+   `mmm_behavior_numbered_writer_root()`. It refuses any write into a numbered
+   top-level root when an archive receipt exists, including `prepared` or
+   `activated`, or an unreceipted archive directory is present. A fixture
+   tested these refusals. The legacy runners and archived producer were not
+   executed. Other optional resolution helpers and archived readers still
+   require targeted review before any live archive activation.
 
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination

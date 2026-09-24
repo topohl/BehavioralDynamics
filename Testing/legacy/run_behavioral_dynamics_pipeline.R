@@ -12,6 +12,10 @@
 #   source("Testing/legacy/run_behavioral_dynamics_pipeline.R")
 # ================================================================
 
+source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
+mmm_behavior_numbered_writer_root("06_behavioral_dynamics", mmm_project_root())
+
 cat("\n================================================\n")
 cat("MMMSociability behavioral dynamics pipeline\n")
 cat("================================================\n\n")

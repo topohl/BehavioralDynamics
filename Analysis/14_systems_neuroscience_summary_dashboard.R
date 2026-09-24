@@ -137,7 +137,8 @@ domain_bin_preference <- function(domain = "general") {
 output_dir <- if (identical(primary_bin_level, "5min_based")) {
   mmm_behavior_output_active_root("systems_dashboard_5min", project_root)
 } else {
-  file.path(project_root, "analysis_ready/12_systems_neuroscience_summary", primary_bin_level)
+  file.path(mmm_behavior_numbered_writer_root(
+    "12_systems_neuroscience_summary", project_root), primary_bin_level)
 }
 
 # Optional endpoint file for physiology/behavioral burden/proteomics module data.
