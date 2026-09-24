@@ -111,6 +111,11 @@ integration outputs also label a canonical ten-minute Stage 09 input as
 five-minute; the future source specification has been corrected, without
 rewriting those historical outputs. Those branches were neither copied
 nor reclassified by this cutover. No Stage 11–15 scientific analysis was rerun.
+The existing Stage 15 integrations also let HMM features into their primary
+behavior matrix despite the default exclusion option. Future code now enforces
+that option for both direct five-minute HMM tables and ten-minute HMM summary
+features; the historical integration files remain unchanged and require a
+reviewed rerun before scientific reuse.
 
 The manually run nonlinear and systems-phenotyping producers now write to
 receipt-selected five-minute semantic roots. Stage 10 selects exactly one root

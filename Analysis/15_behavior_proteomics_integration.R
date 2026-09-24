@@ -419,6 +419,21 @@ assert_verified_phase_source <- function(path, source_label, scale_label) {
   invisible(path)
 }
 
+classify_behavior_feature_roles <- function(feature_long,
+                                            include_hmm = FALSE) {
+  is_hmm <- stringr::str_detect(feature_long$feature, "^(hmm_states|hmm)__")
+  feature_long %>%
+    mutate(
+      feature_stability_class = if_else(is_hmm, "hmm_multi_optimum_unstable",
+                                        "stable_source"),
+      in_primary_axes = !is_hmm | include_hmm
+    )
+}
+
+build_primary_behavior_matrix <- function(feature_long) {
+  collapse_behavior_feature_rows(feature_long %>% filter(in_primary_axes))
+}
+
 load_curated_behavior_table <- function(path,
                                         source_label,
                                         domain_label,
@@ -834,12 +849,9 @@ build_behavior_feature_matrix <- function() {
   # HMM-derived features are taken at the Stage 08 HMM PRIMARY resolution only,
   # not across this stage's generic behaviour resolutions, and by default they do
   # not enter the primary composite axes (see include_hmm_in_primary_axes above).
-  hmm_feature_long <- load_hmm_summary_features(hmm_bin_level) %>%
-    mutate(feature_stability_class = "hmm_multi_optimum_unstable",
-           in_primary_axes = include_hmm_in_primary_axes)
-  feature_long <- map_dfr(loaded, "features") %>%
-    mutate(feature_stability_class = "stable_source", in_primary_axes = TRUE) %>%
-    bind_rows(hmm_feature_long)
+  hmm_feature_long <- load_hmm_summary_features(hmm_bin_level)
+  feature_long <- bind_rows(map_dfr(loaded, "features"), hmm_feature_long) %>%
+    classify_behavior_feature_roles(include_hmm_in_primary_axes)
 
   inventory <- map_dfr(loaded, "inventory") %>%
     bind_rows(tibble(
@@ -854,7 +866,7 @@ build_behavior_feature_matrix <- function() {
       n_exported_features = sum(str_detect(unique(feature_long$feature %||% character()), "^hmm__"))
     ))
 
-  behavior_matrix <- collapse_behavior_feature_rows(feature_long)
+  behavior_matrix <- build_primary_behavior_matrix(feature_long)
 
   if (nrow(behavior_matrix) == 0) {
     stop(

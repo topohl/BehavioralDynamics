@@ -385,3 +385,17 @@ inventory labels only. Each existing integration contains nine such feature
 names across 993 animal-feature rows; both retain their historical five-minute
 labels and need a reviewed rerun before being represented as corrected
 ten-minute results.
+
+The existing Stage 15 feature export has a separate HMM inclusion defect.
+Although `mmm.stage15.include_hmm_in_primary_axes` defaults to false, the
+matrix builder previously ignored `in_primary_axes`, and the three directly
+loaded five-minute HMM tables were marked `stable_source`. The saved primary
+integration has 5,680 direct HMM feature rows marked stable and 888 ten-minute
+HMM summary rows marked unstable but still present in the matrix. Its male
+axis inventory contains 67 HMM feature-to-axis matches; the sensitivity
+integration has the same count. Future code now classifies both HMM families
+as unstable and builds the default matrix only from rows allowed in primary
+axes. The full feature export retains excluded rows with their role flags.
+These code corrections do not validate or alter either existing integration;
+both need a reviewed rerun before scientific reuse. The live output index
+still describes the historical runs until a separate Stage 16 refresh.
