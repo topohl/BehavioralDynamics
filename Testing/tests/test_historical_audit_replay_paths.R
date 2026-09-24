@@ -101,4 +101,15 @@ stopifnot(sum(grepl('mmm_behavior_numbered_source_root(', window_provenance,
                      fixed = TRUE)),
           !any(grepl('analysis_ready/12_systems_neuroscience_summary',
                      window_provenance, fixed = TRUE)))
+production_parity <- readLines(
+  "Testing/audits/audit_first_night_production_parity.R", warn = FALSE)
+invisible(parse(text = production_parity))
+stopifnot(any(grepl('mmm_behavior_audit_replay_output_root(', production_parity,
+                   fixed = TRUE)),
+          sum(grepl('mmm_behavior_numbered_source_root(', production_parity,
+                    fixed = TRUE)) == 2L,
+          !any(grepl('scratchpad/orch/first_night_prod', production_parity,
+                     fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary',
+                     production_parity, fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

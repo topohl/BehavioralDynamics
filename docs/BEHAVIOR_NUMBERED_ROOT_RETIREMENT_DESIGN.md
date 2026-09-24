@@ -129,10 +129,11 @@ or prepared any live source.
    it creates no output directory. The console-only
    `audit_first_night_window_provenance.R` now reads retained Stage 08 and 14
    originals through that accessor. Their paths are prepared but their
-   calculations were not rerun. `audit_first_night_production_parity.R` is
-   marked `indirect_writer_review`: it calls a producer that writes to a
-   machine-specific scratch path despite having no direct write call itself.
-   The other 31 rows still need reader/writer review.
+   calculations were not rerun. `audit_first_night_production_parity.R` is an
+   indirect writer: its producer now receives an explicit new replay folder,
+   while the comparison audit and roster read retained originals. Its path is
+   prepared but the numerical parity calculation was not rerun. The other 31
+   rows still need reader/writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

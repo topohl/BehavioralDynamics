@@ -1,6 +1,6 @@
 ## Standalone execution of the PRODUCTION first-night builder, plus numerical
-## parity against the audit outputs (item J). Writes to a scratch dir so it does
-## not pre-empt the Stage 14 run.
+## parity against retained audit outputs (item J). Requires an explicit
+## MMM_BEHAVIOR_AUDIT_REPLAY_ID and writes to a new replay output folder.
 suppressPackageStartupMessages({library(dplyr); library(tidyr); library(purrr); library(readr); library(stringr)})
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
@@ -11,13 +11,17 @@ source_mmm_helper("animalpos_preprocessing_helpers.R")
 source_mmm_helper("first_night_window_helpers.R")
 source_mmm_helper("first_night_domain_helpers.R")
 source_mmm_helper("first_night_domain_driver.R")
+source_mmm_helper("project_paths.R")
 
-PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-OUT <- "C:/Users/topohl/AppData/Local/Temp/claude/c--Users-topohl-Documents-GitHub/2603874b-c21a-494f-aefd-10f961b8053d/scratchpad/orch/first_night_prod"
-AUDIT <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/first_night_domain_heatmap")
+PROJ <- mmm_project_root()
+OUT <- mmm_behavior_audit_replay_output_root("first_night_production_parity", PROJ)
+AUDIT <- file.path(
+  mmm_behavior_numbered_source_root("12_systems_neuroscience_summary", PROJ),
+  "5min_based/audit_hmm_state_architecture/first_night_domain_heatmap")
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(DERIV, "5min_based/all_behavior_metrics.csv"),
     col_types = cols(.default = col_skip(), AnimalNum = col_character(),
                      Group = col_character(), Sex = col_character()), progress = FALSE),
   "Stage 01 roster")
