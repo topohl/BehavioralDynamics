@@ -73,7 +73,9 @@ thumbnail-cache change will invalidate its snapshot until reviewed.
 `Maintenance/Invoke-BehaviorNumberedRootArchive.ps1` implements those actions
 against the exact paths above. Temporary fixtures passed activation, repeat
 activation refusal, changed-source refusal, rollback from activated state,
-and rollback after interruptions on either side of the directory move. It
+and rollback after interruptions on either side of the directory move. The
+same transaction fixture now checks that the R pipeline resolver reads the
+prepared, activated, and rolled-back receipt states correctly. It
 requires a SHA-pinned reader gate with one `ready` row for every script in the
 queue before `Prepare` or `Activate`. A live read-only `Inspect` of the Stage 14
 root passed with 702 manifest files; `Prepare` using the current unresolved
@@ -102,6 +104,10 @@ or prepared any live source.
    a review queue, not proof that all 27 write there or that the other seven
    are read-only. Historical replay must use a named output location and must
    not recreate a numbered top-level root after archive activation.
+   The user chose to keep these audits replayable with explicit **new** output
+   folders. Replay inputs must resolve the retained original lineage through
+   the archive receipt; a rerun must never write into the archived originals
+   or reuse an existing replay output folder.
    `behavior_output_archive_audit_script_queue.csv` lists all 37 audit scripts
    naming at least one of the three roots, with separate reference and common
    write-call flags. Every row remains `needs_reader_writer_review`; the flags

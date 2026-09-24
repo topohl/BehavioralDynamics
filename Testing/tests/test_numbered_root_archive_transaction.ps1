@@ -21,6 +21,16 @@ $manifestHash = (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToL
 @([pscustomobject]@{ script = 'Testing/audits/example.R'; review_state = 'ready' }) |
   Export-Csv -LiteralPath $gate -NoTypeInformation -Encoding utf8
 $gateHash = (Get-FileHash -LiteralPath $gate -Algorithm SHA256).Hash.ToLowerInvariant()
+$semantic = Join-Path $ready 'analyses\dyadic_contacts'
+New-Item -ItemType Directory -Path $semantic -Force | Out-Null
+$control = Join-Path $ready '_migration_control'
+New-Item -ItemType Directory -Path $control -Force | Out-Null
+@{
+  group = 'dyadic_contacts'; state = 'activated'; files = 1
+  target_root_rel = 'analyses/dyadic_contacts'
+  group_plan_sha256 = ('a' * 64); contract_sha256 = ('b' * 64)
+  source_retained = $true
+} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $control 'dyadic_contacts.json') -Encoding utf8
 
 function Invoke-Archive([string] $Action) {
   & $tool -Action $Action -AnalysisReadyRoot $ready -RootName `
@@ -36,6 +46,17 @@ function Expect-Failure([scriptblock] $Block) {
     if ($_.Exception.Message -ceq 'Expected numbered-root archive rejection') { throw }
   }
 }
+function Assert-R-Routes([string] $ExpectedSource) {
+  $env:MMM_TEST_ARCHIVE_FIXTURE = $fixture
+  $env:MMM_TEST_ARCHIVE_SOURCE = Join-Path $ExpectedSource 'dyadic_contacts'
+  try {
+    $result = & Rscript -e 'source("Functions/project_paths.R"); r <- Sys.getenv("MMM_TEST_ARCHIVE_FIXTURE"); expected <- normalizePath(Sys.getenv("MMM_TEST_ARCHIVE_SOURCE"), winslash="/", mustWork=TRUE); actual <- normalizePath(mmm_behavior_retained_source_root("dyadic_contacts", r), winslash="/", mustWork=TRUE); stopifnot(identical(actual, expected), identical(normalizePath(mmm_behavior_output_active_root("dyadic_contacts", r), winslash="/", mustWork=TRUE), normalizePath(file.path(r,"analysis_ready","analyses","dyadic_contacts"), winslash="/", mustWork=TRUE)))' 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "R resolver rejected the archive transaction receipt: $($result -join ' | ')" }
+  } finally {
+    Remove-Item Env:MMM_TEST_ARCHIVE_FIXTURE -ErrorAction SilentlyContinue
+    Remove-Item Env:MMM_TEST_ARCHIVE_SOURCE -ErrorAction SilentlyContinue
+  }
+}
 
 if ((Invoke-Archive 'Inspect').state -cne 'unprepared') {
   throw 'Initial archive inspection did not report unprepared'
@@ -44,6 +65,7 @@ if ((Invoke-Archive 'Prepare').state -cne 'prepared' -or
     (Invoke-Archive 'Verify').hashes -cne 'PASS') {
   throw 'Archive preparation did not verify'
 }
+Assert-R-Routes $source
 Expect-Failure { Invoke-Archive 'Prepare' }
 
 # The source is rehashed immediately before activation.
@@ -68,6 +90,7 @@ if ((Invoke-Archive 'Activate').state -cne 'activated' -or
     (Invoke-Archive 'Verify').hashes -cne 'PASS') {
   throw 'Archive activation did not preserve the fixture inventory'
 }
+Assert-R-Routes $archive
 Expect-Failure { Invoke-Archive 'Activate' }
 New-Item -ItemType Directory -Path $source -Force | Out-Null
 Expect-Failure { Invoke-Archive 'Verify' }
@@ -79,6 +102,7 @@ if ((Invoke-Archive 'Rollback').state -cne 'prepared' -or
     (Invoke-Archive 'Verify').hashes -cne 'PASS') {
   throw 'Archive rollback did not restore the fixture inventory'
 }
+Assert-R-Routes $source
 
 # Interrupted before the directory move: the original remains and Rollback
 # can return the receipt to prepared after a fresh hash check.
