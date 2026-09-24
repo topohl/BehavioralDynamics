@@ -243,6 +243,26 @@ A focused synthetic test exercised the actual assertion branches with passing
 and failing registers. This verifies exit behavior only; it does not establish
 that any scientific replay passed.
 
+`Maintenance/Preflight-BehaviorAuditReplay.R` now checks the 37-script plan,
+receipt-selected retained roots, unused replay ID, and a separate identity
+baseline with status and source note without creating an output folder. Its
+synthetic fixture passed. A read-only live preflight on 2026-09-24 found all
+three retained roots and a fresh proposed replay ID; it reported
+`mechanically_ready: FALSE` because no independent identity baseline was
+supplied. An incomplete preflight exits with an error, so it cannot be
+mistaken for approval to run all scripts. The nearby `.old/` tree contains
+older activity materials, not an `analysis_ready/` comparison baseline; no
+baseline was inferred from it. This is a concrete blocker for an unattended
+all-script replay.
+The two other console-only checks were run read-only: the candidate-set
+algebra crosscheck exited successfully, with three formula deviations at or
+below `4.441e-16` (109-111 finite animals), while reporting two non-finite
+proximity values; the first-night window-provenance check exited successfully
+and found 12-hour first blocks at both HMM resolutions for 109 animals. The
+Stage 10 discovery parity check had previously passed on the live numbered
+tree. These results do not mark the 37-script queue `ready`, and the
+archived-location Stage 10 run remains untested.
+
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination
 inside a source, failed move, stale manifest, invalid receipt, and an old path
