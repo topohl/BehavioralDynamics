@@ -7,8 +7,10 @@ suppressMessages({library(dplyr); library(tidyr); library(readr); library(string
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R"); source_mmm_helper("hmm_stage14_helpers.R")
-OUT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/first_night_domain_heatmap"
-PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+source_mmm_helper("project_paths.R")
+PROJ <- mmm_project_root()
+OUT <- mmm_behavior_audit_replay_output_root("first_night_dwell_partition_stability", PROJ)
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 K <- 4L; sd_floor <- 0.05; SEEDS <- c(7L, 1L, 101L, 23L, 313L); BS <- 600
 active_vals <- c("active","dark","night"); is_act <- function(x) str_to_lower(str_trim(as.character(x))) %in% active_vals
 
@@ -41,10 +43,10 @@ init_km <- function(mod, hd, K, seed) {
   mod }
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ,"analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(DERIV,"5min_based/all_behavior_metrics.csv"),
     col_types=cols(.default=col_skip(), AnimalNum=col_character(), Group=col_character(), Sex=col_character()),
     progress=FALSE), "roster")
-raw <- read_csv(file.path(PROJ,"analysis_ready/03_derived_metrics/10min_based/all_behavior_metrics.csv"),
+raw <- read_csv(file.path(DERIV,"10min_based/all_behavior_metrics.csv"),
                 col_types=cols(AnimalNum=col_character(), BinStart=col_datetime(), .default=col_guess()), progress=FALSE)
 idn <- audit_hmm_identity(raw, roster, "10min"); assert_hmm_identity_audit(idn)
 hd <- standardize_behavior_columns(idn$data, proximity_col="ProximityFraction") %>%
@@ -100,6 +102,7 @@ for (sd_seed in SEEDS) {
       mean(fn$mean_dwell_minutes, na.rm=TRUE), nrow(fn))); flush.console()
 }
 P <- bind_rows(per); C <- bind_rows(ctr)
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(P, file.path(OUT,"first_night_dwell_partition_stability_values.csv"))
 write_csv(C, file.path(OUT,"first_night_dwell_partition_stability_contrasts.csv"))
 

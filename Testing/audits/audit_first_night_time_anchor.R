@@ -10,6 +10,7 @@ setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
 ## Verbatim copy of Stage 09 get_first_cage_change (Analysis/09_early_prediction_model_ladder.R:288)
 get_first_cage_change <- function(x) {
@@ -17,9 +18,9 @@ get_first_cage_change <- function(x) {
   cc_num <- suppressWarnings(as.numeric(str_extract(ux, "[0-9]+")))
   if (any(is.finite(cc_num))) ux[which.min(ifelse(is.finite(cc_num), cc_num, Inf))] else sort(ux)[1]
 }
-OUT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/first_night_domain_heatmap"
-dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
-PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+PROJ <- mmm_project_root()
+OUT <- mmm_behavior_audit_replay_output_root("first_night_time_anchor", PROJ)
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 
 cat("Constants: ANIMALPOS_INACTIVE_START_SEC =", ANIMALPOS_INACTIVE_START_SEC, "(=",
     ANIMALPOS_INACTIVE_START_SEC/3600, "h = 06:30);  PHASE_LENGTH_SEC =", ANIMALPOS_PHASE_LENGTH_SEC,
@@ -31,14 +32,14 @@ is_active_phase <- function(x) str_to_lower(str_trim(as.character(x))) %in% acti
 WINDOW_HOURS <- 12
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ,"analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(DERIV,"5min_based/all_behavior_metrics.csv"),
     col_types = cols(.default=col_skip(), AnimalNum=col_character(), Group=col_character(), Sex=col_character()),
     progress = FALSE), "roster")
 
 anchor_tbl <- list(); design <- list()
 for (res in c("10min_based","5min_based")) {
   bs <- if (res=="10min_based") 600 else 300
-  d <- read_csv(file.path(PROJ,"analysis_ready/03_derived_metrics",res,"all_behavior_metrics.csv"),
+  d <- read_csv(file.path(DERIV,res,"all_behavior_metrics.csv"),
                 col_types = cols(AnimalNum=col_character(), BinStart=col_datetime(), .default=col_guess()),
                 progress = FALSE) %>%
     mutate(AnimalNum = canonical_animal_id(AnimalNum)) %>%
@@ -142,6 +143,7 @@ wide <- out %>% select(-c(n_bins_window, expected_bins, coverage_fraction, n_bin
               coverage_fraction_5min=coverage_fraction), by="AnimalNum") %>%
   left_join(out %>% filter(resolution=="10min_based") %>% transmute(AnimalNum, n_10min_bins=n_bins_window,
               coverage_fraction_10min=coverage_fraction, duration_hours, is_exactly_12h), by="AnimalNum")
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(wide, file.path(OUT,"first_night_time_anchor_audit.csv"))
 write_csv(out,  file.path(OUT,"first_night_time_anchor_audit_long.csv"))
 write_csv(bind_rows(design), file.path(OUT,"first_night_window_contract.csv"))

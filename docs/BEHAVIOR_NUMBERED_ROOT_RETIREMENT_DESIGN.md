@@ -132,8 +132,16 @@ or prepared any live source.
    calculations were not rerun. `audit_first_night_production_parity.R` is an
    indirect writer: its producer now receives an explicit new replay folder,
    while the comparison audit and roster read retained originals. Its path is
-   prepared but the numerical parity calculation was not rerun. The other 31
-   rows still need reader/writer review.
+   prepared but the numerical parity calculation was not rerun. The
+   `audit_first_night_time_anchor.R` replay now produces the canonical window
+   audit in its own new folder, and `audit_first_night_domain_scores_v2.R`
+   consumes that file through the same replay id while reading the retained
+   Stage 01, 08, and 14 originals. The dwell partition-stability audit reads
+   retained Stage 01 and writes its own replay folder; the shipped-versus-refit
+   audit reads that same-run prerequisite plus retained Stage 01 and 08, then
+   writes a separate folder. These four scripts are path-prepared only; their
+   scientific calculations have not been rerun. The other 27 rows still need
+   reader/writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

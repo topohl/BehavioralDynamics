@@ -6,7 +6,7 @@
 ## WHY v2 EXISTS
 ##   v1 built the five RAW domains on Stage 14's production rule
 ##   `local_bin <= 12h/bin` (a fixed COUNT of Active bins, Analysis/14 lines 967-976).
-##   That rule matches the canonical experimental-clock window for only 50/111 animals at
+##   That rule matched the canonical experimental-clock window (pre-2026-09-22) for only 50/111 animals at
 ##   10-min and 33/111 at 5-min resolution: whenever an animal has missing bins in night 1
 ##   the bin COUNT over-reaches into the SECOND dark block of CC1. v2 rebuilds every raw
 ##   domain on the canonical clock window instead.
@@ -32,8 +32,8 @@
 ##   - No row is added because it is significant or dropped because it is null; no
 ##     resolution is chosen on p-values; the shipped composite coefficient 0.5 is KEPT.
 ##
-## READ-ONLY with respect to Analysis/ and Functions/. Writes only into
-##   <STAGE14>/audit_hmm_state_architecture/first_night_domain_heatmap/
+## Reads retained originals and the same-run time-anchor replay. Writes to a
+## new per-script historical audit replay folder.
 ## ===========================================================================
 
 suppressMessages({
@@ -45,13 +45,20 @@ setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
+source_mmm_helper("project_paths.R")
 
-PROJ    <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-STAGE14 <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based")
-OUT     <- file.path(STAGE14, "audit_hmm_state_architecture/first_night_domain_heatmap")
-HMM     <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
-DERIV   <- file.path(PROJ, "analysis_ready/03_derived_metrics")
-dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
+PROJ    <- mmm_project_root()
+STAGE14 <- file.path(mmm_behavior_numbered_source_root(
+  "12_systems_neuroscience_summary", PROJ), "5min_based")
+ANCHOR  <- mmm_behavior_audit_replay_input_root("first_night_time_anchor", PROJ)
+OUT     <- mmm_behavior_audit_replay_output_root("first_night_domain_scores_v2", PROJ)
+HMM     <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", PROJ), "hmm_states")
+DERIV   <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
+anchor_long_path <- file.path(ANCHOR, "first_night_time_anchor_audit_long.csv")
+if (!file.exists(anchor_long_path)) {
+  stop("Missing same-run time-anchor audit: ", anchor_long_path)
+}
 
 THIS_SCRIPT  <- "Testing/audits/audit_first_night_domain_scores_v2.R"
 GROUP_LEVELS <- c("CON", "RES", "SUS")
@@ -246,10 +253,10 @@ src_class <- tribble(
   "Stage 14 systems_sis_first_active_12h_domain_scores.csv",
   file.path(STAGE14, "tables/systems_sis_first_active_12h_domain_scores.csv"), "Analysis/14_systems_neuroscience_summary_dashboard.R", "C",
   "Analysis/14:967-976 builds `first_active` with group_by(AnimalNum, Phase) + local_bin <= early_window_bins (a fixed COUNT of bins), which over-reaches into the second dark block of CC1 whenever night-1 bins are missing",
-  "NOT REUSED as a first-night value. Superseded: the count rule matches the clock window for only 50/111 (10 min) and 33/111 (5 min) animals.",
+  "NOT REUSED as a first-night value. Superseded: the count rule matched the clock window for only 50/111 (10 min) and 33/111 (5 min) animals pre-2026-09-22.",
 
   "Stage 09 early_window_summary_by_animal.csv (on disk)",
-  file.path(PROJ, "analysis_ready/06_behavioral_dynamics/early_prediction/10min_based/tables/early_window_summary_by_animal.csv"),
+  file.path(dirname(HMM), "early_prediction/10min_based/tables/early_window_summary_by_animal.csv"),
   "Analysis/_archive/08_early_prediction_models.R", "C",
   "Manifest dated May 18, written by the ARCHIVED predecessor: 113 animals, zero-padded IDs, BOTH Active and Inactive phases, all four cage changes, EarlyPhasePattern 'active|dark|night' (documented substring bug), n_early_bins = 4",
   "NOT REUSED -- STALE. The current Stage 09 window contract was reconstructed from CODE (select_primary_active_window). Reported as a finding; Stage 09 is NOT modified.",
@@ -260,6 +267,7 @@ src_class <- tribble(
   "Joined into Stage 14 at 14:5320-5322 keyed on AnimalNum x CageChange x CageChangeIndex x PhaseClass -- one value per ~48 h epoch, and inactivity_fragmentation / active_inactive_transition_rate are undefined inside a single Active window",
   "NOT REUSED. Volatility rebuilt from the three RMSSD terms only (see that row)."
 )
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(src_class, file.path(OUT, "first_night_domain_source_classification.csv"))
 cat("\nwrote first_night_domain_source_classification.csv  rows =", nrow(src_class), "\n")
 print(as.data.frame(src_class %>% count(class)), row.names = FALSE)
@@ -268,7 +276,6 @@ print(as.data.frame(src_class %>% transmute(Domain = str_trunc(Domain, 46), clas
 ## ==========================================================================
 hr("STEP 2a. Canonical window: reuse + re-derive the per-animal anchor audit")
 ## ==========================================================================
-anchor_long_path <- file.path(OUT, "first_night_time_anchor_audit_long.csv")
 stopifnot(file.exists(anchor_long_path))
 anchor_long <- read_csv(anchor_long_path, col_types = cols(AnimalNum = col_character(), .default = col_guess()),
                         progress = FALSE)

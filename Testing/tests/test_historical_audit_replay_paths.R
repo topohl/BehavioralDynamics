@@ -112,4 +112,60 @@ stopifnot(any(grepl('mmm_behavior_audit_replay_output_root(', production_parity,
                      fixed = TRUE)),
           !any(grepl('analysis_ready/12_systems_neuroscience_summary',
                      production_parity, fixed = TRUE)))
+
+time_anchor <- readLines("Testing/audits/audit_first_night_time_anchor.R",
+                         warn = FALSE)
+invisible(parse(text = time_anchor))
+stopifnot(any(grepl('mmm_behavior_audit_replay_output_root("first_night_time_anchor", PROJ)',
+                   time_anchor, fixed = TRUE)),
+          any(grepl('mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)',
+                    time_anchor, fixed = TRUE)),
+          !any(grepl('analysis_ready/03_derived_metrics', time_anchor,
+                     fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary', time_anchor,
+                     fixed = TRUE)))
+
+domain_v2 <- readLines("Testing/audits/audit_first_night_domain_scores_v2.R",
+                       warn = FALSE)
+invisible(parse(text = domain_v2))
+stopifnot(any(grepl('mmm_behavior_audit_replay_input_root("first_night_time_anchor", PROJ)',
+                   domain_v2, fixed = TRUE)),
+          any(grepl('anchor_long_path <- file.path(ANCHOR,', domain_v2,
+                    fixed = TRUE)),
+          any(grepl('mmm_behavior_audit_replay_output_root("first_night_domain_scores_v2", PROJ)',
+                    domain_v2, fixed = TRUE)),
+          sum(grepl('mmm_behavior_numbered_source_root(', domain_v2,
+                    fixed = TRUE)) == 3L,
+          !any(grepl('analysis_ready/06_behavioral_dynamics', domain_v2,
+                     fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary', domain_v2,
+                     fixed = TRUE)))
+
+dwell <- readLines("Testing/audits/audit_first_night_dwell_partition_stability.R",
+                   warn = FALSE)
+invisible(parse(text = dwell))
+stopifnot(any(grepl('mmm_behavior_audit_replay_output_root("first_night_dwell_partition_stability", PROJ)',
+                   dwell, fixed = TRUE)),
+          any(grepl('mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)',
+                    dwell, fixed = TRUE)),
+          !any(grepl('analysis_ready/03_derived_metrics', dwell,
+                     fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary', dwell,
+                     fixed = TRUE)))
+
+dwell_compare <- readLines("Testing/audits/audit_first_night_dwell_shipped_vs_refit.R",
+                           warn = FALSE)
+invisible(parse(text = dwell_compare))
+stopifnot(any(grepl('mmm_behavior_audit_replay_input_root("first_night_dwell_partition_stability", PROJ)',
+                   dwell_compare, fixed = TRUE)),
+          any(grepl('P <- read_csv(file.path(INPUT,', dwell_compare,
+                    fixed = TRUE)),
+          any(grepl('mmm_behavior_audit_replay_output_root("first_night_dwell_shipped_vs_refit", PROJ)',
+                    dwell_compare, fixed = TRUE)),
+          sum(grepl('mmm_behavior_numbered_source_root(', dwell_compare,
+                    fixed = TRUE)) == 2L,
+          !any(grepl('analysis_ready/06_behavioral_dynamics', dwell_compare,
+                     fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary', dwell_compare,
+                     fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

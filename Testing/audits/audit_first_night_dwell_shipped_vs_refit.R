@@ -5,18 +5,23 @@ suppressMessages({library(dplyr); library(tidyr); library(readr); library(string
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R"); source_mmm_helper("hmm_stage14_helpers.R")
-PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-OUT <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/first_night_domain_heatmap")
+source_mmm_helper("project_paths.R")
+PROJ <- mmm_project_root()
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
+HMM <- file.path(mmm_behavior_numbered_source_root("06_behavioral_dynamics", PROJ),
+                 "hmm_states")
+INPUT <- mmm_behavior_audit_replay_input_root("first_night_dwell_partition_stability", PROJ)
+OUT <- mmm_behavior_audit_replay_output_root("first_night_dwell_shipped_vs_refit", PROJ)
 K <- 4L; BS <- 600
 is_act <- function(x) str_to_lower(str_trim(as.character(x))) %in% c("active","dark","night")
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ,"analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(DERIV,"5min_based/all_behavior_metrics.csv"),
     col_types=cols(.default=col_skip(), AnimalNum=col_character(), Group=col_character(), Sex=col_character()),
     progress=FALSE), "roster")
 
 ## clock window from Stage 01 10-min
-raw <- read_csv(file.path(PROJ,"analysis_ready/03_derived_metrics/10min_based/all_behavior_metrics.csv"),
+raw <- read_csv(file.path(DERIV,"10min_based/all_behavior_metrics.csv"),
                 col_types=cols(AnimalNum=col_character(), BinStart=col_datetime(), .default=col_guess()), progress=FALSE) %>%
   mutate(AnimalNum=canonical_animal_id(AnimalNum)) %>% semi_join(roster, by="AnimalNum")
 cc1a <- raw %>% mutate(.sess=as.character(SourceFile)) %>% filter(as.character(CageChange)=="CC1", is_act(Phase))
@@ -29,7 +34,7 @@ winkeys <- cc1a %>% left_join(anch, by=".sess") %>%
 cat("clock-window keys:", nrow(winkeys), " animals:", n_distinct(winkeys$AnimalNum), "\n")
 
 ## SHIPPED Viterbi labels
-asg <- read_csv(file.path(PROJ,"analysis_ready/06_behavioral_dynamics/hmm_states/10min_based/tables/hmm_state_assignments.csv"),
+asg <- read_csv(file.path(HMM,"10min_based/tables/hmm_state_assignments.csv"),
                 col_types=cols(AnimalNum=col_character(), State=col_character(), .default=col_guess())) %>%
   mutate(AnimalNum=canonical_animal_id(AnimalNum))
 aud <- audit_hmm_identity(asg, roster, "shipped 10min"); assert_hmm_identity_audit(aud)
@@ -48,7 +53,7 @@ fn_ship <- ship %>% arrange(AnimalNum, TimeIndex) %>% group_by(AnimalNum, Group,
 cat("\nshipped first-night dwell: n =", nrow(fn_ship), " mean =", round(mean(fn_ship$dwell_shipped),2), "min\n")
 
 ## compare with the refit values from the stability run (seed 7 and seed 1 = promoted optimum)
-P <- read_csv(file.path(OUT,"first_night_dwell_partition_stability_values.csv"),
+P <- read_csv(file.path(INPUT,"first_night_dwell_partition_stability_values.csv"),
               col_types=cols(AnimalNum=col_character(), .default=col_guess()))
 for (s in c(7,1)) {
   r7 <- P %>% filter(seed==s) %>% transmute(AnimalNum, dwell_refit=mean_dwell_minutes)
@@ -69,6 +74,7 @@ print(as.data.frame(emmeans::contrast(emmeans::emmeans(m, ~Group|Sex), cv, adjus
 cat("\n===== state-label composition check (shipped vs seed-7 refit) =====\n")
 r7full <- P %>% filter(seed==7)
 cat("  shipped n animals:", nrow(fn_ship), " refit n animals:", nrow(r7full), "\n")
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(fn_ship %>% left_join(P %>% filter(seed==7) %>% transmute(AnimalNum, dwell_refit_seed7=mean_dwell_minutes), by="AnimalNum"),
           file.path(OUT,"first_night_dwell_shipped_vs_refit.csv"))
 cat("wrote first_night_dwell_shipped_vs_refit.csv\n")
