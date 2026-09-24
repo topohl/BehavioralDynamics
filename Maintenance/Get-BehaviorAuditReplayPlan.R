@@ -42,6 +42,14 @@ for (i in seq_len(nrow(queue))) {
   script <- queue$script[[i]]
   if (!grepl("^Testing/audits/[A-Za-z0-9_.-]+\\.R$", script) ||
       !file.exists(script)) stop("Missing or unsafe queued audit script: ", script)
+  has_trailing_args <- any(grepl("commandArgs\\(trailingOnly[[:space:]]*=[[:space:]]*TRUE\\)",
+                                 readLines(script, warn = FALSE)))
+  special <- script %in% c(
+    "Testing/audits/audit_stage10_semantic_discovery_parity.R",
+    "Testing/audits/compare_identity_correction_before_after.R")
+  if (!identical(has_trailing_args, special)) {
+    stop("Queued audit CLI requirements changed; review invocation: ", script)
+  }
   code <- parse(file = script)
   input_ids[[i]] <- calls_named(code, "mmm_behavior_audit_replay_input_root")
   outputs <- calls_named(code, "mmm_behavior_audit_replay_output_root")
@@ -73,6 +81,12 @@ plan <- data.frame(
   replay_order = seq_along(ordered),
   script = queue$script[ordered],
   output_id = output_ids[ordered],
+  invocation = ifelse(queue$script[ordered] ==
+                        "Testing/audits/audit_stage10_semantic_discovery_parity.R",
+                      "project_root_argument",
+                      ifelse(queue$script[ordered] ==
+                               "Testing/audits/compare_identity_correction_before_after.R",
+                             "baseline_and_provenance_required", "direct")),
   prerequisite_output_ids = vapply(input_ids[ordered], paste, collapse = ";",
                                    FUN.VALUE = character(1)),
   prerequisite_scripts = vapply(prerequisites[ordered], paste, collapse = ";",

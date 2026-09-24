@@ -1020,7 +1020,10 @@ asrt <- bind_rows(ASSERT)
 write_csv(asrt, file.path(OUT, "first_night_heatmap_assertions.csv"))
 cat("wrote first_night_heatmap_assertions.csv  rows =", nrow(asrt),
     " PASS =", sum(asrt$result == "PASS"), " FAIL =", sum(asrt$result == "FAIL"), "\n")
-if (any(asrt$result == "FAIL")) print(as.data.frame(asrt %>% filter(result == "FAIL")), row.names = FALSE)
+if (any(asrt$result == "FAIL")) {
+  print(as.data.frame(asrt %>% filter(result == "FAIL")), row.names = FALSE)
+  stop("First-night heatmap assertions failed; replay output is not validated.", call. = FALSE)
+}
 
 fmt_row <- function(d) paste(sprintf("%s g=%.3f est=%+.3f CI[%.2f,%.2f] p=%.3f q=%.3f (n %d/%d)",
                                      d$contrast, d$Hedges_g, d$model_estimate, d$CI_low, d$CI_high,

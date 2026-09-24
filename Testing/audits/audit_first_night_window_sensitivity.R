@@ -698,7 +698,10 @@ sec("Assertions")
 leak <- bind_rows(ASSERT)
 write_csv(leak, file.path(OUT, "first_night_vs_all_cc1_active_assertions.csv"))
 cat("assertions:", nrow(leak), " PASS =", sum(leak$result == "PASS"), " FAIL =", sum(leak$result == "FAIL"), "\n")
-if (any(leak$result == "FAIL")) print(as.data.frame(leak %>% filter(result == "FAIL")), row.names = FALSE)
+if (any(leak$result == "FAIL")) {
+  print(as.data.frame(leak %>% filter(result == "FAIL")), row.names = FALSE)
+  stop("First-night window assertions failed; replay output is not validated.", call. = FALSE)
+}
 
 hr("DONE")
 cat("OUT =", OUT, "\n")

@@ -731,5 +731,6 @@ cat("WROTE", file.path(OUT, "first_night_candidate_set_effects_assertions.csv"),
 if (any(areg$result == "FAIL")) {
   cat("\n*** ONE OR MORE ASSERTIONS FAILED -- do not consume these tables ***\n")
   print(as.data.frame(areg %>% filter(result == "FAIL")), row.names = FALSE)
+  stop("Candidate-set effect assertions failed; replay output is not validated.", call. = FALSE)
 }
 hr("DONE")

@@ -740,7 +740,10 @@ leak <- bind_rows(ASSERT)
 write_csv(leak, file.path(OUT, "first_night_leakage_assertions.csv"))
 cat("\nwrote first_night_leakage_assertions.csv  rows =", nrow(leak),
     " PASS =", sum(leak$result == "PASS"), " FAIL =", sum(leak$result == "FAIL"), "\n")
-if (any(leak$result == "FAIL")) print(as.data.frame(leak %>% filter(result == "FAIL")), row.names = FALSE)
+if (any(leak$result == "FAIL")) {
+  print(as.data.frame(leak %>% filter(result == "FAIL")), row.names = FALSE)
+  stop("First-night domain-score assertions failed; replay output is not validated.", call. = FALSE)
+}
 
 ## ==========================================================================
 hr("STEP 5. Assemble first_night_domain_scores.csv")

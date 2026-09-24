@@ -231,8 +231,17 @@ producers, duplicate outputs, and cycles, then orders producers before their
 consumers. The current plan has 34 scripts with replay output IDs, three
 without them, and 16 with same-run prerequisites. It is an execution order,
 not a scientific validation result or permission to run the audits. The
-reviewed gate must still be built from validated replays and pinned script
+`invocation` column marks the Stage 10 parity check's required RFID-root
+argument and the identity comparison's separate baseline and provenance
+requirement. Those two cannot be treated as ordinary unattended Rscript calls.
+The identity comparison must not infer a pristine pre-correction baseline.
+The reviewed gate must still be built from validated replays and pinned script
 hashes; every queue row remains `path_prepared_unvalidated` now.
+Five first-night audits previously printed failed assertion rows while exiting
+successfully. They now print the same diagnostics and then stop on any `FAIL`.
+A focused synthetic test exercised the actual assertion branches with passing
+and failing registers. This verifies exit behavior only; it does not establish
+that any scientific replay passed.
 
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination

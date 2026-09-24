@@ -12,7 +12,10 @@ stopifnot(nrow(plan) == 37L,
           identical(sort(plan$script), sort(queue$script)),
           identical(plan$replay_order, seq_len(nrow(plan))),
           !anyDuplicated(plan$output_id[nzchar(plan$output_id)]),
-          all(plan$review_state == "path_prepared_unvalidated"))
+          identical(plan$review_state,
+                    queue$review_state[match(plan$script, queue$script)]),
+          sum(plan$invocation == "project_root_argument") == 1L,
+          sum(plan$invocation == "baseline_and_provenance_required") == 1L)
 for (i in seq_len(nrow(plan))) {
   deps <- plan$prerequisite_scripts[[i]]
   if (!nzchar(deps)) next
@@ -27,7 +30,11 @@ stopifnot(identical(find("audit_first_night_candidate_set_decision.R")$
                       prerequisite_output_ids, "first_night_time_anchor"),
           identical(find("audit_hmm_state_architecture_construct_comparison.R")$
                       prerequisite_output_ids,
-                    "hmm_architecture_components;hmm_architecture_redundancy"))
+                    "hmm_architecture_components;hmm_architecture_redundancy"),
+          identical(find("audit_stage10_semantic_discovery_parity.R")$invocation,
+                    "project_root_argument"),
+          identical(find("compare_identity_correction_before_after.R")$invocation,
+                    "baseline_and_provenance_required"))
 
 bad_queue <- tempfile(fileext = ".csv")
 write.csv(rbind(queue, queue[1L, , drop = FALSE]), bad_queue,

@@ -882,7 +882,10 @@ hr("STEP 7. Assertion register")
 ## ==========================================================================
 areg <- bind_rows(ASSERT)
 cat("assertions:", nrow(areg), " PASS =", sum(areg$result == "PASS"), " FAIL =", sum(areg$result == "FAIL"), "\n")
-if (any(areg$result == "FAIL")) print(as.data.frame(areg %>% filter(result == "FAIL")), row.names = FALSE)
+if (any(areg$result == "FAIL")) {
+  print(as.data.frame(areg %>% filter(result == "FAIL")), row.names = FALSE)
+  stop("Candidate-set score assertions failed; replay output is not validated.", call. = FALSE)
+}
 
 hr("DONE")
 cat("outputs in:", OUT, "\n")
