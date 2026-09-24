@@ -25,8 +25,7 @@
 ##  * The whole scan is EXPLORATORY. Both raw p and BH q are reported and
 ##    neither is allowed to select the reported rows.
 ##
-## READ-ONLY with respect to Analysis/ and Functions/. Writes only into
-## <Stage14>/audit_hmm_state_architecture/first_night_domain_heatmap.
+## Reads retained originals and writes to a new per-script replay folder.
 ## ============================================================================
 
 suppressMessages({
@@ -38,14 +37,16 @@ options(dplyr.summarise.inform = FALSE)
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-PROJ    <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-STAGE14 <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based")
-AUDIT   <- file.path(STAGE14, "audit_hmm_state_architecture")
-OUT     <- file.path(AUDIT, "first_night_domain_heatmap")
-HMM     <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
+PROJ    <- mmm_project_root()
+STAGE14 <- file.path(mmm_behavior_numbered_source_root(
+  "12_systems_neuroscience_summary", PROJ), "5min_based")
+OUT     <- mmm_behavior_audit_replay_output_root("first_night_hmm_components", PROJ)
+HMM     <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", PROJ), "hmm_states")
+DERIV   <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 COMBZ_XLSX <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
-dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
 BIN_SEC      <- c("10min_based" = 600, "5min_based" = 300)
 RESOLUTIONS  <- c("10min_based", "5min_based")  # 10min PRIMARY, 5min SENSITIVITY
@@ -70,7 +71,7 @@ hdr <- function(x) cat("\n", strrep("=", 78), "\n", x, "\n", strrep("=", 78), "\
 ## ---------------------------------------------------------------- roster ----
 hdr("0. CANONICAL 111-ANIMAL ROSTER")
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(DERIV, "5min_based/all_behavior_metrics.csv"),
            col_types = cols(.default = col_skip(), AnimalNum = col_character(),
                             Group = col_character(), Sex = col_character()),
            progress = FALSE),
@@ -413,6 +414,7 @@ inter_tbl <- bind_rows(all_inter) %>%
          analysis_status = "EXPLORATORY / hypothesis-generating",
          note = "computed on the same context-z outcome as the contrasts; z-within-Sex removes the Sex main effect by construction, so this F tests whether standardized group spacing differs between sexes")
 
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(res_tbl,   file.path(OUT, "first_night_hmm_component_results.csv"))
 write_csv(inter_tbl, file.path(OUT, "first_night_hmm_component_interactions.csv"))
 write_csv(feat_all,  file.path(OUT, "first_night_hmm_component_animal_features.csv"))

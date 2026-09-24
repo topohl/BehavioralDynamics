@@ -2,16 +2,14 @@
 ## ---------------------------------------------------------------------------
 ## FIRST-NIGHT (CC1, first Active phase) domain matrix + provenance + redundancy audit.
 ##
-## Deliverables written to
-##   <STAGE14>/audit_hmm_state_architecture/first_night_domain_heatmap/
+## Deliverables written to a fresh first_night_domain_scores_v1 replay folder:
 ##     1. first_night_domain_scores.csv            (animal x domain long table + provenance fields)
 ##     2. first_night_domain_provenance.csv        (one row per domain; exposes raw-vs-HMM window mismatch)
 ##     3. first_night_domain_redundancy_audit.csv  (pairwise Pearson + Spearman, within Sex and pooled)
 ##   plus supporting audit tables (window impurity, block geometry, coverage, duplicate check,
 ##   reconciliation with the two existing production CC1 artifacts, exploratory CombZ association).
 ##
-## READ-ONLY with respect to Analysis/ and Functions/. Nothing here writes into production
-## tables/ or figures/ directories.
+## Retained originals are read-only. A replay writes only to its new folder.
 ##
 ## Interpretation guards enforced throughout:
 ##   - RFID proximity is a social-spatial CO-LOCATION proxy, never "sociability".
@@ -29,16 +27,18 @@ suppressMessages({
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-PROJ    <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-STAGE14 <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based")
-AUDIT   <- file.path(STAGE14, "audit_hmm_state_architecture")
-OUT     <- file.path(AUDIT, "first_night_domain_heatmap")
-HMM     <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
-BASE5   <- file.path(PROJ, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv")
+PROJ    <- mmm_project_root()
+STAGE14 <- file.path(mmm_behavior_numbered_source_root(
+  "12_systems_neuroscience_summary", PROJ), "5min_based")
+OUT     <- mmm_behavior_audit_replay_output_root("first_night_domain_scores_v1", PROJ)
+HMM     <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", PROJ), "hmm_states")
+BASE5   <- file.path(mmm_behavior_numbered_source_root(
+  "03_derived_metrics", PROJ), "5min_based/all_behavior_metrics.csv")
 SLEEP5  <- file.path(PROJ, "analysis_ready/16_sleep_like_inactivity_metrics/5min_based/tables/sleep_like_inactivity_features.csv")
 COMBZ   <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
-dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
 PH_INACT <- "\\binactive\\b|\\blight\\b|\\bday\\b"
 PH_ACT   <- "\\bactive\\b|\\bdark\\b|\\bnight\\b"
@@ -225,6 +225,7 @@ cat("mean borrowed fraction of the 144-bin window:",
     sprintf("%.4f", mean(impurity$borrowed_fraction_of_window)), "\n")
 cat("window bins actually available: median", median(impurity$n_bins_in_window),
     " range", paste(range(impurity$n_bins_in_window), collapse = "-"), "\n")
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(impurity, file.path(OUT, "first_night_raw_window_impurity.csv"))
 write_csv(raw_block_geom, file.path(OUT, "first_night_raw_cc1_active_block_geometry.csv"))
 

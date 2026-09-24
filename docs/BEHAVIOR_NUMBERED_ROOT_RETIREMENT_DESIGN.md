@@ -144,7 +144,11 @@ or prepared any live source.
    sensitivity audits now consume the same-run v2 scores and component tables
    from their replay folder, keep Stage 14 comparisons on retained originals,
    and write to distinct replay folders. Their calculations and figures have
-   not been rerun. The other 25 rows still need reader/writer review.
+   not been rerun. The superseded v1 domain-scores audit and exploratory HMM
+   component audit now read the retained originals and write to independent
+   replay folders, removing their former shared-writer destination. Their
+   scientific calculations have not been rerun. The other 23 rows still need
+   reader/writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

@@ -182,4 +182,21 @@ for (name in c("audit_first_night_heatmap_v2.R",
             !any(grepl('analysis_ready/12_systems_neuroscience_summary',
                        downstream, fixed = TRUE)))
 }
+
+for (entry in list(
+  c("audit_first_night_domain_scores.R", "first_night_domain_scores_v1"),
+  c("audit_first_night_hmm_components.R", "first_night_hmm_components"))) {
+  standalone <- readLines(file.path("Testing/audits", entry[[1L]]),
+                          warn = FALSE)
+  invisible(parse(text = standalone))
+  stopifnot(any(grepl(paste0('mmm_behavior_audit_replay_output_root("',
+                            entry[[2L]], '", PROJ)'), standalone,
+                     fixed = TRUE)),
+            sum(grepl('mmm_behavior_numbered_source_root(', standalone,
+                      fixed = TRUE)) == 3L,
+            !any(grepl('analysis_ready/06_behavioral_dynamics', standalone,
+                       fixed = TRUE)),
+            !any(grepl('analysis_ready/12_systems_neuroscience_summary',
+                       standalone, fixed = TRUE)))
+}
 cat("Historical audit replay source and fresh-output paths: PASS\n")
