@@ -221,4 +221,15 @@ stopifnot(any(grepl('numbered_root <- mmm_behavior_numbered_source_root(',
                     stage10, fixed = TRUE)),
           !any(grepl('numbered_root <- file.path(ready, "06_behavioral_dynamics")',
                      stage10, fixed = TRUE)))
+
+phase_bug <- readLines("Testing/audits/audit_phase_bug_impact.R", warn = FALSE)
+invisible(parse(text = phase_bug))
+stopifnot(any(grepl('mmm_behavior_audit_replay_output_root("phase_bug_impact", PROJ)',
+                   phase_bug, fixed = TRUE)),
+          any(grepl('mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)',
+                    phase_bug, fixed = TRUE)),
+          !any(grepl('analysis_ready/03_derived_metrics', phase_bug,
+                     fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary', phase_bug,
+                     fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

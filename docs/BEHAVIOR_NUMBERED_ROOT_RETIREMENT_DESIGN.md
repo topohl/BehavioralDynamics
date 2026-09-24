@@ -154,8 +154,9 @@ or prepared any live source.
    resolves the retained original through the archive receipt and constructs
    its expected semantic list from the reviewed source-to-target plans. It
    passed on the live pre-archive tree (1,459 mapped originals, 606 ordered
-   candidates); the archived-location run remains untested. The other 21 rows
-   still need reader/writer review.
+   candidates); the archived-location run remains untested. The independent phase-classification bug
+   counterfactual now reads the retained Stage 01 original and writes to its
+   own replay folder; it was not rerun. That leaves 20 unresolved rows.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

@@ -7,9 +7,11 @@ suppressPackageStartupMessages({library(dplyr); library(readr); library(stringr)
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("phase_classification_helpers.R")
+source_mmm_helper("project_paths.R")
 
-PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-OUT <- file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture")
+PROJ <- mmm_project_root()
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
+OUT <- mmm_behavior_audit_replay_output_root("phase_bug_impact", PROJ)
 
 # The old, order-dependent classifier as it stood in Stage 11 (86-90) and
 # Stage 12 (60-64): the Active branch was tested FIRST with a permissive
@@ -24,7 +26,7 @@ buggy_phase_class <- function(phase) {
 
 rows <- list()
 for (bl in c("10min_based", "5min_based")) {
-  p <- file.path(PROJ, "analysis_ready/03_derived_metrics", bl, "all_behavior_metrics.csv")
+  p <- file.path(DERIV, bl, "all_behavior_metrics.csv")
   if (!file.exists(p)) next
   d <- read_csv(p, col_types = cols(AnimalNum = col_character(), Phase = col_character(),
                                     .default = col_guess()), progress = FALSE)
