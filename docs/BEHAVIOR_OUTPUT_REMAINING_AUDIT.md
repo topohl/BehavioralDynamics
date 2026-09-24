@@ -23,7 +23,7 @@ the two lineages; neither is a migration receipt for the old tree.
 | `13_nonlinear_systems_dynamics/` | 97 files, 39.25 MB; run manifest dated 2026-09-21 | Manual `_supporting/13_nonlinear_systems_dynamics.R`; Stages 10, 14, and 15 reference its features; Stage 15 records loading its feature matrix | Supporting exploratory input | `13` names an older supporting script, not current Stage 13. A bounded copy is plausible after testing Stage 10's single-root feature scan and the Stage 14/15 readers. |
 | `14_nextgen_behavioral_phenotyping/` | 138 files, 78.79 MB; run manifest dated 2026-09-21 | Manual `_supporting/14_nextgen_behavioral_phenotyping.R`; Stages 10 and 14 reference its features | Supporting exploratory input | `14` names an older supporting script, not the current Stage 14 dashboard. A bounded copy is plausible after the same feature-scan and reader checks. |
 | `15_behavioral_adaptation_kinetics/`, `16_sleep_like_inactivity_metrics/`, `17_ethological_phase_organization/` | Only the older five-minute branches remain uncopied: 10, 10, and 13 files | Current Stage 11–13 producers declare ten minutes; Stage 15 integrations loaded eight five-minute tables | Historical, scientifically suspect Stage 15 inputs | Prefixes `15–17` are historical. Keep in place; resolve the pre-fix phase-classifier validity issue before treating them as current inputs. |
-| `03_primary_raw_movement_phase_stats/` | 31 files, 2.92 MB | Historical Stage 03 output; Stage 16 and comparison helpers retain a documented fallback | Superseded, retained compatibility | `03` reflects the stage but this is no longer its write location. Keep until fallback retirement is tested. |
+| `03_primary_raw_movement_phase_stats/` | 31 files, 2.92 MB | Historical Stage 03 output; comparison helpers retain explicit old-baseline access, while Stage 16 selects canonical files only | Superseded, retained comparison provenance | `03` reflects the stage but this is no longer its write location. Keep the historical set for comparison; current reporting must not fall back to it. |
 | `04_model_outputs/`, `05_figures/` | 6 model files and 5 figure files, all spatial occupancy originals already copied | Stage 19 owns them; Stage 10 boundary audit checks they are excluded from feature discovery | Retained provenance | Numbers are historical storage labels. Keep source paths as the activation receipts require. |
 | `16_manuscript_behavior_report/` | 5 files, 0.44 MB | Old Stage 16 exporter; current manuscript entry point is `manuscript/behavior/`; a path-length test still names the old root | Superseded report | `16` matches the former stage but is redundant in navigation. Retain as comparison evidence; no current write should target it. |
 | `18_raw_movement_publication_trajectory/`, `18b_raw_movement_broad_phase_stats/`, `18c_raw_movement_broad_phase_stats_corrected/` | 57, 8, and 21 files | Archived or absent producers; no active scientific reader found in `Analysis/`, `Functions/`, `Testing/`, or `Maintenance/` | Superseded movement lineage | `18*` is historical. Retain unchanged until an archival action is explicitly designed with a manifest and no-read check. |
@@ -116,8 +116,13 @@ archived `18`/`18b` producers and the absent `18c` producer support a
 historical classification; no explicit active code reader of those three
 roots was found in the searched analysis, function, test, maintenance, or
 manuscript code. That bounded search does not exclude external links. Stage
-16 still has executable per-artifact fallbacks into the old Stage 03 tree,
-and a path-length regression test still scans the old Stage 16 tree. The
+16 previously had executable per-artifact fallbacks into the old Stage 03 tree,
+but those have now been retired after the eight source pairs were checked.
+All eight canonical and historical tables exist and all eight pairs differ by
+SHA-256; the current manuscript provenance selected all eight canonical files.
+A missing current Stage 03 source now fails if required or remains explicitly
+missing if optional. Historical comparison helpers still read the old baseline
+by an explicit path. A path-length regression test still scans the old Stage 16 tree. The
 task's blocked candidate maps propose semantic `history/` paths; all 122
 numbered originals remain and no copy or receipt was created.
 
