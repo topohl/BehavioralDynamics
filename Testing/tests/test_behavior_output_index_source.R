@@ -182,6 +182,47 @@ stopifnot(nrow(row("10")) == 1L,
           nrow(row("28")) == 1L,
           identical(row("28")$status, "local_untracked_candidate"))
 stopifnot(!any(grepl("_quarantine|_archive", na.omit(idx$legacy_path))))
+history_ids <- c("04-history-1min", "04-history-5min",
+                 "05-history-1min", "05-history-10min",
+                 "06-history-10sec", "06-history-1min",
+                 "06-history-10min", "06-history-30min",
+                 "07-history-30min")
+stopifnot(all(vapply(history_ids, function(id) nrow(row(id)) == 1L &&
+                       is.na(row(id)$canonical_path) &&
+                       identical(row(id)$status, "legacy_pending_migration") &&
+                       startsWith(row(id)$legacy_path,
+                                  "analysis_ready/06_behavioral_dynamics/"),
+                     logical(1))))
+
+# One activated history receipt updates only its own detail row. Aggregate
+# family rows remain provenance overviews and other resolutions remain old.
+history_group <- "history_social_networks_10min"
+history_old <- env$mmm_behavior_output_group_root(history_group, "current", fixture_root)
+history_new <- env$mmm_behavior_output_group_root(history_group, "semantic", fixture_root)
+history_receipt <- file.path(fixture_root, "analysis_ready", "_migration_control",
+                             paste0(history_group, ".json"))
+dir.create(history_old, recursive = TRUE, showWarnings = FALSE)
+dir.create(history_new, recursive = TRUE, showWarnings = FALSE)
+jsonlite::write_json(list(
+  group = history_group, state = "activated", files = 1L,
+  target_root_rel = "history/social_networks/10min",
+  group_plan_sha256 = paste(rep("c", 64L), collapse = ""),
+  contract_sha256 = paste(rep("d", 64L), collapse = ""),
+  source_retained = TRUE), history_receipt, auto_unbox = TRUE)
+eval(parse(text = index_source), envir = env)
+activated_index <- env$output_index
+activated_row <- activated_index[activated_index$stage == "06-history-10min", ]
+stopifnot(identical(activated_row$canonical_path,
+                    "analysis_ready/history/social_networks/10min/"),
+          identical(activated_row$status, "migrated_source_retained"),
+          is.na(activated_index$canonical_path[
+            activated_index$stage == "06-history-1min"]),
+          is.na(activated_index$canonical_path[
+            activated_index$stage == "06-history"]))
+unlink(history_receipt)
+unlink(history_new, recursive = TRUE)
+unlink(history_old, recursive = TRUE)
+eval(parse(text = index_source), envir = env)
 cat("PASS: Stage 16 output-index source paths and physical output groups\n")
 
 # Path accessors are explicit and stay on the existing tree by default.
