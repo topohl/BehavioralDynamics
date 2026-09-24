@@ -14,6 +14,7 @@
 suppressPackageStartupMessages({ library(dplyr); library(stringr) })
 
 source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
 
 fail <- function(msg) stop("FAIL: ", msg, call. = FALSE)
 check <- function(cond, msg) if (!isTRUE(cond)) fail(msg) else invisible(TRUE)
@@ -25,7 +26,7 @@ project_root <- getOption(
 check(!grepl("AppData|Temp|/tmp/", project_root, ignore.case = TRUE),
       "the test must run against the canonical project root, not a temp dir")
 
-base_output_dir <- file.path(project_root, "analysis_ready", "06_behavioral_dynamics")
+base_output_dir <- mmm_behavior_proteomics_base_dir(project_root)
 
 # The dataset labels Stage 15 derives from its source filenames.
 labels <- c(
@@ -97,7 +98,7 @@ check(margin >= 20L, paste0("path-length margin below 260 must be >= 20 chars; g
 
 # The pre-fix construction must be demonstrably over budget, so this test would
 # have caught the original defect.
-old_worst <- file.path(base_output_dir,
+old_worst <- file.path(project_root, "analysis_ready", "06_behavioral_dynamics",
                        paste0("proteomics_integration_", labels[2]),
                        "male/figures/publication_panels/strongest_axis_behavior_proteomics_relationship_male.svg")
 check(nchar(old_worst) > 260L,
@@ -105,7 +106,7 @@ check(nchar(old_worst) > 260L,
 cat("pre-fix sensitivity path would have been", nchar(old_worst), "chars (over MAX_PATH)\n")
 
 # Stage 16 downstream tree must also stay inside budget.
-s16 <- file.path(project_root, "analysis_ready", "16_manuscript_behavior_report")
+s16 <- behavior_manuscript_dir(project_root, "behavior")
 if (dir.exists(s16)) {
   f16 <- list.files(s16, recursive = TRUE, full.names = TRUE)
   if (length(f16)) {

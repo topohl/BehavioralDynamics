@@ -25,7 +25,7 @@ the two lineages; neither is a migration receipt for the old tree.
 | `15_behavioral_adaptation_kinetics/`, `16_sleep_like_inactivity_metrics/`, `17_ethological_phase_organization/` | Only the older five-minute branches remain uncopied: 10, 10, and 13 files | Current Stage 11–13 producers declare ten minutes; Stage 15 integrations loaded eight five-minute tables | Historical, scientifically suspect Stage 15 inputs | Prefixes `15–17` are historical. Keep in place; resolve the pre-fix phase-classifier validity issue before treating them as current inputs. |
 | `03_primary_raw_movement_phase_stats/` | 31 files, 2.92 MB | Historical Stage 03 output; comparison helpers retain explicit old-baseline access, while Stage 16 selects canonical files only | Superseded, retained comparison provenance | `03` reflects the stage but this is no longer its write location. Keep the historical set for comparison; current reporting must not fall back to it. |
 | `04_model_outputs/`, `05_figures/` | 6 model files and 5 figure files, all spatial occupancy originals already copied | Stage 19 owns them; Stage 10 boundary audit checks they are excluded from feature discovery | Retained provenance | Numbers are historical storage labels. Keep source paths as the activation receipts require. |
-| `16_manuscript_behavior_report/` | 5 files, 0.44 MB | Old Stage 16 exporter; current manuscript entry point is `manuscript/behavior/`; a path-length test still names the old root | Superseded report | `16` matches the former stage but is redundant in navigation. Retain as comparison evidence; no current write should target it. |
+| `16_manuscript_behavior_report/` | 5 files, 0.44 MB | Old Stage 16 exporter; current manuscript entry point and path-length check use `manuscript/behavior/` | Superseded report | `16` matches the former stage but is redundant in navigation. Retain as comparison evidence; no current write should target it. |
 | `18_raw_movement_publication_trajectory/`, `18b_raw_movement_broad_phase_stats/`, `18c_raw_movement_broad_phase_stats_corrected/` | 57, 8, and 21 files | Archived or absent producers; no active scientific reader found in `Analysis/`, `Functions/`, `Testing/`, or `Maintenance/` | Superseded movement lineage | `18*` is historical. Retain unchanged until an archival action is explicitly designed with a manifest and no-read check. |
 
 ## Audit findings and remaining migration order
@@ -132,6 +132,11 @@ the current provenance. Their declared fallback directory,
 from the live tree. Stage 16 no longer offers those nonfunctional fallbacks;
 required Stage 09 sources fail closed when a canonical file is missing. This
 change leaves the separate Stage 09 resolver used by other analyses intact.
+
+The path-length regression now resolves the active Stage 15 semantic base and
+the current `manuscript/behavior/` directory through their writer helpers. Its
+overlong old Stage 15 path remains as a synthetic regression example only;
+it no longer uses numbered report files to judge today's output budget.
 
 ## Stage 00 QC follow-up and writer safeguard
 
