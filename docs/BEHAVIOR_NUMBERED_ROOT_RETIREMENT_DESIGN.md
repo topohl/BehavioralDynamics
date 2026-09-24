@@ -99,10 +99,11 @@ or prepared any live source.
    roots. Preserve a supported replay path or change the branch under a focused
    test; do not silently select an archived file as current evidence.
 4. Inventory each `Testing/audits/` path that names one of the three roots. In
-   particular, 34 audit scripts name the old Stage 14 root, and a static scan
-   found common write or directory-creation calls in 27 of them. That scan is
-   a review queue, not proof that all 27 write there or that the other seven
-   are read-only. Historical replay must use a named output location and must
+   particular, 34 audit scripts name the old Stage 14 root, and a baseline
+   static scan found direct write calls in 32 of them after including the
+   repository's `write_table()` helper. That scan is a review queue, not proof
+   that all 32 write into that root or that the other two are read-only.
+   Historical replay must use a named output location and must
    not recreate a numbered top-level root after archive activation.
    The user chose to keep these audits replayable with explicit **new** output
    folders. Replay inputs must resolve the retained original lineage through
@@ -125,8 +126,13 @@ or prepared any live source.
    their path contracts tested, but no scientific replay was run or validated.
    The console-only `audit_first_night_candidate_set_algebra_crosscheck.R`
    now reads the retained Stage 01 original through the same archive accessor;
-   it creates no output directory. Its path is prepared but its calculation
-   was not rerun. The other 33 rows still need reader/writer review.
+   it creates no output directory. The console-only
+   `audit_first_night_window_provenance.R` now reads retained Stage 08 and 14
+   originals through that accessor. Their paths are prepared but their
+   calculations were not rerun. `audit_first_night_production_parity.R` is
+   marked `indirect_writer_review`: it calls a producer that writes to a
+   machine-specific scratch path despite having no direct write call itself.
+   The other 31 rows still need reader/writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

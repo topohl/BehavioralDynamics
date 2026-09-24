@@ -92,4 +92,13 @@ stopifnot(any(grepl('mmm_behavior_numbered_source_root("03_derived_metrics", PRO
                    algebra, fixed = TRUE)),
           !any(grepl('analysis_ready/03_derived_metrics', algebra,
                      fixed = TRUE)))
+window_provenance <- readLines(
+  "Testing/audits/audit_first_night_window_provenance.R", warn = FALSE)
+invisible(parse(text = window_provenance))
+stopifnot(sum(grepl('mmm_behavior_numbered_source_root(', window_provenance,
+                   fixed = TRUE)) == 2L,
+          !any(grepl('analysis_ready/06_behavioral_dynamics', window_provenance,
+                     fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary',
+                     window_provenance, fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

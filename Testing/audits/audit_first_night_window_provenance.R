@@ -4,8 +4,11 @@
 suppressMessages({library(dplyr); library(tidyr); library(readr); library(stringr)})
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R"); source_mmm_helper("hmm_stage14_helpers.R")
-PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-HMM <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
+source_mmm_helper("project_paths.R")
+PROJ <- mmm_project_root()
+HMM <- file.path(mmm_behavior_numbered_source_root("06_behavioral_dynamics", PROJ),
+                 "hmm_states")
+STAGE14 <- mmm_behavior_numbered_source_root("12_systems_neuroscience_summary", PROJ)
 
 for (res in c("10min_based", "5min_based")) {
   bs <- if (res == "10min_based") 600 else 300
@@ -48,7 +51,7 @@ cat("  -> raw domains use the FIRST 12 h of the CC1 Active epoch (i.e. the first
 cat("  -> HMM domains, as currently produced by Stage 08, use the ENTIRE CC1 Active epoch.\n")
 
 ## Are 'Early adaptation / prediction' and 'Active-phase adaptation/exploration' identical at CC1?
-ds <- read_csv(file.path(PROJ, "analysis_ready/12_systems_neuroscience_summary/5min_based/tables/systems_sis_domain_scores.csv"),
+ds <- read_csv(file.path(STAGE14, "5min_based/tables/systems_sis_domain_scores.csv"),
                col_types = cols(AnimalNum = col_character(), .default = col_guess()))
 w <- ds %>% filter(PhaseClass == "Active", CageChangeIndex == 1,
                    Domain %in% c("Early adaptation / prediction", "Active-phase adaptation/exploration")) %>%
