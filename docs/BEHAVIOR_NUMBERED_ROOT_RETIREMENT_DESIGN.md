@@ -79,6 +79,15 @@ candidate was built and independently verified against the live source. All
 file is the sole addition. Read-only `Inspect` still passed for the unchanged
 1,469-file `06` and 702-file `12` manifests. No root archive receipt was
 prepared and no source was moved.
+The new QC file is absent from the activated `foundations/behavior_metrics/`
+copy; it is retained in the numbered original and has not been promoted or
+interpreted as a new canonical product. The current Stage 01 default selects
+the semantic foundation through its activation receipt, but an explicit
+output override could still have targeted the old path. Stage 01 now guards
+its resolved write path, rejecting the numbered or archived root after archive
+control begins while allowing the separate cookie-habituation output root.
+The source of this particular old-root write was not established from the file
+alone.
 `Maintenance/Invoke-BehaviorNumberedRootArchive.ps1` implements those actions
 against the exact paths above. Temporary fixtures passed activation, repeat
 activation refusal, changed-source refusal, rollback from activated state,

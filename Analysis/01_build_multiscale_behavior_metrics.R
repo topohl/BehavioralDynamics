@@ -69,7 +69,8 @@ source_mmm_helper("project_paths.R")
 
 existing_default_input_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/preprocessed_data"
 input_dir <- getOption("mmm.preprocessed_dir", existing_default_input_dir)
-output_root <- mmm_derived_metrics_output_root()
+output_root <- mmm_behavior_guard_numbered_output_path(
+  mmm_derived_metrics_output_root())
 dataset_id <- getOption("mmm.dataset_id", "sis_cc")
 
 # Optional animal reference lists. These are one-ID-per-line CSV/text files.

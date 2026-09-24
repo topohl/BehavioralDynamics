@@ -69,7 +69,9 @@ unlink(foundation_receipt)
 unlink(foundation_semantic, recursive = TRUE)
 stage01_source <- paste(readLines("Analysis/01_build_multiscale_behavior_metrics.R",
                                   warn = FALSE), collapse = "\n")
-stopifnot(grepl("output_root <- mmm_derived_metrics_output_root()",
+stopifnot(grepl("output_root <- mmm_behavior_guard_numbered_output_path(",
+               stage01_source, fixed = TRUE),
+          grepl("  mmm_derived_metrics_output_root())",
                stage01_source, fixed = TRUE))
 foundation_readers <- c(
   "Analysis/00_qc_tracking_integrity.R",

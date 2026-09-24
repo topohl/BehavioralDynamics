@@ -103,7 +103,16 @@ jsonlite::write_json(list(
   receipt03, auto_unbox = TRUE)
 stopifnot(identical(mmm_behavior_numbered_source_root("03_derived_metrics",
                                                      root), archived03),
-          check_error(mmm_behavior_guard_numbered_output_path(archived03, root)))
+          check_error(mmm_behavior_guard_numbered_output_path(archived03, root)),
+          check_error(mmm_behavior_guard_numbered_output_path(
+            file.path(ready, "03_derived_metrics"), root)),
+          identical(mmm_behavior_guard_numbered_output_path(
+            file.path(ready, "foundations", "behavior_metrics"), root),
+            file.path(ready, "foundations", "behavior_metrics")),
+          identical(mmm_behavior_guard_numbered_output_path(
+            file.path(root, "cookiehab", "analysis_ready", "03_derived_metrics"),
+            root),
+            file.path(root, "cookiehab", "analysis_ready", "03_derived_metrics")))
 for (script in c("Analysis/_archive/18_raw_movement_publication_trajectory.R",
                  "Analysis/_archive/18b_raw_movement_broad_phase_stats.R",
                  "Testing/legacy/check_behavioral_dynamics_structure.R")) {
@@ -114,6 +123,7 @@ for (script in c("Analysis/_archive/18_raw_movement_publication_trajectory.R",
 }
 
 contracts <- c(
+  "Analysis/01_build_multiscale_behavior_metrics.R",
   "Analysis/04_temporal_instability.R",
   "Analysis/05_behavioral_state_space.R",
   "Analysis/06_dynamic_social_networks.R",
