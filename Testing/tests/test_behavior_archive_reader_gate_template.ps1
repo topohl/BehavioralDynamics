@@ -13,7 +13,9 @@ try {
   if ($result.scripts -ne 37 -or $result.ready -ne 0 -or $rows.Count -ne 37 -or
       @($rows | Where-Object { $_.script_sha256 -cnotmatch '^[0-9a-f]{64}$' }).Count -ne 0 -or
       @($rows | Where-Object { $_.review_state -cne 'needs_reader_writer_review' }).Count -ne 0 -or
-      -not ($rows[0].PSObject.Properties.Name -contains 'queue_state')) {
+      -not ($rows[0].PSObject.Properties.Name -contains 'queue_state') -or
+      -not ($rows[0].PSObject.Properties.Name -contains 'path_review_evidence') -or
+      -not ($rows[0].PSObject.Properties.Name -contains 'writer_review_evidence')) {
     throw 'Reader gate template marked an unreviewed audit ready or omitted hashes'
   }
   try {

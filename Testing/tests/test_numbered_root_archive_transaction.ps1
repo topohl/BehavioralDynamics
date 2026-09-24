@@ -35,11 +35,11 @@ New-Item -ItemType Directory -Path $control -Force | Out-Null
   source_retained = $true
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $control 'dyadic_contacts.json') -Encoding utf8
 
-function Invoke-Archive([string] $Action) {
+function Invoke-Archive([string] $Action, [string] $GateKind = 'ScientificReplay') {
   & $tool -Action $Action -AnalysisReadyRoot $ready -RootName `
     '06_behavioral_dynamics' -Manifest $manifest -ManifestSha256 $manifestHash `
     -ReaderQueue $queue -ReviewedReaderGate $gate `
-    -ReviewedReaderGateSha256 $gateHash
+    -ReviewedReaderGateSha256 $gateHash -ReaderGateKind $GateKind
 }
 function Expect-Failure([scriptblock] $Block) {
   try {
@@ -135,5 +135,30 @@ Move-Item -LiteralPath $source -Destination $archive
 if ((Invoke-Archive 'Rollback').state -cne 'prepared' -or
     -not (Test-Path -LiteralPath $source) -or (Test-Path -LiteralPath $archive)) {
   throw 'Post-move interruption did not recover'
+}
+
+# The path-and-writer gate is an explicit alternative. It cannot be confused
+# with replay-ready, and the selected kind is pinned through activation.
+Remove-Item -LiteralPath $receiptPath
+@([pscustomobject]@{ script = $script; review_state = 'archive_path_ready'; script_sha256 = $scriptHash }) |
+  Export-Csv -LiteralPath $gate -NoTypeInformation -Encoding utf8
+$gateHash = (Get-FileHash -LiteralPath $gate -Algorithm SHA256).Hash.ToLowerInvariant()
+Expect-Failure { Invoke-Archive 'Prepare' }
+Expect-Failure { Invoke-Archive 'Prepare' 'ArchivePath' }
+@([pscustomobject]@{ script = $script; review_state = 'archive_path_ready'; script_sha256 = $scriptHash;
+    path_review_evidence = 'fixture path resolver'; writer_review_evidence = 'fixture writer guard' }) |
+  Export-Csv -LiteralPath $gate -NoTypeInformation -Encoding utf8
+$gateHash = (Get-FileHash -LiteralPath $gate -Algorithm SHA256).Hash.ToLowerInvariant()
+if ((Invoke-Archive 'Prepare' 'ArchivePath').state -cne 'prepared') {
+  throw 'Explicit archive path gate did not prepare'
+}
+$pathReceipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+if ($pathReceipt.reader_gate_kind -cne 'ArchivePath') {
+  throw 'Archive path gate kind was not recorded in the receipt'
+}
+Expect-Failure { Invoke-Archive 'Activate' }
+if ((Invoke-Archive 'Activate' 'ArchivePath').state -cne 'activated' -or
+    (Invoke-Archive 'Rollback' 'ArchivePath').state -cne 'prepared') {
+  throw 'Explicit archive path transaction did not complete and roll back'
 }
 Write-Output 'Numbered root archive transaction fixture: PASS'

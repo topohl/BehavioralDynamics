@@ -11,7 +11,9 @@ param(
   [Parameter(Mandatory = $true)] [string] $ManifestSha256,
   [string] $ReaderQueue = '',
   [string] $ReviewedReaderGate = '',
-  [string] $ReviewedReaderGateSha256 = ''
+  [string] $ReviewedReaderGateSha256 = '',
+  [ValidateSet('ScientificReplay', 'ArchivePath')]
+  [string] $ReaderGateKind = 'ScientificReplay'
 )
 
 Set-StrictMode -Version Latest
@@ -39,6 +41,7 @@ function Read-Receipt([string] $Path) {
       $record.source_root_rel -cne $RootName -or
       $record.archive_root_rel -cne "history/original_layout/$RootName" -or
       $record.manifest_sha256 -cne $ManifestSha256.ToLowerInvariant() -or
+      $record.reader_gate_kind -cnotin @('ScientificReplay', 'ArchivePath') -or
       $record.reader_gate_sha256 -notmatch '^[0-9a-f]{64}$' -or
       $record.reader_queue_sha256 -notmatch '^[0-9a-f]{64}$' -or
       $record.files -notmatch '^[1-9][0-9]*$' -or
@@ -73,9 +76,24 @@ function Verify-ReaderGate {
   }
   $queuedScripts = @($queue | ForEach-Object script | Sort-Object)
   $gateScripts = @($gate | ForEach-Object script | Sort-Object)
+  $requiredState = if ($ReaderGateKind -ceq 'ArchivePath') {
+    'archive_path_ready'
+  } else {
+    'ready'
+  }
   if ((Compare-Object $queuedScripts $gateScripts) -or
-      @($gate | Where-Object { $_.review_state -cne 'ready' }).Count -gt 0) {
+      @($gate | Where-Object { $_.review_state -cne $requiredState }).Count -gt 0) {
     throw 'Reader gate does not resolve every queued script'
+  }
+  if ($ReaderGateKind -ceq 'ArchivePath') {
+    if (-not ($gate[0].PSObject.Properties.Name -contains 'path_review_evidence') -or
+        -not ($gate[0].PSObject.Properties.Name -contains 'writer_review_evidence') -or
+        @($gate | Where-Object {
+          [string]::IsNullOrWhiteSpace($_.path_review_evidence) -or
+          [string]::IsNullOrWhiteSpace($_.writer_review_evidence)
+        }).Count -gt 0) {
+      throw 'Archive path gate requires path and writer review evidence for every script'
+    }
   }
   $repoRoot = FullPath (Join-Path $PSScriptRoot '..')
   foreach ($row in $gate) {
@@ -162,6 +180,7 @@ switch ($Action) {
       state = 'prepared'; files = $checked.files; bytes = $checked.bytes
       manifest_sha256 = $ManifestSha256.ToLowerInvariant()
       reader_gate_sha256 = $gateHash
+      reader_gate_kind = $ReaderGateKind
       reader_queue_sha256 = Sha256 (FullPath $ReaderQueue)
       prepared_at_utc = [DateTime]::UtcNow.ToString('o')
     }
@@ -182,6 +201,9 @@ switch ($Action) {
   'Activate' {
     if ($null -eq $record -or $record.state -cne 'prepared') {
       throw 'Activate requires a prepared archive receipt'
+    }
+    if ($ReaderGateKind -cne $record.reader_gate_kind) {
+      throw 'Reader gate kind changed after Prepare'
     }
     $gateHash = Verify-ReaderGate
     if ($gateHash -cne $record.reader_gate_sha256) {

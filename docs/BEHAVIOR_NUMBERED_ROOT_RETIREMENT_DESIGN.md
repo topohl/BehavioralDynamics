@@ -95,8 +95,11 @@ activation refusal, changed-source refusal, rollback from activated state,
 and rollback after interruptions on either side of the directory move. The
 same transaction fixture now checks that the R pipeline resolver reads the
 prepared, activated, and rolled-back receipt states correctly. It
-requires a SHA-pinned reader gate with one `ready` row for every script in the
-queue before `Prepare` or `Activate`. Each reviewed row must also pin the
+requires a SHA-pinned reader gate with one row for every script in the
+queue before `Prepare` or `Activate`. The default `ScientificReplay` gate
+requires `ready`; the explicit `ArchivePath` gate requires
+`archive_path_ready` and both evidence fields described below. Each reviewed
+row must also pin the
 current audit script with `script_sha256`; a changed script closes the gate even
 when the gate CSV itself still has its reviewed hash. The gate hash and queue
 hash are retained in the archive receipt. This verifies review integrity, not
@@ -302,13 +305,18 @@ rerun reproduces every old audit result. A full 37-script replay is currently
 impossible because the identity comparison has no verified independent
 pre-correction baseline. The user confirmed that no such baseline is available.
 
-One reviewable path is to make `ready` an explicit **archive path and writer
-review** decision, retain the numerical replay status in a separate evidence
-record, and leave the identity comparison unvalidated. That would permit the
-folder move after the remaining archive-path checks and a separate live
-activation approval. Requiring all numerical replays keeps the gate closed
-until a suitable identity baseline exists. Neither gate interpretation has
-been applied here; the queue and transaction still reject live `Prepare`.
+The transaction now has two explicit gate kinds. `ScientificReplay` is the
+default and requires each gate row to be `ready`. `ArchivePath` must be
+selected explicitly at both `Prepare` and `Activate`; it requires each row to
+be `archive_path_ready` with nonempty `path_review_evidence` and
+`writer_review_evidence`. The gate file, queue file, script hashes, and gate
+kind are pinned in the prepared receipt. These evidence fields are review
+records, not proof that numerical results reproduce. The template initializes
+every row as `needs_reader_writer_review` with blank evidence, even when the
+queue carries a prior `ready` value. The live queue has no `ready` rows and no
+reviewed `ArchivePath` gate exists, so live `Prepare` remains closed. The
+choice between an archive-path review and a full scientific replay remains
+open; the identity comparison remains unvalidated without a verified baseline.
 
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination

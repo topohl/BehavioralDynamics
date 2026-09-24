@@ -34,6 +34,8 @@ $rows = foreach ($entry in $queue) {
     review_state = 'needs_reader_writer_review'
     script_sha256 = (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
     queue_state = $entry.review_state
+    path_review_evidence = ''
+    writer_review_evidence = ''
   }
 }
 $rows | Export-Csv -LiteralPath $outputPath -NoTypeInformation -Encoding utf8
