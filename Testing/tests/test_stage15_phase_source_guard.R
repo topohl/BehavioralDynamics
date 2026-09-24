@@ -5,6 +5,15 @@ source_text <- readLines(source_file, warn = FALSE)
 stopifnot(any(grepl("assert_verified_phase_source(path, source_label, scale_label)",
                   source_text, fixed = TRUE)))
 
+# The required Stage 09 input is resolved at ten minutes. Its inventory scale
+# must use that same resolution and must not fall back to old five-minute trees.
+scale_start <- grep("^    Scale = c\\($", source_text)
+path_start <- grep("^    Path = c\\($", source_text)
+stopifnot(length(scale_start) == 1L, length(path_start) == 1L,
+          identical(trimws(source_text[scale_start + 5L]),
+                    "early_prediction_bin_level,"),
+          identical(trimws(source_text[path_start + 5L]), "behavior_file,"))
+
 exprs <- parse(file = source_file)
 guard <- Filter(function(expr) is.call(expr) && identical(expr[[1]], as.name("<-")) &&
                   identical(expr[[2]], as.name("assert_verified_phase_source")),

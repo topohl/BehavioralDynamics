@@ -374,3 +374,13 @@ before a new integration run. It does not reclassify the old tables, change
 their paths, or revise the existing Stage 15 results. A portable contract test
 checks all three source families and leaves declared ten-minute and unrelated
 five-minute sources available.
+
+The same Stage 15 source review found that its two existing integration
+inventories label the Stage 09 early-prediction source `5min_based` while their
+recorded path is the canonical ten-minute Stage 09 file. The future source
+specification now uses `early_prediction_bin_level` for that row and its
+already-required resolved path directly; the unreachable old five-minute
+fallback candidates were removed. This corrects future feature names and
+inventory labels only. Existing integration outputs retain their historical
+five-minute labels and need a reviewed rerun before being represented as
+corrected ten-minute results.

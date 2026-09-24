@@ -660,7 +660,7 @@ build_behavior_feature_matrix <- function() {
       behavior_bin_level,
       behavior_bin_level,
       behavior_bin_level,
-      behavior_bin_level,
+      early_prediction_bin_level,
       behavior_bin_level,
       behavior_bin_level,
       behavior_bin_level,
@@ -682,11 +682,7 @@ build_behavior_feature_matrix <- function() {
       first_existing_path(file.path(mmm_temporal_instability_resolution_root(optional_behavior_bin_levels, project_root), "tables", "temporal_instability_metrics_per_animal_all_metrics.csv")),
       file.path(mmm_state_space_resolution_root(behavior_bin_level, project_root), "tables", "state_diversity_metrics.csv"),
       file.path(mmm_state_space_resolution_root(behavior_bin_level, project_root), "tables", "state_switching_metrics.csv"),
-      first_existing_path(c(
-        behavior_file,
-        file.path(analysis_ready_dir, "06_behavioral_dynamics", "early_prediction", behavior_bin_level, "tables", "early_behavior_features_wide.csv"),
-        file.path(analysis_ready_dir, "06_behavioral_dynamics", "early_prediction_model_ladder", behavior_bin_level, "tables", "early_behavior_features_wide.csv")
-      )),
+      behavior_file,
       file.path(mmm_social_network_resolution_root(behavior_bin_level, project_root), "tables", "animal_level_social_dynamics.csv"),
       file.path(mmm_social_network_resolution_root(behavior_bin_level, project_root), "tables", "dyadic_node_summary.csv"),
       file.path(mmm_hmm_resolution_root(behavior_bin_level, project_root), "tables", "hmm_state_occupancy.csv"),
