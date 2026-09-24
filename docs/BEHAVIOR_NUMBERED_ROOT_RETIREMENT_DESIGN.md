@@ -173,7 +173,10 @@ or prepared any live source.
    The three Phase A follow-ups now consume the same-run HMM component
    foundation and write to distinct replay folders, with their additional
    Stage 01, 08, and 14 inputs resolved from retained originals. They were
-   not rerun. That leaves 7 unresolved rows.
+   not rerun. The component redundancy audit now reads both foundation epoch
+   metrics and its length-bias check from the same replay id. The HMM profile
+   audit reads retained Stage 01/08 originals. Both write distinct new folders
+   and were not rerun. That leaves 5 unresolved rows.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

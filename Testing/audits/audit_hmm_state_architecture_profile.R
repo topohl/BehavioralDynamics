@@ -59,19 +59,20 @@ repo_root <- local({
 
 source(file.path(repo_root, "Analysis", "_pipeline_setup.R"))
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-PROJECT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-AUDIT_OUT <- file.path(
-  PROJECT,
-  "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture"
-)
-dir.create(AUDIT_OUT, recursive = TRUE, showWarnings = FALSE)
+PROJECT <- mmm_project_root()
+AUDIT_OUT <- mmm_behavior_audit_replay_output_root(
+  "hmm_architecture_profile", PROJECT)
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJECT)
+HMM <- file.path(mmm_behavior_numbered_source_root(
+  "06_behavioral_dynamics", PROJECT), "hmm_states")
 
 RESOLUTIONS <- c("5min_based", "10min_based")
 BIN_SIZE_SEC <- c("5min_based" = 300, "10min_based" = 600)
 
 # ------------------------------------------------------- canonical 111 roster
-roster_file <- file.path(PROJECT, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv")
+roster_file <- file.path(DERIV, "5min_based/all_behavior_metrics.csv")
 if (!file.exists(roster_file)) stop("Canonical Stage 01 roster input missing: ", roster_file, call. = FALSE)
 roster_raw <- read_csv(
   roster_file,
@@ -147,7 +148,7 @@ degeneracy_rows <- list()
 resolution_meta <- list()
 
 for (res in RESOLUTIONS) {
-  summary_path <- resolve_configured_hmm_artifact(PROJECT, res, "hmm_state_summary.csv")$path
+  summary_path <- file.path(HMM, res, "tables/hmm_state_summary.csv")
   state_summary <- read_csv(summary_path, col_types = cols(), progress = FALSE)
 
   # hmm_state_summary.csv is a MODEL-LEVEL table: it has no AnimalNum column, so
@@ -381,7 +382,7 @@ identity_summaries <- list()
 occupancy_crosscheck <- list()
 
 for (res in RESOLUTIONS) {
-  occ_path <- resolve_configured_hmm_artifact(PROJECT, res, "hmm_state_occupancy.csv")$path
+  occ_path <- file.path(HMM, res, "tables/hmm_state_occupancy.csv")
   occ <- read_csv(
     occ_path,
     col_types = cols(.default = col_guess(), AnimalNum = col_character()),
@@ -415,7 +416,7 @@ profile <- profile %>%
 binlevel_rows <- list()
 
 for (res in RESOLUTIONS) {
-  asg_path <- resolve_configured_hmm_artifact(PROJECT, res, "hmm_state_assignments.csv")$path
+  asg_path <- file.path(HMM, res, "tables/hmm_state_assignments.csv")
   asg <- read_csv(
     asg_path,
     col_types = cols(
@@ -645,6 +646,7 @@ profile <- profile %>%
 # ============================================================================
 # WRITE
 # ============================================================================
+dir.create(AUDIT_OUT, recursive = TRUE, showWarnings = FALSE)
 p1 <- file.path(AUDIT_OUT, "hmm_state_multidimensional_profile_audit.csv")
 p2 <- file.path(AUDIT_OUT, "hmm_state_emission_degeneracy_audit.csv")
 p3 <- file.path(AUDIT_OUT, "hmm_state_binlevel_profile_audit.csv")

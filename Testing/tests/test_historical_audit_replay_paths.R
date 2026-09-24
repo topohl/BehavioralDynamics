@@ -326,4 +326,30 @@ for (entry in list(
             !any(grepl('analysis_ready/12_systems_neuroscience_summary',
                        phase_a, fixed = TRUE)))
 }
+
+redundancy <- readLines("Testing/audits/audit_hmm_state_architecture_redundancy.R",
+                        warn = FALSE)
+invisible(parse(text = redundancy))
+stopifnot(any(grepl('mmm_behavior_audit_replay_input_root(', redundancy,
+                   fixed = TRUE)),
+          any(grepl('"hmm_architecture_components", project_root)', redundancy,
+                    fixed = TRUE)),
+          any(grepl('mmm_behavior_audit_replay_output_root(', redundancy,
+                    fixed = TRUE)),
+          any(grepl('foundation_file <- file.path(INPUT,', redundancy,
+                    fixed = TRUE)),
+          any(grepl('l2_file <- file.path(INPUT,', redundancy,
+                    fixed = TRUE)))
+
+profile <- readLines("Testing/audits/audit_hmm_state_architecture_profile.R",
+                     warn = FALSE)
+invisible(parse(text = profile))
+stopifnot(any(grepl('mmm_behavior_audit_replay_output_root(', profile,
+                   fixed = TRUE)),
+          sum(grepl('mmm_behavior_numbered_source_root(', profile,
+                    fixed = TRUE)) == 2L,
+          !any(grepl('resolve_configured_hmm_artifact(', profile,
+                     fixed = TRUE)),
+          !any(grepl('analysis_ready/12_systems_neuroscience_summary',
+                     profile, fixed = TRUE)))
 cat("Historical audit replay source and fresh-output paths: PASS\n")

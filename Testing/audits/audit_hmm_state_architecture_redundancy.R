@@ -64,13 +64,14 @@ setup_path <- repo_candidates[file.exists(repo_candidates)][1]
 if (is.na(setup_path)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(setup_path)
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-audit_out <- file.path(
-  project_root,
-  "analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture"
-)
-ensure_dir(audit_out)
+project_root <- mmm_project_root()
+INPUT <- mmm_behavior_audit_replay_input_root(
+  "hmm_architecture_components", project_root)
+audit_out <- mmm_behavior_audit_replay_output_root(
+  "hmm_architecture_redundancy", project_root)
+deriv_root <- mmm_behavior_numbered_source_root("03_derived_metrics", project_root)
 
 resolutions <- c("5min_based", "10min_based")
 phases <- c("Active", "Inactive")
@@ -84,7 +85,7 @@ cat("================================================================\n\n")
 # 1. Canonical roster + identity audit of the foundation table
 # --------------------------------------------------------------------------------
 canonical_roster_raw <- readr::read_csv(
-  file.path(project_root, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  file.path(deriv_root, "5min_based/all_behavior_metrics.csv"),
   col_types = readr::cols(
     .default = readr::col_skip(),
     AnimalNum = readr::col_character(),
@@ -97,7 +98,7 @@ canonical_roster <- build_canonical_identity_roster(canonical_roster_raw, "Stage
 stopifnot(nrow(canonical_roster) == 111L)
 cat("canonical roster animals:", nrow(canonical_roster), "\n")
 
-foundation_file <- file.path(audit_out, "hmm_architecture_component_epoch_metrics.csv")
+foundation_file <- file.path(INPUT, "hmm_architecture_component_epoch_metrics.csv")
 if (!file.exists(foundation_file)) stop("Foundation table missing: ", foundation_file, call. = FALSE)
 foundation_raw <- readr::read_csv(foundation_file, col_types = readr::cols(), progress = FALSE)
 
@@ -114,6 +115,7 @@ print(as.data.frame(identity_summary))
 stopifnot(all(identity_summary$passed))
 foundation <- foundation %>% mutate(AnimalNum = canonical_animal_id(as.character(.data$AnimalNum)))
 stopifnot(!any(is.na(foundation$AnimalNum)))
+ensure_dir(audit_out)
 write_table(identity_summary, file.path(audit_out, "hmm_architecture_redundancy_identity_audit.csv"))
 
 cat("\nfoundation rows:", nrow(foundation), "\n")
@@ -636,7 +638,7 @@ length_dep <- purrr::map_dfr(resolutions, function(res) {
 })
 print(as.data.frame(length_dep), digits = 4)
 
-l2_file <- file.path(audit_out, "hmm_architecture_check_l2_subsampling_length_bias.csv")
+l2_file <- file.path(INPUT, "hmm_architecture_check_l2_subsampling_length_bias.csv")
 l2_reuse <- NULL
 if (file.exists(l2_file)) {
   l2 <- readr::read_csv(l2_file, col_types = readr::cols(), progress = FALSE)
