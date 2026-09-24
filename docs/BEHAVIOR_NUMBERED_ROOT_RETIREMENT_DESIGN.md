@@ -205,7 +205,15 @@ or prepared any live source.
    top-level root when an archive receipt exists, including `prepared` or
    `activated`, or an unreceipted archive directory is present. A fixture
    tested these refusals. The legacy runners and archived producer were not
-   executed. Other optional resolution helpers and archived readers still
+   executed. Stages 04-08 now also check their resolved output directory before
+   writing. Their default semantic destinations remain available; an optional
+   resolution inside a numbered root stops after archive control begins, and
+   writing inside `history/original_layout/` is always rejected. Synthetic
+   prepared and activated receipt checks passed. These producers were parsed,
+   but their scientific calculations were not rerun. The Stage 09 legacy
+   fallback used by the Stage 14 upstream registry now resolves the retained
+   original through the root archive receipt; a synthetic archived fallback
+   still carries the explicit legacy warning. Other archived readers still
    require targeted review before any live archive activation.
 
 Before any live activation, test each root on synthetic interrupted states:

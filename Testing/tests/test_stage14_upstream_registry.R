@@ -50,6 +50,37 @@ check(normalizePath(res2$path, winslash = "/") == normalizePath(legacy_path_2, w
 check(warned, "Test 2: expected a warning when a legacy fallback is used")
 unlink(base2, recursive = TRUE)
 
+# The same explicitly marked fallback survives a root-level archive receipt.
+base2arch <- file.path(tempdir(), paste0("mmm_test2arch_",
+                                          as.integer(runif(1, 1, 1e9))))
+archived_legacy <- file.path(base2arch, "analysis_ready/history/original_layout",
+                             "06_behavioral_dynamics/early_prediction_model_ladder",
+                             "10min_based/tables/foo.csv")
+write_stub(archived_legacy, "archived-legacy-content")
+receipt <- file.path(base2arch, "analysis_ready/_migration_control",
+                     "numbered_root_archive/06_behavioral_dynamics.json")
+dir.create(dirname(receipt), recursive = TRUE, showWarnings = FALSE)
+jsonlite::write_json(list(
+  root = "06_behavioral_dynamics",
+  source_root_rel = "06_behavioral_dynamics",
+  archive_root_rel = "history/original_layout/06_behavioral_dynamics",
+  state = "activated", files = 1L, bytes = 23L,
+  manifest_sha256 = paste(rep("a", 64), collapse = "")),
+  receipt, auto_unbox = TRUE)
+warned2arch <- FALSE
+res2arch <- withCallingHandlers(
+  resolve_stage09_early_prediction_artifact(base2arch, "foo.csv",
+                                            c("10min_based")),
+  warning = function(w) { warned2arch <<- TRUE; invokeRestart("muffleWarning") }
+)
+check(identical(res2arch$resolution, "legacy_fallback"),
+      "Test 2 archive: expected explicitly marked legacy fallback")
+check(identical(normalizePath(res2arch$path, winslash = "/"),
+                normalizePath(archived_legacy, winslash = "/")),
+      "Test 2 archive: expected archived original")
+check(warned2arch, "Test 2 archive: expected fallback warning")
+unlink(base2arch, recursive = TRUE)
+
 # ------------------------------------------------------------------
 # Test 3: required source absent everywhere -> hard error (fail closed)
 # ------------------------------------------------------------------

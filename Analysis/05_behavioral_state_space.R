@@ -43,7 +43,8 @@ source_mmm_helper("project_paths.R")
 
 bin_level <- "5min_based"
 input_file <- file.path(mmm_derived_metrics_output_root(), bin_level, "all_behavior_metrics.csv")
-output_dir <- mmm_state_space_resolution_root(bin_level)
+output_dir <- mmm_behavior_guard_numbered_output_path(
+  mmm_state_space_resolution_root(bin_level))
 n_states <- 4
 
 # Use normalized proximity for state-space analyses. Raw proximity seconds scale

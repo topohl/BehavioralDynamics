@@ -38,7 +38,13 @@ write_archive_receipt <- function(state, archive_rel = paste0(
 
 stopifnot(identical(mmm_behavior_retained_source_root(group, root), old_group),
           identical(mmm_behavior_output_active_root(group, root), semantic),
-          identical(mmm_behavior_numbered_writer_root(numbered, root), old_root))
+          identical(mmm_behavior_numbered_writer_root(numbered, root), old_root),
+          identical(mmm_behavior_guard_numbered_output_path(old_group, root),
+                    old_group),
+          identical(mmm_behavior_guard_numbered_output_path(semantic, root),
+                    semantic),
+          check_error(mmm_behavior_guard_numbered_output_path(archived_group,
+                                                              root)))
 
 # An unreceipted archive, including one made while the original still exists,
 # must not silently select either copy.
@@ -50,7 +56,8 @@ stopifnot(file.rename(archived_root, paste0(archived_root, "_unreceipted")))
 write_archive_receipt("prepared")
 stopifnot(identical(mmm_behavior_output_active_root(group, root), semantic),
           identical(mmm_behavior_retained_source_root(group, root), old_group),
-          check_error(mmm_behavior_numbered_writer_root(numbered, root)))
+          check_error(mmm_behavior_numbered_writer_root(numbered, root)),
+          check_error(mmm_behavior_guard_numbered_output_path(old_group, root)))
 write_archive_receipt("transferring")
 stopifnot(check_error(mmm_behavior_output_active_root(group, root)))
 write_archive_receipt("activated")
@@ -60,7 +67,10 @@ dir.create(dirname(archived_root), recursive = TRUE, showWarnings = FALSE)
 stopifnot(file.rename(old_root, archived_root))
 stopifnot(identical(mmm_behavior_retained_source_root(group, root), archived_group),
           identical(mmm_behavior_output_active_root(group, root), semantic),
-          check_error(mmm_behavior_numbered_writer_root(numbered, root)))
+          check_error(mmm_behavior_numbered_writer_root(numbered, root)),
+          check_error(mmm_behavior_guard_numbered_output_path(archived_group,
+                                                              root)),
+          check_error(mmm_behavior_guard_numbered_output_path(old_group, root)))
 
 # A group without its own semantic activation still resolves the retained file
 # inside the archive when the root-level archive receipt is activated.
@@ -77,6 +87,19 @@ write_archive_receipt("activated", "history/original_layout/another_root")
 stopifnot(check_error(mmm_behavior_output_active_root(group, root)))
 write_archive_receipt("unknown")
 stopifnot(check_error(mmm_behavior_output_active_root(group, root)))
+
+contracts <- c(
+  "Analysis/04_temporal_instability.R",
+  "Analysis/05_behavioral_state_space.R",
+  "Analysis/06_dynamic_social_networks.R",
+  "Analysis/07_gamm_trajectory_features.R",
+  "Analysis/08_hmm_behavioral_states_optional.R")
+for (script in contracts) {
+  code <- readLines(script, warn = FALSE)
+  invisible(parse(text = code))
+  stopifnot(any(grepl('mmm_behavior_guard_numbered_output_path(', code,
+                     fixed = TRUE)))
+}
 
 contracts <- c(
   "Analysis/14_systems_neuroscience_summary_dashboard.R",

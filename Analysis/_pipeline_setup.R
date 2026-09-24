@@ -270,6 +270,8 @@ resolve_stage09_early_prediction_artifact <- function(base_dir,
                                                        filename,
                                                        resolutions,
                                                        required = FALSE) {
+  if (!exists("mmm_behavior_numbered_source_root", mode = "function",
+              inherits = TRUE)) source_mmm_helper("project_paths.R")
   .resolve_stage_artifact_across_resolutions(
     filename = filename,
     resolutions = resolutions,
@@ -279,7 +281,8 @@ resolve_stage09_early_prediction_artifact <- function(base_dir,
       list(
         canonical = file.path(behavior_stage_tables(base_dir, "09", "early_prediction", resolution), filename),
         legacy = file.path(
-          behavior_analysis_ready_dir(base_dir), "06_behavioral_dynamics", "early_prediction_model_ladder",
+          mmm_behavior_numbered_source_root("06_behavioral_dynamics", base_dir),
+          "early_prediction_model_ladder",
           resolution, "tables", filename
         )
       )

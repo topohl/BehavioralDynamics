@@ -174,7 +174,8 @@ run_hmm_resolution <- function(bin_level) {
     bin_level,
     "all_behavior_metrics.csv"
   )
-  output_dir <- mmm_hmm_resolution_root(bin_level, project_root)
+  output_dir <- mmm_behavior_guard_numbered_output_path(
+    mmm_hmm_resolution_root(bin_level, project_root), project_root)
   ensure_dir(output_dir)
   ensure_dir(file.path(output_dir, "tables"))
   ensure_dir(file.path(output_dir, "figures"))

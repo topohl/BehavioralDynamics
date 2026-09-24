@@ -326,6 +326,32 @@ mmm_behavior_numbered_writer_root <- function(root_name,
   old
 }
 
+# Resolution helpers also serve readers, so guard the producer's resolved path
+# separately. An optional run may otherwise write into the retained archive.
+mmm_behavior_guard_numbered_output_path <- function(path,
+                                                    project_root = mmm_project_root()) {
+  if (length(path) != 1L || is.na(path) || !nzchar(path)) {
+    stop("Behavior output path must be one nonempty path.", call. = FALSE)
+  }
+  actual <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  for (root_name in c("03_derived_metrics", "06_behavioral_dynamics",
+                      "12_systems_neuroscience_summary")) {
+    old <- normalizePath(file.path(project_root, "analysis_ready", root_name),
+                         winslash = "/", mustWork = FALSE)
+    archived <- normalizePath(file.path(project_root, "analysis_ready",
+                                        "history", "original_layout", root_name),
+                              winslash = "/", mustWork = FALSE)
+    if (identical(actual, archived) || startsWith(actual, paste0(archived, "/"))) {
+      stop("Refusing to write into retained numbered archive: ", path,
+           call. = FALSE)
+    }
+    if (identical(actual, old) || startsWith(actual, paste0(old, "/"))) {
+      mmm_behavior_numbered_writer_root(root_name, project_root)
+    }
+  }
+  path
+}
+
 # A replay requires an explicit run identifier and a previously unused output
 # directory. No historical original or prior replay output may be overwritten.
 mmm_behavior_audit_replay_path <- function(script_id,

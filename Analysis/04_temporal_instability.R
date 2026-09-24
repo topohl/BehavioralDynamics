@@ -49,7 +49,8 @@ source_mmm_helper("project_paths.R")
 
 bin_level <- "10sec_based"
 input_file <- file.path(mmm_derived_metrics_output_root(), bin_level, "all_behavior_metrics.csv")
-output_dir <- mmm_temporal_instability_resolution_root(bin_level)
+output_dir <- mmm_behavior_guard_numbered_output_path(
+  mmm_temporal_instability_resolution_root(bin_level))
 
 # Movement is the primary metric for temporal instability.
 # Entropy and proximity are retained as secondary exploratory readouts.
