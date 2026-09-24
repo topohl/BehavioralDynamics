@@ -25,13 +25,15 @@ suppressPackageStartupMessages({
 })
 
 source("Functions/behavioral_dynamics_helpers.R")
+source("Functions/project_paths.R")
 
 # ------------------------------------------------
 # USER INPUT
 # ------------------------------------------------
 
 bin_level <- "5min_based"
-input_file <- file.path("analysis_ready/03_derived_metrics", bin_level, "all_behavior_metrics.csv")
+input_file <- file.path(mmm_behavior_numbered_source_root("03_derived_metrics"),
+                        bin_level, "all_behavior_metrics.csv")
 output_dir <- file.path("analysis_ready/00_structure_checks", bin_level)
 
 # Prefer normalized proximity for temporal dynamics checks.

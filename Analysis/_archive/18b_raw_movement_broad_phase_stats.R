@@ -26,9 +26,11 @@ suppressPackageStartupMessages({
 
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 repo_root <- "C:/Users/topohl/Documents/GitHub/MMMSociability"
+source(file.path(repo_root, "Functions", "project_paths.R"))
 
 bin_level_priority <- c("10min_based", "5min_based", "30min_based", "1min_based")
-input_candidates <- file.path(base_dir, "analysis_ready/03_derived_metrics", bin_level_priority, "all_behavior_metrics.csv")
+input_candidates <- file.path(mmm_behavior_numbered_source_root(
+  "03_derived_metrics", base_dir), bin_level_priority, "all_behavior_metrics.csv")
 analysis_name <- "18b_raw_movement_broad_phase_stats"
 min_bins_per_animal <- 2
 
@@ -142,7 +144,7 @@ save_plot <- function(plot, filename_base, width = 170, height = 100, units = "m
 }
 
 hits <- input_candidates[file.exists(input_candidates)]
-if (length(hits) == 0) stop("No all_behavior_metrics.csv found in analysis_ready/03_derived_metrics.", call. = FALSE)
+if (length(hits) == 0) stop("No retained all_behavior_metrics.csv found for the requested resolutions.", call. = FALSE)
 input_file <- hits[1]
 bin_level <- bin_level_priority[match(input_file, input_candidates)]
 

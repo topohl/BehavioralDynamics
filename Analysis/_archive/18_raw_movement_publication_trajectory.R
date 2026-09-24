@@ -27,13 +27,13 @@ suppressPackageStartupMessages({
 
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 repo_root <- "C:/Users/topohl/Documents/GitHub/MMMSociability"
+source(file.path(repo_root, "Functions", "project_paths.R"))
 
 # Use 10 min bins as the default movement readout. This is a good compromise:
 # less noisy than 1/5 min, less over-smoothed than 30 min.
 bin_level_priority <- c("10min_based", "5min_based", "30min_based", "1min_based")
 input_candidates <- file.path(
-  base_dir,
-  "analysis_ready/03_derived_metrics",
+  mmm_behavior_numbered_source_root("03_derived_metrics", base_dir),
   bin_level_priority,
   "all_behavior_metrics.csv"
 )

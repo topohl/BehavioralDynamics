@@ -213,8 +213,12 @@ or prepared any live source.
    but their scientific calculations were not rerun. The Stage 09 legacy
    fallback used by the Stage 14 upstream registry now resolves the retained
    original through the root archive receipt; a synthetic archived fallback
-   still carries the explicit legacy warning. Other archived readers still
-   require targeted review before any live archive activation.
+   still carries the explicit legacy warning. Two archived raw-movement
+   analyses now resolve their complete Stage 03 input root through the archive
+   receipt; their code parsed and a synthetic archived Stage 03 root resolved,
+   but the analyses were not rerun. The stale legacy structure check also
+   resolves its Stage 03 input through the receipt; it was parsed but not run.
+   Any remaining archived readers require review before live activation.
 
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination

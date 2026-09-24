@@ -88,6 +88,31 @@ stopifnot(check_error(mmm_behavior_output_active_root(group, root)))
 write_archive_receipt("unknown")
 stopifnot(check_error(mmm_behavior_output_active_root(group, root)))
 
+# The older movement scripts read the complete 03 root, including optional
+# resolutions, through the same activated root-level receipt.
+archived03 <- file.path(ready, "history", "original_layout",
+                        "03_derived_metrics")
+dir.create(archived03, recursive = TRUE, showWarnings = FALSE)
+receipt03 <- file.path(ready, "_migration_control", "numbered_root_archive",
+                       "03_derived_metrics.json")
+jsonlite::write_json(list(
+  root = "03_derived_metrics", source_root_rel = "03_derived_metrics",
+  archive_root_rel = "history/original_layout/03_derived_metrics",
+  state = "activated", files = 1L, bytes = 10L,
+  manifest_sha256 = paste(rep("d", 64L), collapse = "")),
+  receipt03, auto_unbox = TRUE)
+stopifnot(identical(mmm_behavior_numbered_source_root("03_derived_metrics",
+                                                     root), archived03),
+          check_error(mmm_behavior_guard_numbered_output_path(archived03, root)))
+for (script in c("Analysis/_archive/18_raw_movement_publication_trajectory.R",
+                 "Analysis/_archive/18b_raw_movement_broad_phase_stats.R",
+                 "Testing/legacy/check_behavioral_dynamics_structure.R")) {
+  code <- readLines(script, warn = FALSE)
+  invisible(parse(text = code))
+  stopifnot(any(grepl('mmm_behavior_numbered_source_root(', code,
+                     fixed = TRUE)))
+}
+
 contracts <- c(
   "Analysis/04_temporal_instability.R",
   "Analysis/05_behavioral_state_space.R",
