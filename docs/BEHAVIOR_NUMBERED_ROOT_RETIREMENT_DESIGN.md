@@ -217,8 +217,8 @@ or prepared any live source.
    tables under `analyses/rfid_domain_comparison_audit/` remain the activated
    copy and are not overwritten. The new replay has not been run or promoted.
    All 37 queue rows are path-prepared, but none is `ready` for the live
-   numbered-root archive gate until the scientific replay and writer review
-   is complete.
+   numbered-root archive gate. The default replay gate needs scientific
+   replay; the separate path gate needs recorded path and writer review.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths. The
@@ -257,13 +257,15 @@ not a scientific validation result or permission to run the audits. The
 argument and the identity comparison's separate baseline and provenance
 requirement. Those two cannot be treated as ordinary unattended Rscript calls.
 The identity comparison must not infer a pristine pre-correction baseline.
-The reviewed gate must still be built from validated replays and pinned script
-hashes. The queue has 34 `path_prepared_unvalidated` rows, two
+Either reviewed gate must pin script hashes. Only the default
+`ScientificReplay` gate requires validated replays. The queue has 34
+`path_prepared_unvalidated` rows, two
 `live_read_only_checked` rows, and one `live_numbered_only_checked` row; none
 is `ready` for the archive gate.
 `Maintenance/New-BehaviorArchiveReaderGateTemplate.ps1 -Output <new CSV path>`
 creates a separate, non-overwriting 37-row review template with each current
-script hash. Every new template row resets to `needs_reader_writer_review`;
+script hash and blank path and writer evidence columns. Every new template row
+resets to `needs_reader_writer_review`;
 the prior queue state is retained only as context. Its fixture confirmed zero
 `ready` rows. Reviewing that template and changing states is a separate decision; the
 tool does not grant archive readiness.
