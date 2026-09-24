@@ -14,17 +14,18 @@ area under the same `analysis_ready/` volume:
 | Present path under `analysis_ready/` | Proposed retained-original path | Live inventory at review |
 | --- | --- | ---: |
 | `03_derived_metrics/` | `history/original_layout/03_derived_metrics/` | 52 files |
-| `06_behavioral_dynamics/` | `history/original_layout/06_behavioral_dynamics/` | 1,460 files |
-| `12_systems_neuroscience_summary/` | `history/original_layout/12_systems_neuroscience_summary/` | 700 files |
+| `06_behavioral_dynamics/` | `history/original_layout/06_behavioral_dynamics/` | 1,469 files, including 9 hidden `Thumbs.db` |
+| `12_systems_neuroscience_summary/` | `history/original_layout/12_systems_neuroscience_summary/` | 702 files, including 2 hidden `Thumbs.db` |
 
 The prefix is preserved *inside* the provenance area because it identifies the
 original layout and gives historical paths an unambiguous mapping. It disappears
 from the human-facing top level. `history/original_layout/` must not be treated
 as a current analysis input or mixed with the receipt-selected resolution
 copies already under `history/social_networks/`, `history/state_space/`, etc.
-The 2,212 files include retained-only records as well as originals with active
-semantic copies; an archive manifest must cover every file, not just the
-activation plans.
+The 2,223-file complete inventory includes 2,212 ordinary files counted in
+the scientific audits and 11 hidden Windows thumbnail caches. It includes
+retained-only records as well as originals with active semantic copies; an
+archive manifest must cover every file, not just the activation plans.
 
 ## Separate manifest and receipt
 
@@ -49,6 +50,25 @@ locations and their exact contents before changing state. Never infer the
 active source from directory existence alone, and never delete a directory as
 an automatic rollback shortcut.
 
+The manifest component is now implemented separately as
+`Maintenance/Invoke-BehaviorNumberedRootArchiveManifest.ps1`. `Build` writes a
+new UTF-8 CSV outside the numbered source and refuses to overwrite one;
+`Verify` rejects changed, missing, extra, duplicate, and unsafe paths after
+checking size and SHA-256. Its temporary-fixture test passed. It has not been
+used to move a live root or create an archive receipt. Three live read-only
+source hash passes wrote these versioned manifests in the repository:
+
+| Source root | Complete files | Manifest SHA-256 |
+| --- | ---: | --- |
+| `03_derived_metrics/` | 52 | `601a7a1ad84720dd8049a8faf9211f0facc75679688dbf47709cb3fae1d69f4b` |
+| `06_behavioral_dynamics/` | 1,469 | `17777e9cdf5c4176671748faf6d5bf6caa394fbd359b615fc1fd0f4b941364c0` |
+| `12_systems_neuroscience_summary/` | 702 | `a1b551f0da80fa39b62a72c74c6c02e65539f507f746e1f60a52ed519ed4fc5c` |
+
+All three manifests passed a separate live `Verify` pass after `Build`.
+They remain snapshots. A future `Activate` must rerun `Verify`; even a Windows
+thumbnail-cache change will invalidate its snapshot until reviewed.
+The transaction actions above remain design work.
+
 ## Reader and writer gate before `Activate`
 
 1. `mmm_behavior_output_layout_state()` now accepts a separate, exact-root
@@ -56,8 +76,8 @@ an automatic rollback shortcut.
    location. Until an archive receipt is activated, the old path is required
    exactly as today. Temporary-fixture tests cover prepared, transferring,
    activated, invalid, and interrupted locations; no receipt was created on
-   the live tree. The archive manifest builder, transaction tool, and manual
-   audit reader changes are still required before a live move.
+   the live tree. The transaction tool and manual audit reader changes are
+   still required before a live move.
 2. Keep Stage 10's current 18-group semantic discovery and its 606-path parity
    check. Its virtual numbered-path sort key preserves input precedence; the
    current group scan does not require the numbered `06` root.
