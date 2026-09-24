@@ -3,14 +3,16 @@
 ## Refit 10min at several seeds, extract Viterbi states from EACH local optimum, recompute the
 ## temporal + occupancy components, and run the SAME corrected estimator on each solution.
 ## If the female contrasts agree across materially different partitions, the phenotype is robust
-## to the identifiability problem. WRITES ONLY TO SCRATCHPAD.
+## to the identifiability problem. Writes to a fresh historical audit replay folder.
 suppressMessages({library(dplyr); library(tidyr); library(readr); library(stringr); library(purrr)})
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-OUT <- getOption("mmm.audit_out", "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture")
-PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+PROJ <- mmm_project_root()
+OUT <- mmm_behavior_audit_replay_output_root("hmm_architecture_partition_robustness", PROJ)
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 n_states <- 4L; sd_floor <- 0.05
 SEEDS <- c(7L, 1L, 101L, 23L, 313L)   # spans all five distinct 10-min optima found
 
@@ -68,10 +70,10 @@ METRICS <- c("occupancy_entropy", "state_switch_rate", "self_transition_probabil
 PH_INACT <- "\\binactive\\b|\\blight\\b|\\bday\\b"; PH_ACT <- "\\bactive\\b|\\bdark\\b|\\bnight\\b"
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(DERIV, "5min_based/all_behavior_metrics.csv"),
            col_types = cols(.default = col_skip(), AnimalNum = col_character(),
                             Group = col_character(), Sex = col_character()), progress = FALSE), "roster")
-raw <- read_csv(file.path(PROJ, "analysis_ready/03_derived_metrics/10min_based/all_behavior_metrics.csv"),
+raw <- read_csv(file.path(DERIV, "10min_based/all_behavior_metrics.csv"),
                 col_types = cols(AnimalNum = col_character()), progress = FALSE, show_col_types = FALSE)
 idn <- audit_hmm_identity(raw, roster, "10min probe"); assert_hmm_identity_audit(idn)
 hd <- standardize_behavior_columns(idn$data, proximity_col = "ProximityFraction") %>%
@@ -109,6 +111,7 @@ for (sd_seed in SEEDS) {
       mutate(seed = sd_seed, logLik = ll, prox_profile = paste(round(prof$P, 3), collapse = "|"))
 }
 rt <- bind_rows(allc)
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 write_csv(rt, file.path(OUT, "hmm_architecture_partition_robustness_contrasts.csv"))
 
 cat("\n===== FEMALE contrasts ACROSS FIVE DIFFERENT 10-min LOCAL OPTIMA (context-z estimates) =====\n")

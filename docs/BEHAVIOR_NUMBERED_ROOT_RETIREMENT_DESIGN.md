@@ -161,7 +161,10 @@ or prepared any live source.
    to a fresh replay folder. The gap-aware, QC sensitivity, and locomotion
    dominance audits consume those same-run metrics; their other Stage 14 inputs
    resolve to the retained original, and each has its own output folder. None
-   of these calculations were rerun. That leaves 16 unresolved rows.
+   of these calculations were rerun. The standalone HMM identifiability,
+   partition robustness, and semantic erasure probes now read retained Stage
+   01/08 inputs and write to separate replay folders. They were not rerun.
+   That leaves 13 unresolved rows.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.

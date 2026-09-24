@@ -8,14 +8,18 @@ suppressMessages({library(dplyr); library(tidyr); library(readr); library(string
 setwd("C:/Users/topohl/Documents/GitHub/MMMSociability")
 source("Analysis/_pipeline_setup.R")
 source_mmm_helper("hmm_stage14_helpers.R")
+source_mmm_helper("project_paths.R")
 
-PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-HMM <- file.path(PROJ, "analysis_ready/06_behavioral_dynamics/hmm_states")
+PROJ <- mmm_project_root()
+HMM <- file.path(mmm_behavior_numbered_source_root("06_behavioral_dynamics", PROJ),
+                 "hmm_states")
+DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
+OUT <- mmm_behavior_audit_replay_output_root("hmm_architecture_semantic_erasure", PROJ)
 PH_INACT <- "\\binactive\\b|\\blight\\b|\\bday\\b"
 PH_ACT <- "\\bactive\\b|\\bdark\\b|\\bnight\\b"
 
 roster <- build_canonical_identity_roster(
-  read_csv(file.path(PROJ, "analysis_ready/03_derived_metrics/5min_based/all_behavior_metrics.csv"),
+  read_csv(file.path(DERIV, "5min_based/all_behavior_metrics.csv"),
            col_types = cols(.default = col_skip(), AnimalNum = col_character(),
                             Group = col_character(), Sex = col_character()), progress = FALSE),
   "Stage 01 5min_based roster")
@@ -85,5 +89,6 @@ for (rs in c("10min_based", "5min_based")) {
                 p = signif(mixed_model_p, 3), g = round(animal_level_hedges_g, 3))), row.names = FALSE)
   }
 }
-write_csv(res_tbl, file.path(getOption("mmm.audit_out", "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture"), "hmm_architecture_per_state_occupancy_contrasts.csv"))
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
+write_csv(res_tbl, file.path(OUT, "hmm_architecture_per_state_occupancy_contrasts.csv"))
 cat("\nwrote per_state_occupancy_contrasts.csv rows =", nrow(res_tbl), "\n")
