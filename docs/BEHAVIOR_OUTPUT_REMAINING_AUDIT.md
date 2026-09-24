@@ -199,6 +199,20 @@ exclusion, not the numerical equivalence of a Stage 10 model rerun.
 The current scan also sees the expected 26 nonlinear-dynamics and 55
 systems-phenotyping candidates through their activated semantic roots.
 
+A header-only follow-up screened all 331 unmapped numbered `06` CSVs without
+reading their approximately 3 GB of table bodies; no header read failed.
+Exactly 85 have the `AnimalNum` column required by Stage 10's feature reader,
+and the other 246 cannot pass that first check. The 85 divide into 36 older
+social-network files (nine each at 10 seconds, 1 minute, 10 minutes, and
+30 minutes), 26 temporal-instability files (13 each at 1 and 5 minutes),
+18 state-space files (nine each at 1 and 10 minutes), and five 30-minute
+GAMM-feature files. All 85 coincide with paths labeled loaded in the saved
+September 22 source audit. This schema check supports that audit label but
+does not prove which numeric columns survived its full read, aggregation,
+and leakage filters. These historical resolutions therefore remain explicit
+Stage 10 dependencies until their file-level migration and model-input parity
+can be validated; the numbered root cannot yet be removed from discovery.
+
 ## Stage 00 QC follow-up and writer safeguard
 
 The live folder has eight files, all dated 2026-05-22: three tables, one XLSX
