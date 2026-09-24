@@ -105,7 +105,11 @@ its ten-minute input preferences and applies its phase-classifier staleness
 guard to the semantic paths. Stage 15's fixed five-minute behavior scale still
 resolves to the older five-minute trees. Both current Stage 15 outputs record
 eight loaded tables from those pre-fix branches; their scientific validity
-needs separate resolution before reuse. Those branches were neither copied
+needs separate resolution before reuse. New Stage 15 runs now refuse those
+existing phase-dependent five-minute tables at the feature loader. The existing
+integration outputs also label a canonical ten-minute Stage 09 input as
+five-minute; the future source specification has been corrected, without
+rewriting those historical outputs. Those branches were neither copied
 nor reclassified by this cutover. No Stage 11–15 scientific analysis was rerun.
 
 The manually run nonlinear and systems-phenotyping producers now write to

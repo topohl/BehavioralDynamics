@@ -381,6 +381,7 @@ recorded path is the canonical ten-minute Stage 09 file. The future source
 specification now uses `early_prediction_bin_level` for that row and its
 already-required resolved path directly; the unreachable old five-minute
 fallback candidates were removed. This corrects future feature names and
-inventory labels only. Existing integration outputs retain their historical
-five-minute labels and need a reviewed rerun before being represented as
-corrected ten-minute results.
+inventory labels only. Each existing integration contains nine such feature
+names across 993 animal-feature rows; both retain their historical five-minute
+labels and need a reviewed rerun before being represented as corrected
+ten-minute results.
