@@ -299,8 +299,8 @@ The queue records the two console checks as `live_read_only_checked` and Stage
 
 ## Archive gate scope still to settle
 
-The current transaction requires every queued audit row to say `ready` before
-it can prepare a numbered-root move. Its script-hash check, path fixtures,
+The default transaction gate requires every queued audit row to say `ready`
+before it can prepare a numbered-root move. Its script-hash check, path fixtures,
 writer guards, complete source manifests, and live Stage 10 discovery parity
 establish mechanical path safety. They do not establish that a full scientific
 rerun reproduces every old audit result. A full 37-script replay is currently
@@ -319,6 +319,19 @@ queue carries a prior `ready` value. The live queue has no `ready` rows and no
 reviewed `ArchivePath` gate exists, so live `Prepare` remains closed. The
 choice between an archive-path review and a full scientific replay remains
 open; the identity comparison remains unvalidated without a verified baseline.
+
+On 2026-09-24, the read-only replay planner still listed 37 scripts, 34 fresh
+replay outputs, three console-only checks, and 16 same-run prerequisites. The
+historical replay path fixture covered 36 queued scripts; the separate identity
+comparison driver fixture covered the remaining script. Both passed. The
+numbered-root receipt resolver and Stage 16 output-index source tests also
+passed. These fixtures exercise routing and output placement, not the saved
+scientific results. The identity driver deliberately labels unknown and mixed
+baselines as unsuitable for a clean before/after comparison. R reported locale
+startup warnings and package build-version warnings; none caused these path
+tests to fail. The Stage 10 archived-location parity run remains outstanding.
+All three live numbered roots were still present and there were zero numbered-
+root archive receipts at that check. No reviewed live gate was created.
 
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination
