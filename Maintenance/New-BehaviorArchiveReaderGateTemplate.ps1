@@ -31,8 +31,9 @@ $rows = foreach ($entry in $queue) {
   }
   [pscustomobject]@{
     script = $entry.script
-    review_state = $entry.review_state
+    review_state = 'needs_reader_writer_review'
     script_sha256 = (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    queue_state = $entry.review_state
   }
 }
 $rows | Export-Csv -LiteralPath $outputPath -NoTypeInformation -Encoding utf8
