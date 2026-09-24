@@ -71,6 +71,10 @@ an automatic rollback shortcut.
    a review queue, not proof that all 27 write there or that the other seven
    are read-only. Historical replay must use a named output location and must
    not recreate a numbered top-level root after archive activation.
+   `behavior_output_archive_audit_script_queue.csv` lists all 37 audit scripts
+   naming at least one of the three roots, with separate reference and common
+   write-call flags. Every row remains `needs_reader_writer_review`; the flags
+   are deliberately not a live-consumer classification.
 5. Preserve numbered strings that are historical provenance in the Stage 16
    registry. Resolve live reads through current path helpers; do not rewrite
    provenance labels to make past runs appear to have used semantic paths.
