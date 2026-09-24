@@ -16,14 +16,16 @@ longitudinal estimates. Active SUS-RES occupancy entropy changed from a
 sign-flipping older audit result to same-sign estimates in this run, but it
 was nominally significant in 0/5 fits and remains excluded as a finding.
 Inactive-phase interpretation remains blocked by tracking measurement
-validity. No manuscript registry, Stage 16 product, or release was refreshed
-from these tables.
+validity. The source manuscript registry cites the current run for its three
+HMM rows, keeps the active claim conditional, and excludes the occupancy
+claim. Stage 16 products and releases were not refreshed from these tables.
 
 The older 183-file audit tree remains at
 `../../12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/`.
 It dates to September 2–4, 2026 and predates the current September 22
-Stage 01/08 inputs. Numerous forensic scripts and the existing manuscript
-registry still refer to that numbered tree. It is retained as historical
+Stage 01/08 inputs. Numerous forensic scripts still refer to that numbered
+tree. The source manuscript registry now cites the current run while recording
+the older audit as historical provenance. The numbered tree is retained as historical
 audit evidence; this directory is not a copy or activation of those files.
 Do not merge the two lineages or describe the older audit as rerun against
 current inputs.

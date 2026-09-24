@@ -338,3 +338,14 @@ zero-run checks. These thresholds are not validated chip-loss or exclusion
 criteria. The eight historical May QC files remained hash-identical and the
 Stage 16/release readers were not switched. See the run-local `REVIEW_STATUS.md`
 and the task's `scientific_revalidation_result_20260924.md` for details.
+
+## 2026-09-24 source-registry correction
+
+The three HMM registry rows now cite the isolated current-input revalidation
+tables. The active persistence row retains its conditional scientific role
+but is not publication-ready until the manuscript and release products are
+refreshed and reviewed. The inactive row remains unpromoted because tracking
+measurement validity is unresolved. The Active SUS-RES occupancy-entropy row
+remains excluded: the current five fits have same-sign estimates but 0/5
+nominally significant fits, replacing the older sign-flip rationale. The
+183-file numbered audit tree remains unchanged as historical evidence.

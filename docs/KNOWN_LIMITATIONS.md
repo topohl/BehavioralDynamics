@@ -29,7 +29,8 @@ Stage 01/08 inputs reached three log-likelihood levels at printed precision
 across those five fits; the five fits must not be described as five distinct
 optima or as an exhaustive search. Its isolated outputs are under
 `analysis_ready/analyses/hmm_revalidation_runs/current_stage08_review_20260924/`.
-The manuscript registry still cites the older audit and its numerical ranges.
+The source manuscript registry now cites the current-input rerun and its
+five-fit ranges; the existing Stage 16 and release products were not refreshed.
 Only contrasts supported by a reviewed current audit may be reported, and
 they retain the identifiability caveat.
 

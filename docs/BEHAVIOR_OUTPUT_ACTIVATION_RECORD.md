@@ -607,3 +607,13 @@ movement occurs in 93.79% of Active and 99.35% of Inactive bins. Stage 01
 carries the last observed position forward, so positive derived occupancy
 time in those bins does not establish a fresh RFID read. Stage 00's zero-run
 flags remain provisional and are not additional exclusion decisions.
+
+## 2026-09-24 HMM source-registry correction
+
+The three HMM rows in `docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv` now cite the
+isolated current-input run and state its five-fit results. The active claim
+remains conditional and is marked not publication-ready until existing
+manuscript and release products are refreshed and reviewed. Inactive claims
+remain unpromoted; occupancy entropy remains excluded. This changes source
+metadata only. The historical HMM audit files, Stage 16 products, and release
+products were not changed.
