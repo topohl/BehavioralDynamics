@@ -27,13 +27,14 @@ jsonlite::write_json(list(
 
 check_error <- function(expr) inherits(try(expr, silent = TRUE), "try-error")
 write_archive_receipt <- function(state, archive_rel = paste0(
-                                    "history/original_layout/", numbered)) {
+                                    "history/original_layout/", numbered),
+                                  files = 1L, bytes = 10L) {
   jsonlite::write_json(list(
     root = numbered, source_root_rel = numbered,
     archive_root_rel = archive_rel, state = state,
-    files = 1L, bytes = 10L,
+    files = files, bytes = bytes,
     manifest_sha256 = paste(rep("c", 64L), collapse = "")),
-    archive_receipt, auto_unbox = TRUE)
+    archive_receipt, auto_unbox = TRUE, digits = NA)
 }
 
 stopifnot(identical(mmm_behavior_retained_source_root(group, root), old_group),
@@ -71,6 +72,25 @@ stopifnot(identical(mmm_behavior_retained_source_root(group, root), archived_gro
           check_error(mmm_behavior_guard_numbered_output_path(archived_group,
                                                               root)),
           check_error(mmm_behavior_guard_numbered_output_path(old_group, root)))
+
+# The live 06 root holds 18,194,653,380 bytes. A receipt above 2^31 must still
+# validate; malformed JSON or a missing state must stop readers and writers.
+write_archive_receipt("activated", files = 1469, bytes = 18194653380)
+stopifnot(grepl('"bytes":18194653380', paste(readLines(archive_receipt,
+                                                       warn = FALSE),
+                                              collapse = ""), fixed = TRUE),
+          identical(mmm_behavior_retained_source_root(group, root), archived_group))
+writeLines("{", archive_receipt)
+stopifnot(check_error(mmm_behavior_retained_source_root(group, root)),
+          check_error(mmm_behavior_guard_numbered_output_path(old_group, root)))
+jsonlite::write_json(list(
+  root = numbered, source_root_rel = numbered,
+  archive_root_rel = paste0("history/original_layout/", numbered),
+  files = 1L, bytes = 10L,
+  manifest_sha256 = paste(rep("c", 64L), collapse = "")),
+  archive_receipt, auto_unbox = TRUE)
+stopifnot(check_error(mmm_behavior_retained_source_root(group, root)))
+write_archive_receipt("activated")
 
 # A group without its own semantic activation still resolves the retained file
 # inside the archive when the root-level archive receipt is activated.

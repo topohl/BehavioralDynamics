@@ -47,7 +47,7 @@ if (((Get-Item -LiteralPath $source -Force).Attributes -band
 if ($Location -ceq 'Archived' -and (Test-Path -LiteralPath $original)) {
   throw "Archived verification found a recreated original root: $original"
 }
-if (IsChild $manifestPath $source -or $manifestPath -ceq $source) {
+if ((IsChild $manifestPath $source) -or $manifestPath -ieq $source) {
   throw 'The manifest cannot be written inside the source being inventoried'
 }
 

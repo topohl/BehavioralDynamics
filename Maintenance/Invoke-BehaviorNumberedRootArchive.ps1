@@ -34,10 +34,22 @@ function Write-Receipt([string] $Path, $Record) {
     [System.Text.UTF8Encoding]::new($false))
   Move-Item -LiteralPath $temporary -Destination $Path -Force -ErrorAction Stop
 }
+# Directory.Move is a same-volume rename: it moves the whole root or fails
+# without copying, for example when the destination exists or, on local NTFS,
+# when a file below the root is open. Move-Item can fall back to moving files
+# one at a time and leave the root split across both locations.
+function Move-RootDirectory([string] $From, [string] $To) {
+  [System.IO.Directory]::Move($From, $To)
+}
 function Read-Receipt([string] $Path) {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
-  $record = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-  if ($record.root -cne $RootName -or
+  $record = try { Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json } catch { $null }
+  $fields = @('root', 'source_root_rel', 'archive_root_rel', 'state', 'files',
+              'bytes', 'manifest_sha256', 'reader_gate_kind',
+              'reader_gate_sha256', 'reader_queue_sha256')
+  if ($null -eq $record -or
+      @($fields | Where-Object { -not ($record.PSObject.Properties.Name -contains $_) }).Count -gt 0 -or
+      $record.root -cne $RootName -or
       $record.source_root_rel -cne $RootName -or
       $record.archive_root_rel -cne "history/original_layout/$RootName" -or
       $record.manifest_sha256 -cne $ManifestSha256.ToLowerInvariant() -or
@@ -216,11 +228,12 @@ switch ($Action) {
     $checked = Verify-Location 'Original'
     if ($checked.files -ne [int]$record.files -or
         $checked.bytes -ne [long]$record.bytes) { throw 'Source changed after Prepare' }
+    Assert-NoReparsePaths
     New-Item -ItemType Directory -Path $archiveParent -Force | Out-Null
     Assert-NoReparsePaths
     $record.state = 'transferring'
     Write-Receipt $receipt $record
-    Move-Item -LiteralPath $source -Destination $archive -ErrorAction Stop
+    Move-RootDirectory $source $archive
     $checked = Verify-Location 'Archived'
     $record.state = 'activated'
     $record | Add-Member -NotePropertyName activated_at_utc `
@@ -243,7 +256,7 @@ switch ($Action) {
       $checked = Verify-Location 'Archived'
       $record.state = 'transferring'
       Write-Receipt $receipt $record
-      Move-Item -LiteralPath $archive -Destination $source -ErrorAction Stop
+      Move-RootDirectory $archive $source
       $checked = Verify-Location 'Original'
     } else {
       throw 'Rollback found both or neither numbered source locations'
