@@ -356,15 +356,17 @@ try {
       $atSource = Test-Path -LiteralPath $source
       $atArchive = Test-Path -LiteralPath $archive
       if ($AcceptInventoryDrift) {
-        # Recovery after a failed post-move verification: rename the archive
-        # back without trusting its contents. Nothing is deleted or rewritten.
-        if ($atSource -or -not $atArchive) {
-          throw 'Drift recovery requires the archive and no original root'
+        # Recovery when an inventory no longer matches: rename an archive back
+        # without trusting its contents, or, when only a changed original is
+        # present, just record the drift. Nothing is deleted or rewritten; the
+        # receipt stays transferring so Abandon can retire it after review.
+        if ($atSource -eq $atArchive) {
+          throw 'Drift recovery requires exactly one of the archive and the original root'
         }
         $record.state = 'transferring'
         $record | Add-Member -NotePropertyName drift_detected_at_utc -NotePropertyValue (Utc) -Force
         Write-Receipt $receipt $record
-        Move-RootDirectory $archive $source
+        if ($atArchive) { Move-RootDirectory $archive $source }
         return [pscustomobject]@{ action = 'Rollback'; state = 'transferring'; root = $RootName;
           files = $null; hashes = 'NOT_VERIFIED' }
       }

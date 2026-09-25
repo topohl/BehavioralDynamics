@@ -393,6 +393,28 @@ Assert-R-Writers $false
 Remove-Item -LiteralPath (Join-Path $source 'dyadic_contacts\Thumbs.db')
 if ((Invoke-Archive 'Prepare').state -cne 'prepared') { throw 'Prepare after drift recovery failed' }
 
+# A transferring receipt whose original changed before the move also has a
+# supported exit: drift recovery records the drift without moving anything,
+# and Abandon then retires the receipt for review.
+$receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+$receipt.state = 'transferring'
+$receipt | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $receiptPath -Encoding utf8
+[System.IO.File]::AppendAllText($sample, "9,9`n")
+Expect-Failure { Invoke-Archive 'Rollback' } 'differs from numbered source'
+& $tool -Action Rollback -AnalysisReadyRoot $ready -RootName '06_behavioral_dynamics' `
+  -Manifest $manifest -ManifestSha256 $manifestHash -AcceptInventoryDrift | Out-Null
+if ((Receipt-State) -cne 'transferring' -or -not (Test-Path -LiteralPath $source) -or
+    (Test-Path -LiteralPath $archive) -or
+    -not ((Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json).PSObject.Properties.Name -contains 'drift_detected_at_utc')) {
+  throw 'In-place drift recovery moved the root or did not flag the drift'
+}
+Assert-R-Rejects
+& $tool -Action Abandon -AnalysisReadyRoot $ready -RootName '06_behavioral_dynamics' `
+  -Manifest $manifest -ManifestSha256 $manifestHash -AbandonReason 'fixture changed original' | Out-Null
+if (Test-Path -LiteralPath $receiptPath) { throw 'Abandon after in-place drift kept the receipt' }
+[System.IO.File]::WriteAllText($sample, "AnimalNum,value`n1,2`n")
+if ((Invoke-Archive 'Prepare').state -cne 'prepared') { throw 'Prepare after in-place drift failed' }
+
 # The path-and-writer gate is an explicit alternative. It cannot be confused
 # with replay-ready, and the selected kind is pinned through activation.
 Remove-Item -LiteralPath $receiptPath
