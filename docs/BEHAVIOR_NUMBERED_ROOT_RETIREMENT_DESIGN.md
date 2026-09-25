@@ -391,7 +391,18 @@ it; PowerShell 7 can. Under `history/original_layout/` the longest `03`
 path is 198 characters, but 20 `06` paths reach 260-264 and 7 `12` paths
 reach 260-265. The archive tool would verify those files while R readers,
 including the Stage 10 discovery parity audit, could not read them. `03` is
-not affected.
+not affected. `Prepare` and `Activate` now refuse a root whose archived
+paths would reach 260 characters while long paths are disabled.
+
+External consumers: SLEAPanalyzer (`exp9-validation-study`) scripts 01, 07
+and 09, and its bundle builder through 09, read `03_derived_metrics/qc`
+directly. They now read the hash-identical foundation copy, or find the
+retained-only phenotype table through the `03` receipt (SLEAPanalyzer
+`817de68`, local, not pushed). Unversioned iCloud copies of those scripts
+were left unchanged at the maintainer's request and will stop after the
+`03` move. `Analysis/verify_publication_release.R` re-hashes rc1 sources
+recorded under the numbered `12` path. Live navigation files name the
+numbered roots and need updating with each root's `Activate`.
 
 Per-root scope: `docs/behavior_output_archive_gate_03_derived_metrics_draft.csv`
 proposes `archive_path_ready` for all 37 scripts for the `03` move only,
