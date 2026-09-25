@@ -2051,6 +2051,21 @@ output_index <- tribble(
   "27", "Behavior main figure", NA_character_, "manuscript assembly group", "analysis_ready/pipeline/27_behavior_main_figure/", "Analysis/27_build_behavior_main_figure.R", "publication product", "canonical", NA_character_, "Assembly only. Deliberately absent from run_all_analysis.R; that absence is asserted by Testing/tests/test_behavior_main_figure_contracts.R.", "manual",
   "28", "RFID four-domain characterization", "10min primary; 5min sensitivity", "local pipeline output group", "analysis_ready/pipeline/28_rfid_behavioral_domains/", "Analysis/28_rfid_behavioral_domains.R", "secondary descriptive candidate", "local_untracked_candidate", NA_character_, "Local Stage 28 producer and outputs are present, but the producer has not yet been committed or promoted to a release contract.", "manual"
 )
+# legacy_path stays the provenance of the saved files. Once a numbered root is
+# archived under its receipt, the note also names the retained original's
+# current location.
+output_index$notes <- vapply(seq_len(nrow(output_index)), function(i) {
+  legacy <- output_index$legacy_path[[i]]
+  note <- output_index$notes[[i]]
+  numbered <- if (is.na(legacy)) NA_character_ else
+    sub("^analysis_ready/([^/]+)/.*$", "\\1", legacy)
+  if (is.na(numbered) || !numbered %in% MMM_NUMBERED_BEHAVIOR_ROOTS) return(note)
+  retained <- mmm_source_relative_path(
+    mmm_behavior_numbered_source_root(numbered, base_dir), base_dir)
+  if (identical(retained, numbered)) return(note)
+  paste0(note, " Retained original: analysis_ready/", retained,
+         substring(legacy, nchar(paste0("analysis_ready/", numbered)) + 1L))
+}, character(1))
 if (anyDuplicated(na.omit(output_index$canonical_path))) {
   stop("output_index.csv contains duplicate canonical paths.", call. = FALSE)
 }

@@ -783,3 +783,44 @@ stopifnot(grepl('mmm_behavior_output_active_root("rfid_leading_bin_seed_audit", 
           grepl('mmm_behavior_output_active_root("rfid_leading_bin_seed_audit", project_root = ROOT)',
                 seed_reader, fixed = TRUE))
 cat("PASS: key producer and release paths follow the explicit migration receipt\n")
+
+# After a numbered root is archived, index rows keep their legacy provenance
+# path and name the retained original's location; other roots are unchanged.
+archive_root <- file.path(tempdir(), paste0("output_index_archive_",
+                                            as.integer(runif(1L, 1L, 1e9))))
+archive_ready <- file.path(archive_root, "analysis_ready")
+dir.create(file.path(archive_ready, "03_derived_metrics", "qc"), recursive = TRUE)
+archive_env <- new.env(parent = baseenv())
+archive_env$tribble <- tibble::tribble
+source("Functions/project_paths.R", local = archive_env)
+archive_env$base_dir <- archive_root
+eval(parse(text = index_source), envir = archive_env)
+before_archive <- archive_env$output_index
+stopifnot(!any(grepl("Retained original", before_archive$notes, fixed = TRUE)))
+dir.create(file.path(archive_ready, "history", "original_layout"), recursive = TRUE)
+stopifnot(file.rename(file.path(archive_ready, "03_derived_metrics"),
+                      file.path(archive_ready, "history", "original_layout",
+                                "03_derived_metrics")))
+dir.create(file.path(archive_ready, "_migration_control", "numbered_root_archive"),
+           recursive = TRUE)
+jsonlite::write_json(list(
+  root = "03_derived_metrics", source_root_rel = "03_derived_metrics",
+  archive_root_rel = "history/original_layout/03_derived_metrics",
+  state = "activated", files = 53L, bytes = 3162803458,
+  manifest_sha256 = strrep("c", 64L), reader_gate_kind = "ArchivePath",
+  reader_gate_sha256 = strrep("e", 64L), reader_queue_sha256 = strrep("f", 64L)),
+  file.path(archive_ready, "_migration_control", "numbered_root_archive",
+            "03_derived_metrics.json"), auto_unbox = TRUE, digits = NA)
+eval(parse(text = index_source), envir = archive_env)
+after_archive <- archive_env$output_index
+moved <- !is.na(after_archive$legacy_path) &
+  startsWith(after_archive$legacy_path, "analysis_ready/03_derived_metrics/")
+stopifnot(identical(after_archive$legacy_path, before_archive$legacy_path),
+          all(c("01", "01-identity-history", "19-tables", "19-audit") %in%
+                after_archive$stage[moved]),
+          identical(after_archive$notes[!moved], before_archive$notes[!moved]),
+          identical(after_archive$notes[after_archive$stage == "01-identity-history"],
+                    paste0(before_archive$notes[before_archive$stage == "01-identity-history"],
+                           " Retained original: analysis_ready/history/original_layout/",
+                           "03_derived_metrics/qc/")))
+cat("PASS: output index names archived retained originals and keeps legacy provenance\n")
