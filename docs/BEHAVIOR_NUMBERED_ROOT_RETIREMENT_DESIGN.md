@@ -521,8 +521,9 @@ Open risks:
 
 - On `main`, the release branches and `exp9-upstream-endpoint-corrections`
   (`35cda80`, an ancestor of this branch), code reads and writes the three
-  numbered roots by fixed path without receipt checks. At 14:32:55 UTC
-  another session checked the shared worktree out to that branch. None of
-  these branches may run against this RFID tree.
+  numbered roots by fixed path without receipt checks. None of these
+  branches may run against this RFID tree. At 14:32:55 UTC GitHub Desktop
+  switched the shared worktree to that branch for 32 seconds, leaving a
+  stash. Nothing was written to `analysis_ready/` in that window.
 - The six uncopied HMM audit CSVs are readable only with PowerShell 7 or on
   a long-path host.
