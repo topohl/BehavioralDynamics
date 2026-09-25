@@ -1,11 +1,12 @@
 # Retiring numbered behavioral output roots: proposed transaction
 
-Status: prepared tooling; per-root archive-path review drafted for 03 only,
-2026-09-25. No numbered source directory has been moved, renamed, hidden, or
-deleted, and no root archive receipt exists. The receipt-activated semantic
-copies are already selected by current readers. This design is a separate
-operation from the completed copy activations. See "Readiness review,
-2026-09-25" below for the current evidence and blockers.
+Status: `03_derived_metrics` prepared under the approved `ArchivePath` gate,
+2026-09-25; not activated. No numbered source directory has been moved,
+renamed, hidden, or deleted. `06_behavioral_dynamics` and
+`12_systems_neuroscience_summary` have no receipt. The receipt-activated
+semantic copies are already selected by current readers. This design is a
+separate operation from the completed copy activations. See "Readiness
+review, 2026-09-25" and "03 prepared, 2026-09-25" below.
 
 ## Scope and destination
 
@@ -418,6 +419,31 @@ a consumer can read a failed producer's partial output; the replay output
 check is not atomic across concurrent runs; several same-run reads are
 optional; the Stage 09 stale audit's five `06` families were quarantined in
 2026-09 and are absent before and after any move.
+
+## 03 prepared, 2026-09-25
+
+The maintainer approved the `ArchivePath` standard for the `03` move only.
+The reviewed gate `behavior_output_archive_gate_03_derived_metrics.csv`
+(commit `3aa33e6`) marks all 37 queued audits `archive_path_ready` for that
+root; its SHA-256 with normalized line endings is
+`c01aa48a7e437a27595162d9a92022f97371d6c040cc0b817ea31f42cc3cbf61`.
+Before `Prepare`, no process, scheduled task, or peer session was writing to
+the RFID tree, and the newest `03` file was still the 2026-09-24 QC table.
+
+Live `Prepare` (2026-09-25 12:31 UTC) rehashed all 53 files against the
+53-file manifest and wrote
+`_migration_control/numbered_root_archive/03_derived_metrics.json`
+(state `prepared`, 53 files, 3,162,803,458 bytes, manifest `53265050...`,
+gate `c01aa48a...`, queue `31131d89...`; receipt SHA-256 `a4e21a7b...`).
+Nothing moved; `history/original_layout/` was not created and no lock or
+temporary file remained. Tool `Verify` and `Inspect` then passed with 53
+files. R readers still resolve the original `03` and the foundation copy;
+writes into `03`, including through `ensure_dir()`, are refused, while `06`,
+`12`, the foundation copy, and the cookie-habituation tree stay writable.
+The foundation residual inventory passed, and SLEAPanalyzer's resolver reads
+the original. `qc/first_night_seed_provenance.csv` stays retained and
+unpromoted. `Abandon` would release the receipt without moving anything.
+`Activate` has not been approved.
 
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination
