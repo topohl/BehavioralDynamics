@@ -437,9 +437,12 @@ Live `Prepare` (2026-09-25 12:31 UTC) rehashed all 53 files against the
 gate `c01aa48a...`, queue `31131d89...`; receipt SHA-256 `a4e21a7b...`).
 Nothing moved; `history/original_layout/` was not created and no lock or
 temporary file remained. Tool `Verify` and `Inspect` then passed with 53
-files. R readers still resolve the original `03` and the foundation copy;
-writes into `03`, including through `ensure_dir()`, are refused, while `06`,
-`12`, the foundation copy, and the cookie-habituation tree stay writable.
+files. R readers still resolve the original `03` and the foundation copy.
+Code on this branch refuses writes into `03`, including through `ensure_dir()`,
+while `06`, `12`, the foundation copy, and the cookie-habituation tree stay
+writable. This branch is unpushed. On `main` and the release branches,
+Stages 01 and 19 still write into `03` by default without any receipt check,
+so none of them may run against this RFID tree.
 The foundation residual inventory passed, and SLEAPanalyzer's resolver reads
 the original. `qc/first_night_seed_provenance.csv` stays retained and
 unpromoted. `Abandon` would release the receipt without moving anything.
