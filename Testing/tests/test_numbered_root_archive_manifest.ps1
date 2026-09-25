@@ -12,6 +12,13 @@ $first = Join-Path $tables 'first.csv'
 $second = Join-Path $source 'metadata.csv'
 [System.IO.File]::WriteAllText($first, "AnimalNum,value`n1,2`n")
 [System.IO.File]::WriteAllText($second, "name,value`na,b`n")
+# Names whose order differs between ordinal and culture-aware sorting, as in
+# the live 06 and 12 manifests (for example README.txt beside lower-case files).
+foreach ($name in @('README.txt', 'hmm_state_occupancy.pdf', 'a-b.csv', 'ab.csv',
+                    'Z.csv', 'a.csv')) {
+  [System.IO.File]::WriteAllText((Join-Path $tables $name), $name)
+}
+$fileCount = 8
 
 function Invoke-Manifest([string] $Action) {
   & $tool -Action $Action -AnalysisReadyRoot $ready -RootName `
@@ -32,10 +39,45 @@ function Expect-Failure([scriptblock] $Block, [string] $Pattern) {
 
 $built = Invoke-Manifest 'Build'
 $verified = Invoke-Manifest 'Verify'
-if ($built.files -ne 2 -or $verified.files -ne 2 -or
+if ($built.files -ne $fileCount -or $verified.files -ne $fileCount -or
     $built.manifest_sha256 -cne $verified.manifest_sha256 -or
     $verified.hashes -cne 'PASS') {
   throw 'Archive manifest build/verify did not agree'
+}
+# Verification does not depend on the globalization mode, and a manifest in
+# the older culture-aware row order (the committed live manifests) still
+# verifies because rows are matched by path.
+# The globalization mode is read when the child process starts.
+foreach ($mode in @('DOTNET_SYSTEM_GLOBALIZATION_INVARIANT', 'DOTNET_SYSTEM_GLOBALIZATION_USENLS')) {
+  Set-Item -Path "Env:$mode" -Value '1'
+  try {
+    $childResult = & pwsh -NoProfile -Command ("`$r = & '$tool' -Action Verify " +
+      "-AnalysisReadyRoot '$ready' -RootName '06_behavioral_dynamics' -Manifest '$manifest'; " +
+      "`$r.hashes") 2>&1
+  } finally {
+    Remove-Item -Path "Env:$mode"
+  }
+  if ($LASTEXITCODE -ne 0 -or ($childResult | Select-Object -Last 1) -cne 'PASS') {
+    throw "Manifest verification depends on $mode : $($childResult -join ' | ')"
+  }
+}
+$cultureManifest = Join-Path $fixture 'culture-order-manifest.csv'
+@(Import-Csv -LiteralPath $manifest | Sort-Object -Property relative_path -CaseSensitive) |
+  Export-Csv -LiteralPath $cultureManifest -NoTypeInformation -Encoding utf8
+if ((Get-FileHash -LiteralPath $cultureManifest).Hash -ceq (Get-FileHash -LiteralPath $manifest).Hash) {
+  throw 'Fixture names did not produce a different culture-aware order'
+}
+if ((& $tool -Action Verify -AnalysisReadyRoot $ready -RootName '06_behavioral_dynamics' `
+      -Manifest $cultureManifest).hashes -cne 'PASS') {
+  throw 'A culture-ordered manifest did not verify'
+}
+# Windows PowerShell 5.1 is refused rather than run with different semantics.
+if (Get-Command powershell.exe -ErrorAction SilentlyContinue) {
+  $legacy = & powershell.exe -NoProfile -File $tool -Action Verify -AnalysisReadyRoot $ready `
+    -RootName '06_behavioral_dynamics' -Manifest $manifest 2>&1
+  if ($LASTEXITCODE -eq 0 -or ($legacy -join ' ') -notmatch 'requires') {
+    throw "Windows PowerShell ran the manifest tool: $($legacy -join ' | ')"
+  }
 }
 Expect-Failure { Invoke-Manifest 'Build' } 'Manifest already exists'
 Expect-Failure {

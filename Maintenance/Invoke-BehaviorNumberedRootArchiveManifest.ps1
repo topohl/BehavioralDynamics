@@ -1,3 +1,4 @@
+#Requires -Version 7.2
 param(
   [Parameter(Mandatory = $true)]
   [ValidateSet('Build', 'Verify')]
@@ -15,8 +16,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Relative arguments resolve against the PowerShell location, not the
+# process working directory.
 function FullPath([string] $Path) {
-  [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
+  [System.IO.Path]::GetFullPath(
+    $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+  ).TrimEnd('\', '/')
 }
 
 function IsChild([string] $Path, [string] $Parent) {
@@ -66,10 +71,14 @@ $rows = @($files | ForEach-Object {
     size_bytes = [long]$_.Length
     sha256 = Sha256 $_.FullName
   }
-} | Sort-Object -Property relative_path -CaseSensitive)
-if (@($rows | Select-Object -ExpandProperty relative_path -Unique).Count -ne
-    $rows.Count) {
-  throw 'Numbered source has duplicate relative paths'
+})
+# Ordinal order does not depend on the culture or PowerShell edition.
+[string[]] $keys = @($rows | ForEach-Object relative_path)
+[object[]] $rows = $rows
+[Array]::Sort($keys, $rows, [System.StringComparer]::Ordinal)
+$seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+foreach ($key in $keys) {
+  if (-not $seen.Add($key)) { throw 'Numbered source has duplicate relative paths' }
 }
 
 if ($Action -ceq 'Build') {
@@ -83,17 +92,26 @@ if ($Action -ceq 'Build') {
   $lines = @($rows | ConvertTo-Csv -NoTypeInformation)
   [System.IO.File]::WriteAllLines(
     $manifestPath, $lines, [System.Text.UTF8Encoding]::new($false))
+  $manifestHash = Sha256 $manifestPath
 } else {
   if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     throw "Missing archive manifest: $manifestPath"
   }
-  $expected = @(Import-Csv -LiteralPath $manifestPath)
+  # Hash and parse the same bytes, so the returned hash describes what was
+  # compared.
+  $bytes = [System.IO.File]::ReadAllBytes($manifestPath)
+  $manifestHash = [Convert]::ToHexString(
+    [System.Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+  $expected = @([System.Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF) |
+    ConvertFrom-Csv)
   if ($expected.Count -eq 0) { throw 'Archive manifest is empty' }
   $missingColumns = @(@('relative_path', 'size_bytes', 'sha256') |
     Where-Object { -not ($expected[0].PSObject.Properties.Name -contains $_) })
   if ($missingColumns.Count -gt 0) {
     throw "Archive manifest is missing columns: $($missingColumns -join ', ')"
   }
+  $byPath = [System.Collections.Generic.Dictionary[string, object]]::new(
+    [System.StringComparer]::Ordinal)
   foreach ($entry in $expected) {
     $relative = [string]$entry.relative_path
     if ([string]::IsNullOrWhiteSpace($relative) -or
@@ -103,17 +121,21 @@ if ($Action -ceq 'Build') {
         $entry.size_bytes -notmatch '^[0-9]+$') {
       throw "Invalid archive manifest row: $relative"
     }
+    if ($byPath.ContainsKey($relative)) {
+      throw 'Archive manifest file count or uniqueness differs from source'
+    }
+    $byPath.Add($relative, $entry)
   }
-  if ($expected.Count -ne $rows.Count -or
-      @($expected | Select-Object -ExpandProperty relative_path -Unique).Count -ne
-        $expected.Count) {
+  if ($byPath.Count -ne $rows.Count) {
     throw 'Archive manifest file count or uniqueness differs from source'
   }
-  for ($i = 0; $i -lt $rows.Count; $i++) {
-    if ($expected[$i].relative_path -cne $rows[$i].relative_path -or
-        [long]$expected[$i].size_bytes -ne $rows[$i].size_bytes -or
-        $expected[$i].sha256 -cne $rows[$i].sha256) {
-      throw "Archive manifest differs from numbered source: $($rows[$i].relative_path)"
+  # Compare by exact relative path, so a case-only rename still fails.
+  foreach ($row in $rows) {
+    $entry = $null
+    if (-not $byPath.TryGetValue($row.relative_path, [ref] $entry) -or
+        [long]$entry.size_bytes -ne $row.size_bytes -or
+        $entry.sha256 -cne $row.sha256) {
+      throw "Archive manifest differs from numbered source: $($row.relative_path)"
     }
   }
 }
@@ -125,6 +147,6 @@ if ($Action -ceq 'Build') {
   files = $rows.Count
   bytes = [long](($rows | Measure-Object -Property size_bytes -Sum).Sum)
   manifest = $manifestPath
-  manifest_sha256 = Sha256 $manifestPath
+  manifest_sha256 = $manifestHash
   hashes = 'PASS'
 }

@@ -1,6 +1,7 @@
+#Requires -Version 7.2
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('Inspect', 'Prepare', 'Verify', 'Activate', 'Rollback')]
+  [ValidateSet('Inspect', 'Prepare', 'Verify', 'Activate', 'Rollback', 'Abandon')]
   [string] $Action,
   [Parameter(Mandatory = $true)] [string] $AnalysisReadyRoot,
   [Parameter(Mandatory = $true)]
@@ -13,18 +14,29 @@ param(
   [string] $ReviewedReaderGate = '',
   [string] $ReviewedReaderGateSha256 = '',
   [ValidateSet('ScientificReplay', 'ArchivePath')]
-  [string] $ReaderGateKind = 'ScientificReplay'
+  [string] $ReaderGateKind = 'ScientificReplay',
+  # Rollback only: move an archived root back even though its inventory no
+  # longer matches the manifest. The receipt stays transferring for review.
+  [switch] $AcceptInventoryDrift,
+  [string] $AbandonReason = ''
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Relative arguments resolve against the PowerShell location, not the
+# process working directory.
 function FullPath([string] $Path) {
-  [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
+  [System.IO.Path]::GetFullPath(
+    $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+  ).TrimEnd('\', '/')
 }
 function Sha256([string] $Path) {
   (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
+function Utc { [DateTime]::UtcNow.ToString('o') }
+# File.Move with overwrite is one replace-rename: on failure the previous
+# receipt is kept. Move-Item -Force deletes the destination first.
 function Write-Receipt([string] $Path, $Record) {
   $parent = Split-Path -Parent $Path
   New-Item -ItemType Directory -Path $parent -Force | Out-Null
@@ -32,7 +44,12 @@ function Write-Receipt([string] $Path, $Record) {
   [System.IO.File]::WriteAllText(
     $temporary, ($Record | ConvertTo-Json -Depth 5),
     [System.Text.UTF8Encoding]::new($false))
-  Move-Item -LiteralPath $temporary -Destination $Path -Force -ErrorAction Stop
+  try {
+    [System.IO.File]::Move($temporary, $Path, $true)
+  } catch {
+    Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+    throw
+  }
 }
 # Directory.Move is a same-volume rename: it moves the whole root or fails
 # without copying, for example when the destination exists or, on local NTFS,
@@ -44,39 +61,63 @@ function Move-RootDirectory([string] $From, [string] $To) {
 function Read-Receipt([string] $Path) {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
   $record = try { Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json } catch { $null }
-  $fields = @('root', 'source_root_rel', 'archive_root_rel', 'state', 'files',
-              'bytes', 'manifest_sha256', 'reader_gate_kind',
-              'reader_gate_sha256', 'reader_queue_sha256')
-  if ($null -eq $record -or
-      @($fields | Where-Object { -not ($record.PSObject.Properties.Name -contains $_) }).Count -gt 0 -or
+  $text = @('root', 'source_root_rel', 'archive_root_rel', 'state',
+            'manifest_sha256', 'reader_gate_kind', 'reader_gate_sha256',
+            'reader_queue_sha256')
+  $count = @('files', 'bytes')
+  if ($null -eq $record -or $record -isnot [pscustomobject] -or
+      @($text + $count | Where-Object {
+        -not ($record.PSObject.Properties.Name -contains $_) }).Count -gt 0 -or
+      @($text | Where-Object { $record.$_ -isnot [string] }).Count -gt 0 -or
+      @($count | Where-Object {
+        $record.$_ -isnot [long] -and $record.$_ -isnot [int] }).Count -gt 0 -or
       $record.root -cne $RootName -or
       $record.source_root_rel -cne $RootName -or
       $record.archive_root_rel -cne "history/original_layout/$RootName" -or
-      $record.manifest_sha256 -cne $ManifestSha256.ToLowerInvariant() -or
+      $record.state -cnotin @('prepared', 'transferring', 'activated') -or
+      $record.manifest_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
       $record.reader_gate_kind -cnotin @('ScientificReplay', 'ArchivePath') -or
-      $record.reader_gate_sha256 -notmatch '^[0-9a-f]{64}$' -or
-      $record.reader_queue_sha256 -notmatch '^[0-9a-f]{64}$' -or
-      $record.files -notmatch '^[1-9][0-9]*$' -or
-      $record.bytes -notmatch '^[0-9]+$') {
+      $record.reader_gate_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+      $record.reader_queue_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+      $record.files -lt 1 -or $record.bytes -lt 0) {
     throw "Invalid numbered-root archive receipt: $Path"
+  }
+  if ($record.manifest_sha256 -cne $ManifestSha256.ToLowerInvariant()) {
+    throw ("Archive receipt pins manifest $($record.manifest_sha256), not " +
+           "$($ManifestSha256.ToLowerInvariant()): $Path")
   }
   return $record
 }
+# Hash and parse the same bytes, so the pinned hash describes what was read.
+function Read-PinnedCsv([string] $Path) {
+  $bytes = [System.IO.File]::ReadAllBytes($Path)
+  $hash = [Convert]::ToHexString(
+    [System.Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+  $body = [System.Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF)
+  [pscustomobject]@{ sha256 = $hash; rows = @($body | ConvertFrom-Csv) }
+}
 function Verify-ReaderGate {
-  if ([string]::IsNullOrWhiteSpace($ReaderQueue) -or
-      [string]::IsNullOrWhiteSpace($ReviewedReaderGate) -or
+  if ([string]::IsNullOrWhiteSpace($ReviewedReaderGate) -or
       $ReviewedReaderGateSha256 -notmatch '^[0-9a-fA-F]{64}$') {
     throw 'A reviewed reader gate, its SHA-256, and the original queue are required'
   }
-  $queuePath = FullPath $ReaderQueue
+  # A live gate must cover the committed audit queue; only a temporary
+  # fixture may supply its own queue.
+  if (-not $fixtureRoot -and $queuePath -ine $canonicalQueue) {
+    throw "A live archive gate must use the repository audit queue: $canonicalQueue"
+  }
   $gatePath = FullPath $ReviewedReaderGate
   if (-not (Test-Path -LiteralPath $queuePath -PathType Leaf) -or
-      -not (Test-Path -LiteralPath $gatePath -PathType Leaf) -or
-      (Sha256 $gatePath) -cne $ReviewedReaderGateSha256.ToLowerInvariant()) {
+      -not (Test-Path -LiteralPath $gatePath -PathType Leaf)) {
     throw 'Reader gate is missing or changed since review'
   }
-  $queue = @(Import-Csv -LiteralPath $queuePath)
-  $gate = @(Import-Csv -LiteralPath $gatePath)
+  $queueFile = Read-PinnedCsv $queuePath
+  $gateFile = Read-PinnedCsv $gatePath
+  if ($gateFile.sha256 -cne $ReviewedReaderGateSha256.ToLowerInvariant()) {
+    throw 'Reader gate is missing or changed since review'
+  }
+  $queue = $queueFile.rows
+  $gate = $gateFile.rows
   if ($queue.Count -eq 0 -or $gate.Count -ne $queue.Count -or
       -not ($queue[0].PSObject.Properties.Name -contains 'script') -or
       -not ($gate[0].PSObject.Properties.Name -contains 'script') -or
@@ -107,7 +148,6 @@ function Verify-ReaderGate {
       throw 'Archive path gate requires path and writer review evidence for every script'
     }
   }
-  $repoRoot = FullPath (Join-Path $PSScriptRoot '..')
   foreach ($row in $gate) {
     if ($row.script -cnotmatch '^Testing/audits/[A-Za-z0-9_.-]+\.R$' -or
         $row.script_sha256 -cnotmatch '^[0-9a-fA-F]{64}$') {
@@ -119,32 +159,40 @@ function Verify-ReaderGate {
       throw "Reviewed audit script changed or is missing: $($row.script)"
     }
   }
-  return $ReviewedReaderGateSha256.ToLowerInvariant()
+  [pscustomobject]@{ gate_sha256 = $gateFile.sha256; queue_sha256 = $queueFile.sha256 }
 }
 
+$repoRoot = FullPath (Join-Path $PSScriptRoot '..')
+$canonicalQueue = FullPath (Join-Path $repoRoot 'docs\behavior_output_archive_audit_script_queue.csv')
+$queuePath = if ([string]::IsNullOrWhiteSpace($ReaderQueue)) { $canonicalQueue } else { FullPath $ReaderQueue }
 $ready = FullPath $AnalysisReadyRoot
+$fixtureRoot = $ready.StartsWith((FullPath ([System.IO.Path]::GetTempPath())) + '\',
+                                 [System.StringComparison]::OrdinalIgnoreCase)
 $source = FullPath (Join-Path $ready $RootName)
 $archiveParent = FullPath (Join-Path $ready 'history\original_layout')
 $archive = FullPath (Join-Path $archiveParent $RootName)
 $manifestPath = FullPath $Manifest
-$receipt = FullPath (Join-Path $ready ("_migration_control\numbered_root_archive\$RootName.json"))
+$control = FullPath (Join-Path $ready '_migration_control\numbered_root_archive')
+$receipt = Join-Path $control "$RootName.json"
 $manifestTool = Join-Path $PSScriptRoot 'Invoke-BehaviorNumberedRootArchiveManifest.ps1'
 if (-not (Test-Path -LiteralPath $ready -PathType Container) -or
+    (Split-Path -Leaf $ready) -cne 'analysis_ready' -or
     -not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or
     $ManifestSha256 -notmatch '^[0-9a-fA-F]{64}$' -or
     (Sha256 $manifestPath) -cne $ManifestSha256.ToLowerInvariant()) {
   throw 'Missing analysis_ready root or changed archive manifest'
 }
-if ($archiveParent -cne (FullPath (Join-Path $ready 'history\original_layout')) -or
-    $source -cne (FullPath (Join-Path $ready $RootName)) -or
-    $archive -cne (FullPath (Join-Path $archiveParent $RootName))) {
-  throw 'Archive paths did not resolve to the expected analysis_ready locations'
+if ($manifestPath.StartsWith($ready + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+  throw 'The archive manifest must be stored outside analysis_ready'
 }
-$record = Read-Receipt $receipt
 
 function Verify-Location([string] $Location) {
-  & $manifestTool -Action Verify -AnalysisReadyRoot $ready -RootName $RootName `
+  $checked = & $manifestTool -Action Verify -AnalysisReadyRoot $ready -RootName $RootName `
     -Manifest $manifestPath -Location $Location
+  if ($checked.manifest_sha256 -cne $ManifestSha256.ToLowerInvariant()) {
+    throw 'Archive manifest changed during verification'
+  }
+  $checked
 }
 function Assert-NoReparsePaths {
   foreach ($path in @($ready, (Join-Path $ready 'history'), $archiveParent,
@@ -157,115 +205,175 @@ function Assert-NoReparsePaths {
     }
   }
 }
+function Assert-Inventory($Checked, $Record, [string] $Message) {
+  if ($Checked.files -ne [long]$Record.files -or
+      $Checked.bytes -ne [long]$Record.bytes) { throw $Message }
+}
 
-switch ($Action) {
-  'Inspect' {
-    if ($null -eq $record) {
-      if (Test-Path -LiteralPath $archive) { throw 'Unreceipted archive destination exists' }
+# Changing actions hold an exclusive lock for their whole run. The operating
+# system deletes it when the handle closes; a lock left by a lost session must
+# be reviewed and removed by hand.
+$lock = $null
+if ($Action -cne 'Inspect' -and $Action -cne 'Verify') {
+  New-Item -ItemType Directory -Path $control -Force | Out-Null
+  $lockPath = Join-Path $control "$RootName.lock"
+  try {
+    $lock = [System.IO.FileStream]::new(
+      $lockPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::ReadWrite,
+      [System.IO.FileShare]::None, 1, [System.IO.FileOptions]::DeleteOnClose)
+  } catch {
+    throw "Another archive action holds $lockPath"
+  }
+}
+try {
+  $record = Read-Receipt $receipt
+  switch ($Action) {
+    'Inspect' {
+      if ($null -eq $record) {
+        if (Test-Path -LiteralPath $archive) { throw 'Unreceipted archive destination exists' }
+        $checked = Verify-Location 'Original'
+        [pscustomobject]@{ action = 'Inspect'; state = 'unprepared'; root = $RootName;
+          files = $checked.files; hashes = 'PASS' }
+      } elseif ($record.state -ceq 'prepared') {
+        if (Test-Path -LiteralPath $archive) { throw 'Prepared archive destination exists' }
+        $checked = Verify-Location 'Original'
+        Assert-Inventory $checked $record 'Prepared receipt inventory differs'
+        [pscustomobject]@{ action = 'Inspect'; state = 'prepared'; root = $RootName;
+          files = $checked.files; hashes = 'PASS' }
+      } elseif ($record.state -ceq 'activated') {
+        $checked = Verify-Location 'Archived'
+        Assert-Inventory $checked $record 'Activated receipt inventory differs'
+        [pscustomobject]@{ action = 'Inspect'; state = 'activated'; root = $RootName;
+          files = $checked.files; hashes = 'PASS' }
+      } else { throw "Archive needs recovery: $($record.state)" }
+    }
+    'Prepare' {
+      if ($null -ne $record -or (Test-Path -LiteralPath $archive)) {
+        throw 'Archive receipt or destination already exists'
+      }
+      $gateHashes = Verify-ReaderGate
       $checked = Verify-Location 'Original'
-      [pscustomobject]@{ action = 'Inspect'; state = 'unprepared'; root = $RootName;
+      $record = [pscustomobject]@{
+        root = $RootName; source_root_rel = $RootName
+        archive_root_rel = "history/original_layout/$RootName"
+        state = 'prepared'; files = $checked.files; bytes = $checked.bytes
+        manifest_sha256 = $ManifestSha256.ToLowerInvariant()
+        reader_gate_sha256 = $gateHashes.gate_sha256
+        reader_gate_kind = $ReaderGateKind
+        reader_queue_sha256 = $gateHashes.queue_sha256
+        prepared_at_utc = Utc
+      }
+      Write-Receipt $receipt $record
+      [pscustomobject]@{ action = 'Prepare'; state = 'prepared'; root = $RootName;
         files = $checked.files; hashes = 'PASS' }
-    } elseif ($record.state -ceq 'prepared') {
-      if (Test-Path -LiteralPath $archive) { throw 'Prepared archive destination exists' }
+    }
+    'Verify' {
+      if ($null -eq $record) { throw 'Missing archive receipt' }
+      if ($record.state -ceq 'prepared') { $checked = Verify-Location 'Original' }
+      elseif ($record.state -ceq 'activated') { $checked = Verify-Location 'Archived' }
+      else { throw "Archive needs recovery: $($record.state)" }
+      Assert-Inventory $checked $record 'Archive receipt inventory differs'
+      [pscustomobject]@{ action = 'Verify'; state = $record.state; root = $RootName;
+        files = $checked.files; hashes = 'PASS' }
+    }
+    'Activate' {
+      if ($null -eq $record -or $record.state -cne 'prepared') {
+        throw 'Activate requires a prepared archive receipt'
+      }
+      if ($ReaderGateKind -cne $record.reader_gate_kind) {
+        throw 'Reader gate kind changed after Prepare'
+      }
+      $gateHashes = Verify-ReaderGate
+      if ($gateHashes.gate_sha256 -cne $record.reader_gate_sha256) {
+        throw 'Reader gate changed after Prepare'
+      }
+      if ($gateHashes.queue_sha256 -cne $record.reader_queue_sha256) {
+        throw 'Reader queue changed after Prepare'
+      }
+      if (Test-Path -LiteralPath $archive) { throw 'Archive destination already exists' }
       $checked = Verify-Location 'Original'
-      if ($checked.files -ne [int]$record.files -or
-          $checked.bytes -ne [long]$record.bytes) { throw 'Prepared receipt inventory differs' }
-      [pscustomobject]@{ action = 'Inspect'; state = 'prepared'; root = $RootName;
-        files = $checked.files; hashes = 'PASS' }
-    } elseif ($record.state -ceq 'activated') {
-      $checked = Verify-Location 'Archived'
-      if ($checked.files -ne [int]$record.files -or
-          $checked.bytes -ne [long]$record.bytes) { throw 'Activated receipt inventory differs' }
-      [pscustomobject]@{ action = 'Inspect'; state = 'activated'; root = $RootName;
-        files = $checked.files; hashes = 'PASS' }
-    } else { throw "Archive needs recovery: $($record.state)" }
-  }
-  'Prepare' {
-    if ($null -ne $record -or (Test-Path -LiteralPath $archive)) {
-      throw 'Archive receipt or destination already exists'
-    }
-    $gateHash = Verify-ReaderGate
-    $checked = Verify-Location 'Original'
-    $record = [pscustomobject]@{
-      root = $RootName; source_root_rel = $RootName
-      archive_root_rel = "history/original_layout/$RootName"
-      state = 'prepared'; files = $checked.files; bytes = $checked.bytes
-      manifest_sha256 = $ManifestSha256.ToLowerInvariant()
-      reader_gate_sha256 = $gateHash
-      reader_gate_kind = $ReaderGateKind
-      reader_queue_sha256 = Sha256 (FullPath $ReaderQueue)
-      prepared_at_utc = [DateTime]::UtcNow.ToString('o')
-    }
-    Write-Receipt $receipt $record
-    [pscustomobject]@{ action = 'Prepare'; state = 'prepared'; root = $RootName;
-      files = $checked.files; hashes = 'PASS' }
-  }
-  'Verify' {
-    if ($null -eq $record) { throw 'Missing archive receipt' }
-    if ($record.state -ceq 'prepared') { $checked = Verify-Location 'Original' }
-    elseif ($record.state -ceq 'activated') { $checked = Verify-Location 'Archived' }
-    else { throw "Archive needs recovery: $($record.state)" }
-    if ($checked.files -ne [int]$record.files -or
-        $checked.bytes -ne [long]$record.bytes) { throw 'Archive receipt inventory differs' }
-    [pscustomobject]@{ action = 'Verify'; state = $record.state; root = $RootName;
-      files = $checked.files; hashes = 'PASS' }
-  }
-  'Activate' {
-    if ($null -eq $record -or $record.state -cne 'prepared') {
-      throw 'Activate requires a prepared archive receipt'
-    }
-    if ($ReaderGateKind -cne $record.reader_gate_kind) {
-      throw 'Reader gate kind changed after Prepare'
-    }
-    $gateHash = Verify-ReaderGate
-    if ($gateHash -cne $record.reader_gate_sha256) {
-      throw 'Reader gate changed after Prepare'
-    }
-    if ((Sha256 (FullPath $ReaderQueue)) -cne $record.reader_queue_sha256) {
-      throw 'Reader queue changed after Prepare'
-    }
-    if (Test-Path -LiteralPath $archive) { throw 'Archive destination already exists' }
-    $checked = Verify-Location 'Original'
-    if ($checked.files -ne [int]$record.files -or
-        $checked.bytes -ne [long]$record.bytes) { throw 'Source changed after Prepare' }
-    Assert-NoReparsePaths
-    New-Item -ItemType Directory -Path $archiveParent -Force | Out-Null
-    Assert-NoReparsePaths
-    $record.state = 'transferring'
-    Write-Receipt $receipt $record
-    Move-RootDirectory $source $archive
-    $checked = Verify-Location 'Archived'
-    $record.state = 'activated'
-    $record | Add-Member -NotePropertyName activated_at_utc `
-      -NotePropertyValue ([DateTime]::UtcNow.ToString('o')) -Force
-    Write-Receipt $receipt $record
-    [pscustomobject]@{ action = 'Activate'; state = 'activated'; root = $RootName;
-      files = $checked.files; hashes = 'PASS' }
-  }
-  'Rollback' {
-    if ($null -eq $record -or
-        $record.state -cnotin @('transferring', 'activated')) {
-      throw 'Rollback requires a transferring or activated archive receipt'
-    }
-    Assert-NoReparsePaths
-    if ((Test-Path -LiteralPath $source) -and
-        -not (Test-Path -LiteralPath $archive)) {
-      $checked = Verify-Location 'Original'
-    } elseif (-not (Test-Path -LiteralPath $source) -and
-              (Test-Path -LiteralPath $archive)) {
-      $checked = Verify-Location 'Archived'
+      Assert-Inventory $checked $record 'Source changed after Prepare'
+      Assert-NoReparsePaths
+      New-Item -ItemType Directory -Path $archiveParent -Force | Out-Null
+      Assert-NoReparsePaths
       $record.state = 'transferring'
       Write-Receipt $receipt $record
-      Move-RootDirectory $archive $source
-      $checked = Verify-Location 'Original'
-    } else {
-      throw 'Rollback found both or neither numbered source locations'
+      Move-RootDirectory $source $archive
+      $checked = Verify-Location 'Archived'
+      Assert-Inventory $checked $record 'Archived inventory differs from the prepared receipt'
+      $record.state = 'activated'
+      $record | Add-Member -NotePropertyName activated_at_utc -NotePropertyValue (Utc) -Force
+      Write-Receipt $receipt $record
+      [pscustomobject]@{ action = 'Activate'; state = 'activated'; root = $RootName;
+        files = $checked.files; hashes = 'PASS' }
     }
-    if ($checked.files -ne [int]$record.files -or
-        $checked.bytes -ne [long]$record.bytes) { throw 'Rollback inventory differs' }
-    $record.state = 'prepared'
-    Write-Receipt $receipt $record
-    [pscustomobject]@{ action = 'Rollback'; state = 'prepared'; root = $RootName;
-      files = $checked.files; hashes = 'PASS' }
+    'Rollback' {
+      if ($null -eq $record -or
+          $record.state -cnotin @('transferring', 'activated')) {
+        throw 'Rollback requires a transferring or activated archive receipt'
+      }
+      Assert-NoReparsePaths
+      $atSource = Test-Path -LiteralPath $source
+      $atArchive = Test-Path -LiteralPath $archive
+      if ($AcceptInventoryDrift) {
+        # Recovery after a failed post-move verification: rename the archive
+        # back without trusting its contents. Nothing is deleted or rewritten.
+        if ($atSource -or -not $atArchive) {
+          throw 'Drift recovery requires the archive and no original root'
+        }
+        $record.state = 'transferring'
+        $record | Add-Member -NotePropertyName drift_detected_at_utc -NotePropertyValue (Utc) -Force
+        Write-Receipt $receipt $record
+        Move-RootDirectory $archive $source
+        return [pscustomobject]@{ action = 'Rollback'; state = 'transferring'; root = $RootName;
+          files = $null; hashes = 'NOT_VERIFIED' }
+      }
+      if ($atSource -and -not $atArchive) {
+        $checked = Verify-Location 'Original'
+      } elseif (-not $atSource -and $atArchive) {
+        $checked = Verify-Location 'Archived'
+        $record.state = 'transferring'
+        Write-Receipt $receipt $record
+        Move-RootDirectory $archive $source
+        $checked = Verify-Location 'Original'
+      } else {
+        throw 'Rollback found both or neither numbered source locations'
+      }
+      Assert-Inventory $checked $record 'Rollback inventory differs'
+      $record.state = 'prepared'
+      Write-Receipt $receipt $record
+      [pscustomobject]@{ action = 'Rollback'; state = 'prepared'; root = $RootName;
+        files = $checked.files; hashes = 'PASS' }
+    }
+    'Abandon' {
+      # Leave archive control without moving anything. The receipt is kept
+      # under abandoned/ for review; readers and writers then use the original.
+      if ($null -eq $record -or
+          -not ($record.state -ceq 'prepared' -or
+                ($record.state -ceq 'transferring' -and
+                 $record.PSObject.Properties.Name -contains 'drift_detected_at_utc'))) {
+        throw 'Abandon requires a prepared receipt or a drift-recovered transferring receipt'
+      }
+      if ([string]::IsNullOrWhiteSpace($AbandonReason)) {
+        throw 'Abandon requires -AbandonReason'
+      }
+      Assert-NoReparsePaths
+      if (-not (Test-Path -LiteralPath $source -PathType Container) -or
+          (Test-Path -LiteralPath $archive)) {
+        throw 'Abandon requires the original root and no archive destination'
+      }
+      $stamp = Utc
+      $record | Add-Member -NotePropertyName abandoned_at_utc -NotePropertyValue $stamp -Force
+      $record | Add-Member -NotePropertyName abandon_reason -NotePropertyValue $AbandonReason -Force
+      $abandoned = Join-Path $control ('abandoned\' + $RootName + '-' +
+                                       ($stamp -replace '[^0-9A-Za-z]', '') + '.json')
+      if (Test-Path -LiteralPath $abandoned) { throw "Abandoned receipt exists: $abandoned" }
+      Write-Receipt $abandoned $record
+      Remove-Item -LiteralPath $receipt
+      [pscustomobject]@{ action = 'Abandon'; state = 'unprepared'; root = $RootName;
+        files = $null; hashes = 'NOT_VERIFIED' }
+    }
   }
+} finally {
+  if ($null -ne $lock) { $lock.Dispose() }
 }

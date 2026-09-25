@@ -97,6 +97,19 @@ function Assert-R-Routes([string] $ExpectedSource) {
     Remove-Item Env:MMM_TEST_ARCHIVE_SOURCE -ErrorAction SilentlyContinue
   }
 }
+# Writers must refuse the numbered root and the archive whenever a receipt
+# written by the transaction tool exists, while semantic outputs stay writable.
+function Assert-R-Writers([bool] $Blocked) {
+  $env:MMM_TEST_ARCHIVE_FIXTURE = $fixture
+  $env:MMM_TEST_WRITERS_BLOCKED = if ($Blocked) { 'TRUE' } else { 'FALSE' }
+  try {
+    $result = & Rscript -e 'source("Functions/project_paths.R"); r <- Sys.getenv("MMM_TEST_ARCHIVE_FIXTURE"); blocked <- identical(Sys.getenv("MMM_TEST_WRITERS_BLOCKED"), "TRUE"); err <- function(x) inherits(try(x, silent=TRUE), "try-error"); ready <- file.path(r, "analysis_ready"); semantic <- file.path(ready, "analyses", "dyadic_contacts"); stopifnot(identical(err(mmm_behavior_numbered_writer_root("06_behavioral_dynamics", r)), blocked), identical(err(mmm_behavior_guard_numbered_output_path(file.path(ready, "06_behavioral_dynamics", "hmm_states", "1min_based"), r)), blocked), err(mmm_behavior_guard_numbered_output_path(file.path(ready, "history", "original_layout", "06_behavioral_dynamics", "x"), r)), identical(mmm_behavior_guard_numbered_output_path(semantic, r), semantic))' 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "R writer guard did not match the receipt state: $($result -join ' | ')" }
+  } finally {
+    Remove-Item Env:MMM_TEST_ARCHIVE_FIXTURE -ErrorAction SilentlyContinue
+    Remove-Item Env:MMM_TEST_WRITERS_BLOCKED -ErrorAction SilentlyContinue
+  }
+}
 function Assert-R-Rejects {
   $env:MMM_TEST_ARCHIVE_FIXTURE = $fixture
   try {
@@ -112,6 +125,21 @@ Write-Gate 'ready'
 if ((Invoke-Archive 'Inspect').state -cne 'unprepared') {
   throw 'Initial archive inspection did not report unprepared'
 }
+Assert-R-Writers $false
+
+# Without -ReaderQueue the repository's 37-row audit queue applies, which a
+# two-row fixture gate cannot satisfy.
+Expect-Failure {
+  & $tool -Action Prepare -AnalysisReadyRoot $ready -RootName '06_behavioral_dynamics' `
+    -Manifest $manifest -ManifestSha256 $manifestHash -ReviewedReaderGate $gate `
+    -ReviewedReaderGateSha256 $gateHash
+} 'unique row for every queued script'
+# A lock left by another action blocks every changing action.
+$lockPath = Join-Path (Split-Path -Parent $receiptPath) '06_behavioral_dynamics.lock'
+New-Item -ItemType Directory -Path (Split-Path -Parent $receiptPath) -Force | Out-Null
+[System.IO.File]::WriteAllText($lockPath, 'held')
+Expect-Failure { Invoke-Archive 'Prepare' } 'Another archive action holds'
+Remove-Item -LiteralPath $lockPath
 
 # A stale manifest hash, an incomplete or duplicated gate, and a ready label
 # with a stale script hash must not prepare the transaction.
@@ -144,7 +172,39 @@ if ((Invoke-Archive 'Prepare').state -cne 'prepared' -or
   throw 'Archive preparation did not verify'
 }
 Assert-R-Routes $source
+Assert-R-Writers $true
 Expect-Failure { Invoke-Archive 'Prepare' } 'Archive receipt or destination already exists'
+if (Test-Path -LiteralPath $lockPath) { throw 'A finished action left its lock behind' }
+
+# A prepared root can leave archive control without moving anything. The
+# receipt is kept for review and writers are released.
+Expect-Failure { Invoke-Archive 'Abandon' } 'requires -AbandonReason'
+& $tool -Action Abandon -AnalysisReadyRoot $ready -RootName '06_behavioral_dynamics' `
+  -Manifest $manifest -ManifestSha256 $manifestHash -AbandonReason 'fixture' | Out-Null
+$abandonedReceipts = @(Get-ChildItem -LiteralPath (Join-Path (Split-Path -Parent $receiptPath) 'abandoned') -Filter '06_behavioral_dynamics-*.json')
+if ((Test-Path -LiteralPath $receiptPath) -or $abandonedReceipts.Count -ne 1 -or
+    ((Get-Content -LiteralPath $abandonedReceipts[0].FullName -Raw | ConvertFrom-Json).abandon_reason -cne 'fixture')) {
+  throw 'Abandon did not retire the prepared receipt'
+}
+Assert-Source-Intact
+Assert-R-Writers $false
+if ((Invoke-Archive 'Prepare').state -cne 'prepared') { throw 'Prepare after Abandon failed' }
+
+# A failed receipt replacement keeps the previous receipt and leaves no
+# temporary file; nothing has moved.
+$receiptBefore = [System.IO.File]::ReadAllBytes($receiptPath)
+$receiptHold = [System.IO.File]::Open($receiptPath, 'Open', 'Read', 'Read')
+try {
+  Expect-Failure { Invoke-Archive 'Activate' } 'denied|being used'
+} finally {
+  $receiptHold.Dispose()
+}
+if ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($receiptPath)) -cne
+      [Convert]::ToBase64String($receiptBefore) -or
+    @(Get-ChildItem -LiteralPath (Split-Path -Parent $receiptPath) -Filter '.numbered-root-*.tmp' -Force).Count -ne 0) {
+  throw 'A failed receipt write changed or lost the prepared receipt'
+}
+Assert-Source-Intact
 
 # The source is rehashed immediately before activation. A changed file or a
 # file added by a writer after Prepare (as Stage 01 once did) blocks the move.
@@ -160,6 +220,9 @@ if ((Receipt-State) -cne 'prepared') { throw 'Refused activation changed the rec
 $oldGateHash = $gateHash
 Write-Gate 'needs_reader_writer_review'
 Expect-Failure { Invoke-Archive 'Activate' } 'does not resolve every queued script'
+# A gate that is still valid but differs from the prepared one is refused.
+Write-Gate 'ready' -Rows @($scripts[1], $scripts[0])
+Expect-Failure { Invoke-Archive 'Activate' } 'Reader gate changed after Prepare'
 Write-Gate 'ready'
 if ($gateHash -cne $oldGateHash) { throw 'Fixture gate did not return to its original hash' }
 $oldQueueHash = (Get-FileHash -LiteralPath $queue -Algorithm SHA256).Hash
@@ -227,6 +290,14 @@ $receiptText = Get-Content -LiteralPath $receiptPath -Raw
 $receipt = $receiptText | ConvertFrom-Json
 $receipt.manifest_sha256 = 'e' * 64
 $receipt | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $receiptPath -Encoding utf8
+Expect-Failure { Invoke-Archive 'Inspect' } 'Archive receipt pins manifest e{64}, not'
+$receipt = $receiptText | ConvertFrom-Json
+$receipt.state = 'unknown'
+$receipt | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $receiptPath -Encoding utf8
+Expect-Failure { Invoke-Archive 'Inspect' } 'Invalid numbered-root archive receipt'
+$receipt = $receiptText | ConvertFrom-Json
+$receipt.files = '2'
+$receipt | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $receiptPath -Encoding utf8
 Expect-Failure { Invoke-Archive 'Inspect' } 'Invalid numbered-root archive receipt'
 Set-Content -LiteralPath $receiptPath -Value '{' -Encoding utf8
 Expect-Failure { Invoke-Archive 'Inspect' } 'Invalid numbered-root archive receipt'
@@ -272,6 +343,39 @@ if ((Invoke-Archive 'Rollback').state -cne 'prepared' -or
     -not (Test-Path -LiteralPath $source) -or (Test-Path -LiteralPath $archive)) {
   throw 'Post-move interruption did not recover'
 }
+
+# Drift inside the archive after the move (for example a new thumbnail cache)
+# makes the normal Rollback refuse and readers fail closed. The explicit drift
+# recovery renames the root back without trusting it; Abandon then releases
+# the unverified original for review.
+$receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+$receipt.state = 'transferring'
+$receipt | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $receiptPath -Encoding utf8
+Move-Item -LiteralPath $source -Destination $archive
+$drift = Join-Path $archive 'dyadic_contacts\Thumbs.db'
+[System.IO.File]::WriteAllText($drift, 'thumbnail cache')
+Expect-Failure { Invoke-Archive 'Rollback' } 'file count or uniqueness differs'
+if ((Receipt-State) -cne 'transferring' -or (Test-Path -LiteralPath $source) -or
+    -not (Test-Path -LiteralPath $drift)) {
+  throw 'Refused drift rollback changed the archive state'
+}
+Assert-R-Rejects
+Expect-Failure { Invoke-Archive 'Abandon' } 'Abandon requires a prepared receipt'
+& $tool -Action Rollback -AnalysisReadyRoot $ready -RootName '06_behavioral_dynamics' `
+  -Manifest $manifest -ManifestSha256 $manifestHash -AcceptInventoryDrift | Out-Null
+if ((Receipt-State) -cne 'transferring' -or -not (Test-Path -LiteralPath $source) -or
+    (Test-Path -LiteralPath $archive) -or
+    -not ((Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json).PSObject.Properties.Name -contains 'drift_detected_at_utc')) {
+  throw 'Drift recovery did not return the root with a transferring receipt'
+}
+Assert-R-Rejects
+Expect-Failure { Invoke-Archive 'Rollback' } 'file count or uniqueness differs'
+& $tool -Action Abandon -AnalysisReadyRoot $ready -RootName '06_behavioral_dynamics' `
+  -Manifest $manifest -ManifestSha256 $manifestHash -AbandonReason 'fixture drift' | Out-Null
+if (Test-Path -LiteralPath $receiptPath) { throw 'Abandon after drift recovery kept the receipt' }
+Assert-R-Writers $false
+Remove-Item -LiteralPath (Join-Path $source 'dyadic_contacts\Thumbs.db')
+if ((Invoke-Archive 'Prepare').state -cne 'prepared') { throw 'Prepare after drift recovery failed' }
 
 # The path-and-writer gate is an explicit alternative. It cannot be confused
 # with replay-ready, and the selected kind is pinned through activation.
