@@ -23,6 +23,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'BehaviorArchiveSharedCode.ps1')
 
 # Relative arguments resolve against the PowerShell location, not the
 # process working directory.
@@ -127,6 +128,20 @@ function Verify-ReaderGate {
       @($gate | Select-Object -ExpandProperty script -Unique).Count -ne $gate.Count) {
     throw 'Reader gate does not have a unique row for every queued script'
   }
+  # Each reviewed row is tied to the queue version and to the shared path
+  # code it was reviewed against, not only to its own audit script.
+  foreach ($column in @('queue_sha256', 'shared_code_sha256')) {
+    if (-not ($gate[0].PSObject.Properties.Name -contains $column)) {
+      throw "Reader gate is missing the $column column"
+    }
+  }
+  if (@($gate | Where-Object { $_.queue_sha256 -cne $queueFile.sha256 }).Count -gt 0) {
+    throw 'Reader gate was reviewed against a different queue'
+  }
+  $sharedHash = Get-BehaviorArchiveSharedCodeSha256 $repoRoot
+  if (@($gate | Where-Object { $_.shared_code_sha256 -cne $sharedHash }).Count -gt 0) {
+    throw 'Shared path code changed since the reader gate was reviewed'
+  }
   $queuedScripts = @($queue | ForEach-Object script | Sort-Object)
   $gateScripts = @($gate | ForEach-Object script | Sort-Object)
   $requiredState = if ($ReaderGateKind -ceq 'ArchivePath') {
@@ -146,6 +161,11 @@ function Verify-ReaderGate {
           [string]::IsNullOrWhiteSpace($_.writer_review_evidence)
         }).Count -gt 0) {
       throw 'Archive path gate requires path and writer review evidence for every script'
+    }
+    # Path evidence is specific to one root's move.
+    if (-not ($gate[0].PSObject.Properties.Name -contains 'archive_root') -or
+        @($gate | Where-Object { $_.archive_root -cne $RootName }).Count -gt 0) {
+      throw "Archive path gate is not scoped to $RootName"
     }
   }
   foreach ($row in $gate) {

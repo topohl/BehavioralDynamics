@@ -78,6 +78,7 @@ if (Get-Command powershell.exe -ErrorAction SilentlyContinue) {
   if ($LASTEXITCODE -eq 0 -or ($legacy -join ' ') -notmatch 'requires') {
     throw "Windows PowerShell ran the manifest tool: $($legacy -join ' | ')"
   }
+  $global:LASTEXITCODE = 0
 }
 Expect-Failure { Invoke-Manifest 'Build' } 'Manifest already exists'
 Expect-Failure {

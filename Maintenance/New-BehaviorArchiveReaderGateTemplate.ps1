@@ -1,25 +1,40 @@
+#Requires -Version 7.2
 param(
   [Parameter(Mandatory = $true)] [string] $Output,
-  [string] $ReaderQueue = 'docs/behavior_output_archive_audit_script_queue.csv'
+  [string] $ReaderQueue = '',
+  # An ArchivePath review covers one numbered root's move; the archive tool
+  # refuses a path gate whose rows name another root.
+  [ValidateSet('', '03_derived_metrics', '06_behavioral_dynamics',
+               '12_systems_neuroscience_summary')]
+  [string] $RootName = ''
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$repo = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$queuePath = [System.IO.Path]::GetFullPath($ReaderQueue)
-$outputPath = [System.IO.Path]::GetFullPath($Output)
+. (Join-Path $PSScriptRoot 'BehaviorArchiveSharedCode.ps1')
+function FullPath([string] $Path) {
+  [System.IO.Path]::GetFullPath(
+    $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path))
+}
+$repo = FullPath (Join-Path $PSScriptRoot '..')
+$queuePath = if ([string]::IsNullOrWhiteSpace($ReaderQueue)) {
+  Join-Path $repo 'docs\behavior_output_archive_audit_script_queue.csv'
+} else { FullPath $ReaderQueue }
+$outputPath = FullPath $Output
 if (-not (Test-Path -LiteralPath $queuePath -PathType Leaf) -or
     (Test-Path -LiteralPath $outputPath) -or
     -not (Test-Path -LiteralPath (Split-Path -Parent $outputPath) -PathType Container)) {
   throw 'Reader queue is missing, output exists, or output parent is missing'
 }
 $queue = @(Import-Csv -LiteralPath $queuePath)
-if ($queue.Count -ne 37 -or
+if ($queue.Count -eq 0 -or
     -not ($queue[0].PSObject.Properties.Name -contains 'script') -or
     -not ($queue[0].PSObject.Properties.Name -contains 'review_state') -or
     @($queue | Select-Object -ExpandProperty script -Unique).Count -ne $queue.Count) {
-  throw 'Reader queue must contain 37 unique audit scripts'
+  throw 'Reader queue must contain unique audit scripts'
 }
+$queueHash = (Get-FileHash -LiteralPath $queuePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$sharedHash = Get-BehaviorArchiveSharedCodeSha256 $repo
 $rows = foreach ($entry in $queue) {
   if ($entry.script -cnotmatch '^Testing/audits/[A-Za-z0-9_.-]+\.R$') {
     throw "Unsafe queued audit script: $($entry.script)"
@@ -34,6 +49,9 @@ $rows = foreach ($entry in $queue) {
     review_state = 'needs_reader_writer_review'
     script_sha256 = (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
     queue_state = $entry.review_state
+    archive_root = $RootName
+    queue_sha256 = $queueHash
+    shared_code_sha256 = $sharedHash
     path_review_evidence = ''
     writer_review_evidence = ''
   }
@@ -43,5 +61,7 @@ $rows | Export-Csv -LiteralPath $outputPath -NoTypeInformation -Encoding utf8
   template = $outputPath
   scripts = $rows.Count
   ready = @($rows | Where-Object { $_.review_state -ceq 'ready' }).Count
+  queue_sha256 = $queueHash
+  shared_code_sha256 = $sharedHash
   sha256 = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash.ToLowerInvariant()
 }

@@ -42,12 +42,22 @@ function Write-Queue([string] $State = 'needs_reader_writer_review') {
   @($scripts | ForEach-Object { [pscustomobject]@{ script = $_; review_state = $State } }) |
     Export-Csv -LiteralPath $queue -NoTypeInformation -Encoding utf8
 }
+. (Join-Path $PSScriptRoot '..\..\Maintenance\BehaviorArchiveSharedCode.ps1')
+$sharedCodeHash = Get-BehaviorArchiveSharedCodeSha256 (Join-Path $PSScriptRoot '..\..')
 function Write-Gate([string] $State, [string[]] $Rows = $scripts,
-                    [string] $StaleScript = '', [switch] $Evidence) {
+                    [string] $StaleScript = '', [switch] $Evidence,
+                    [string] $ArchiveRoot = '06_behavioral_dynamics',
+                    [string] $SharedCode = $sharedCodeHash,
+                    [string] $QueueHash = '') {
+  if (-not $QueueHash) {
+    $QueueHash = (Get-FileHash -LiteralPath $queue -Algorithm SHA256).Hash.ToLowerInvariant()
+  }
   @($Rows | ForEach-Object {
     $row = [ordered]@{
       script = $_; review_state = $State
       script_sha256 = $(if ($_ -ceq $StaleScript) { '0' * 64 } else { $scriptHashes[$_] })
+      archive_root = $ArchiveRoot; queue_sha256 = $QueueHash
+      shared_code_sha256 = $SharedCode
     }
     if ($Evidence) {
       $row.path_review_evidence = 'fixture path resolver'
@@ -150,6 +160,11 @@ Write-Gate 'ready' -Rows @($scripts[0], $scripts[0])
 Expect-Failure { Invoke-Archive 'Prepare' } 'unique row for every queued script'
 Write-Gate 'ready' -StaleScript $scripts[1]
 Expect-Failure { Invoke-Archive 'Prepare' } 'Reviewed audit script changed'
+# A review tied to other shared path code or another queue version is stale.
+Write-Gate 'ready' -SharedCode ('0' * 64)
+Expect-Failure { Invoke-Archive 'Prepare' } 'Shared path code changed'
+Write-Gate 'ready' -QueueHash ('0' * 64)
+Expect-Failure { Invoke-Archive 'Prepare' } 'reviewed against a different queue'
 Write-Gate 'ready'
 
 # A pre-existing destination, or an extra or missing source file, blocks
@@ -227,7 +242,7 @@ Write-Gate 'ready'
 if ($gateHash -cne $oldGateHash) { throw 'Fixture gate did not return to its original hash' }
 $oldQueueHash = (Get-FileHash -LiteralPath $queue -Algorithm SHA256).Hash
 Write-Queue 'changed_after_prepare'
-Expect-Failure { Invoke-Archive 'Activate' } 'Reader queue changed after Prepare'
+Expect-Failure { Invoke-Archive 'Activate' } 'reviewed against a different queue'
 Write-Queue
 if ((Get-FileHash -LiteralPath $queue -Algorithm SHA256).Hash -cne $oldQueueHash) {
   throw 'Fixture queue did not return to its original hash'
@@ -383,6 +398,9 @@ Remove-Item -LiteralPath $receiptPath
 Write-Gate 'archive_path_ready'
 Expect-Failure { Invoke-Archive 'Prepare' } 'does not resolve every queued script'
 Expect-Failure { Invoke-Archive 'Prepare' 'ArchivePath' } 'requires path and writer review evidence'
+# Path evidence reviewed for another root's move does not apply here.
+Write-Gate 'archive_path_ready' -Evidence -ArchiveRoot '03_derived_metrics'
+Expect-Failure { Invoke-Archive 'Prepare' 'ArchivePath' } 'not scoped to 06_behavioral_dynamics'
 Write-Gate 'archive_path_ready' -Evidence
 Expect-Failure { Invoke-Archive 'Prepare' } 'does not resolve every queued script'
 if ((Invoke-Archive 'Prepare' 'ArchivePath').state -cne 'prepared') {
