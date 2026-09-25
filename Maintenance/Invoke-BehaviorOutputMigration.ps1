@@ -209,6 +209,16 @@ function Assert-Sources([bool] $RequireReady = $true) {
   # also covers nested files and source roots shared by tables and audit groups.
   $roots = @($rows | ForEach-Object { Source-Root $_ } | Select-Object -Unique)
   foreach ($sourceRoot in $roots) {
+    # This tool copies only from unarchived sources. Once a numbered root has
+    # an archive receipt (prepared or later) or a retained archive directory,
+    # its groups are verified through the archive-aware inventory checks.
+    $numbered = $sourceRoot.Replace('\', '/').Split('/')[0]
+    if ($numbered -in @('03_derived_metrics', '06_behavioral_dynamics',
+                        '12_systems_neuroscience_summary') -and
+        ((Test-Path -LiteralPath (ChildPath $root "_migration_control/numbered_root_archive/$numbered.json")) -or
+         (Test-Path -LiteralPath (ChildPath $root "history/original_layout/$numbered")))) {
+      throw "Numbered root $numbered is under archive control; this migration tool reads only unarchived sources"
+    }
     if ($ownershipRows.Count -gt 0) {
       $prefix = $sourceRoot.Replace('\', '/').TrimEnd('/') + '/'
       $owned = @($ownershipRows | Where-Object {

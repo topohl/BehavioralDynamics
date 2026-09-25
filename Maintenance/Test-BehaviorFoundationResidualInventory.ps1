@@ -4,15 +4,21 @@ param(
 )
 
 # Read-only verification of the Stage 01 foundation cutover and the 32 files
-# retained only under the numbered derived-metrics root.
+# retained only under the numbered derived-metrics root. The retained root is
+# found through its archive receipt, so the check also runs after the move.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'BehaviorNumberedRootLocation.ps1')
 $ready = [System.IO.Path]::GetFullPath($AnalysisReadyRoot).TrimEnd('\', '/')
 $repo = [System.IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\', '/')
 $planPath = Join-Path $repo 'docs\behavior_output_activated_plans\derived_metrics_stage01_ready_plan.csv'
 $ownersPath = Join-Path $repo 'docs\behavior_output_activated_plans\derived_metrics_stage01_ready_ownership.csv'
+# Files that appeared in the numbered root after its activation. The ownership
+# snapshot is pinned by the activation receipt and is not edited.
+$additionsPath = Join-Path $repo 'docs\behavior_output_activated_plans\derived_metrics_post_activation_additions.csv'
 $rows = @(Import-Csv -LiteralPath $planPath)
 $owners = @(Import-Csv -LiteralPath $ownersPath)
+$additions = @(Import-Csv -LiteralPath $additionsPath)
 $receipt = Get-Content -LiteralPath (Join-Path $ready '_migration_control\behavior_metrics_foundation.json') -Raw |
   ConvertFrom-Json
 function Sha256Text([string] $value) {
@@ -43,7 +49,7 @@ $sourceSet = [System.Collections.Generic.HashSet[string]]::new(
 $targetSet = [System.Collections.Generic.HashSet[string]]::new(
   [System.StringComparer]::OrdinalIgnoreCase)
 foreach ($row in $rows) {
-  $source = Join-Path $ready ($row.source_rel.Replace('/', '\'))
+  $source = Resolve-BehaviorRetainedPath $ready $row.source_rel
   $target = Join-Path $ready (($row.target_root_rel + '/' + $row.target_file).Replace('/', '\'))
   $want = $row.source_sha256.ToLowerInvariant()
   if ((FileHash $source) -cne $want -or (FileHash $target) -cne $want) {
@@ -60,16 +66,27 @@ if ($semanticFiles.Count -ne $targetSet.Count -or
     @($semanticFiles | Where-Object { -not $targetSet.Contains($_.FullName) }).Count) {
   throw 'Stage 01 semantic inventory differs from its 20-file plan'
 }
-$oldRoot = Join-Path $ready '03_derived_metrics'
+$oldRoot = Resolve-BehaviorNumberedRoot $ready '03_derived_metrics'
 $oldFiles = @(Get-ChildItem -LiteralPath $oldRoot -File -Recurse |
               Where-Object { $_.Name -ine 'Thumbs.db' })
 $oldRel = @($oldFiles | ForEach-Object {
   '03_derived_metrics/' + $_.FullName.Substring($oldRoot.Length + 1).Replace('\', '/')
 })
-if ($oldFiles.Count -ne 52 -or
-    @($oldRel | Where-Object { $_ -notin $owners.source_rel }).Count -or
-    @($owners | Where-Object { $_.source_rel -notin $oldRel }).Count) {
-  throw 'Numbered derived-metrics tree differs from its 52-row ownership snapshot'
+foreach ($addition in $additions) {
+  $path = Resolve-BehaviorRetainedPath $ready $addition.source_rel
+  if ($addition.source_rel -in $owners.source_rel -or
+      $addition.classification -cne 'retained_only_unpromoted' -or
+      -not (Test-Path -LiteralPath $path -PathType Leaf) -or
+      (Get-Item -LiteralPath $path).Length -ne [long]$addition.size_bytes -or
+      (FileHash $path) -cne $addition.sha256.ToLowerInvariant()) {
+    throw "Post-activation addition differs from its reviewed record: $($addition.source_rel)"
+  }
+}
+$expectedRel = @($owners.source_rel) + @($additions.source_rel)
+if ($oldFiles.Count -ne 52 + $additions.Count -or
+    @($oldRel | Where-Object { $_ -notin $expectedRel }).Count -or
+    @($expectedRel | Where-Object { $_ -notin $oldRel }).Count) {
+  throw 'Numbered derived-metrics tree differs from its 52-row ownership snapshot and reviewed additions'
 }
 $retained = @($owners | Where-Object { -not $sourceSet.Contains($_.source_rel) })
 $identity = @($retained | Where-Object { $_.owner_group -ceq 'cross_scale_identity_validation' })
@@ -81,3 +98,4 @@ if ($retained.Count -ne 32 -or $identity.Count -ne 8 -or
 }
 Write-Output 'PASS: 20 Stage 01 originals and semantic copies match the plan and receipt'
 Write-Output 'PASS: 52 numbered files; 32 retained-only (8 identity, 14 spatial, 10 metadata)'
+Write-Output "PASS: $($additions.Count) reviewed post-activation addition(s), retained only: $oldRoot"

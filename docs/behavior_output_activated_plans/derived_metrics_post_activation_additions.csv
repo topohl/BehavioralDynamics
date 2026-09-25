@@ -1,0 +1,2 @@
+"source_rel","size_bytes","sha256","classification","note"
+"03_derived_metrics/qc/first_night_seed_provenance.csv","58105","799754a17259ea482af96a15e192893f643a3176ce65191c8ddaf2405fec8bb9","retained_only_unpromoted","Appeared 2026-09-24 16:57-16:59 CEST, after the 2026-09-24 foundation activation. Its header matches the Stage 01 seed-provenance table added in commit 5079617. The process that wrote it into the numbered root is not established. It is not in foundations/behavior_metrics, has not been promoted, and is retained with the numbered original only."

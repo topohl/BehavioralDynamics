@@ -4,12 +4,14 @@ param(
 )
 
 # Read-only check of all activated Stage 14 source partitions and the files
-# still present only in the numbered systems-summary tree.
+# still present only in the numbered systems-summary tree. The retained tree
+# is found through its archive receipt, so the check also runs after the move.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'BehaviorNumberedRootLocation.ps1')
 $ready = [System.IO.Path]::GetFullPath($AnalysisReadyRoot).TrimEnd('\', '/')
 $repo = [System.IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\', '/')
-$oldRoot = Join-Path $ready '12_systems_neuroscience_summary'
+$oldRoot = Resolve-BehaviorNumberedRoot $ready '12_systems_neuroscience_summary'
 if (-not (Test-Path -LiteralPath $oldRoot -PathType Container)) {
   throw "Missing numbered Stage 14 tree: $oldRoot"
 }
@@ -68,7 +70,7 @@ foreach ($group in $groups) {
     if (-not $mapped.Add($item.source_rel)) {
       throw "Duplicate Stage 14 source: $($item.source_rel)"
     }
-    $source = Join-Path $ready ($item.source_rel.Replace('/', '\'))
+    $source = Resolve-BehaviorRetainedPath $ready $item.source_rel
     $target = Join-Path $targetRoot ($item.target_file.Replace('/', '\'))
     $expected = $item.source_sha256.ToLowerInvariant()
     if ((FileHash $source) -cne $expected -or (FileHash $target) -cne $expected) {
@@ -124,8 +126,8 @@ if ($hmmMap.Count -ne 183 -or
   throw 'Historical HMM audit map differs from the retained 183-file tree'
 }
 foreach ($item in $hmmMap) {
-  $path = Join-Path $ready (
-    ('12_systems_neuroscience_summary/5min_based/' + $item.relative_path).Replace('/', '\'))
+  $path = Resolve-BehaviorRetainedPath $ready (
+    '12_systems_neuroscience_summary/5min_based/' + $item.relative_path)
   if ((FileHash $path) -cne $item.source_sha256.ToLowerInvariant() -or
       $item.migration_gate -cne 'blocked_historical_input_lineage_and_writer_collisions') {
     throw "Historical HMM audit map changed: $($item.relative_path)"
@@ -149,7 +151,7 @@ if ($mirrorRows.Count -ne 132) { throw 'Unexpected Stage 14 QC mirror count' }
 foreach ($mirror in $mirrorRows) {
   $name = [System.IO.Path]::GetFileName($mirror.source_rel).ToLowerInvariant()
   $candidates = $figureByName[$name]
-  $mirrorPath = Join-Path $ready ($mirror.source_rel.Replace('/', '\'))
+  $mirrorPath = Resolve-BehaviorRetainedPath $ready $mirror.source_rel
   $hash = FileHash $mirrorPath
   if (@($candidates | Where-Object {
     $_.source_sha256.ToLowerInvariant() -ceq $hash
