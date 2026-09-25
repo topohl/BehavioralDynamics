@@ -86,7 +86,7 @@ its new results require review before any registry or release decision.
 
 The cross-scale validator reads the receipt-selected Stage 01 metrics. New
 manual reports go to `analysis_ready/analyses/cross_scale_identity_validation/`;
-its August reports under `03_derived_metrics/qc/` remain historical. The
+its August reports, retained under `history/original_layout/03_derived_metrics/qc/`, remain historical. The
 older first-night, HMM, phase-impact, and Stage 09 forensic audits retain
 their numbered Stage 01 paths and require input-lineage review before rerun.
 - **Data-dependent contract checks** — `test_animal_identity_contract.R` and

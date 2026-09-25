@@ -121,8 +121,9 @@ older resolutions under
 per output group in `output_index.csv`. Stage 01 now reads and writes through
 `analysis_ready/foundations/behavior_metrics/`; its 20 current metric/QC
 files were copied from `03_derived_metrics/` with identical hashes. The
-numbered root retains all 52 originals, including separate identity-audit
-and spatial outputs. Activated groups retain their numbered
+numbered root, with all 53 originals including separate identity-audit and
+spatial outputs, is retained unchanged under
+`analysis_ready/history/original_layout/03_derived_metrics/`. Activated groups retain their numbered
 originals for provenance. Remaining branches need separate dependency review
 before any further migration.
 

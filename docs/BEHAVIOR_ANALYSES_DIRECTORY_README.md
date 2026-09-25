@@ -79,7 +79,8 @@ source-validity review before they are reused or rebuilt.
   map remains under `../06_behavioral_dynamics/` as run provenance.
 
 The numbered original folders remain intact for provenance and historical
-readers. The active path for each group is recorded by its `activated` receipt
+readers; the Stage 19 table and audit originals are retained unchanged under
+`../history/original_layout/03_derived_metrics/spatial_occupancy/`. The active path for each group is recorded by its `activated` receipt
 in `../_migration_control/`. Scientific stages and release builders were not
 rerun as part of the folder migration. Publication copies remain under
 `../../publication_ready/`.

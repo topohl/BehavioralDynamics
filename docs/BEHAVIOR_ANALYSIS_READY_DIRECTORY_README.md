@@ -3,7 +3,7 @@
 Start manuscript reporting at `manuscript/behavior/Behavioral_Source_Data.xlsx`.
 Machine-readable result, source-data, provenance, validation, and manifest CSVs are beside the workbook.
 
-Current Stage 01 metric/QC foundations live under `foundations/behavior_metrics/`; see `foundations/README.md`.
+Current Stage 01 metric/QC foundations live under `foundations/behavior_metrics/`; see `foundations/README.md`. Their numbered `03_derived_metrics/` original, including the Stage 19 spatial originals, is retained unchanged under `history/original_layout/03_derived_metrics/`.
 Current semantically named behavioral analyses live under `analyses/`; see its `README.md` for the active groups.
 Older resolution copies are organized by scientific family under `history/`; see its `README.md`. Their numbered originals remain for provenance.
 Stage-addressed migrated outputs live under `pipeline/` and use `tables/`, `figures/`, and `audit/`.

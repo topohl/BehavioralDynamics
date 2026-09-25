@@ -159,8 +159,8 @@ There are no group staging directories left.
 
 The remaining numbered roots are separate migration candidates. Stage 01's
 20 current metric/QC products now resolve at
-`foundations/behavior_metrics/`; all 52 files under `03_derived_metrics/`
-remain for historical paths and provenance. `12_systems_neuroscience_summary/` retains the original
+`foundations/behavior_metrics/`; all 53 original files of `03_derived_metrics/`
+are retained unchanged under `history/original_layout/03_derived_metrics/`. `12_systems_neuroscience_summary/` retains the original
 Stage 14 dashboard, historical manifests, figure mirrors, and independently
 produced audit families. The current dashboard, first-night groups, and
 inactive-QC audit have separate semantic paths. The supporting nonlinear and systems-

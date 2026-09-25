@@ -9,9 +9,12 @@ retained source path.
 These 20 files are hash-verified copies of the September 22 Stage 01 run.
 The activation receipt is
 `../_migration_control/behavior_metrics_foundation.json`. The numbered
-`../03_derived_metrics/` tree remains intact for historical scripts. Its
-older cross-scale identity reports, Stage 19 spatial outputs, and original
-run manifests were not copied into `behavior_metrics/`.
+original is retained unchanged at
+`../history/original_layout/03_derived_metrics/`; its archive receipt is
+`../_migration_control/numbered_root_archive/03_derived_metrics.json`. Its
+older cross-scale identity reports, Stage 19 spatial outputs, original run
+manifests, and the unpromoted 2026-09-24 `qc/first_night_seed_provenance.csv`
+were not copied into `behavior_metrics/`.
 
 The manual cross-scale identity validator writes any new report to
 `../analyses/cross_scale_identity_validation/`; it has not been rerun as
