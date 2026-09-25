@@ -763,3 +763,51 @@ took the wording already committed in `c8c0a0a`. The new index has SHA-256
 predecessor is `_migration_control/output_index_before_03_archive_20260925.csv`
 (`D5088BECD4AB42A19CE01B893E92A3A0C6DC4A90A387B33FE560062972321EB6`). No
 scientific output was changed or rerun.
+
+## 2026-09-25 numbered-root archive: 06_behavioral_dynamics and 12_systems_neuroscience_summary
+
+With the maintainer's approval, `Invoke-BehaviorNumberedRootArchive.ps1
+-Action Activate` moved `12_systems_neuroscience_summary/` (activated
+14:10:25 UTC, 8 s) and then `06_behavioral_dynamics/` (14:16:32 UTC, 367 s)
+unchanged to `history/original_layout/`. The tool rehashed every file
+before and after each rename, against the manifests shown below. Each run
+also accepted the reviewed list of archived paths of 260 or more characters
+by its SHA-256.
+
+| Root | Files | Bytes | Manifest | Gate | Accepted long paths | Receipt SHA-256 |
+| --- | ---: | ---: | --- | --- | --- | --- |
+| `12_systems_neuroscience_summary` | 702 | 209,524,954 | `a1b551f0...` | `c658d44a...` | 7, `ea855b79b75fe887...` | `0E483FE17566240135F032D6A2C59DC06E1E5C7A02553F5F9617A027CF960DE1` |
+| `06_behavioral_dynamics` | 1,469 | 18,194,653,380 | `17777e9c...` | `d717ec86...` | 20, `0841a9fbdc78fd29...` | `671B5A34159B9534B3042BFD18ADC8AC79E6EE51EBF974546F35345272266B31` |
+
+The receipts are in `_migration_control/numbered_root_archive/`. Both gates
+are the reviewed `ArchivePath` gates committed in `2611ee6`. Every active
+group sourced from either root still resolves to its semantic copy.
+
+Four live READMEs (root, `history/`, `analyses/`,
+`analyses/hmm_revalidation_runs/`) were replaced by their repository sources
+from `2232017` after backups to `_migration_control/`. `foundations/README.md`
+did not change.
+
+| Backup | SHA-256 |
+| --- | --- |
+| `analysis_ready_README_before_0612_archive_20260925.md` | `2B4E4DD8FD06E3FE12A50C2E630F3247BF000C2A0699383FFAAE8C2240F12638` |
+| `history_README_before_0612_archive_20260925.md` | `79D5DBC0A817F4901BF2FA0B294C5170052BEC132D695668FB06361E89148640` |
+| `analyses_README_before_0612_archive_20260925.md` | `9758175D66ECB2D68D69E71CFC3AE18D80B2E3FD64F81AC65745FC50DE56295C` |
+| `hmm_revalidation_README_before_0612_archive_20260925.md` | `5B9CCB3714DC7F64326D485797C0E61453EFF7A6547C713B3FCBE9F5AC600516` |
+
+`Maintenance/Refresh-BehaviorOutputIndex.R` then refreshed
+`output_index.csv`, using the rule from `cc47627`: a note names a retained
+original only if that folder moved with its root. Thirty-four notes gained
+the location of their original under `history/original_layout/`. The
+Stage 09 row did not, because its legacy folder had been quarantined before
+the move. No other cell changed. The new index has SHA-256
+`783BDFB7A7FE5316ABA04F416FC80AD62D6C9475518E08D00D27AA0298C08AB9`; its
+predecessor is
+`_migration_control/output_index_before_0612_archive_20260925.csv`
+(`AAAE32CFDB71EC6FF8EA3AE233707DD9AA5092DC4946C35D8B8E3FDF54135914`).
+
+At 14:17:17 UTC Windows Explorer added a 20,480-byte hidden
+`5min_based/figures/Thumbs.db` to the archived `12` root. All 702 recorded
+files still match their hashes. Until that file is removed or accepted,
+`Verify` for `12` reports a file-count difference. No scientific output was
+changed or rerun.

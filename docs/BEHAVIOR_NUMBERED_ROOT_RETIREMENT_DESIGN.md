@@ -468,3 +468,61 @@ the short `transferring` interval. Archive one root at a time, beginning with
 the root whose reader and writer inventory is fully resolved; do not choose by
 size alone. Obtain a separate approval for `Activate` after the manifest,
 reader changes, and test results are reviewable.
+
+## 06 and 12 activated, 2026-09-25
+
+The maintainer approved moving `06` and `12` if the path-length finding that
+had held them back was not a real blocker. On review it limits reading, not
+correctness. On this host (`LongPathsEnabled=0`), R 4.5.1 cannot open
+archived paths of 260 or more characters; PowerShell 7 and the transaction
+tool can. All 20 such paths in `06`, and one plotly stylesheet in `12`, have
+hash-identical copies of at most 220 characters in activated semantic
+groups. The other six are historical HMM audit CSVs in
+`12/5min_based/audit_hmm_state_architecture/first_night_domain_heatmap/`
+with no copy and no code reader. The two queued audits that read that folder
+open files of 242 and 249 characters. The only queued input that failed at
+live path lengths was the Stage 10 parity audit's listing, fixed in
+`039f51b`.
+
+`Prepare` and `Activate` now refuse over-long archived paths unless given
+the SHA-256 of the reviewed list (`fd1df88`). The receipt records the count
+and hash, and `Activate` refuses a list that changed after `Prepare`. The
+reviewed gates (`2611ee6`) mark all 37 queued audits `archive_path_ready`
+for each root: `06` `d717ec86...`, `12` `c658d44a...`. Before `Prepare`:
+
+- the full suite passed (55 R, 6 PowerShell);
+- no Explorer window was open on either root;
+- R and Python sessions used no CPU over 10 s;
+- the newest files dated from 2026-09-22 (`06`) and 2026-09-23 (`12`).
+
+| Root | Files | Bytes | Accepted long paths | Prepared (UTC) | Activated (UTC) | Receipt SHA-256 |
+| --- | ---: | ---: | --- | --- | --- | --- |
+| `12_systems_neuroscience_summary` | 702 | 209,524,954 | 7 (`ea855b79...`) | 14:07:08, 4 s | 14:10:25, 8 s | `0E483FE1...` |
+| `06_behavioral_dynamics` | 1,469 | 18,194,653,380 | 20 (`0841a9fb...`) | 14:10:01, 173 s | 14:16:32, 367 s | `671B5A34...` |
+
+After the moves:
+
+- R opens 1,449 of 1,469 archived `06` files and 695 of 702 archived `12`
+  files; the longest paths are 264 and 265 characters.
+- The 18 and 10 active roots still resolve to their semantic copies, and
+  code on this branch refuses writes into either archive.
+- The foundation and Stage 14 residual inventories pass.
+- The index note now names a retained original only if its folder moved
+  with the root (`cc47627`). The Stage 09 legacy folder had been
+  quarantined before the move and is absent.
+
+Drift after activation: at 14:17:17 UTC a 20,480-byte hidden
+`5min_based/figures/Thumbs.db` appeared in the archived `12` root. It is a
+Windows Explorer thumbnail cache. All 702 manifest files still match their
+hashes. Tool `Verify` for `12` fails on the file count until that file is
+removed or accepted; `Verify` passes for `03` and `06`.
+
+Open risks:
+
+- On `main`, the release branches and `exp9-upstream-endpoint-corrections`
+  (`35cda80`, an ancestor of this branch), code reads and writes the three
+  numbered roots by fixed path without receipt checks. At 14:32:55 UTC
+  another session checked the shared worktree out to that branch. None of
+  these branches may run against this RFID tree.
+- The six uncopied HMM audit CSVs are readable only with PowerShell 7 or on
+  a long-path host.
