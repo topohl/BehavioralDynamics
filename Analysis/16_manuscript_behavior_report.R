@@ -2053,7 +2053,7 @@ output_index <- tribble(
 )
 # legacy_path stays the provenance of the saved files. Once a numbered root is
 # archived under its receipt, the note also names the retained original's
-# current location.
+# current location, if that folder was present when the root moved.
 output_index$notes <- vapply(seq_len(nrow(output_index)), function(i) {
   legacy <- output_index$legacy_path[[i]]
   note <- output_index$notes[[i]]
@@ -2063,8 +2063,12 @@ output_index$notes <- vapply(seq_len(nrow(output_index)), function(i) {
   retained <- mmm_source_relative_path(
     mmm_behavior_numbered_source_root(numbered, base_dir), base_dir)
   if (identical(retained, numbered)) return(note)
-  paste0(note, " Retained original: analysis_ready/", retained,
-         substring(legacy, nchar(paste0("analysis_ready/", numbered)) + 1L))
+  retained <- paste0(retained,
+                     substring(legacy, nchar(paste0("analysis_ready/", numbered)) + 1L))
+  if (!file.exists(file.path(base_dir, "analysis_ready", sub("/+$", "", retained)))) {
+    return(note)
+  }
+  paste0(note, " Retained original: analysis_ready/", retained)
 }, character(1))
 if (anyDuplicated(na.omit(output_index$canonical_path))) {
   stop("output_index.csv contains duplicate canonical paths.", call. = FALSE)

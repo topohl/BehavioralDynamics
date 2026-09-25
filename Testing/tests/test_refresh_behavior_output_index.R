@@ -35,6 +35,7 @@ stopifnot(written$ok,
 stopifnot(!refresh("--write", "--backup=output_index_before_fixture_initial.csv")$ok)
 
 # After a synthetic 03 archive the dry run lists only the four 03 notes.
+dir.create(file.path(ready, "03_derived_metrics", "spatial_occupancy"))
 dir.create(file.path(ready, "history", "original_layout"), recursive = TRUE)
 stopifnot(file.rename(file.path(ready, "03_derived_metrics"),
                       file.path(ready, "history", "original_layout", "03_derived_metrics")))
@@ -71,4 +72,22 @@ stopifnot(final$ok,
                 refreshed$notes[refreshed$stage == "01-identity-history"], fixed = TRUE),
           identical(refreshed$legacy_path[refreshed$stage == "01"],
                     "analysis_ready/03_derived_metrics/"))
-cat("Output index refresh after synthetic 03 archive: PASS\n")
+
+# A legacy folder absent before its root moved gets no note: of the 06 rows,
+# only Stage 02's folder exists in this synthetic archive (live, the Stage 09
+# folder was quarantined before 06 moved).
+dir.create(file.path(ready, "history", "original_layout", "06_behavioral_dynamics",
+                     "dyadic_contacts"), recursive = TRUE)
+jsonlite::write_json(list(
+  root = "06_behavioral_dynamics", source_root_rel = "06_behavioral_dynamics",
+  archive_root_rel = "history/original_layout/06_behavioral_dynamics", state = "activated",
+  files = 1L, bytes = 1L, manifest_sha256 = strrep("c", 64L),
+  reader_gate_kind = "ArchivePath", reader_gate_sha256 = strrep("e", 64L),
+  reader_queue_sha256 = strrep("f", 64L)),
+  file.path(dirname(receipt), "06_behavioral_dynamics.json"), auto_unbox = TRUE)
+dry06 <- refresh()
+changed06 <- sub("^\\[([^]]+)\\] notes$", "\\1", grep("^\\[.*\\] notes$", dry06$out, value = TRUE))
+stopifnot(dry06$ok, identical(changed06, "02"),
+          any(grepl("history/original_layout/06_behavioral_dynamics/dyadic_contacts/",
+                    dry06$out, fixed = TRUE)))
+cat("Output index refresh after synthetic 03 and 06 archives: PASS\n")
