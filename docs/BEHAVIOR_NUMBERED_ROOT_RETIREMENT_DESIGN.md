@@ -1,13 +1,12 @@
 # Retiring numbered behavioral output roots: proposed transaction
 
-Status: `03_derived_metrics` activated under the approved `ArchivePath`
-gate, 2026-09-25; it now sits unchanged under
-`history/original_layout/03_derived_metrics/`. Nothing was deleted.
-`06_behavioral_dynamics` and `12_systems_neuroscience_summary` have no
-receipt. The receipt-activated
-semantic copies are already selected by current readers. This design is a
-separate operation from the completed copy activations. See "Readiness
-review, 2026-09-25" and "03 prepared, 2026-09-25" below.
+Status: all three numbered roots were activated under approved `ArchivePath`
+gates on 2026-09-25 (`03_derived_metrics` 13:45:50, `12_systems_neuroscience_summary`
+14:10:25, `06_behavioral_dynamics` 14:16:32 UTC). Each sits unchanged under
+`history/original_layout/<root>/` with an activated receipt, and nothing was
+deleted. Current readers select the receipt-activated semantic copies. The
+sections up to "Readiness review, 2026-09-25" describe the design and its
+state before the moves; the dated sections after it record what was done.
 
 ## Scope and destination
 
@@ -62,8 +61,10 @@ new UTF-8 CSV outside the numbered source and refuses to overwrite one;
 `Verify` rejects changed, missing, extra, duplicate, and unsafe paths after
 checking size and SHA-256. `Verify -Location Archived` checks the same manifest
 at the proposed retained-original path and rejects a recreated original root.
-Its temporary-fixture move and drift tests passed. It has not been used to
-move a live root or create an archive receipt. Three live read-only
+Its temporary-fixture move and drift tests passed. It only builds and
+verifies manifests and never moves a root or writes a receipt; the
+2026-09-25 moves were made by `Invoke-BehaviorNumberedRootArchive.ps1`,
+which calls its `Verify`. Three live read-only
 source hash passes wrote these versioned manifests in the repository:
 
 | Source root | Complete files | Manifest SHA-256 |
@@ -82,8 +83,8 @@ preserved and now fails `Inspect` on the file count. The versioned 53-file
 candidate was built and independently verified against the live source. All
 52 old entries retain identical paths, sizes, and SHA-256 values; the new QC
 file is the sole addition. Read-only `Inspect` still passed for the unchanged
-1,469-file `06` and 702-file `12` manifests. No root archive receipt was
-prepared and no source was moved.
+1,469-file `06` and 702-file `12` manifests. At that point no root archive
+receipt had been prepared and no source had moved.
 The new QC file is absent from the activated `foundations/behavior_metrics/`
 copy; it is retained in the numbered original and has not been promoted or
 interpreted as a new canonical product. The current Stage 01 default selects
@@ -109,8 +110,8 @@ when the gate CSV itself still has its reviewed hash. The gate hash and queue
 hash are retained in the archive receipt. This verifies review integrity, not
 the scientific result of a replay. A live read-only `Inspect` of the Stage 14
 root passed with 702 manifest files; `Prepare` using the current unresolved
-queue was refused and created no receipt. The transaction tool has not moved
-or prepared any live source.
+queue was refused and created no receipt. At that point the transaction tool
+had not moved or prepared any live source.
 
 ## Reader and writer gate before `Activate`
 
@@ -118,9 +119,10 @@ or prepared any live source.
    archive receipt and verifies that the retained source is in the selected
    location. Until an archive receipt is activated, the old path is required
    exactly as today. Temporary-fixture tests cover prepared, transferring,
-   activated, invalid, and interrupted locations; no receipt was created on
-   the live tree. Manual audit reader/writer review and a separately approved
-   live `Activate` are still required before a live move.
+   activated, invalid, and interrupted locations. Before 2026-09-25 no receipt
+   existed on the live tree, and a live move required manual audit
+   reader/writer review and a separately approved live `Activate`. Both were
+   done for all three roots; see the dated sections below.
 2. Keep Stage 10's current 18-group semantic discovery and its 606-path parity
    check. Its virtual numbered-path sort key preserves input precedence; the
    current group scan does not require the numbered `06` root.
@@ -320,10 +322,11 @@ be `archive_path_ready` with nonempty `path_review_evidence` and
 kind are pinned in the prepared receipt. These evidence fields are review
 records, not proof that numerical results reproduce. The template initializes
 every row as `needs_reader_writer_review` with blank evidence, even when the
-queue carries a prior `ready` value. The live queue has no `ready` rows and no
-reviewed `ArchivePath` gate exists, so live `Prepare` remains closed. The
-choice between an archive-path review and a full scientific replay remains
-open; the identity comparison remains unvalidated without a verified baseline.
+queue carries a prior `ready` value. The live queue has no `ready` rows. Until
+the reviewed `ArchivePath` gates were committed (`03` in `3aa33e6`, `06` and
+`12` in `2611ee6`), live `Prepare` was closed. Those gates record a path and
+writer review for the move only. A full scientific replay has not been run,
+and the identity comparison remains unvalidated without a verified baseline.
 
 On 2026-09-24, the read-only replay planner still listed 37 scripts, 34 fresh
 replay outputs, three console-only checks, and 16 same-run prerequisites. The
@@ -476,8 +479,8 @@ had held them back was not a real blocker. On review it limits reading, not
 correctness. On this host (`LongPathsEnabled=0`), R 4.5.1 cannot open
 archived paths of 260 or more characters; PowerShell 7 and the transaction
 tool can. All 20 such paths in `06`, and one plotly stylesheet in `12`, have
-hash-identical copies of at most 220 characters in activated semantic
-groups. The other six are historical HMM audit CSVs in
+hash-identical copies in activated semantic groups, of at most 220
+characters for the `06` files and 230 for the stylesheet. The other six are historical HMM audit CSVs in
 `12/5min_based/audit_hmm_state_architecture/first_night_domain_heatmap/`
 with no copy and no code reader. The two queued audits that read that folder
 open files of 242 and 249 characters. The only queued input that failed at
@@ -513,17 +516,49 @@ After the moves:
 
 Drift after activation: at 14:17:17 UTC a 20,480-byte hidden
 `5min_based/figures/Thumbs.db` appeared in the archived `12` root. It is a
-Windows Explorer thumbnail cache. All 702 manifest files still match their
-hashes. Tool `Verify` for `12` fails on the file count until that file is
-removed or accepted; `Verify` passes for `03` and `06`.
+Windows Explorer thumbnail cache. All 702 manifest files still matched their
+hashes, and `Verify` failed only on the file count. A copy was kept in the
+review work folder (SHA-256 `F13E3D06...`), the maintainer removed the file,
+and `Verify` then passed for `12` (702 files). It also passes for `03` and
+`06`. A second Explorer cache, created at 14:32:03 UTC in the unarchived
+`14_nextgen_behavioral_phenotyping/` root, has no effect: the inventory
+tools skip `Thumbs.db`. Avoid thumbnail views in archived folders.
 
 Open risks:
 
-- On `main`, the release branches and `exp9-upstream-endpoint-corrections`
-  (`35cda80`, an ancestor of this branch), code reads and writes the three
-  numbered roots by fixed path without receipt checks. None of these
+- On `main`, the release branches, `exp9-upstream-endpoint-corrections`
+  (`35cda80`) and the local `audit/hmm-state-architecture` (`2ffa556`), code
+  reads and writes the three numbered roots by fixed path without receipt
+  checks. Both named branches are ancestors of this branch. None of these
   branches may run against this RFID tree. At 14:32:55 UTC GitHub Desktop
-  switched the shared worktree to that branch for 32 seconds, leaving a
-  stash. Nothing was written to `analysis_ready/` in that window.
+  switched the shared worktree to `exp9-upstream-endpoint-corrections` for
+  32 seconds, leaving a stash. Nothing was written to `analysis_ready/` in that window.
 - The six uncopied HMM audit CSVs are readable only with PowerShell 7 or on
   a long-path host.
+
+## Post-activation dependency sweep, 2026-09-25
+
+A read-only sweep with adversarial verification covered code outside the 37
+queued audits, the open review rows, documentation and live navigation, and
+consumers outside this repository. It found no current reader of a missing
+path and no writer into the archives. Commit `bd9c2f0` closed the defensive
+gaps it confirmed:
+
+- the release builder, verifier check 4 and both Stage 27 builders refuse
+  `/history/original_layout/`;
+- the dashboard metadata refresher and the identity repair utility guard
+  their targets;
+- the cookiehab runner restores its options;
+- Stage 27 labels its first-night source data with the file it reads;
+- the residual inventories require PowerShell 7;
+- CI installs `jsonlite`.
+
+The per-surface status is in
+`behavior_output_archive_out_of_queue_review.csv`. Three items remain open:
+the PowerShell fixtures are not run in CI; the live quarantine manifest
+still names `06_behavioral_dynamics/` as its restore target; and two
+superseded `output_index_contract_*.csv` copies sit beside the live index.
+The last two are live files and need the maintainer's approval to change.
+A first version of the cookiehab runner test regenerated the cookiehab
+preprocessing and Stage 01/02 outputs; see
+`BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md`.

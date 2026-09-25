@@ -8,6 +8,18 @@ been copied and activated as `nonlinear_dynamics/5min/` and
 `systems_phenotyping/5min/`; their originals remain. See the activation record
 for the current state. This document authorizes no further cutover.
 
+Current-state update, 2026-09-25: `03_derived_metrics` (53 files),
+`06_behavioral_dynamics` (1,469) and `12_systems_neuroscience_summary` (702)
+moved unchanged to `analysis_ready/history/original_layout/`, each under an
+activated receipt in `_migration_control/numbered_root_archive/`; see
+`BEHAVIOR_NUMBERED_ROOT_RETIREMENT_DESIGN.md`. Everything below describes the
+2026-09-23/24 state before that move. Counts and statements that the roots,
+the HMM audit tree or the historical audit paths "remain" at their numbered
+locations no longer hold. Stage 14's non-primary resolution branch now
+refuses to write, because `mmm_behavior_numbered_writer_root()` stops once a
+receipt exists, and the queued historical audits read the retained
+originals through the receipts.
+
 Current-state update, 2026-09-24: the nine historical-resolution groups
 described below were subsequently activated as verified copies under
 `analysis_ready/history/`. All 864 numbered originals remain, and the
@@ -74,9 +86,12 @@ the 13 other records include historical manifests and pre-fix evidence that
 must retain their original lineage.
 
 ```powershell
-& .\Maintenance\Test-BehaviorStage14ResidualInventory.ps1 `
+pwsh -File .\Maintenance\Test-BehaviorStage14ResidualInventory.ps1 `
   -AnalysisReadyRoot 'S:\Lab_Member\Tobi\Experiments\Exp9_Social-Stress\Analysis\Behavior\RFID\analysis_ready'
 ```
+
+It requires PowerShell 7: Windows PowerShell 5.1 cannot open the archived
+paths of 260 or more characters that it hashes.
 
 ### Stage 01 foundation residue
 
@@ -90,7 +105,7 @@ reports, fourteen Stage 19 spatial originals, and ten Stage 01 metadata files.
 read-only hash, receipt, and ownership checks:
 
 ```powershell
-& .\Maintenance\Test-BehaviorFoundationResidualInventory.ps1 `
+pwsh -File .\Maintenance\Test-BehaviorFoundationResidualInventory.ps1 `
   -AnalysisReadyRoot 'S:\Lab_Member\Tobi\Experiments\Exp9_Social-Stress\Analysis\Behavior\RFID\analysis_ready'
 ```
 

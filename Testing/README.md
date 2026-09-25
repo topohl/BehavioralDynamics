@@ -55,7 +55,7 @@ Forensic and validation analyses that **require the E9 local dataset** under
 S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID
 ```
 
-Forty-two scripts. They read canonical pipeline outputs, and many of them also
+Fifty scripts. They read canonical pipeline outputs, and many of them also
 *write* audit tables into the local analysis tree. The saved originals of the
 older audits are retained under
 `analysis_ready/history/original_layout/12_systems_neuroscience_summary/5min_based/audit_*/`,
@@ -80,8 +80,10 @@ The two registry-linked active-persistence audit scripts now require an
 explicit `--output-dir=` one level under
 `analysis_ready/analyses/hmm_revalidation_runs/`. They read the active
 Stage 01 and Stage 08 paths and reject an existing output filename. This is
-an isolated scientific revalidation route; neither audit has been rerun, and
-its new results require review before any registry or release decision.
+an isolated scientific revalidation route. Both audits were rerun once on
+2026-09-24 into `analysis_ready/analyses/hmm_revalidation_runs/current_stage08_review_20260924/`;
+the results are unpromoted and require review before any registry or
+release decision.
 - **Phase classification impact** — `audit_phase_bug_impact.R`.
 - **Inactive-phase QC redesign** — `audit_inactive_phase_qc_redesign.R`.
 - **Stage 09 artifact hygiene** — `audit_stage09_stale_artifacts.R`.
@@ -92,8 +94,9 @@ its new results require review before any registry or release decision.
 The cross-scale validator reads the receipt-selected Stage 01 metrics. New
 manual reports go to `analysis_ready/analyses/cross_scale_identity_validation/`;
 its August reports, retained under `history/original_layout/03_derived_metrics/qc/`, remain historical. The
-older first-night, HMM, phase-impact, and Stage 09 forensic audits retain
-their numbered Stage 01 paths and require input-lineage review before rerun.
+older first-night, HMM, phase-impact, and Stage 09 forensic audits read the
+retained numbered Stage 01 original through its archive receipt and require
+input-lineage review before rerun.
 - **Data-dependent contract checks** — `test_animal_identity_contract.R` and
   `test_reporting_architecture.R`.
 
@@ -143,5 +146,11 @@ Do not use anything in `legacy/` for new analyses.
 | `Testing/audits/` | Data-dependent scientific validation |
 | `Testing/legacy/` | Historical provenance only |
 
-The authoritative per-file classification, including active consumers and
-move-safety notes, is in `docs/REPOSITORY_FILE_CLASSIFICATION.csv`.
+The per-file classification, including active consumers and move-safety
+notes, is in `docs/REPOSITORY_FILE_CLASSIFICATION.csv`. It is a 2026-09-04
+snapshot: its `S:` read and write notes predate the output migration and the
+2026-09-25 numbered-root archive. For the 37 queued historical audits, see
+the review evidence in `docs/behavior_output_archive_gate_<root>.csv`; the
+other audits' paths are described in this file and in
+`docs/behavior_output_archive_out_of_queue_review.csv`, and output groups in
+`analysis_ready/output_index.csv`.

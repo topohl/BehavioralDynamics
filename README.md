@@ -43,7 +43,7 @@ Core analytical themes:
 | Find the data and outputs | [`docs/DATA_AND_OUTPUTS.md`](docs/DATA_AND_OUTPUTS.md) |
 | Freeze a release | [`docs/PUBLICATION_RELEASE.md`](docs/PUBLICATION_RELEASE.md) |
 | Understand the stage-by-stage pipeline | [`Analysis/README_pipeline.md`](Analysis/README_pipeline.md) |
-| Know what every file is for | [`docs/REPOSITORY_FILE_CLASSIFICATION.csv`](docs/REPOSITORY_FILE_CLASSIFICATION.csv) |
+| Know what every file is for (2026-09-04 snapshot; its output paths predate the output migration) | [`docs/REPOSITORY_FILE_CLASSIFICATION.csv`](docs/REPOSITORY_FILE_CLASSIFICATION.csv) |
 
 ---
 

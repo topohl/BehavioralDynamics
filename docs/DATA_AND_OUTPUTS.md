@@ -26,7 +26,9 @@ Everything the pipeline reads and writes lives under the E9 project root:
 S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID
 ```
 
-Approximately 11.8 GB across ~20,200 files. Top level:
+Approximately 11.8 GB across ~20,200 files in the 2026-09-03/04 snapshot below.
+`analysis_ready/` has grown since; the archived `06_behavioral_dynamics` root
+alone holds 18,194,653,380 bytes. Top level:
 
 | Path | Size | Role |
 |---|---|---|
@@ -36,6 +38,12 @@ Approximately 11.8 GB across ~20,200 files. Top level:
 | `cookiehab/` | 0.13 GB | Separate cookiehab experiment |
 | `publication_ready/` | 0.08 GB | Older hand-assembled publication staging |
 | `.old/`, `Sleep/`, `lme_sis_activity/` | 0.11 GB | Historical |
+
+On 2026-09-25 the cookie-habituation preprocessing outputs
+(`cookiehab/preprocessed_data/`, `cookiehab/qc/`) and the Stage 01 and Stage 02
+outputs under `cookiehab/analysis_ready/` were regenerated unintentionally,
+with the stage code at `e0be716`. The maintainer chose to keep them; see
+`docs/BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md`.
 
 Within `MMMSociability/`:
 
@@ -140,6 +148,11 @@ where the analysis is Active-only. `QUARANTINE_MANIFEST.csv` records, per tree,
 the generating script, the artifact date, the specific contract violations, what
 replaced it, and that the action is reversible. Quarantined data must never be
 resolved by any reader, and the release builder refuses to touch this tree.
+The manifest's restore target, `06_behavioral_dynamics/`, was archived on
+2026-09-25, so these trees can no longer be restored in place. Moving them
+back to `analysis_ready/06_behavioral_dynamics/` would recreate a retired
+root and stop every receipt-aware reader; moving them into
+`history/original_layout/` would break the archive's verification.
 
 ---
 
@@ -213,6 +226,15 @@ independent of any git or release process.
 ---
 
 ## Future local filesystem migration (not now)
+
+Update 2026-09-25: part of this has since been done by receipt-activated
+copies rather than by rewriting paths. The current Stage 11–13 ten-minute
+outputs and the Stage 14 outputs are copied under `analysis_ready/analyses/`;
+the older Stage 11–13 five-minute branches remain only in their numbered
+roots. The `03`, `06` and `12` numbered roots
+moved unchanged to `analysis_ready/history/original_layout/`. The rest of
+this section, and `LOCAL_OUTPUT_TREE_AUDIT.csv` (a 2026-09-03 snapshot),
+describe the earlier state.
 
 The output tree carries real historical debt: stages writing to numbering that no
 longer matches their stage ID (`12_systems_neuroscience_summary` is Stage 14,

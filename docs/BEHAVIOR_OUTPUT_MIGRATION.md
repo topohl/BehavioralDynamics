@@ -6,25 +6,27 @@ scientific/artifact copies and seven regenerated metadata files under
 is outside the 938-file base plan described below.
 The four-file RFID legacy-versus-current comparison audit has a second
 separate activated receipt under `analyses/rfid_domain_comparison_audit/`.
-Its numbered originals remain, and no scientific audit was rerun.
+Its numbered originals were retained (under `history/original_layout/` since
+2026-09-25), and no scientific audit was rerun.
 The 12-file leading-bin seed sensitivity audit has another separate activated
 receipt under `analyses/rfid_leading_bin_seed_audit/`; its two direct contract
-test inputs now resolve there. The numbered originals remain.
+test inputs now resolve there. The numbered originals were retained.
 The other four RFID audit families were subsequently activated as four
 independent groups: 39 hash-matched copies under `analyses/`, with all
 numbered originals retained. Their approved plan and cutover checks are
-recorded in `docs/BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md`. The 183-file HMM
-audit tree remains in its numbered historical location. Two audits were
-subsequently rerun against current inputs in an isolated semantic directory;
-the older tree is still pending a separate provenance and reader review
-before any migration.
+recorded in `docs/BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md`. Two HMM audits were
+subsequently rerun against current inputs in an isolated semantic directory.
+The older 183-file HMM audit tree was not copied; on 2026-09-25 it moved
+unchanged with the `12` root to
+`history/original_layout/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/`.
 
 The bounded Stage 14/19, Stage 02/06, Stage 07, Stage 05, Stage 08, Stage 04,
 Stage 15, Stage 11–13, two manual supporting analyses, and one manual
 inactive-phase QC audit were activated on 2026-09-23. Twenty-one groups and
 938 files now have
-semantic copies under `analysis_ready/analyses/`. All original files remain in
-their historical folders. Activation receipts select the new
+semantic copies under `analysis_ready/analyses/`. All original files were
+retained; those in `03`, `06` and `12` moved unchanged to
+`history/original_layout/` on 2026-09-25. Activation receipts select the new
 paths for the participating producers and readers. See
 `docs/BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md` for checks and limitations.
 
@@ -87,8 +89,10 @@ read that group through the receipt, while older one- and ten-minute branches
 remain historical. Stage 14 retains its ordered resolution preferences.
 Stage 08 writes its 10-minute primary and 5-minute sensitivity outputs through
 the paired receipts. Its Stage 14 artifact resolver, Stage 14 dashboard, and
-Stage 15 optional reader follow those paths. Historical audits retain the old
-directories and were not rewritten.
+Stage 15 optional reader follow those paths. Historical audits kept the old
+directories at this cutover; since the 2026-09-25 archive they read the
+retained originals through the archive receipts and write only to fresh
+replay folders.
 Stage 04 writes to its active ten-second semantic group. Stage 14's temporal
 resolver follows that receipt, while Stage 15's optional 5-minute and 1-minute
 preferences stay on the historical tree. The large rolling-metric tables were
@@ -138,7 +142,8 @@ wrong ownership, and files still awaiting review fail closed. The Stage 14
 audit plans. Their selected rows and gate were set to
 `ready` for the separate dashboard activation. Its 293
 authored files have verified semantic copies, and seven derived metadata files
-were regenerated. The numbered originals remain. See the Stage 14 entry in
+were regenerated. The numbered originals were retained (under
+`history/original_layout/` since 2026-09-25). See the Stage 14 entry in
 `BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md`. The 938-file base plan and its tests
 remain a separate, completed batch.
 Read-only `Inspect` checks the complete inventory and selected source hashes
@@ -171,8 +176,8 @@ receipt-selected copies under `history/` serve optional readers and Stage 10
 feature discovery. The supporting nonlinear and systems-phenotyping trees are
 now active semantic groups; their numbered originals remain in place. The
 other numbered roots are separate migration candidates.
-The read-only live-tree and code-dependency snapshot for the remaining roots
-is `docs/BEHAVIOR_OUTPUT_REMAINING_AUDIT.md`.
+The pre-archive (2026-09-23/24) live-tree and code-dependency snapshot for the
+remaining roots is `docs/BEHAVIOR_OUTPUT_REMAINING_AUDIT.md`.
 
 | Group | Files | Producer and active path users | Post-cutover state |
 | --- | ---: | --- | --- |
@@ -184,7 +189,7 @@ is `docs/BEHAVIOR_OUTPUT_REMAINING_AUDIT.md`.
 | `spatial_figures` | 5 | Stage 19 writer | Active semantic path; `publication_ready` copies remain separate. |
 | `dyadic_contacts` | 16 | Stage 02 writer; Stage 06 reader | Active semantic path; explicit cookie-habituation override retained. |
 | `social_networks_5min` | 94 | Stage 06 writer; Stages 14 and 15 readers | Active semantic path; four older resolution runs remain historical. |
-| `gamm_features_10min` | 18 | Stage 07 writer; Stage 14 reader | Active semantic path; Stage 15's 30-minute historical input remains in place. |
+| `gamm_features_10min` | 18 | Stage 07 writer; Stage 14 reader | Active semantic path; Stage 15's 30-minute historical input is read from its copy under `history/gamm_features/30min/`. |
 | `state_space_5min` | 97 | Stage 05 writer; Stages 14 and 15 readers | Active semantic path; old 1- and 10-minute branches remain historical. |
 | `hmm_states_10min` | 36 | Stage 08 primary writer; Stage 14/15 readers | Active semantic path; declared HMM primary. |
 | `hmm_states_5min` | 36 | Stage 08 sensitivity writer; Stage 14/15 readers | Active semantic path; separate sensitivity. |
@@ -208,8 +213,9 @@ The per-group activation code snapshots remain under
 `docs/behavior_output_code_contracts/`. A post-activation correction to the
 Stage 19 live-output test updated its expected roster from 24/49/38 to the
 canonical 24/53/34; the original activation snapshot and receipt remain
-immutable. The activation record documents both test hashes. Old files remain
-in place for provenance and historical readers. No scientific stage or release
+immutable. The activation record documents both test hashes. Old files are
+retained for provenance and historical readers; those from `03`, `06` and `12`
+are under `history/original_layout/` since 2026-09-25. No scientific stage or release
 builder was rerun during this migration.
 
 The PowerShell tool is

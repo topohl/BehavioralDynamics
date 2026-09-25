@@ -4,6 +4,13 @@ Companion prose for `docs/BEHAVIOR_MAIN_FIGURE_SOURCE_AUDIT.csv`. The CSV is the
 machine-readable authority; this file explains what was found and what still
 needs a human decision.
 
+Update 2026-09-25: the `03_derived_metrics/` and
+`12_systems_neuroscience_summary/` paths here and in the CSV are the audited,
+pre-migration locations. Current reads use `foundations/behavior_metrics/`,
+`analyses/first_night_five_domain_characterization/10min/` and, for Panel
+B-alt, `analyses/systems_dashboard/5min/stats_tables/`. The originals
+are retained unchanged under `analysis_ready/history/original_layout/`.
+
 The figure being audited tells one story:
 
 > later behavioural outcome definition → broad RFID characterisation → a specific

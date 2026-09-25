@@ -5,6 +5,13 @@ layout, maps current locations onto it, and states for each move what the
 benefit is, what the risk is, what depends on it, and whether the path registry
 introduced in `Functions/project_paths.R` already isolates the change.
 
+Update 2026-09-25: row 7's `analysis_ready/12_systems_neuroscience_summary/…`
+no longer exists at that path. Its current Stage 14 outputs were copied under
+`analysis_ready/analyses/` (the QC figure mirrors and run records stayed only
+in the original), and the numbered root moved unchanged to
+`analysis_ready/history/original_layout/`. The repository layout in this plan
+is still unexecuted.
+
 The reason to write it now rather than later: the behavior main figure
 (Stage 27) was the first consumer built against a semantic path registry instead
 of hard-coded directories, which makes it the reference for what "already
