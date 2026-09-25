@@ -157,18 +157,20 @@ Its reviewed plan and ownership snapshot are retained under
 `docs/behavior_output_activated_plans/`.
 There are no group staging directories left.
 
-The remaining numbered roots are separate migration candidates. Stage 01's
-20 current metric/QC products now resolve at
-`foundations/behavior_metrics/`; all 53 original files of `03_derived_metrics/`
-are retained unchanged under `history/original_layout/03_derived_metrics/`. `12_systems_neuroscience_summary/` retains the original
-Stage 14 dashboard, historical manifests, figure mirrors, and independently
+Stage 01's 20 current metric/QC products now resolve at
+`foundations/behavior_metrics/`. Three complete numbered roots are retained
+unchanged under `history/original_layout/`, each under an archive receipt in
+`_migration_control/numbered_root_archive/`: the 53 files of
+`03_derived_metrics/`, the 1,469 of `06_behavioral_dynamics/` and the 702 of
+`12_systems_neuroscience_summary/`. The archived Stage 14 root holds the
+original dashboard, historical manifests, figure mirrors, and independently
 produced audit families. The current dashboard, first-night groups, and
-inactive-QC audit have separate semantic paths. The supporting nonlinear and systems-
-phenotyping trees are now active semantic groups; their numbered originals
-remain in place. The older resolution branches under
-`06_behavioral_dynamics/` retain their historical provenance;
+inactive-QC audit have separate semantic paths. The older resolution branches
+of the archived `06_behavioral_dynamics/` retain their historical provenance;
 receipt-selected copies under `history/` serve optional readers and Stage 10
-feature discovery.
+feature discovery. The supporting nonlinear and systems-phenotyping trees are
+now active semantic groups; their numbered originals remain in place. The
+other numbered roots are separate migration candidates.
 The read-only live-tree and code-dependency snapshot for the remaining roots
 is `docs/BEHAVIOR_OUTPUT_REMAINING_AUDIT.md`.
 

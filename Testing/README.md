@@ -56,8 +56,13 @@ S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID
 ```
 
 Forty-two scripts. They read canonical pipeline outputs, and many of them also
-*write* audit tables back into the local analysis tree (typically under
-`analysis_ready/12_systems_neuroscience_summary/5min_based/audit_*/`). They are
+*write* audit tables into the local analysis tree. The saved originals of the
+older audits are retained under
+`analysis_ready/history/original_layout/12_systems_neuroscience_summary/5min_based/audit_*/`,
+and the writer guard refuses writes there. Replays of the queued historical
+audits write only to a new
+`analysis_ready/analyses/historical_audit_replays/<run_id>/<script_id>/`
+folder, with the run id from `MMM_BEHAVIOR_AUDIT_REPLAY_ID`. They are
 **not** part of CI and will fail without the dataset.
 
 Grouped by subject:

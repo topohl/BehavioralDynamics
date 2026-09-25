@@ -20,11 +20,14 @@ validity. The source manuscript registry cites the current run for its three
 HMM rows, keeps the active claim conditional, and excludes the occupancy
 claim. Stage 16 products and releases were not refreshed from these tables.
 
-The older 183-file audit tree remains at
-`../../12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/`.
-It dates to September 2–4, 2026 and predates the current September 22
-Stage 01/08 inputs. Numerous forensic scripts still refer to that numbered
-tree. The source manuscript registry now cites the current run while recording
+The older 183-file audit tree is retained unchanged at
+`../../history/original_layout/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/`,
+moved with its numbered root under an archive receipt. It dates to September
+2–4, 2026 and predates the current September 22 Stage 01/08 inputs. Thirteen
+queued forensic audits read the retained Stage 14 root, some of them this
+tree, through the receipt; their replays write only to fresh folders. Six of its `first_night_domain_heatmap/` CSVs
+have full paths of 260 characters or more there. They cannot be opened on
+Windows hosts without long-path support, and no code reads them. The source manuscript registry now cites the current run while recording
 the older audit as historical provenance. The numbered tree is retained as historical
 audit evidence; this directory is not a copy or activation of those files.
 Do not merge the two lineages or describe the older audit as rerun against

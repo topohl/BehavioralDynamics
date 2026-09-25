@@ -5,7 +5,7 @@ Machine-readable result, source-data, provenance, validation, and manifest CSVs 
 
 Current Stage 01 metric/QC foundations live under `foundations/behavior_metrics/`; see `foundations/README.md`. Their numbered `03_derived_metrics/` original, including the Stage 19 spatial originals, is retained unchanged under `history/original_layout/03_derived_metrics/`.
 Current semantically named behavioral analyses live under `analyses/`; see its `README.md` for the active groups.
-Older resolution copies are organized by scientific family under `history/`; see its `README.md`. Their numbered originals remain for provenance.
+Older resolution copies are organized by scientific family under `history/`; see its `README.md`. Their numbered `06_behavioral_dynamics/` original and the numbered Stage 14 root `12_systems_neuroscience_summary/`, which also hold the originals of several active groups, are retained unchanged under `history/original_layout/`.
 Stage-addressed migrated outputs live under `pipeline/` and use `tables/`, `figures/`, and `audit/`.
 `output_index.csv` maps active and historical output groups to their producers and roles.
 Stage 00 diagnostic runs live under `quality_control/tracking_integrity/`. The 2026-09-24 pooled-resolution run at that root and the isolated `runs/ten_second_review_20260924/` run are provisional: their row-based zero-movement thresholds flag all 111 animals and have not been validated for exclusions. Read `quality_control/tracking_integrity/REVIEW_STATUS.md` before using either. The numbered `00_qc_tracking_integrity/` tree is a May 2026 historical snapshot; Stage 16 and the release builder still read its optional tables.

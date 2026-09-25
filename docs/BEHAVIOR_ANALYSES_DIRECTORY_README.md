@@ -16,7 +16,8 @@ historical path of each group, see `../output_index.csv`.
   network-ready table used by Stage 06.
 - `dynamic_social_networks/5min/`: current Stage 06 five-minute outputs.
   The older 10-second, 1-minute, 10-minute, and 30-minute copies are under
-  `../history/social_networks/`; numbered originals remain for provenance.
+  `../history/social_networks/`; their numbered originals are retained under
+  `../history/original_layout/06_behavioral_dynamics/`.
 - `gamm_trajectory_features/10min/`: current Stage 07 trajectory features.
   The separate 30-minute historical copy is under
   `../history/gamm_features/30min/` as an optional Stage 15 input.
@@ -25,11 +26,13 @@ historical path of each group, see `../output_index.csv`.
 - `hmm_states/10min/`: Stage 08's declared HMM primary output.
 - `hmm_states/5min/`: Stage 08's HMM sensitivity output. Historical audit
   scripts can still read the retained originals in
-  `../06_behavioral_dynamics/hmm_states/`.
+  `../history/original_layout/06_behavioral_dynamics/hmm_states/` through the
+  archive receipt.
 - `hmm_revalidation_runs/current_stage08_review_20260924/`: five current-input
   gap-aware audit tables. These are unpromoted review evidence; see the
-  `hmm_revalidation_runs/README.md`. The older 183-file HMM audit tree and
-  manuscript registry links remain under the numbered Stage 14 root.
+  `hmm_revalidation_runs/README.md`. The older 183-file HMM audit tree is
+  retained with the numbered Stage 14 root under
+  `../history/original_layout/12_systems_neuroscience_summary/`.
 - `temporal_instability/10sec/`: current Stage 04 temporal-instability outputs,
   including large rolling-metric tables. Older 1-minute and 5-minute branches
   have copies under `../history/temporal_instability/`.
@@ -76,11 +79,14 @@ source-validity review before they are reused or rebuilt.
   primary and flagged-replicate sensitivity outputs. The two-row
   `behavior_proteomics/proteomics_integration_output_dir_map.csv` connects the
   short directory slugs to their full proteomics input labels. The original
-  map remains under `../06_behavioral_dynamics/` as run provenance.
+  map is retained under `../history/original_layout/06_behavioral_dynamics/`
+  as run provenance.
 
 The numbered original folders remain intact for provenance and historical
-readers; the Stage 19 table and audit originals are retained unchanged under
-`../history/original_layout/03_derived_metrics/spatial_occupancy/`. The active path for each group is recorded by its `activated` receipt
+readers. The `03_derived_metrics/`, `06_behavioral_dynamics/` and
+`12_systems_neuroscience_summary/` roots, including the Stage 19 table and
+audit originals, are retained unchanged under `../history/original_layout/`;
+see `../history/README.md`. The active path for each group is recorded by its `activated` receipt
 in `../_migration_control/`. Scientific stages and release builders were not
 rerun as part of the folder migration. Publication copies remain under
 `../../publication_ready/`.

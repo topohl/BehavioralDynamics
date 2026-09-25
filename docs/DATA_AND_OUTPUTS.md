@@ -113,19 +113,20 @@ The recommended entry point for anyone reading the results:
 
 ### Remaining historical output branches
 
-Some active or historical groups retain numbered originals, including
-older resolutions under
-`analysis_ready/06_behavioral_dynamics/` with receipt-selected copies under
-`analysis_ready/history/`, and
-`analysis_ready/12_systems_neuroscience_summary/`. Their status is recorded
-per output group in `output_index.csv`. Stage 01 now reads and writes through
+Some active or historical groups retain numbered originals. The complete
+`03_derived_metrics/`, `06_behavioral_dynamics/` and
+`12_systems_neuroscience_summary/` roots are retained unchanged under
+`analysis_ready/history/original_layout/`, each under an archive receipt in
+`analysis_ready/_migration_control/numbered_root_archive/`. Older resolutions
+from `06_behavioral_dynamics/` have receipt-selected copies under
+`analysis_ready/history/`. Their status is recorded per output group in
+`output_index.csv`. Stage 01 now reads and writes through
 `analysis_ready/foundations/behavior_metrics/`; its 20 current metric/QC
-files were copied from `03_derived_metrics/` with identical hashes. The
-numbered root, with all 53 originals including separate identity-audit and
-spatial outputs, is retained unchanged under
-`analysis_ready/history/original_layout/03_derived_metrics/`. Activated groups retain their numbered
-originals for provenance. Remaining branches need separate dependency review
-before any further migration.
+files were copied from `03_derived_metrics/` with identical hashes, and the
+archived root keeps all 53 originals, including separate identity-audit and
+spatial outputs. Activated groups from other numbered roots retain their
+originals in place for provenance. Remaining branches need separate
+dependency review before any further migration.
 
 ### Quarantine
 
