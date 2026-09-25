@@ -94,7 +94,15 @@ ok("Stage 27 requests inputs only by semantic key")
 
 # The registry must never hand back a superseded or bundled copy.
 BAD_SEGMENTS <- c("_quarantine", "quarantine_legacy", "_archive", "snapshot",
-                  "/releases/", "_pre_hmm_identity_fix", "_erroneous")
+                  "/releases/", "_pre_hmm_identity_fix", "_erroneous",
+                  "/history/original_layout/")
+# The Stage 27 guard and this list must agree.
+stage27_guard <- Filter(function(e) is.call(e) && identical(e[[1L]], as.name("<-")) &&
+                          identical(e[[2L]], as.name("FORBIDDEN_SOURCE_SEGMENTS")),
+                        as.list(parse(STAGE27, keep.source = FALSE)))
+check(length(stage27_guard) == 1L &&
+        setequal(BAD_SEGMENTS, setdiff(eval(stage27_guard[[1L]][[3L]], baseenv()), ".old")),
+      "Stage 27 FORBIDDEN_SOURCE_SEGMENTS and BAD_SEGMENTS differ")
 all_registry <- unlist(lapply(mmm_path_keys(),
                               function(k) mmm_path_get(k, required = FALSE)))
 for (seg in BAD_SEGMENTS) {

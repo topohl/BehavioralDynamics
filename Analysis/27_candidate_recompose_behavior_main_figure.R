@@ -100,7 +100,7 @@ read_canonical <- function(key, role) {
   path <- mmm_path_get(key, file = role, required = TRUE, root = PROJECT_ROOT)
   normalized <- normalize_for_prefix(path)
   forbidden <- c("/archive/", "/_archive/", "/quarantine/", "/snapshot/",
-                 "/release_bundle/", "/superseded/")
+                 "/release_bundle/", "/superseded/", "/history/original_layout/")
   if (any(vapply(forbidden, function(x) grepl(x, normalized, fixed = TRUE), logical(1)))) {
     stop("Candidate refused a noncanonical input: ", path, call. = FALSE)
   }

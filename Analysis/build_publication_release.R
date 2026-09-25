@@ -81,7 +81,10 @@ BUILD_TIME     <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
 # ---------------------------------------------------------------- guards
 # Any path containing one of these segments is refused outright: quarantined and
 # archived trees must never reach a release bundle, even by an explicit request.
-FORBIDDEN_SEGMENTS <- c("_quarantine", "quarantine_legacy", "_archive", ".old")
+# history/original_layout/ holds the retained numbered roots moved under their
+# archive receipts; current sources are their semantic copies.
+FORBIDDEN_SEGMENTS <- c("_quarantine", "quarantine_legacy", "_archive", ".old",
+                        "/history/original_layout/")
 
 assert_not_quarantined <- function(path, artifact_id) {
   norm <- gsub("\\\\", "/", path)

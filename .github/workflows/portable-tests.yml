@@ -41,6 +41,11 @@ jobs:
       # ggplot2 IS required, even though nothing here plots: it is a top-level
       # library() call in Functions/behavioral_dynamics_helpers.R, which
       # Analysis/_pipeline_setup.R sources unconditionally.
+      #
+      # jsonlite is required since the numbered-root archive: the receipt
+      # readers in Functions/project_paths.R and their tests call it. The
+      # PowerShell fixtures in Testing/tests/*.ps1 are not run here; run them
+      # with pwsh by hand.
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           packages: |
@@ -51,6 +56,7 @@ jobs:
             any::stringr
             any::tibble
             any::ggplot2
+            any::jsonlite
 
       - name: Parse every active R script
         shell: bash

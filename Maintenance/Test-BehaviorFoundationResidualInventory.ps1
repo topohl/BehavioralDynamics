@@ -1,3 +1,4 @@
+#Requires -Version 7.2
 param(
   [Parameter(Mandatory = $true)] [string] $AnalysisReadyRoot,
   [string] $RepositoryRoot = (Join-Path $PSScriptRoot '..')

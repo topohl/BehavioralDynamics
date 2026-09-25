@@ -47,6 +47,12 @@ repair_existing_metrics_identity_for_testing <- function(path,
   if (!file.exists(path)) {
     stop("Cannot repair identity metadata; derived metrics file is missing: ", path, call. = FALSE)
   }
+  # Refuse numbered and archived roots of the project that holds the file.
+  source_mmm_helper("project_paths.R")
+  normalized <- normalizePath(path, winslash = "/", mustWork = TRUE)
+  project_root <- sub("/analysis_ready(/.*)?$", "", normalized)
+  if (identical(project_root, normalized)) project_root <- mmm_project_root()
+  mmm_behavior_guard_numbered_output_path(normalized, project_root)
 
   read_animal_id_list <- function(ref_path, label) {
     if (is.null(ref_path) || !file.exists(ref_path)) {

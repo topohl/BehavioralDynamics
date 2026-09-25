@@ -16,6 +16,11 @@ if (is.na(expected_n) || expected_n < 1L ||
 setwd(repo_root)
 suppressPackageStartupMessages(library(purrr))
 source("Analysis/_pipeline_setup.R")
+source_mmm_helper("project_paths.R")
+# Refuse a numbered or archived root of the project that holds output_dir.
+project_root <- sub("/analysis_ready(/.*)?$", "", output_dir)
+if (identical(project_root, output_dir)) project_root <- mmm_project_root()
+mmm_behavior_guard_numbered_output_path(output_dir, project_root)
 figure_files <- function() {
   sort(gsub("\\\\", "/", list.files(
     file.path(output_dir, "figures"),

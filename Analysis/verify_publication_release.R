@@ -65,8 +65,11 @@ ok(all(tolower(man$copied_sha256) == tolower(man$source_sha256)),
    "copied_sha256 equals source_sha256 for every artifact")
 
 cat("\n=== 4. no source resolves into a quarantine or archive tree ===\n")
-bad <- c("_quarantine", "quarantine_legacy", "_archive", ".old")
-hits <- unlist(lapply(bad, function(b) man$source_path[grepl(b, man$source_path, fixed = TRUE)]))
+# A recorded source under history/original_layout/ was read from a retained
+# numbered original rather than its current semantic copy.
+bad <- c("_quarantine", "quarantine_legacy", "_archive", ".old", "/history/original_layout/")
+recorded <- gsub("\\\\", "/", man$source_path)
+hits <- unlist(lapply(bad, function(b) man$source_path[grepl(b, recorded, fixed = TRUE)]))
 ok(length(hits) == 0, "no source_path contains a forbidden segment")
 if (length(hits)) print(hits)
 ok(all(man$resolution_class == "canonical"), "every artifact resolved as canonical")

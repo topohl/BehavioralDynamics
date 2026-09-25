@@ -1,3 +1,6 @@
+#Requires -Version 7.2
+# Windows PowerShell 5.1 cannot open the archived paths of 260 or more
+# characters that this check hashes.
 param(
   [Parameter(Mandatory = $true)] [string] $AnalysisReadyRoot,
   [string] $RepositoryRoot = (Join-Path $PSScriptRoot '..')

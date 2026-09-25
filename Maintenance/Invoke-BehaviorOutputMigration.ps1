@@ -211,7 +211,10 @@ function Assert-Sources([bool] $RequireReady = $true) {
   foreach ($sourceRoot in $roots) {
     # This tool copies only from unarchived sources. Once a numbered root has
     # an archive receipt (prepared or later) or a retained archive directory,
-    # its groups are verified through the archive-aware inventory checks.
+    # every action refuses its groups. Archive-aware copy checks exist for the
+    # Stage 01 foundation and the 12-sourced groups
+    # (Test-Behavior*ResidualInventory.ps1); the 06-sourced and 03 spatial
+    # groups have none.
     $numbered = $sourceRoot.Replace('\', '/').Split('/')[0]
     if ($numbered -in @('03_derived_metrics', '06_behavioral_dynamics',
                         '12_systems_neuroscience_summary') -and

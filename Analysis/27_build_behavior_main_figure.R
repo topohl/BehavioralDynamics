@@ -120,7 +120,7 @@ cat("  publication root   :", pub_root, "\n")
 
 FORBIDDEN_SOURCE_SEGMENTS <- c(
   "_quarantine", "quarantine_legacy", "_archive", "snapshot", "/releases/",
-  ".old", "_pre_hmm_identity_fix", "_erroneous")
+  ".old", "_pre_hmm_identity_fix", "_erroneous", "/history/original_layout/")
 
 inputs_seen <- list()
 
@@ -128,7 +128,7 @@ rd <- function(key, role, expect_rows = NULL) {
   path <- mmm_path_get(key, file = role, root = project_root)
   hit <- FORBIDDEN_SOURCE_SEGMENTS[
     vapply(FORBIDDEN_SOURCE_SEGMENTS, function(s)
-      grepl(s, path, fixed = TRUE), logical(1))]
+      grepl(s, gsub("\\\\", "/", path), fixed = TRUE), logical(1))]
   if (length(hit) > 0L) {
     stop("Refusing to read a superseded or bundled copy for '", key, "/", role,
          "'. Offending path segment(s): ", paste(hit, collapse = ", "),
@@ -1139,9 +1139,11 @@ if ("first_night_domains" %in% ED_DOMAIN_OVERVIEWS) {
   fm <- mmm_export_figure(pED_fn, dirs$figures_ed,
                           "ed_candidate_first_night_domain_map", W * 0.58, 62,
                           png_preview = FALSE)
+  domain_source_rel <- mmm_source_relative_path(
+    inputs_seen[["behavior.rfid_domain_summary/group_contrasts"]], project_root)
   srcED_fn <- bmf_source_data(
     domain, "ED-firstnight", "14",
-    "12_systems_neuroscience_summary/.../first_night_group_contrasts.csv",
+    domain_source_rel,
     c("Sex", "contrast", "Domain", "hedges_g", "estimate", "SE", "ci_low",
       "ci_high", "raw_p", "q", "family_id", "n_tests_in_family", "n_ref",
       "n_comp", "bin_level", "interpretation_guard")) %>%

@@ -14,7 +14,8 @@
 #     Phase, CageChange, Batch, HalfHoursElapsed, Group, Sex
 #
 # Output:
-#   analysis_ready/06_behavioral_dynamics/dyadic_contacts/tables/
+#   Receipt-selected dyadic_contacts root (currently analysis_ready/analyses/dyadic_contacts/tables/);
+#   the numbered original is retained read-only under history/original_layout/06_behavioral_dynamics/
 #     dyadic_contacts_by_bin.csv
 #     dyadic_contacts_interval_level.csv
 #     dyadic_contact_qc_by_file.csv
