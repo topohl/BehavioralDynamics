@@ -1,9 +1,11 @@
 # Retiring numbered behavioral output roots: proposed transaction
 
-Status: prepared tooling and unresolved reader gate, 2026-09-24. No numbered source directory has been
-moved, renamed, hidden, or deleted. The receipt-activated semantic copies are
-already selected by current readers. This design is a separate operation from
-the completed copy activations.
+Status: prepared tooling; per-root archive-path review drafted for 03 only,
+2026-09-25. No numbered source directory has been moved, renamed, hidden, or
+deleted, and no root archive receipt exists. The receipt-activated semantic
+copies are already selected by current readers. This design is a separate
+operation from the completed copy activations. See "Readiness review,
+2026-09-25" below for the current evidence and blockers.
 
 ## Scope and destination
 
@@ -41,7 +43,7 @@ remains true after relocation, but the resolver needs an explicit archived
 source-location rule before any source is moved.
 
 The transaction tool now has independent `Inspect`, `Prepare`, `Verify`,
-`Activate`, and `Rollback` actions. `Inspect` is read-only. `Prepare` pins the
+`Activate`, `Rollback`, and `Abandon` actions. `Inspect` is read-only. `Prepare` pins the
 reviewed manifest and reader gate, rehashes the complete source inventory, and
 checks for a vacant archive target.
 `Verify` repeats the hashes and checks the receipt and all paths. `Activate`
@@ -338,6 +340,73 @@ check. This tests discovery after routing without comparing scientific table
 contents; the live post-move parity run remains outstanding.
 All three live numbered roots were still present and there were zero numbered-
 root archive receipts at that check. No reviewed live gate was created.
+
+## Readiness review, 2026-09-25
+
+Evidence (read-only live checks and temporary fixtures; no scientific rerun):
+
+- Live state: all three numbered roots present, `history/original_layout/`
+  absent, no `_migration_control/numbered_root_archive/` receipt. Manifest
+  `Verify` passed for `03` (53-file manifest, SHA `53265050...`), `06`
+  (1,469 files, 18,194,653,380 bytes, `17777e9c...`) and `12` (702 files,
+  `a1b551f0...`). The only change since the 52-file `03` manifest is
+  `qc/first_night_seed_provenance.csv`. It is recorded as retained only and
+  unpromoted in
+  `behavior_output_activated_plans/derived_metrics_post_activation_additions.csv`;
+  its writer is still not established.
+- The foundation and Stage 14 residual inventories are now archive-aware and
+  both passed read-only against the live tree. Before the addendum the
+  foundation inventory failed on the 53rd file.
+- Transaction defects fixed and covered by fixtures: `Move-Item` split a root
+  across both locations when a directory rename failed (PowerShell 7.6.6,
+  locked file on NTFS); `Move-Item -Force` deleted the receipt when its
+  replacement failed; manifests were compared by culture-sorted position
+  (638 `06` and 94 `12` rows are not in ordinal order, so Windows PowerShell
+  5.1 would report false drift). The tools now use `Directory.Move`,
+  `File.Move` with overwrite, and path-keyed verification, and require
+  PowerShell 7.2. A live gate must use the repository queue. Each gate row
+  pins the queue hash and a hash of the shared path code; an `ArchivePath`
+  gate is scoped to one root. Changing actions hold a lock, `Abandon` retires
+  a prepared receipt, and `Rollback -AcceptInventoryDrift` renames a drifted
+  archive back without trusting it.
+- On the lab share a same-share directory rename succeeded while a file
+  below it was open (temporary probe under `S:\Lab_Member\Tobi\`, removed).
+  An open file therefore may not block `Activate`; writers must be stopped,
+  and the post-move hash check fails closed on any change.
+- Reader and writer fixes outside the queue are listed in
+  `behavior_output_archive_out_of_queue_review.csv`.
+- An independent reviewer and an adversarial verifier inventoried every read
+  and write of the 37 queued scripts. 34 are `path_ok_test_gap`,
+  `audit_stage09_stale_artifacts.R` and `audit_stage10_semantic_discovery_parity.R`
+  are `path_gap`, and the identity comparison is `special_invocation`.
+  `test_historical_audit_replay_io_contract.R` now parses all 37 scripts:
+  every write is under its own replay root, no read uses a numbered-root
+  literal outside the resolvers, and the 18 same-run edges match file for
+  file. Three mutations were detected.
+
+Path length (blocks `06` and `12` at the proposed destination on this host):
+`LongPathsEnabled` is 0, and R 4.5.1 here cannot open a path of 260 or more
+characters (`file.exists` FALSE, `file.info` NA) although `list.files` lists
+it; PowerShell 7 can. Under `history/original_layout/` the longest `03`
+path is 198 characters, but 20 `06` paths reach 260-264 and 7 `12` paths
+reach 260-265. The archive tool would verify those files while R readers,
+including the Stage 10 discovery parity audit, could not read them. `03` is
+not affected.
+
+Per-root scope: `docs/behavior_output_archive_gate_03_derived_metrics_draft.csv`
+proposes `archive_path_ready` for all 37 scripts for the `03` move only,
+with path and writer evidence per row. Every `review_state` remains
+`needs_reader_writer_review`, so it cannot open the gate. A temporary-fixture
+`Prepare` accepted it after the proposed states were applied, and refused it
+for `06`. Its hashes pin the current scripts, queue and shared code; any
+later edit to those files requires regenerating it.
+
+Open, not archive-blocking for `03`: the scientific replay remains blocked by
+the missing identity baseline; replay folders have no completion marker, so
+a consumer can read a failed producer's partial output; the replay output
+check is not atomic across concurrent runs; several same-run reads are
+optional; the Stage 09 stale audit's five `06` families were quarantined in
+2026-09 and are absent before and after any move.
 
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination
