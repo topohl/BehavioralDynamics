@@ -18,7 +18,12 @@ param(
   # Rollback only: move an archived root back even though its inventory no
   # longer matches the manifest. The receipt stays transferring for review.
   [switch] $AcceptInventoryDrift,
-  [string] $AbandonReason = ''
+  [string] $AbandonReason = '',
+  # Prepare and Activate only: accept archived paths of 260 or more characters
+  # while Windows long paths are disabled. The SHA-256 must equal the value
+  # Inspect reports for the exact list, so only a reviewed list is accepted.
+  [switch] $AcceptLongArchivedPaths,
+  [string] $LongArchivedPathsSha256 = ''
 )
 
 Set-StrictMode -Version Latest
@@ -230,18 +235,40 @@ function Assert-NoReparsePaths {
 # Without Windows long-path support, R cannot open a path of 260 or more
 # characters (file.exists() is FALSE) although PowerShell can hash it, so an
 # archive could verify while its R readers silently miss files.
+# The manifest paths whose archived full path would reach 260 characters, in
+# ordinal order, with a SHA-256 of that list for review and acceptance.
+function Get-LongArchivedPaths {
+  [string[]] $long = @(Import-Csv -LiteralPath $manifestPath | Where-Object {
+    ($archive + '\' + $_.relative_path).Length -ge 260 } | ForEach-Object relative_path)
+  [Array]::Sort($long, [System.StringComparer]::Ordinal)
+  $bytes = [System.Text.Encoding]::UTF8.GetBytes(($long -join "`n"))
+  [pscustomobject]@{
+    count = $long.Count
+    longest = if ($long.Count) { @($long | ForEach-Object { ($archive + '\' + $_).Length } |
+                                   Measure-Object -Maximum)[0].Maximum } else { 0 }
+    sha256 = if ($long.Count) {
+      [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+    } else { '' }
+    paths = $long
+  }
+}
 function Assert-ArchivedPathLengths {
   $setting = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
     -Name LongPathsEnabled -ErrorAction SilentlyContinue
-  if ($null -ne $setting -and $setting.LongPathsEnabled -eq 1) { return }
-  $longest = @(Import-Csv -LiteralPath $manifestPath | ForEach-Object {
-    [pscustomobject]@{ path = $_.relative_path
-                       length = ($archive + '\' + $_.relative_path).Length }
-  } | Sort-Object length -Descending | Select-Object -First 1)
-  if ($longest.Count -eq 1 -and $longest[0].length -ge 260) {
-    throw ("Archived paths would reach $($longest[0].length) characters while long paths " +
-           "are disabled; R could not open them: $($longest[0].path)")
+  $long = Get-LongArchivedPaths
+  if ($long.count -eq 0 -or ($null -ne $setting -and $setting.LongPathsEnabled -eq 1)) {
+    return [pscustomobject]@{ count = 0; sha256 = '' }
   }
+  if (-not $AcceptLongArchivedPaths) {
+    throw ("Archived paths would reach $($long.longest) characters while long paths are " +
+           "disabled; R could not open $($long.count) file(s). Review them with Inspect and " +
+           "pass -AcceptLongArchivedPaths -LongArchivedPathsSha256 $($long.sha256) to accept: " +
+           $long.paths[0])
+  }
+  if ($LongArchivedPathsSha256.ToLowerInvariant() -cne $long.sha256) {
+    throw "The accepted long archived path list differs from the current list ($($long.sha256))"
+  }
+  [pscustomobject]@{ count = $long.count; sha256 = $long.sha256 }
 }
 function Assert-Inventory($Checked, $Record, [string] $Message) {
   if ($Checked.files -ne [long]$Record.files -or
@@ -270,14 +297,18 @@ try {
       if ($null -eq $record) {
         if (Test-Path -LiteralPath $archive) { throw 'Unreceipted archive destination exists' }
         $checked = Verify-Location 'Original'
+        $long = Get-LongArchivedPaths
         [pscustomobject]@{ action = 'Inspect'; state = 'unprepared'; root = $RootName;
-          files = $checked.files; hashes = 'PASS' }
+          files = $checked.files; hashes = 'PASS'; long_archived_paths = $long.count
+          long_archived_paths_sha256 = $long.sha256; long_archived_path_list = $long.paths }
       } elseif ($record.state -ceq 'prepared') {
         if (Test-Path -LiteralPath $archive) { throw 'Prepared archive destination exists' }
         $checked = Verify-Location 'Original'
         Assert-Inventory $checked $record 'Prepared receipt inventory differs'
+        $long = Get-LongArchivedPaths
         [pscustomobject]@{ action = 'Inspect'; state = 'prepared'; root = $RootName;
-          files = $checked.files; hashes = 'PASS' }
+          files = $checked.files; hashes = 'PASS'; long_archived_paths = $long.count
+          long_archived_paths_sha256 = $long.sha256; long_archived_path_list = $long.paths }
       } elseif ($record.state -ceq 'activated') {
         $checked = Verify-Location 'Archived'
         Assert-Inventory $checked $record 'Activated receipt inventory differs'
@@ -289,7 +320,7 @@ try {
       if ($null -ne $record -or (Test-Path -LiteralPath $archive)) {
         throw 'Archive receipt or destination already exists'
       }
-      Assert-ArchivedPathLengths
+      $lengths = Assert-ArchivedPathLengths
       $gateHashes = Verify-ReaderGate
       $checked = Verify-Location 'Original'
       $record = [pscustomobject]@{
@@ -300,6 +331,8 @@ try {
         reader_gate_sha256 = $gateHashes.gate_sha256
         reader_gate_kind = $ReaderGateKind
         reader_queue_sha256 = $gateHashes.queue_sha256
+        long_archived_paths = $lengths.count
+        long_archived_paths_sha256 = $lengths.sha256
         prepared_at_utc = Utc
       }
       Write-Receipt $receipt $record
@@ -330,7 +363,12 @@ try {
         throw 'Reader queue changed after Prepare'
       }
       if (Test-Path -LiteralPath $archive) { throw 'Archive destination already exists' }
-      Assert-ArchivedPathLengths
+      $lengths = Assert-ArchivedPathLengths
+      $preparedLong = if ($record.PSObject.Properties.Name -contains 'long_archived_paths_sha256') {
+        [string]$record.long_archived_paths_sha256 } else { '' }
+      if ($lengths.sha256 -cne $preparedLong) {
+        throw 'The accepted long archived path list changed after Prepare'
+      }
       $checked = Verify-Location 'Original'
       Assert-Inventory $checked $record 'Source changed after Prepare'
       Assert-NoReparsePaths

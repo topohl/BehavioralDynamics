@@ -454,17 +454,39 @@ $longManifest = Join-Path $fixture 'long-manifest.csv'
 & $manifestTool -Action Build -AnalysisReadyRoot $longReady -RootName '06_behavioral_dynamics' `
   -Manifest $longManifest | Out-Null
 $longHash = (Get-FileHash -LiteralPath $longManifest -Algorithm SHA256).Hash.ToLowerInvariant()
-$longPrepare = {
-  & $tool -Action Prepare -AnalysisReadyRoot $longReady -RootName '06_behavioral_dynamics' `
+function Invoke-LongArchive([string] $Action, [string] $AcceptSha = '') {
+  $extra = @{}
+  if ($AcceptSha) { $extra = @{ AcceptLongArchivedPaths = $true; LongArchivedPathsSha256 = $AcceptSha } }
+  & $tool -Action $Action -AnalysisReadyRoot $longReady -RootName '06_behavioral_dynamics' `
     -Manifest $longManifest -ManifestSha256 $longHash -ReaderQueue $queue `
-    -ReviewedReaderGate $gate -ReviewedReaderGateSha256 $gateHash -ReaderGateKind ArchivePath
+    -ReviewedReaderGate $gate -ReviewedReaderGateSha256 $gateHash -ReaderGateKind ArchivePath @extra
 }
+$longInspect = Invoke-LongArchive 'Inspect'
+if ($longInspect.long_archived_paths -ne 1 -or $longInspect.long_archived_paths_sha256 -notmatch '^[0-9a-f]{64}$' -or
+    @($longInspect.long_archived_path_list) -notcontains "t/$longName") {
+  throw 'Inspect did not report the long archived path list'
+}
+$longSha = $longInspect.long_archived_paths_sha256
 $longPaths = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
   -Name LongPathsEnabled -ErrorAction SilentlyContinue
 if ($null -ne $longPaths -and $longPaths.LongPathsEnabled -eq 1) {
-  if ((& $longPrepare).state -cne 'prepared') { throw 'Long-path root did not prepare with long paths enabled' }
+  if ((Invoke-LongArchive 'Prepare').state -cne 'prepared') { throw 'Long-path root did not prepare with long paths enabled' }
 } else {
-  Expect-Failure $longPrepare 'Archived paths would reach 262 characters'
+  # Without acceptance, or with a different list, the root is refused; only the
+  # reviewed list is accepted, recorded in the receipt, and required again.
+  Expect-Failure { Invoke-LongArchive 'Prepare' } 'Archived paths would reach 262 characters'
+  Expect-Failure { Invoke-LongArchive 'Prepare' ('0' * 64) } 'accepted long archived path list differs'
+  if ((Invoke-LongArchive 'Prepare' $longSha).state -cne 'prepared') { throw 'Accepted long-path root did not prepare' }
+  $longReceipt = Get-Content -Raw -LiteralPath (Join-Path $longReady '_migration_control\numbered_root_archive\06_behavioral_dynamics.json') | ConvertFrom-Json
+  if ($longReceipt.long_archived_paths -ne 1 -or $longReceipt.long_archived_paths_sha256 -cne $longSha) {
+    throw 'Prepare did not record the accepted long archived path list'
+  }
+  Expect-Failure { Invoke-LongArchive 'Activate' } 'Archived paths would reach 262 characters'
+  if ((Invoke-LongArchive 'Activate' $longSha).state -cne 'activated' -or
+      -not [System.IO.File]::Exists((Join-Path $longReady "history\original_layout\06_behavioral_dynamics\t\$longName"))) {
+    throw 'Accepted long-path root did not activate'
+  }
+  if ((Invoke-LongArchive 'Rollback').state -cne 'prepared') { throw 'Long-path root did not roll back' }
 }
 Remove-Item -LiteralPath $fixture -Recurse -Force
 Write-Output 'Numbered root archive transaction fixture: PASS'
