@@ -44,8 +44,8 @@ jobs:
       #
       # jsonlite is required since the numbered-root archive: the receipt
       # readers in Functions/project_paths.R and their tests call it. The
-      # PowerShell fixtures in Testing/tests/*.ps1 are not run here; run them
-      # with pwsh by hand.
+      # PowerShell fixtures in Testing/tests/*.ps1 run in the separate
+      # powershell-fixtures job below.
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           packages: |
@@ -105,3 +105,46 @@ jobs:
           n=$(ls Testing/audits/*.R 2>/dev/null | wc -l)
           echo "Skipped $n data-dependent audits in Testing/audits/ (require the E9 dataset; not available in CI)." >> "$GITHUB_STEP_SUMMARY"
           echo "Skipped $(ls Testing/legacy/*.R Testing/legacy/*.r 2>/dev/null | wc -l) legacy scripts in Testing/legacy/ (historical provenance; not maintained)." >> "$GITHUB_STEP_SUMMARY"
+
+  powershell-fixtures:
+    # The archive, manifest, gate and migration fixtures in Testing/tests/*.ps1.
+    # They build every tree under the runner's temp directory. The transaction
+    # fixture also calls Rscript and reads the Windows long-path setting, so
+    # this job runs on Windows with the same R packages as the R suite.
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.5.1'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::dplyr
+            any::tidyr
+            any::readr
+            any::purrr
+            any::stringr
+            any::tibble
+            any::ggplot2
+            any::jsonlite
+
+      - name: Run PowerShell fixtures
+        shell: pwsh
+        run: |
+          $fail = 0
+          $tests = @(Get-ChildItem Testing/tests -Filter 'test_*.ps1' | Sort-Object Name)
+          foreach ($t in $tests) {
+            Write-Host "::group::$($t.Name)"
+            pwsh -NoProfile -File $t.FullName
+            if ($LASTEXITCODE -eq 0) { Write-Host "PASS $($t.Name)" }
+            else { Write-Host "::error file=Testing/tests/$($t.Name)::PowerShell fixture failed"; $fail++ }
+            Write-Host "::endgroup::"
+          }
+          Write-Host "PowerShell fixtures: $($tests.Count - $fail)/$($tests.Count) passed"
+          if ($fail -gt 0) { exit 1 }
