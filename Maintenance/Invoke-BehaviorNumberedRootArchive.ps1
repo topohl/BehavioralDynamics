@@ -90,10 +90,12 @@ function Read-Receipt([string] $Path) {
   return $record
 }
 # Hash and parse the same bytes, so the pinned hash describes what was read.
+# Line endings are normalized as in Get-BehaviorArchiveTextSha256.
 function Read-PinnedCsv([string] $Path) {
   $bytes = [System.IO.File]::ReadAllBytes($Path)
-  $hash = [Convert]::ToHexString(
-    [System.Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+  $latin1 = [System.Text.Encoding]::Latin1
+  $hash = [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData(
+    $latin1.GetBytes($latin1.GetString($bytes).Replace("`r`n", "`n")))).ToLowerInvariant()
   $body = [System.Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF)
   [pscustomobject]@{ sha256 = $hash; rows = @($body | ConvertFrom-Csv) }
 }
@@ -175,7 +177,7 @@ function Verify-ReaderGate {
     }
     $scriptPath = FullPath (Join-Path $repoRoot ($row.script -replace '/', '\'))
     if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf) -or
-        (Sha256 $scriptPath) -cne $row.script_sha256.ToLowerInvariant()) {
+        (Get-BehaviorArchiveTextSha256 $scriptPath) -cne $row.script_sha256.ToLowerInvariant()) {
       throw "Reviewed audit script changed or is missing: $($row.script)"
     }
   }

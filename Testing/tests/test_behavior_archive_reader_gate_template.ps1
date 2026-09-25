@@ -24,7 +24,7 @@ try {
   $file = Join-Path $work 'template.csv'
   $rows = @(Import-Csv -LiteralPath $file)
   $queue = @(Import-Csv -LiteralPath $liveQueue)
-  $queueHash = (Get-FileHash -LiteralPath $liveQueue -Algorithm SHA256).Hash.ToLowerInvariant()
+  $queueHash = Get-BehaviorArchiveTextSha256 $liveQueue
   if ($result.scripts -ne $queue.Count -or $result.ready -ne 0 -or $rows.Count -ne $queue.Count -or
       (Compare-Object @($rows.script) @($queue.script)) -or
       @($rows | Where-Object { $_.script_sha256 -cnotmatch '^[0-9a-f]{64}$' }).Count -ne 0 -or
@@ -62,6 +62,18 @@ try {
   }
   $missing | Export-Csv -LiteralPath $queueCopy -NoTypeInformation -Encoding utf8
   Expect-Failure { & $tool -Output (Join-Path $work 'missing.csv') -ReaderQueue $queueCopy } 'Queued audit script is missing'
+
+  # A checkout that only rewrites line endings keeps reviewed text hashes;
+  # any other byte change does not.
+  $lf = Join-Path $work 'lf.R'; $crlf = Join-Path $work 'crlf.R'; $mixed = Join-Path $work 'mixed.R'
+  [System.IO.File]::WriteAllText($lf, "a <- 1`nb <- 2`n")
+  [System.IO.File]::WriteAllText($crlf, "a <- 1`r`nb <- 2`r`n")
+  [System.IO.File]::WriteAllText($mixed, "a <- 1`r`nb <- 2`n")
+  $hashes = @($lf, $crlf, $mixed | ForEach-Object { Get-BehaviorArchiveTextSha256 $_ } | Select-Object -Unique)
+  [System.IO.File]::WriteAllText($mixed, "a <- 1`r`nb <- 3`n")
+  if ($hashes.Count -ne 1 -or (Get-BehaviorArchiveTextSha256 $mixed) -ceq $hashes[0]) {
+    throw 'Reviewed text hashes depend on line endings or miss a content change'
+  }
   Write-Output 'Behavior archive reader gate template: PASS'
 } finally {
   Remove-Item -LiteralPath $work -Recurse -Force

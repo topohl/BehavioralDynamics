@@ -20,12 +20,14 @@ $second = Join-Path $source 'dyadic_contacts\second.csv'
 & $manifestTool -Action Build -AnalysisReadyRoot $ready -RootName `
   '06_behavioral_dynamics' -Manifest $manifest | Out-Null
 $manifestHash = (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLowerInvariant()
+. (Join-Path $PSScriptRoot '..\..\Maintenance\BehaviorArchiveSharedCode.ps1')
+# Reviewed text files are hashed with normalized line endings.
 $scripts = @('Testing/audits/audit_first_night_time_anchor.R',
              'Testing/audits/audit_phase_bug_impact.R')
 $scriptHashes = @{}
 foreach ($script in $scripts) {
   $scriptPath = Join-Path $PSScriptRoot ('..\..\' + ($script -replace '/', '\'))
-  $scriptHashes[$script] = (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $scriptHashes[$script] = Get-BehaviorArchiveTextSha256 $scriptPath
 }
 $semantic = Join-Path $ready 'analyses\dyadic_contacts'
 New-Item -ItemType Directory -Path $semantic -Force | Out-Null
@@ -42,7 +44,6 @@ function Write-Queue([string] $State = 'needs_reader_writer_review') {
   @($scripts | ForEach-Object { [pscustomobject]@{ script = $_; review_state = $State } }) |
     Export-Csv -LiteralPath $queue -NoTypeInformation -Encoding utf8
 }
-. (Join-Path $PSScriptRoot '..\..\Maintenance\BehaviorArchiveSharedCode.ps1')
 $sharedCodeHash = Get-BehaviorArchiveSharedCodeSha256 (Join-Path $PSScriptRoot '..\..')
 function Write-Gate([string] $State, [string[]] $Rows = $scripts,
                     [string] $StaleScript = '', [switch] $Evidence,
@@ -50,7 +51,7 @@ function Write-Gate([string] $State, [string[]] $Rows = $scripts,
                     [string] $SharedCode = $sharedCodeHash,
                     [string] $QueueHash = '') {
   if (-not $QueueHash) {
-    $QueueHash = (Get-FileHash -LiteralPath $queue -Algorithm SHA256).Hash.ToLowerInvariant()
+    $QueueHash = Get-BehaviorArchiveTextSha256 $queue
   }
   @($Rows | ForEach-Object {
     $row = [ordered]@{
@@ -65,7 +66,7 @@ function Write-Gate([string] $State, [string[]] $Rows = $scripts,
     }
     [pscustomobject]$row
   }) | Export-Csv -LiteralPath $gate -NoTypeInformation -Encoding utf8
-  $script:gateHash = (Get-FileHash -LiteralPath $gate -Algorithm SHA256).Hash.ToLowerInvariant()
+  $script:gateHash = Get-BehaviorArchiveTextSha256 $gate
 }
 function Invoke-Archive([string] $Action, [string] $GateKind = 'ScientificReplay',
                         [string] $ManifestSha256 = $manifestHash) {

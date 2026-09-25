@@ -33,7 +33,8 @@ if ($queue.Count -eq 0 -or
     @($queue | Select-Object -ExpandProperty script -Unique).Count -ne $queue.Count) {
   throw 'Reader queue must contain unique audit scripts'
 }
-$queueHash = (Get-FileHash -LiteralPath $queuePath -Algorithm SHA256).Hash.ToLowerInvariant()
+# Text hashes normalize line endings (see BehaviorArchiveSharedCode.ps1).
+$queueHash = Get-BehaviorArchiveTextSha256 $queuePath
 $sharedHash = Get-BehaviorArchiveSharedCodeSha256 $repo
 $rows = foreach ($entry in $queue) {
   if ($entry.script -cnotmatch '^Testing/audits/[A-Za-z0-9_.-]+\.R$') {
@@ -47,7 +48,7 @@ $rows = foreach ($entry in $queue) {
   [pscustomobject]@{
     script = $entry.script
     review_state = 'needs_reader_writer_review'
-    script_sha256 = (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    script_sha256 = Get-BehaviorArchiveTextSha256 $scriptPath
     queue_state = $entry.review_state
     archive_root = $RootName
     queue_sha256 = $queueHash
@@ -63,5 +64,5 @@ $rows | Export-Csv -LiteralPath $outputPath -NoTypeInformation -Encoding utf8
   ready = @($rows | Where-Object { $_.review_state -ceq 'ready' }).Count
   queue_sha256 = $queueHash
   shared_code_sha256 = $sharedHash
-  sha256 = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  sha256 = Get-BehaviorArchiveTextSha256 $outputPath
 }
