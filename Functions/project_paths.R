@@ -395,11 +395,16 @@ mmm_behavior_audit_replay_path <- function(script_id,
                                            run_id = Sys.getenv(
                                              "MMM_BEHAVIOR_AUDIT_REPLAY_ID",
                                              unset = "")) {
+  # The shared writers mirror any path containing /figures/ and canonicalize
+  # /pipeline/ paths (Functions/behavioral_dynamics_helpers.R), so these ids
+  # would place copies outside the replay folder.
+  reserved <- c("figures", "pipeline")
   valid <- function(x) is.character(x) && length(x) == 1L && !is.na(x) &&
-    grepl("^[a-z0-9][a-z0-9_-]{2,63}$", x)
+    grepl("^[a-z0-9][a-z0-9_-]{2,63}$", x) && !x %in% reserved
   if (!valid(script_id) || !valid(run_id)) {
     stop("Historical audit replay needs a safe script id and explicit run id ",
-         "(MMM_BEHAVIOR_AUDIT_REPLAY_ID).", call. = FALSE)
+         "(MMM_BEHAVIOR_AUDIT_REPLAY_ID); 'figures' and 'pipeline' are reserved.",
+         call. = FALSE)
   }
   path <- file.path(project_root, "analysis_ready", "analyses",
                     "historical_audit_replays", run_id, script_id)

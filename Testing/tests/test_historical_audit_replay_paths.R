@@ -25,6 +25,13 @@ stopifnot(identical(out, file.path(ready, "analyses", "historical_audit_replays"
             "try-error"),
           inherits(try(mmm_behavior_audit_replay_output_root(
             "first_night_candidate_set_scores", root, ""), silent = TRUE),
+            "try-error"),
+          # Shared writers mirror /figures/ paths and canonicalize /pipeline/.
+          inherits(try(mmm_behavior_audit_replay_output_root(
+            "first_night_candidate_set_scores", root, "figures"), silent = TRUE),
+            "try-error"),
+          inherits(try(mmm_behavior_audit_replay_output_root(
+            "first_night_candidate_set_scores", root, "pipeline"), silent = TRUE),
             "try-error"))
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 stopifnot(inherits(try(mmm_behavior_audit_replay_output_root(

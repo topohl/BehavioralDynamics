@@ -26,6 +26,12 @@ suppressPackageStartupMessages({
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0 || all(is.na(x))) y else x
 
 ensure_dir <- function(path) {
+  # Every shared writer creates its directory here. Once a numbered root is
+  # under archive control, refuse it and its retained archive, including for
+  # extracted code blocks that bypass their stage's own guard.
+  if (exists("mmm_behavior_guard_numbered_output_path", mode = "function")) {
+    mmm_behavior_guard_numbered_output_path(path)
+  }
   if (!dir.exists(path)) dir.create(path, recursive = TRUE, showWarnings = FALSE)
   invisible(path)
 }

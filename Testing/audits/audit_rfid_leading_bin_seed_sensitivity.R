@@ -51,7 +51,8 @@ source_mmm_helper("rfid_domain_inference.R")
 
 ROOT <- mmm_project_root()
 BIN <- "10min_based"; BS <- 600
-OUT <- mmm_behavior_output_active_root("rfid_leading_bin_seed_audit", project_root = ROOT)
+OUT <- mmm_behavior_guard_numbered_output_path(
+  mmm_behavior_output_active_root("rfid_leading_bin_seed_audit", project_root = ROOT), ROOT)
 if (!dir.exists(OUT)) dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 w <- function(x, nm) { write_csv(x, file.path(OUT, nm)); invisible(nm) }
 

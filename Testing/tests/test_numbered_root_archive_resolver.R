@@ -70,15 +70,19 @@ stopifnot(identical(mmm_behavior_output_active_root(group, root), semantic),
           identical(mmm_behavior_retained_source_root(group, root), old_group),
           check_error(mmm_behavior_numbered_writer_root(numbered, root)),
           check_error(mmm_behavior_guard_numbered_output_path(old_group, root)))
-# Case-folded and UNC spellings of the numbered root are refused as well;
-# a semantic destination spelled through UNC is not over-blocked.
-stopifnot(check_error(mmm_behavior_guard_numbered_output_path(tolower(old_group), root)),
-          check_error(mmm_behavior_guard_numbered_output_path(
-            file.path(tolower(old_root), "hmm_states", "1min_based"), root)),
-          check_error(mmm_behavior_guard_numbered_output_path(
-            unc_spelling(old_group), root)),
-          identical(mmm_behavior_guard_numbered_output_path(
-            unc_spelling(semantic), root), unc_spelling(semantic)))
+# On the case-insensitive Windows share, case-folded and UNC spellings of the
+# numbered root are refused as well; a semantic destination spelled through
+# UNC is not over-blocked.
+on_windows <- identical(.Platform$OS.type, "windows")
+if (on_windows) {
+  stopifnot(check_error(mmm_behavior_guard_numbered_output_path(tolower(old_group), root)),
+            check_error(mmm_behavior_guard_numbered_output_path(
+              file.path(tolower(old_root), "hmm_states", "1min_based"), root)),
+            check_error(mmm_behavior_guard_numbered_output_path(
+              unc_spelling(old_group), root)),
+            identical(mmm_behavior_guard_numbered_output_path(
+              unc_spelling(semantic), root), unc_spelling(semantic)))
+}
 # A prepared receipt with an archive directory already present fails closed.
 dir.create(archived_root, recursive = TRUE, showWarnings = FALSE)
 stopifnot(check_error(mmm_behavior_retained_source_root(group, root)))
@@ -98,14 +102,16 @@ stopifnot(identical(mmm_behavior_retained_source_root(group, root), archived_gro
           check_error(mmm_behavior_guard_numbered_output_path(archived_group,
                                                               root)),
           check_error(mmm_behavior_guard_numbered_output_path(old_group, root)))
-# Another spelling of the project root still resolves the archive, and other
-# spellings of the archive are refused as write targets.
-stopifnot(identical(tolower(mmm_behavior_retained_source_root(group, tolower(root))),
-                    tolower(archived_group)),
-          check_error(mmm_behavior_guard_numbered_output_path(
-            file.path(tolower(archived_root), "hmm_states", "new"), root)),
-          check_error(mmm_behavior_guard_numbered_output_path(
-            unc_spelling(archived_group), root)))
+# On Windows another spelling of the project root still resolves the archive,
+# and other spellings of the archive are refused as write targets.
+if (on_windows) {
+  stopifnot(identical(tolower(mmm_behavior_retained_source_root(group, tolower(root))),
+                      tolower(archived_group)),
+            check_error(mmm_behavior_guard_numbered_output_path(
+              file.path(tolower(archived_root), "hmm_states", "new"), root)),
+            check_error(mmm_behavior_guard_numbered_output_path(
+              unc_spelling(archived_group), root)))
+}
 
 # The live 06 root holds 18,194,653,380 bytes. A receipt above 2^31 must still
 # validate; malformed JSON or an incomplete, ambiguous, or mistyped receipt

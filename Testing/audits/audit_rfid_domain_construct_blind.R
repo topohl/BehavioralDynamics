@@ -43,7 +43,8 @@ source_mmm_helper("rfid_domain_core.R")
 ROOT <- mmm_project_root()
 stage_tables <- function(bin) file.path(
   behavior_stage_dir(ROOT, "28", "rfid_behavioral_domains", sub("_based$", "", bin)), "tables")
-OUT <- mmm_behavior_output_active_root("rfid_construct_audit", project_root = ROOT)
+OUT <- mmm_behavior_guard_numbered_output_path(
+  mmm_behavior_output_active_root("rfid_construct_audit", project_root = ROOT), ROOT)
 if (!dir.exists(OUT)) dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
 FLAG <- function(r) dplyr::case_when(

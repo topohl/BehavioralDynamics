@@ -68,7 +68,8 @@ ROOT <- mmm_project_root()
 BIN <- "10min_based"; BS <- 600
 S28 <- function(bin = "10min") file.path(
   behavior_stage_dir(ROOT, "28", "rfid_behavioral_domains", bin), "tables")
-OUT <- mmm_behavior_output_active_root("rfid_conservatism_audit", project_root = ROOT)
+OUT <- mmm_behavior_guard_numbered_output_path(
+  mmm_behavior_output_active_root("rfid_conservatism_audit", project_root = ROOT), ROOT)
 if (!dir.exists(OUT)) dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 written <- character(0)
 w <- function(x, nm) {

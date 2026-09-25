@@ -32,7 +32,8 @@ source_mmm_helper("hmm_stage14_helpers.R")
 
 PROJ <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 ST14 <- mmm_behavior_output_active_root("systems_dashboard_5min", PROJ)
-OUT <- mmm_behavior_output_active_root("inactive_phase_qc_audit", PROJ)
+OUT <- mmm_behavior_guard_numbered_output_path(
+  mmm_behavior_output_active_root("inactive_phase_qc_audit", PROJ), PROJ)
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 hr <- function(x) cat("\n########", x, "########\n")
 
