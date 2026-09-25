@@ -21,7 +21,23 @@ spatial_figures <- grepl("/analysis_ready/05_figures/spatial_occupancy/", paths,
 if (sum(spatial_models) != 4L || any(loaded[spatial_models | spatial_figures])) {
   stop("Recorded Stage 10 run does not support excluding Stage 19 model/figure trees")
 }
-if (sum(loaded) != 176L || any(!file.exists(audit$source_file[loaded]))) {
+# The recorded paths are provenance of the 2026-09-22 run. A numbered root may
+# since have been archived, so check each file at its retained location.
+retained_path <- function(path) {
+  for (numbered in c("03_derived_metrics", "06_behavioral_dynamics",
+                     "12_systems_neuroscience_summary")) {
+    old <- paste0(normalizePath(file.path(root, "analysis_ready", numbered),
+                                winslash = "/", mustWork = FALSE), "/")
+    if (startsWith(path, old)) {
+      return(file.path(mmm_behavior_numbered_source_root(numbered, root),
+                       substring(path, nchar(old) + 1L)))
+    }
+  }
+  path
+}
+present <- vapply(paths[loaded], function(path) file.exists(retained_path(path)),
+                  logical(1))
+if (sum(loaded) != 176L || !all(present)) {
   stop("Recorded Stage 10 loaded-feature source set changed or is no longer present")
 }
 

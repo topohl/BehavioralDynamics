@@ -65,7 +65,8 @@ behavior_file <- resolve_stage09_early_prediction_artifact(
 
 proteomics_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/proteomics"
 
-base_output_dir <- mmm_behavior_proteomics_base_dir(project_root)
+base_output_dir <- mmm_behavior_guard_numbered_output_path(
+  mmm_behavior_proteomics_base_dir(project_root), project_root)
 
 behavior_bin_level <- "5min_based"
 phase_analysis_bin_level <- "10min_based"

@@ -214,21 +214,74 @@ mmm_behavior_output_group_root <- function(group,
 # A numbered root may eventually be retained under history/original_layout/.
 # Its archive receipt is separate from each semantic-copy activation receipt.
 # Without that receipt, the original source location is still mandatory.
+MMM_NUMBERED_BEHAVIOR_ROOTS <- c("03_derived_metrics", "06_behavioral_dynamics",
+                                 "12_systems_neuroscience_summary")
+
+# Paths on the Windows share are case-insensitive, and normalizePath() keeps
+# the caller's spelling for a path that does not exist yet.
+.mmm_path_key <- function(path) {
+  key <- sub("/+$", "", normalizePath(path, winslash = "/", mustWork = FALSE))
+  if (identical(.Platform$OS.type, "windows")) tolower(key) else key
+}
+.mmm_path_within <- function(path, root) {
+  path <- .mmm_path_key(path)
+  root <- .mmm_path_key(root)
+  identical(path, root) || startsWith(path, paste0(root, "/"))
+}
+.mmm_is_unc_path <- function(path) {
+  grepl("^(//|\\\\\\\\)", normalizePath(path, winslash = "/", mustWork = FALSE))
+}
+
+# Read a numbered-root archive receipt with the same schema the transaction
+# tool writes. Exact field names only: `$` would partially match state_note.
+.mmm_read_numbered_archive_receipt <- function(receipt_path, numbered) {
+  receipt <- tryCatch(jsonlite::fromJSON(receipt_path, simplifyVector = FALSE),
+                      error = function(e) stop("Invalid numbered source archive receipt: ",
+                                               receipt_path, ": ", conditionMessage(e),
+                                               call. = FALSE))
+  text <- function(name, pattern = NULL) {
+    value <- receipt[[name]]
+    is.character(value) && length(value) == 1L && !is.na(value) &&
+      (is.null(pattern) || grepl(pattern, value))
+  }
+  count <- function(name, minimum) {
+    value <- receipt[[name]]
+    is.numeric(value) && length(value) == 1L && !is.na(value) &&
+      value >= minimum && value == floor(value)
+  }
+  if (!is.list(receipt) || is.null(names(receipt)) ||
+      anyDuplicated(names(receipt)) ||
+      !identical(receipt[["root"]], numbered) ||
+      !identical(receipt[["source_root_rel"]], numbered) ||
+      !identical(receipt[["archive_root_rel"]],
+                 paste0("history/original_layout/", numbered)) ||
+      !text("manifest_sha256", "^[0-9a-f]{64}$") ||
+      !text("reader_gate_sha256", "^[0-9a-f]{64}$") ||
+      !text("reader_queue_sha256", "^[0-9a-f]{64}$") ||
+      !text("reader_gate_kind", "^(ScientificReplay|ArchivePath)$") ||
+      !count("files", 1) || !count("bytes", 0) ||
+      !text("state", "^(prepared|transferring|activated)$")) {
+    stop("Numbered source archive receipt does not match ", numbered, ": ",
+         receipt_path, call. = FALSE)
+  }
+  receipt
+}
+
 mmm_behavior_retained_source_root <- function(group,
                                               project_root = mmm_project_root()) {
   current <- mmm_behavior_output_group_root(group, "current", project_root)
-  ready <- normalizePath(file.path(project_root, "analysis_ready"),
-                         winslash = "/", mustWork = FALSE)
-  normalized <- normalizePath(current, winslash = "/", mustWork = FALSE)
-  if (!startsWith(normalized, paste0(ready, "/"))) {
+  ready <- file.path(project_root, "analysis_ready")
+  # Split the static relative mapping, not a normalized path whose case can
+  # differ from the caller's spelling once the numbered source has moved.
+  parts <- strsplit(substring(current, nchar(ready) + 2L), "/",
+                    fixed = TRUE)[[1L]]
+  if (!startsWith(current, paste0(ready, "/")) || length(parts) == 0L ||
+      any(parts %in% c("", ".", ".."))) {
     stop("Behavior output source escaped analysis_ready: ", current,
          call. = FALSE)
   }
-  parts <- strsplit(substring(normalized, nchar(ready) + 2L), "/",
-                    fixed = TRUE)[[1L]]
   numbered <- parts[[1L]]
-  if (!numbered %in% c("03_derived_metrics", "06_behavioral_dynamics",
-                       "12_systems_neuroscience_summary")) return(current)
+  if (!numbered %in% MMM_NUMBERED_BEHAVIOR_ROOTS) return(current)
 
   archived <- file.path(project_root, "analysis_ready", "history",
                         "original_layout", paste(parts, collapse = "/"))
@@ -246,48 +299,26 @@ mmm_behavior_retained_source_root <- function(group,
     stop("jsonlite is required to validate a numbered source archive receipt.",
          call. = FALSE)
   }
-  receipt <- tryCatch(jsonlite::fromJSON(receipt_path),
-                      error = function(e) stop("Invalid numbered source archive receipt: ",
-                                               receipt_path, ": ", conditionMessage(e),
-                                               call. = FALSE))
-  expected_archive_rel <- paste0("history/original_layout/", numbered)
-  if (!identical(receipt$root, numbered) ||
-      !identical(receipt$source_root_rel, numbered) ||
-      !identical(receipt$archive_root_rel, expected_archive_rel) ||
-      !is.character(receipt$manifest_sha256) ||
-      length(receipt$manifest_sha256) != 1L ||
-      !grepl("^[0-9a-f]{64}$", receipt$manifest_sha256) ||
-      !is.numeric(receipt$files) || length(receipt$files) != 1L ||
-      is.na(receipt$files) || receipt$files < 1L ||
-      !is.numeric(receipt$bytes) || length(receipt$bytes) != 1L ||
-      is.na(receipt$bytes) || receipt$bytes < 0 ||
-      !is.character(receipt$state) || length(receipt$state) != 1L) {
-    stop("Numbered source archive receipt does not match ", numbered,
-         call. = FALSE)
-  }
+  state <- .mmm_read_numbered_archive_receipt(receipt_path, numbered)[["state"]]
   old_root <- file.path(project_root, "analysis_ready", numbered)
-  archive_root <- file.path(project_root, "analysis_ready",
-                            expected_archive_rel)
-  if (identical(receipt$state, "prepared")) {
+  archive_root <- file.path(project_root, "analysis_ready", "history",
+                            "original_layout", numbered)
+  if (identical(state, "prepared")) {
     if (!dir.exists(old_root) || dir.exists(archive_root)) {
       stop("Prepared numbered source archive has unexpected locations for ",
            numbered, call. = FALSE)
     }
     return(current)
   }
-  if (identical(receipt$state, "transferring")) {
+  if (identical(state, "transferring")) {
     stop("Numbered source archive is transferring for ", numbered,
          call. = FALSE)
   }
-  if (identical(receipt$state, "activated")) {
-    if (dir.exists(old_root) || !dir.exists(archive_root)) {
-      stop("Activated numbered source archive has unexpected locations for ",
-           numbered, call. = FALSE)
-    }
-    return(archived)
+  if (dir.exists(old_root) || !dir.exists(archive_root)) {
+    stop("Activated numbered source archive has unexpected locations for ",
+         numbered, call. = FALSE)
   }
-  stop("Unknown numbered source archive state for ", numbered, ": ",
-       receipt$state, call. = FALSE)
+  archived
 }
 
 # Historical audit replays read the retained original lineage, regardless of
@@ -318,8 +349,7 @@ mmm_behavior_numbered_writer_root <- function(root_name,
   receipt <- file.path(project_root, "analysis_ready", "_migration_control",
                        "numbered_root_archive", paste0(root_name, ".json"))
   if (file.exists(receipt) ||
-      !identical(normalizePath(source, winslash = "/", mustWork = FALSE),
-                 normalizePath(old, winslash = "/", mustWork = FALSE))) {
+      !identical(.mmm_path_key(source), .mmm_path_key(old))) {
     stop("Numbered behavioral output root is under archive control; ",
          "refusing to write: ", old, call. = FALSE)
   }
@@ -333,19 +363,25 @@ mmm_behavior_guard_numbered_output_path <- function(path,
   if (length(path) != 1L || is.na(path) || !nzchar(path)) {
     stop("Behavior output path must be one nonempty path.", call. = FALSE)
   }
-  actual <- normalizePath(path, winslash = "/", mustWork = FALSE)
-  for (root_name in c("03_derived_metrics", "06_behavioral_dynamics",
-                      "12_systems_neuroscience_summary")) {
-    old <- normalizePath(file.path(project_root, "analysis_ready", root_name),
-                         winslash = "/", mustWork = FALSE)
-    archived <- normalizePath(file.path(project_root, "analysis_ready",
-                                        "history", "original_layout", root_name),
-                              winslash = "/", mustWork = FALSE)
-    if (identical(actual, archived) || startsWith(actual, paste0(archived, "/"))) {
+  # A UNC spelling of a drive-letter project root (or the reverse) cannot be
+  # compared as a string, so refuse it wherever it names a guarded root.
+  guarded <- paste0("/analysis_ready/(",
+                    paste(c(MMM_NUMBERED_BEHAVIOR_ROOTS, "history/original_layout"),
+                          collapse = "|"), ")(/|$)")
+  if (!identical(.mmm_is_unc_path(path), .mmm_is_unc_path(project_root)) &&
+      grepl(guarded, tolower(gsub("\\\\", "/", path)))) {
+    stop("Refusing a numbered-root output path spelled differently from the ",
+         "project root: ", path, call. = FALSE)
+  }
+  for (root_name in MMM_NUMBERED_BEHAVIOR_ROOTS) {
+    old <- file.path(project_root, "analysis_ready", root_name)
+    archived <- file.path(project_root, "analysis_ready", "history",
+                          "original_layout", root_name)
+    if (.mmm_path_within(path, archived)) {
       stop("Refusing to write into retained numbered archive: ", path,
            call. = FALSE)
     }
-    if (identical(actual, old) || startsWith(actual, paste0(old, "/"))) {
+    if (.mmm_path_within(path, old)) {
       mmm_behavior_numbered_writer_root(root_name, project_root)
     }
   }
@@ -714,9 +750,10 @@ mmm_behavior_proteomics_base_dir <- function(project_root = mmm_project_root()) 
   mmm_behavior_output_assert_uniform_layout(groups, project_root,
                                             "Stage 15 behavior-proteomics")
   layout <- mmm_behavior_output_layout_state(groups[[1]], project_root)
-  file.path(project_root, "analysis_ready",
-            if (identical(layout, "semantic")) "analyses/behavior_proteomics"
-            else "06_behavioral_dynamics")
+  if (identical(layout, "semantic")) {
+    return(file.path(project_root, "analysis_ready", "analyses/behavior_proteomics"))
+  }
+  dirname(mmm_behavior_retained_source_root(groups[[1]], project_root))
 }
 
 mmm_behavior_output_assert_uniform_layout <- function(groups,

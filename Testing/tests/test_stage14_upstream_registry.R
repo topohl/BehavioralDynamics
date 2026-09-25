@@ -65,7 +65,9 @@ jsonlite::write_json(list(
   source_root_rel = "06_behavioral_dynamics",
   archive_root_rel = "history/original_layout/06_behavioral_dynamics",
   state = "activated", files = 1L, bytes = 23L,
-  manifest_sha256 = paste(rep("a", 64), collapse = "")),
+  manifest_sha256 = paste(rep("a", 64), collapse = ""),
+  reader_gate_kind = "ArchivePath", reader_gate_sha256 = strrep("e", 64L),
+  reader_queue_sha256 = strrep("f", 64L)),
   receipt, auto_unbox = TRUE)
 warned2arch <- FALSE
 res2arch <- withCallingHandlers(

@@ -133,13 +133,16 @@ domain_bin_preference <- function(domain = "general") {
   unique(c(preferred, primary_bin_level, optional_import_bin_levels))
 }
 
-# Main output root.
-output_dir <- if (identical(primary_bin_level, "5min_based")) {
-  mmm_behavior_output_active_root("systems_dashboard_5min", project_root)
-} else {
-  file.path(mmm_behavior_numbered_writer_root(
-    "12_systems_neuroscience_summary", project_root), primary_bin_level)
-}
+# Main output root. An unactivated group would resolve to its retained
+# original, so the guard refuses that path once the root is under archive
+# control.
+output_dir <- mmm_behavior_guard_numbered_output_path(
+  if (identical(primary_bin_level, "5min_based")) {
+    mmm_behavior_output_active_root("systems_dashboard_5min", project_root)
+  } else {
+    file.path(mmm_behavior_numbered_writer_root(
+      "12_systems_neuroscience_summary", project_root), primary_bin_level)
+  }, project_root)
 
 # Optional endpoint file for physiology/behavioral burden/proteomics module data.
 # Expected: one row per animal, with an AnimalNum-like column and endpoint columns.
@@ -5789,12 +5792,13 @@ write_table(first_active_prediction_table, file.path(output_dir, "stats_tables/s
 
 first_night_results <- map2(first_night_bin_levels, first_night_roles, function(bl, role) {
   group <- paste0("first_night_", sub("_based$", "", bl))
-  first_night_output_dir <- if (group %in% c("first_night_10min", "first_night_5min")) {
-    mmm_behavior_output_active_root(group, project_root = project_root)
-  } else {
-    # Preserve the existing explicit override interface for other bin widths.
-    file.path(output_dir, "first_night", bl)
-  }
+  first_night_output_dir <- mmm_behavior_guard_numbered_output_path(
+    if (group %in% c("first_night_10min", "first_night_5min")) {
+      mmm_behavior_output_active_root(group, project_root = project_root)
+    } else {
+      # Preserve the existing explicit override interface for other bin widths.
+      file.path(output_dir, "first_night", bl)
+    }, project_root)
   build_first_night_domain_analysis(
     bin_level = bl,
     project_root = project_root,
@@ -5921,8 +5925,9 @@ sis_heatmap_domains <- c(
 domain_effect_path <- file.path(output_dir, "stats_tables/systems_sis_domain_effect_summary.csv")
 # The pre-fix table is frozen historical evidence, not a Stage 14 output.
 # Never populate it from a current result after a dashboard path cutover.
+# It exists only in the retained original, which may be archived.
 pre_fix_effect_path <- file.path(
-  mmm_behavior_output_group_root("systems_dashboard_5min", "current", project_root),
+  mmm_behavior_retained_source_root("systems_dashboard_5min", project_root),
   "stats_tables/systems_sis_domain_effect_summary_pre_hmm_identity_fix.csv")
 
 non_hmm_domain_scores <- sis_domain_scores %>%
@@ -6035,6 +6040,9 @@ old_broken_state_architecture <- if (file.exists(pre_fix_effect_path)) {
       n_unit = "animal x cage-change rows (invalid independence assumption)"
     )
 } else {
+  warning("Frozen pre-fix Stage 14 table not found; the before/after table ",
+          "omits its old_broken_stage14 rows: ", pre_fix_effect_path,
+          call. = FALSE)
   tibble()
 }
 corrected_state_architecture <- bind_rows(

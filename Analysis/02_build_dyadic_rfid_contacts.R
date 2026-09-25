@@ -58,8 +58,9 @@ source_mmm_helper("project_paths.R")
 existing_default_input_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/preprocessed_data"
 input_dir <- getOption("mmm.preprocessed_dir", existing_default_input_dir)
 configured_output_dir <- getOption("mmm.dyadic_contacts_dir", NULL)
-output_dir <- if (is.null(configured_output_dir))
-  mmm_behavior_output_active_root("dyadic_contacts") else configured_output_dir
+output_dir <- mmm_behavior_guard_numbered_output_path(
+  if (is.null(configured_output_dir))
+    mmm_behavior_output_active_root("dyadic_contacts") else configured_output_dir)
 
 # The aggregation bin determines the temporal resolution of the dyadic table.
 # 1800 sec = 30 min, matching the current main analysis scale.

@@ -117,10 +117,16 @@ RFID_ROOT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavio
 spatial_groups <- c("spatial_tables", "spatial_audit", "spatial_models", "spatial_figures")
 mmm_behavior_output_assert_uniform_layout(spatial_groups, project_root = RFID_ROOT,
                                           producer = "Stage 19 spatial")
-DIR_DERIVED <- mmm_behavior_output_active_root("spatial_tables", project_root = RFID_ROOT)
-DIR_AUDIT   <- mmm_behavior_output_active_root("spatial_audit", project_root = RFID_ROOT)
-DIR_MODELS  <- mmm_behavior_output_active_root("spatial_models", project_root = RFID_ROOT)
-DIR_FIGS    <- mmm_behavior_output_active_root("spatial_figures", project_root = RFID_ROOT)
+# An unactivated group would resolve to its retained original; the guard
+# refuses that path once the numbered root is under archive control.
+DIR_DERIVED <- mmm_behavior_guard_numbered_output_path(
+  mmm_behavior_output_active_root("spatial_tables", project_root = RFID_ROOT), RFID_ROOT)
+DIR_AUDIT   <- mmm_behavior_guard_numbered_output_path(
+  mmm_behavior_output_active_root("spatial_audit", project_root = RFID_ROOT), RFID_ROOT)
+DIR_MODELS  <- mmm_behavior_guard_numbered_output_path(
+  mmm_behavior_output_active_root("spatial_models", project_root = RFID_ROOT), RFID_ROOT)
+DIR_FIGS    <- mmm_behavior_guard_numbered_output_path(
+  mmm_behavior_output_active_root("spatial_figures", project_root = RFID_ROOT), RFID_ROOT)
 DIR_PUBTAB  <- file.path(RFID_ROOT, "publication_ready/tables/spatial_occupancy")
 DIR_PUBFIG  <- file.path(RFID_ROOT, "publication_ready/figures/single_panels/spatial_occupancy")
 
