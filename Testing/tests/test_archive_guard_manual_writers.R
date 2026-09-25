@@ -1,7 +1,8 @@
 # The dashboard metadata refresher and the identity repair utility refuse the
 # retained archive and an archived numbered root of the project that holds
-# their target. Every path used here is under a temporary project root; both
-# tools stop before writing if the guard does not fire.
+# their target. Every path used here is under a temporary project root.
+# Without the guard both tools would write, but only inside that root; the
+# listing and content checks detect it.
 suppressPackageStartupMessages(library(dplyr))
 root <- normalizePath(file.path(tempdir(), paste0("manual_writer_guard_",
                                                   as.integer(runif(1L, 1L, 1e9)))),
@@ -36,6 +37,20 @@ out <- suppressWarnings(system2("Rscript", c("Maintenance/Refresh-SystemsDashboa
 stopifnot(!is.null(attr(out, "status")),
           any(grepl("Refusing to write into retained numbered archive", out, fixed = TRUE)),
           identical(listing(), before))
+
+# Refresher: also refused at a recreated old top-level root of an archived
+# numbered root (the receipt branch of the guard).
+recreated <- file.path(ready, "12_systems_neuroscience_summary", "5min_based")
+dir.create(file.path(recreated, "figures"), recursive = TRUE)
+writeLines("<svg/>", file.path(recreated, "figures", "panel.svg"))
+before <- listing()
+out <- suppressWarnings(system2("Rscript", c("Maintenance/Refresh-SystemsDashboardMetadata.R",
+                                             shQuote(recreated), "1", shQuote(repo)),
+                                stdout = TRUE, stderr = TRUE))
+stopifnot(!is.null(attr(out, "status")),
+          any(grepl("archive control|unexpected", out)),
+          identical(listing(), before))
+unlink(file.path(ready, "12_systems_neuroscience_summary"), recursive = TRUE)
 
 # Repair utility: refused for an archived 03 original, which stays unchanged.
 metrics <- file.path(archived03, "all_behavior_metrics.csv")

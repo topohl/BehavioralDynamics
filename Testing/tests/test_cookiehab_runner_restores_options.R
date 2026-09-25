@@ -21,6 +21,11 @@ stopifnot(!any(c("options", "setwd", "on.exit") %in%
                  unlist(lapply(exprs[!is_local], calls_in))),
           all(c("options", "setwd", "on.exit", "source") %in%
                 calls_in(exprs[[which(is_local)]])))
+# The block is evaluated below with the live cookiehab options set, so it may
+# contain only these calls; any other call (file I/O, system2, ...) fails here.
+block_calls <- unique(calls_in(exprs[[which(is_local)]]))
+stopifnot(all(block_calls %in% c("local", "{", "<-", "setwd", "options", "on.exit",
+                                 "source", "file.path", "new.env")))
 
 root <- normalizePath(file.path(tempdir(), paste0("cookiehab_runner_",
                                                   as.integer(runif(1L, 1L, 1e9)))),
