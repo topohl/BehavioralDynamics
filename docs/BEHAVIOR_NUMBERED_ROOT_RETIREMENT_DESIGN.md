@@ -1,9 +1,10 @@
 # Retiring numbered behavioral output roots: proposed transaction
 
-Status: `03_derived_metrics` prepared under the approved `ArchivePath` gate,
-2026-09-25; not activated. No numbered source directory has been moved,
-renamed, hidden, or deleted. `06_behavioral_dynamics` and
-`12_systems_neuroscience_summary` have no receipt. The receipt-activated
+Status: `03_derived_metrics` activated under the approved `ArchivePath`
+gate, 2026-09-25; it now sits unchanged under
+`history/original_layout/03_derived_metrics/`. Nothing was deleted.
+`06_behavioral_dynamics` and `12_systems_neuroscience_summary` have no
+receipt. The receipt-activated
 semantic copies are already selected by current readers. This design is a
 separate operation from the completed copy activations. See "Readiness
 review, 2026-09-25" and "03 prepared, 2026-09-25" below.
@@ -446,7 +447,17 @@ so none of them may run against this RFID tree.
 The foundation residual inventory passed, and SLEAPanalyzer's resolver reads
 the original. `qc/first_night_seed_provenance.csv` stays retained and
 unpromoted. `Abandon` would release the receipt without moving anything.
-`Activate` has not been approved.
+
+## 03 activated, 2026-09-25
+
+Following `BEHAVIOR_03_ARCHIVE_ACTIVATION_CHECKLIST.md`, the repository,
+gate and writer checks passed, and the full test suite passed. `Activate`
+then moved the root (13:45:50 UTC, 60 s; 53 files rehashed before and after
+the rename). R now resolves the retained 03 source to the archive and opens
+all 53 files there (longest path 198 characters). The foundation and spatial
+copies remain the active roots. The live navigation files and
+`output_index.csv` were updated after backups; see
+`BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md`.
 
 Before any live activation, test each root on synthetic interrupted states:
 missing or extra files, changed hashes, pre-existing destination, a destination

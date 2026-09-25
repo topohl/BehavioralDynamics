@@ -725,3 +725,41 @@ the Stage 16 source definition exactly, SHA-256
 The prior 53-row index is backed up under `_migration_control/` with SHA-256
 `38BD52B718D7D32D0F84CBADB47CE3AF8CAF8FAA1EA100F6651EE485C9F3955E`.
 No residual file was copied, moved, or rerun.
+
+## 2026-09-25 numbered-root archive: 03_derived_metrics
+
+With the maintainer's approval, `Invoke-BehaviorNumberedRootArchive.ps1
+-Action Activate` moved the complete `03_derived_metrics/` root unchanged to
+`history/original_layout/03_derived_metrics/` (activated 2026-09-25 13:45:50
+UTC, in 60 seconds). The tool rehashed all 53 files (3,162,803,458 bytes)
+against manifest `53265050...` before and after the same-volume rename. The
+reviewed `ArchivePath` gate is
+`behavior_output_archive_gate_03_derived_metrics.csv` (`c01aa48a...`). The
+activated receipt `_migration_control/numbered_root_archive/03_derived_metrics.json`
+has SHA-256 `929598917B0DCBE4380AD437905F1B5BBF104456D566D06558A34D259675CD3B`.
+Before the move no writer process, scheduled task, or peer session was
+active, and the full test suite passed (54 R, 6 PowerShell).
+
+After the move, R resolves the retained source to the archive and opens all
+53 files there. The foundation copy and the spatial table and audit copies
+stay the active roots, and writes into either location are refused by code
+on this branch. The unpromoted `qc/first_night_seed_provenance.csv` moved
+with the root and was not promoted. Four live READMEs (root, `foundations/`,
+`history/`, `analyses/`) were replaced by their repository sources after
+backups to `_migration_control/`:
+
+| Backup | SHA-256 |
+| --- | --- |
+| `analysis_ready_README_before_03_archive_20260925.md` | `903BB02C117574135465FB91AE293035C39DA5AEF7416AC65B28FF002336A409` |
+| `foundations_README_before_03_archive_20260925.md` | `33C98645981C297477C21F21DD6B5F555288D768A3430B1A1944331CE5672ABB` |
+| `history_README_before_03_archive_20260925.md` | `FF9E8A418D041EFF4A535DE2D45C391FF9B388AA3AF381EB218027263889E17E` |
+| `analyses_README_before_03_archive_20260925.md` | `5D3A4D5406DDEDCD175E35C38D82522432DB20A7A767BF966A414C5AE07F8902` |
+
+`Maintenance/Refresh-BehaviorOutputIndex.R` refreshed the 63-row
+`output_index.csv` from the Stage 16 definition. Five notes changed: four
+`03` rows gained their retained-original location, and `08-audit-history`
+took the wording already committed in `c8c0a0a`. The new index has SHA-256
+`AAAE32CFDB71EC6FF8EA3AE233707DD9AA5092DC4946C35D8B8E3FDF54135914`; its
+predecessor is `_migration_control/output_index_before_03_archive_20260925.csv`
+(`D5088BECD4AB42A19CE01B893E92A3A0C6DC4A90A387B33FE560062972321EB6`). No
+scientific output was changed or rerun.
