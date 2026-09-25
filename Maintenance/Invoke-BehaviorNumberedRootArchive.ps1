@@ -227,6 +227,22 @@ function Assert-NoReparsePaths {
     }
   }
 }
+# Without Windows long-path support, R cannot open a path of 260 or more
+# characters (file.exists() is FALSE) although PowerShell can hash it, so an
+# archive could verify while its R readers silently miss files.
+function Assert-ArchivedPathLengths {
+  $setting = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
+    -Name LongPathsEnabled -ErrorAction SilentlyContinue
+  if ($null -ne $setting -and $setting.LongPathsEnabled -eq 1) { return }
+  $longest = @(Import-Csv -LiteralPath $manifestPath | ForEach-Object {
+    [pscustomobject]@{ path = $_.relative_path
+                       length = ($archive + '\' + $_.relative_path).Length }
+  } | Sort-Object length -Descending | Select-Object -First 1)
+  if ($longest.Count -eq 1 -and $longest[0].length -ge 260) {
+    throw ("Archived paths would reach $($longest[0].length) characters while long paths " +
+           "are disabled; R could not open them: $($longest[0].path)")
+  }
+}
 function Assert-Inventory($Checked, $Record, [string] $Message) {
   if ($Checked.files -ne [long]$Record.files -or
       $Checked.bytes -ne [long]$Record.bytes) { throw $Message }
@@ -273,6 +289,7 @@ try {
       if ($null -ne $record -or (Test-Path -LiteralPath $archive)) {
         throw 'Archive receipt or destination already exists'
       }
+      Assert-ArchivedPathLengths
       $gateHashes = Verify-ReaderGate
       $checked = Verify-Location 'Original'
       $record = [pscustomobject]@{
@@ -313,6 +330,7 @@ try {
         throw 'Reader queue changed after Prepare'
       }
       if (Test-Path -LiteralPath $archive) { throw 'Archive destination already exists' }
+      Assert-ArchivedPathLengths
       $checked = Verify-Location 'Original'
       Assert-Inventory $checked $record 'Source changed after Prepare'
       Assert-NoReparsePaths

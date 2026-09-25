@@ -399,12 +399,14 @@ mmm_behavior_audit_replay_path <- function(script_id,
   # /pipeline/ paths (Functions/behavioral_dynamics_helpers.R), so these ids
   # would place copies outside the replay folder.
   reserved <- c("figures", "pipeline")
-  valid <- function(x) is.character(x) && length(x) == 1L && !is.na(x) &&
-    grepl("^[a-z0-9][a-z0-9_-]{2,63}$", x) && !x %in% reserved
-  if (!valid(script_id) || !valid(run_id)) {
-    stop("Historical audit replay needs a safe script id and explicit run id ",
-         "(MMM_BEHAVIOR_AUDIT_REPLAY_ID); 'figures' and 'pipeline' are reserved.",
-         call. = FALSE)
+  valid <- function(x, longest) is.character(x) && length(x) == 1L && !is.na(x) &&
+    nchar(x) <= longest && grepl("^[a-z0-9][a-z0-9_-]{2,}$", x) && !x %in% reserved
+  # The longest queued replay output is 218 characters plus the run id under
+  # the default root; 20 characters keeps it within the 240-character budget.
+  if (!valid(script_id, 64L) || !valid(run_id, 20L)) {
+    stop("Historical audit replay needs a safe script id and an explicit run id of ",
+         "at most 20 characters (MMM_BEHAVIOR_AUDIT_REPLAY_ID); 'figures' and ",
+         "'pipeline' are reserved.", call. = FALSE)
   }
   path <- file.path(project_root, "analysis_ready", "analyses",
                     "historical_audit_replays", run_id, script_id)

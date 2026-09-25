@@ -169,6 +169,8 @@ check(
 )
 
 # C. The full E9 fixture/data check is enabled automatically when S: is present.
+# The project root comes from the configured root, not from the Stage 01 path:
+# since the foundation activation that path is one level deeper.
 full_data_path <- file.path(mmm_derived_metrics_output_root(),
                             "5min_based", "all_behavior_metrics.csv")
 if (file.exists(full_data_path)) {
@@ -187,7 +189,7 @@ if (file.exists(full_data_path)) {
 
   for (resolution in c("5min_based", "10min_based")) {
     hmm_table_dir <- file.path(
-      mmm_hmm_resolution_root(resolution, dirname(dirname(dirname(dirname(full_data_path))))),
+      mmm_hmm_resolution_root(resolution, mmm_project_root()),
       "tables")
     qc_path <- file.path(hmm_table_dir, "hmm_model_qc.csv")
     occupancy_path <- file.path(hmm_table_dir, "hmm_state_occupancy.csv")
@@ -213,8 +215,7 @@ if (file.exists(full_data_path)) {
   }
 
   stage14_dir <- mmm_behavior_output_active_root(
-    "systems_dashboard_5min",
-    dirname(dirname(dirname(dirname(full_data_path)))))
+    "systems_dashboard_5min", mmm_project_root())
   stage14_identity_path <- file.path(stage14_dir, "tables/systems_hmm_identity_summary.csv")
   stage14_coverage_path <- file.path(stage14_dir, "tables/systems_stage14_hmm_coverage_audit.csv")
   stage14_context_path <- file.path(stage14_dir, "tables/systems_hmm_standardization_context_audit.csv")

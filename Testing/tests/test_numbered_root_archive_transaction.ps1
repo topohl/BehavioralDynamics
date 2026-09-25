@@ -416,5 +416,33 @@ if ((Invoke-Archive 'Activate' 'ArchivePath').state -cne 'activated' -or
     (Invoke-Archive 'Rollback' 'ArchivePath').state -cne 'prepared') {
   throw 'Explicit archive path transaction did not complete and roll back'
 }
+# A root whose archived paths would reach 260 characters is refused while
+# Windows long paths are disabled: R could not open those files after the
+# move, although PowerShell verifies them. The original path stays shorter.
+$longReady = Join-Path $fixture 'lp\analysis_ready'
+$longDir = Join-Path $longReady '06_behavioral_dynamics\t'
+New-Item -ItemType Directory -Path $longDir -Force | Out-Null
+$archivedDir = Join-Path $longReady 'history\original_layout\06_behavioral_dynamics\t'
+$longName = ('x' * (262 - $archivedDir.Length - 1 - 4)) + '.csv'
+[System.IO.File]::WriteAllText((Join-Path $longDir $longName), 'x')
+if ((Join-Path $longDir $longName).Length -ge 260 -or (Join-Path $archivedDir $longName).Length -ne 262) {
+  throw 'Long-path fixture has unexpected lengths'
+}
+$longManifest = Join-Path $fixture 'long-manifest.csv'
+& $manifestTool -Action Build -AnalysisReadyRoot $longReady -RootName '06_behavioral_dynamics' `
+  -Manifest $longManifest | Out-Null
+$longHash = (Get-FileHash -LiteralPath $longManifest -Algorithm SHA256).Hash.ToLowerInvariant()
+$longPrepare = {
+  & $tool -Action Prepare -AnalysisReadyRoot $longReady -RootName '06_behavioral_dynamics' `
+    -Manifest $longManifest -ManifestSha256 $longHash -ReaderQueue $queue `
+    -ReviewedReaderGate $gate -ReviewedReaderGateSha256 $gateHash -ReaderGateKind ArchivePath
+}
+$longPaths = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
+  -Name LongPathsEnabled -ErrorAction SilentlyContinue
+if ($null -ne $longPaths -and $longPaths.LongPathsEnabled -eq 1) {
+  if ((& $longPrepare).state -cne 'prepared') { throw 'Long-path root did not prepare with long paths enabled' }
+} else {
+  Expect-Failure $longPrepare 'Archived paths would reach 262 characters'
+}
 Remove-Item -LiteralPath $fixture -Recurse -Force
 Write-Output 'Numbered root archive transaction fixture: PASS'

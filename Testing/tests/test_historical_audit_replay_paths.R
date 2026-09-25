@@ -32,6 +32,13 @@ stopifnot(identical(out, file.path(ready, "analyses", "historical_audit_replays"
             "try-error"),
           inherits(try(mmm_behavior_audit_replay_output_root(
             "first_night_candidate_set_scores", root, "pipeline"), silent = TRUE),
+            "try-error"),
+          # Long run ids would push the longest replay outputs past 240 characters.
+          inherits(try(mmm_behavior_audit_replay_output_root(
+            "first_night_candidate_set_scores", root, strrep("r", 21L)), silent = TRUE),
+            "try-error"),
+          !inherits(try(mmm_behavior_audit_replay_path(
+            "first_night_candidate_set_scores", root, strrep("r", 20L)), silent = TRUE),
             "try-error"))
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 stopifnot(inherits(try(mmm_behavior_audit_replay_output_root(
