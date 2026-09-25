@@ -72,11 +72,29 @@ if (length(hits)) print(hits)
 ok(all(man$resolution_class == "canonical"), "every artifact resolved as canonical")
 
 cat("\n=== 5. no artifact references a missing source ===\n")
-src_exists <- file.exists(man$source_path)
+# Recorded source paths are provenance. A numbered output root may since have
+# moved unchanged to history/original_layout/ under an activated archive
+# receipt; its sources are checked there. Any other receipt state leaves the
+# recorded path, which then fails as missing.
+retained_source <- function(path) {
+  normalized <- gsub("\\\\", "/", path)
+  m <- regmatches(normalized, regexec(
+    "^(.*/analysis_ready)/(03_derived_metrics|06_behavioral_dynamics|12_systems_neuroscience_summary)/(.*)$",
+    normalized))[[1L]]
+  if (length(m) != 4L) return(path)
+  receipt <- file.path(m[[2L]], "_migration_control", "numbered_root_archive",
+                       paste0(m[[3L]], ".json"))
+  if (!file.exists(receipt)) return(path)
+  state <- jsonlite::fromJSON(receipt, simplifyVector = FALSE)[["state"]]
+  if (!identical(state, "activated")) return(path)
+  file.path(m[[2L]], "history", "original_layout", m[[3L]], m[[4L]])
+}
+source_now <- vapply(man$source_path, retained_source, character(1), USE.NAMES = FALSE)
+src_exists <- file.exists(source_now)
 ok(all(src_exists), paste0("every recorded source_path still exists (",
                            sum(src_exists), "/", nrow(man), ")"))
 if (!all(src_exists)) print(man$source_path[!src_exists])
-live_src <- vapply(man$source_path[src_exists], h, character(1))
+live_src <- vapply(source_now[src_exists], h, character(1))
 ok(all(tolower(live_src) == tolower(man$source_sha256[src_exists])),
    "every source file still matches its recorded source_sha256 (sources unmodified)")
 

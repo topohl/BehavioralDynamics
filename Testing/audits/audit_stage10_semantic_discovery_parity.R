@@ -24,12 +24,16 @@ eval(assignment("feature_search_dirs"))
 stopifnot(length(feature_search_groups) == 18L,
           length(feature_search_dirs) == 25L)
 
+# This audit compares path lists and opens only the semantic copies and one
+# metadata map. Archived originals can exceed 260 characters, which R cannot
+# open on a host without long-path support but still lists, so their paths are
+# not required to resolve.
 scan <- function(dirs) {
   paths <- unique(unlist(lapply(dirs[dir.exists(dirs)], list.files,
                                 pattern = "\\.(csv|tsv|xlsx|xls)$",
                                 recursive = TRUE, full.names = TRUE),
                          use.names = FALSE))
-  normalizePath(paths, winslash = "/", mustWork = TRUE)
+  normalizePath(paths, winslash = "/", mustWork = FALSE)
 }
 ready <- file.path(base_dir, "analysis_ready")
 numbered_root <- mmm_behavior_numbered_source_root("06_behavioral_dynamics", base_dir)
@@ -62,10 +66,11 @@ current[mapped] <- file.path(ready,
                             plans$target_root_rel[mapped_index[!is.na(mapped_index)]],
                             plans$target_file[mapped_index[!is.na(mapped_index)]])
 current <- normalizePath(current, winslash = "/", mustWork = TRUE)
+# A recursive listing without include.dirs returns files only; file.info()
+# would be NA for an over-long archived path and silently drop it.
 numbered_all <- list.files(numbered_root, all.files = TRUE, recursive = TRUE,
                            full.names = TRUE, include.dirs = FALSE)
-numbered_all <- numbered_all[file.info(numbered_all)$isdir %in% FALSE &
-                               basename(numbered_all) != "Thumbs.db"]
+numbered_all <- numbered_all[basename(numbered_all) != "Thumbs.db"]
 numbered_rel <- paste0("06_behavioral_dynamics/",
                        substring(normalizePath(numbered_all, winslash = "/"),
                                  nchar(normalizePath(numbered_root, winslash = "/")) + 2L))

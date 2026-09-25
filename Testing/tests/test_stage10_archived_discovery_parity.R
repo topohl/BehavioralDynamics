@@ -1,8 +1,11 @@
 # Exercise Stage 10's read-only parity audit after an archive cutover using
 # empty temporary files. No live RFID output or scientific table is opened.
 source("Functions/project_paths.R")
-run_fixture <- function() {
-# A short temporary root keeps archived filenames under Windows MAX_PATH.
+# With live_lengths = TRUE the finished tree is moved so that analysis_ready
+# has the live path length (87 characters); 20 archived 06 paths then reach
+# 260-264 characters, which R on a host without long-path support cannot open.
+run_fixture <- function(live_lengths = FALSE) {
+# Build under a short temporary root, where R can create every file.
 root <- file.path(utils::shortPathName(tempdir()), "s10")
 stopifnot(!file.exists(root))
 dir.create(root)
@@ -74,8 +77,28 @@ jsonlite::write_json(list(
   file.path(ready, "_migration_control", "numbered_root_archive",
             "06_behavioral_dynamics.json"), auto_unbox = TRUE)
 
+audit_root <- root
+if (live_lengths) {
+  # R cannot create or delete paths of 260 or more characters here, so the
+  # finished tree is moved and later removed with .NET, which can.
+  base <- normalizePath(tempdir(), winslash = "/")
+  pad <- 87L - nchar("/analysis_ready") - nchar(base) - 1L - nchar("/s")
+  stopifnot(pad >= 1L)
+  audit_root <- file.path(base, strrep("p", pad), "s")
+  dir.create(dirname(audit_root))
+  move <- sprintf("[System.IO.Directory]::Move('%s', '%s')",
+                  normalizePath(root, winslash = "\\"), gsub("/", "\\\\", audit_root))
+  stopifnot(identical(system2("pwsh", c("-NoProfile", "-Command", shQuote(move))), 0L))
+  on.exit(system2("pwsh", c("-NoProfile", "-Command", shQuote(sprintf(
+    "Remove-Item -LiteralPath '%s' -Recurse -Force", gsub("/", "\\\\", dirname(audit_root)))))),
+    add = TRUE)
+  ready <- file.path(audit_root, "analysis_ready")
+  stopifnot(nchar(ready) == 87L)
+  long <- max(nchar(file.path(ready, "history", "original_layout", plans$source_rel)))
+  stopifnot(long >= 260L)
+}
 recorded_old_map <- normalizePath(
-  file.path(normalizePath(root, winslash = "/", mustWork = TRUE),
+  file.path(normalizePath(audit_root, winslash = "/", mustWork = TRUE),
             "analysis_ready", old_map_rel), winslash = "/", mustWork = FALSE)
 source_audit <- file.path(ready, "pipeline", "10_systems_prediction",
                           "10min", "tables", "feature_source_audit.csv")
@@ -83,7 +106,7 @@ touch(source_audit, paste0("source_file,loaded_as_feature_table\n\"",
                            recorded_old_map, "\",FALSE"))
 result <- suppressWarnings(system2(
   "Rscript", c("Testing/audits/audit_stage10_semantic_discovery_parity.R",
-               shQuote(root)), stdout = TRUE, stderr = TRUE))
+               shQuote(audit_root)), stdout = TRUE, stderr = TRUE))
 status <- attr(result, "status")
 if (!is.null(status) && status != 0L) {
   stop("Archived Stage 10 parity fixture failed: ",
@@ -91,6 +114,8 @@ if (!is.null(status) && status != 0L) {
 }
 stopifnot(any(grepl("606 remaining filtered candidate paths", result,
                    fixed = TRUE)))
-cat("Stage 10 archived-location discovery parity fixture: PASS\n")
+cat("Stage 10 archived-location discovery parity fixture",
+    if (live_lengths) "at live path lengths" else "", ": PASS\n")
 }
 run_fixture()
+if (identical(.Platform$OS.type, "windows")) run_fixture(live_lengths = TRUE)
