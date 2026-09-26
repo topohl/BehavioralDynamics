@@ -29,7 +29,7 @@ The portable checks include:
 | Phase classification | `test_phase_classification.R` |
 | First-night window/domain contracts | `test_first_night_window_parity.R`, `test_first_night_domain_contract.R` |
 | Stage 09 contracts | `test_stage09_endpoint_identity.R`, `test_stage09_primary_window.R` |
-| Stage 14 / HMM contracts | `test_stage14_upstream_registry.R`, `test_hmm_stage14_contract.R`, `test_hmm_registry_current_audit.R` |
+| Stage 14 / HMM contracts | `test_stage14_upstream_registry.R`, `test_stage14_phase_resolver_vectors.R`, `test_hmm_stage14_contract.R`, `test_hmm_registry_current_audit.R` |
 | Stage 19 / Stage 06 | `test_stage19_group_sex_labels.R`, `test_stage19_identity_and_stage06_schema.R` |
 | Preprocessing / boundaries | `test_animalpos_preprocessing_helpers.R`, `test_downstream_boundary_and_gap_contract.R` |
 | Output/write infrastructure | `test_output_path_length.R`, `test_write_registry_rerun_behavior.R` |
