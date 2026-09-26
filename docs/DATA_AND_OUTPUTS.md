@@ -139,20 +139,22 @@ dependency review before any further migration.
 ### Quarantine
 
 ```text
-analysis_ready/_quarantine_legacy_s09/     402 files, 167 MB
+analysis_ready/history/original_layout/_quarantine_legacy_s09/     393 files, 170 MB
 ```
 
 Stale Stage 09 trees that violate the current contract — 113 animals instead of
 the canonical 111, zero-padded non-canonical `AnimalNum`, both phases present
 where the analysis is Active-only. `QUARANTINE_MANIFEST.csv` records, per tree,
-the generating script, the artifact date, the specific contract violations, what
-replaced it, and that the action is reversible. Quarantined data must never be
-resolved by any reader, and the release builder refuses to touch this tree.
-The manifest's restore target, `06_behavioral_dynamics/`, was archived on
-2026-09-25, so these trees can no longer be restored in place. Moving them
-back to `analysis_ready/06_behavioral_dynamics/` would recreate a retired
-root and stop every receipt-aware reader; moving them into
-`history/original_layout/` would break the archive's verification.
+the generating script, the artifact date, the specific contract violations and
+what replaced it. Quarantined data must never be resolved by any reader, and
+the release builder refuses to touch this tree. The maintainer decided on
+2026-09-25 that these trees are not to be restored, and the manifest now says
+so. On 2026-09-26 the whole quarantine moved unchanged from
+`analysis_ready/_quarantine_legacy_s09/` to its place under
+`history/original_layout/`, under its own archive receipt (nine Explorer
+thumbnail caches were set aside first). It must never be moved into
+`history/original_layout/06_behavioral_dynamics/`, where it would reactivate the
+Stage 09 legacy fallback.
 
 ---
 
@@ -230,11 +232,16 @@ independent of any git or release process.
 Update 2026-09-25: part of this has since been done by receipt-activated
 copies rather than by rewriting paths. The current Stage 11–13 ten-minute
 outputs and the Stage 14 outputs are copied under `analysis_ready/analyses/`;
-the older Stage 11–13 five-minute branches remain only in their numbered
-roots. The `03`, `06` and `12` numbered roots
-moved unchanged to `analysis_ready/history/original_layout/`. The rest of
-this section, and `LOCAL_OUTPUT_TREE_AUDIT.csv` (a 2026-09-03 snapshot),
-describe the earlier state.
+the older Stage 11–13 five-minute branches exist only in their archived
+roots. The `03`, `06` and `12` numbered roots moved unchanged to
+`analysis_ready/history/original_layout/` on 2026-09-25, and on 2026-09-26
+every other top-level tree of the original layout followed, including the
+superseded, retired and quarantined trees; only
+`14_nextgen_behavioral_phenotyping/` has not moved yet. The May 2026 QC
+snapshot and the Stage 15 proteomics inputs were copied first, to
+`history/tracking_integrity/10sec/` and `foundations/proteomics_module_scores/`.
+The rest of this section, and `LOCAL_OUTPUT_TREE_AUDIT.csv` (a 2026-09-03
+snapshot), describe the earlier state.
 
 The output tree carries real historical debt: stages writing to numbering that no
 longer matches their stage ID (`12_systems_neuroscience_summary` is Stage 14,

@@ -146,8 +146,10 @@ present and non-empty. Any `FAIL` aborts the build.
 
 ## What the builder refuses to do
 
-- Read from `analysis_ready/_quarantine_legacy_s09/` or any path containing
-  `_quarantine`.
+- Read from the quarantined Stage 09 trees (now under
+  `analysis_ready/history/original_layout/_quarantine_legacy_s09/`), any path
+  containing `_quarantine`, or any retained original under
+  `/history/original_layout/`.
 - Silently substitute a legacy artifact for a missing canonical one. Legacy
   resolution is permitted only where the resolution contract documents it, and it
   is recorded as `legacy_fallback` in the manifest.

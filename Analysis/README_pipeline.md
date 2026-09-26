@@ -215,7 +215,7 @@ identify the stage.**
 
 | Script | Writes into |
 |---|---|
-| `00_qc_tracking_integrity.R` | `analysis_ready/quality_control/tracking_integrity/runs/<new_run_id>/` for provisional single-resolution diagnostics; the May 2026 snapshot stays under `00_qc_tracking_integrity/` as an optional historical source |
+| `00_qc_tracking_integrity.R` | `analysis_ready/quality_control/tracking_integrity/runs/<new_run_id>/` for provisional single-resolution diagnostics; the May 2026 snapshot is read as an optional historical source from `history/tracking_integrity/10sec/` |
 | `01_build_multiscale_behavior_metrics.R` | `analysis_ready/foundations/behavior_metrics/` (numbered originals retained) |
 | `02_build_dyadic_rfid_contacts.R` | `analysis_ready/analyses/dyadic_contacts/` (historical source retained) |
 | `06_dynamic_social_networks.R` | `analysis_ready/analyses/dynamic_social_networks/5min/` (older-resolution copies under `history/social_networks/`; numbered originals retained) |
@@ -229,7 +229,7 @@ identify the stage.**
 | `12_sleep_like_quiescence_metrics.R` | `analysis_ready/analyses/sleep_like_inactivity/10min/` (older five-minute tree retained) |
 | `13_ethological_phase_organization.R` | `analysis_ready/analyses/phase_organization/10min/` (older five-minute tree retained) |
 | `14_systems_neuroscience_summary_dashboard.R` | `analysis_ready/analyses/systems_dashboard/5min/` (numbered dashboard and separate audit originals retained) |
-| `_supporting/13_nonlinear_systems_dynamics.R` | `analysis_ready/analyses/nonlinear_dynamics/5min/` (numbered original retained) |
+| `_supporting/13_nonlinear_systems_dynamics.R` | `analysis_ready/analyses/nonlinear_dynamics/5min/` (numbered original under `history/original_layout/`) |
 | `_supporting/14_nextgen_behavioral_phenotyping.R` | `analysis_ready/analyses/systems_phenotyping/5min/` (numbered original retained) |
 | `Testing/audits/audit_inactive_phase_qc_redesign.R` | `analysis_ready/analyses/inactive_phase_qc_audit/` (manual QC proposal; numbered original retained) |
 
@@ -258,8 +258,9 @@ the owning producer at its declared resolution instead.
 `14_nextgen_behavioral_phenotyping.R`. Their filename numbers correspond to no
 current logical stage. They are exploratory and unregistered in the runner.
 Their active five-minute outputs are under `analysis_ready/analyses/` with
-semantic names; the numbered originals remain available for provenance.
+semantic names; the numbered originals remain available for provenance, the
+nonlinear one under `history/original_layout/`.
 
 `_archive/` holds superseded producers, including the `18*` movement lineage
 that `03_primary_raw_movement_phase_stats.R` replaced. Their output trees are
-retained but read by nothing.
+retained under `analysis_ready/history/original_layout/` and read by nothing.

@@ -37,14 +37,15 @@ historical path of each group, see `../output_index.csv`.
   including large rolling-metric tables. Older 1-minute and 5-minute branches
   have copies under `../history/temporal_instability/`.
 - `adaptation_kinetics/10min/`: current Stage 11 adaptation and recovery
-  outputs. Its older five-minute branch remains under
-  `../15_behavioral_adaptation_kinetics/`.
+  outputs. Its older five-minute branch is retained under
+  `../history/original_layout/15_behavioral_adaptation_kinetics/5min_based/`.
 - `sleep_like_inactivity/10min/`: current Stage 12 rest-like inactivity
   outputs. These are not EEG-validated sleep measures. The older five-minute
-  branch remains under `../16_sleep_like_inactivity_metrics/`.
+  branch is retained under
+  `../history/original_layout/16_sleep_like_inactivity_metrics/5min_based/`.
 - `phase_organization/10min/`: current Stage 13 active/inactive phase
-  outputs. The older five-minute branch remains under
-  `../17_ethological_phase_organization/`.
+  outputs. The older five-minute branch is retained under
+  `../history/original_layout/17_ethological_phase_organization/5min_based/`.
 - `nonlinear_dynamics/5min/`: manually produced supporting nonlinear
   features used by Stages 10, 14, and 15.
 - `systems_phenotyping/5min/`: manually produced supporting phenotype
@@ -83,10 +84,10 @@ source-validity review before they are reused or rebuilt.
   as run provenance.
 
 The numbered original folders remain intact for provenance and historical
-readers. The `03_derived_metrics/`, `06_behavioral_dynamics/` and
-`12_systems_neuroscience_summary/` roots, including the Stage 19 table and
-audit originals, are retained unchanged under `../history/original_layout/`;
-see `../history/README.md`. The active path for each group is recorded by its `activated` receipt
+readers. They are retained unchanged under `../history/original_layout/`,
+each with its own archive receipt; see `../history/README.md`. Only
+`../14_nextgen_behavioral_phenotyping/`, the original of
+`systems_phenotyping/5min/`, has not moved yet. The active path for each group is recorded by its `activated` receipt
 in `../_migration_control/`. Scientific stages and release builders were not
 rerun as part of the folder migration. Publication copies remain under
 `../../publication_ready/`.

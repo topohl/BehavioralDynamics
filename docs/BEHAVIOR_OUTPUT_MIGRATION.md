@@ -163,9 +163,9 @@ Its reviewed plan and ownership snapshot are retained under
 There are no group staging directories left.
 
 Stage 01's 20 current metric/QC products now resolve at
-`foundations/behavior_metrics/`. Three complete numbered roots are retained
-unchanged under `history/original_layout/`, each under an archive receipt in
-`_migration_control/numbered_root_archive/`: the 53 files of
+`foundations/behavior_metrics/`. Three complete numbered roots were archived
+unchanged under `history/original_layout/` on 2026-09-25, each under an
+archive receipt in `_migration_control/numbered_root_archive/`: the 53 files of
 `03_derived_metrics/`, the 1,469 of `06_behavioral_dynamics/` and the 702 of
 `12_systems_neuroscience_summary/`. The archived Stage 14 root holds the
 original dashboard, historical manifests, figure mirrors, and independently
@@ -173,9 +173,21 @@ produced audit families. The current dashboard, first-night groups, and
 inactive-QC audit have separate semantic paths. The older resolution branches
 of the archived `06_behavioral_dynamics/` retain their historical provenance;
 receipt-selected copies under `history/` serve optional readers and Stage 10
-feature discovery. The supporting nonlinear and systems-phenotyping trees are
-now active semantic groups; their numbered originals remain in place. The
-other numbered roots are separate migration candidates.
+feature discovery.
+
+On 2026-09-26 the other top-level trees of the original layout followed under
+their own receipts: `00_qc_tracking_integrity`,
+`03_primary_raw_movement_phase_stats`, `04_model_outputs`, `05_figures`,
+`13_nonlinear_systems_dynamics`, `15_behavioral_adaptation_kinetics`,
+`16_manuscript_behavior_report`, `16_sleep_like_inactivity_metrics`,
+`17_ethological_phase_organization`, the three `18*` raw-movement trees,
+`proteomics`, `_archive_stale_stage10_outputs`,
+`_archive_stale_stage27_candidates` and `_quarantine_legacy_s09`. First, the
+May 2026 QC snapshot was copied to `history/tracking_integrity/10sec/` and the
+Stage 15 proteomics inputs to `foundations/proteomics_module_scores/`, under
+`docs/BEHAVIOR_REMAINING_MIGRATION_PLAN.csv`. `14_nextgen_behavioral_phenotyping`
+(the original of `analyses/systems_phenotyping/5min/`) has not moved yet. See
+`BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md` for counts and receipts.
 The pre-archive (2026-09-23/24) live-tree and code-dependency snapshot for the
 remaining roots is `docs/BEHAVIOR_OUTPUT_REMAINING_AUDIT.md`.
 

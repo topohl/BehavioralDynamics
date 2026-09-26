@@ -1,0 +1,6 @@
+"relative_path","size_bytes","sha256"
+"spatial_occupancy/longitudinal_reader_occupancy_effect_size_heatmap.svg","90209","b02ba67978338c03ad6021e731b169dc1c8255eacfe728dbf267aaceac18527b"
+"spatial_occupancy/longitudinal_reader_occupancy_position_by_cagechange.svg","91076","a3f867832b843ab536168815f5bbb7ff3e7400fe050ad135eb759db784ce83b6"
+"spatial_occupancy/primary_cc1_first_active_reader_occupancy_by_sex_group.svg","26248","df83fd63fafb658830d675256320ebc2c5f4c749a6fd38267593228d25af89cf"
+"spatial_occupancy/primary_cc1_first_active_reader_occupancy_difference_maps.svg","26593","a78b181ad066930623aeb8cf138117914972a950a6499990e9fd75ed1384381b"
+"spatial_occupancy/qc_reader_fraction_by_batch_cagechange_system.svg","199766","6c85028cedca79e45584017e772ea0ab4fb105f595beb0100981c789c8abc77e"

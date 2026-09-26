@@ -19,3 +19,11 @@ were not copied into `behavior_metrics/`.
 The manual cross-scale identity validator writes any new report to
 `../analyses/cross_scale_identity_validation/`; it has not been rerun as
 part of this folder migration.
+
+`proteomics_module_scores/` holds the three May 2026 proteomics module-score
+files that Stage 15 reads (it lists `module_scores_*.csv`; `module_scores.csv`
+is an earlier draft that no code reads). They are hash-verified copies of the
+former `analysis_ready/proteomics/`, selected by
+`../_migration_control/proteomics_module_scores.json`; the original is
+retained at `../history/original_layout/proteomics/`. They were not
+regenerated from the proteomics repository.

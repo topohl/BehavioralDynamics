@@ -562,3 +562,51 @@ The last two are live files and need the maintainer's approval to change.
 A first version of the cookiehab runner test regenerated the cookiehab
 preprocessing and Stage 01/02 outputs; see
 `BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md`.
+
+## Every remaining tree, 2026-09-26
+
+All three open items above are now closed:
+
+- The quarantine manifest says the trees are not to be restored.
+- The two index copies moved into `_migration_control/`.
+- A Windows CI job runs the PowerShell fixtures (`decf77c`, not yet run on
+  GitHub).
+
+The maintainer then asked to move every remaining tree into the new
+structure. A read-only dependency map with adversarial verification covered
+all 18 remaining top-level folders (`wf_21124ce5-f95`). It proposed moving 17
+of them unchanged under their own receipts and leaving `_migration_incoming/`,
+a tool working folder, out of the archive.
+
+The archive is no longer tied to three roots (`c426e16`):
+
+- `MMM_NUMBERED_BEHAVIOR_ROOTS` and the shared PowerShell list name all 20
+  trees; `test_numbered_root_lists_agree.R` checks that they match.
+- One root-level resolver serves whole trees and output groups.
+- The archive tools validate `RootName` against the shared list.
+- Readers that built old paths literally now use the resolver: the Stage 11–13
+  five-minute branches, the non-five-minute supporting branches, the Stage 15
+  proteomics folder, one queued audit and the identity comparison.
+- The release builder and verifier map a recorded path through any root's
+  receipt.
+
+Two copies were activated first, so that no current reader depends on the
+archive: `history/tracking_integrity/10sec/` for the May 2026 QC snapshot (the
+release builder refuses `history/original_layout/`), and
+`foundations/proteomics_module_scores/` for the Stage 15 inputs. Sixteen trees
+were then archived; see the activation record. Thirty-three archived files
+now have paths of 260 to 266 characters; nine of them have no copy and no
+reader.
+
+Open items:
+
+- `14_nextgen_behavioral_phenotyping` (140 files, nine archived paths of
+  260–270 characters, gate `a03c42bf...`) waits until no File Explorer window
+  is open inside it. Run it with the same transaction and
+  `-AcceptLongArchivedPaths`, using the list SHA that `Inspect` reports.
+- The pre-existing Stage 14 defect remains: it passes multi-resolution
+  preference vectors that `mmm_phase_analysis_resolution_root()` rejects.
+  Stage 14 cannot run until that is fixed. This is independent of the move.
+- Branches other than this one (`main`, the release branches,
+  `exp9-upstream-endpoint-corrections`) read and write every one of these
+  trees by fixed path and must not run against this RFID tree.

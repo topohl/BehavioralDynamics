@@ -855,3 +855,85 @@ The maintainer chose to keep the regenerated outputs, since the
 cookie-habituation analysis may be revisited. The committed test never
 executes the runner. It parses the runner and evaluates only its `local()`
 block, with `source()` replaced by a stub.
+
+## 2026-09-26 remaining top-level trees archived
+
+The maintainer asked on 2026-09-25 to move every remaining tree into the new
+structure and not to restore the quarantined Stage 09 trees. Commit `c426e16`
+extended the receipt-based archive from three roots to every top-level tree
+of the original layout, and `69d5183` added a reviewed 37-row `ArchivePath`
+gate for each of the 17 remaining trees. The full suite passed before any
+live action (67 tests, no writes on `S:`).
+
+**Copies first.** The tool now stages under `_migration_control/incoming/`.
+The empty top-level `_migration_incoming/` was moved there beforehand. Two
+groups were then copied under `docs/BEHAVIOR_REMAINING_MIGRATION_PLAN.csv`
+(`3041c5d`), so that their readers keep a location outside the archive:
+
+| Group | Files | Destination | Activated (UTC) | Receipt SHA-256 |
+| --- | ---: | --- | --- | --- |
+| `history_tracking_integrity_10sec` | 8 | `history/tracking_integrity/10sec/` | 08:52:35 | `D3B264B66E8A6ABF6F5E3F0F7E79737F6A1AED11CE8E9B87E924EC7E40BDED0A` |
+| `proteomics_module_scores` | 3 | `foundations/proteomics_module_scores/` | 08:52:36 | `A0D683F789527847D533A6CDDF326FA86269D957D469B922C956084365D82BF6` |
+
+Stage 16 and the release builder now read the May 2026 QC tables from the
+first copy, and Stage 15 reads its module scores from the second.
+
+**Explorer caches.** Before the manifests were built, 16 hidden `Thumbs.db`
+files in five trees were moved, not deleted, to
+`_migration_control/thumbs_db_removed_20260926/`, keeping their relative
+paths. Their list and hashes are in `docs/thumbs_db_removed_20260926.csv`.
+
+**Archives.** `Invoke-BehaviorNumberedRootArchive.ps1` rehashed every file
+against its manifest before and after each same-volume rename. The manifests
+are in `docs/behavior_output_archive_manifests/<root>.csv`. Long archived
+paths were accepted by the SHA-256 of the list that `Inspect` reported:
+
+| Root | Files | Bytes | Accepted long paths | Activated (UTC) | Receipt SHA-256 |
+| --- | ---: | ---: | --- | --- | --- |
+| `16_manuscript_behavior_report` | 5 | 439,390 | 0 | 09:01:13 | `25B1E1EB077A521298C641B85C676FC302ECFC831D4250B17761F55B9CD58105` |
+| `18_raw_movement_publication_trajectory` | 57 | 20,881,627 | 0 | 09:01:35 | `2DAC255EE6C431F92AC504443E2B6CA0C3456FF963DB07B92DB5FA23EA1C606B` |
+| `18b_raw_movement_broad_phase_stats` | 8 | 124,592 | 0 | 09:01:36 | `D4F8DE3FB76414AE53BBB7654CB41817D398430AB658CF2992502844FA4770A7` |
+| `18c_raw_movement_broad_phase_stats_corrected` | 21 | 839,708 | 3 (`76012d6b...`) | 09:01:38 | `4DFFEE2968BA4F46CF29627C0A6BF268175EE094411D0F2BA195AC28626F225E` |
+| `_archive_stale_stage27_candidates` | 34 | 2,258,003 | 0 | 09:01:39 | `65B588F60F125629F7231A99D89795D6D806709CE1C240F0DA729618237B1BEB` |
+| `_archive_stale_stage10_outputs` | 178 | 2,417,421,704 | 0 | 09:03:34 | `ACEEB09112673F6695F5FAF587DCB5846D1A0334F0107561659CCF0C72A7B9BE` |
+| `_quarantine_legacy_s09` | 393 | 178,345,880 | 0 | 09:04:06 | `6589FAD2592AB4A83709340852E0CF3E2A79AF0B76735E43F2891E02EBC026EC` |
+| `00_qc_tracking_integrity` | 8 | 1,152,201 | 0 | 09:04:19 | `FAC5E00258DD31D7C4CF62F9565768C102A70906E6A91F0D006B13B48D0E654B` |
+| `proteomics` | 3 | 31,357 | 0 | 09:04:20 | `FBA51C85476A7F0EEF27CB71EC6B7FD62008AC979DCABF102E0ADB7A937925EC` |
+| `03_primary_raw_movement_phase_stats` | 31 | 2,918,806 | 0 | 09:04:21 | `4A30BB285B9CC18DCE09B9C33A8E836A51940E1ED0C43B30B174BBAFEB778892` |
+| `04_model_outputs` | 6 | 6,721,792 | 0 | 09:04:23 | `67F541BDD19F8B2BD101FB0B682A630BFD6CC9D3F5E5F765CF73E439E1283A2A` |
+| `05_figures` | 5 | 433,892 | 0 | 09:04:24 | `1C8EC19AEDE8542CC03DD52DF9119AC76A8CD11EEC404FC6820611EB32985EA6` |
+| `15_behavioral_adaptation_kinetics` | 29 | 7,419,605 | 0 | 09:04:25 | `23FBF542472ED74D06C3DB0A0C3706E9ADCCCAF6ADEB0E8C63808F7261F36C5E` |
+| `16_sleep_like_inactivity_metrics` | 29 | 6,084,057 | 0 | 09:04:27 | `6474FDDA936883992B0244D62AD27D7774D0800CBE08513E252E4A9A8D514EAB` |
+| `17_ethological_phase_organization` | 35 | 5,077,325 | 0 | 09:04:29 | `65A3E112642D5FF67BF7198B21CEA83D65B3EDC536F09C8BC46A856342696DD2` |
+| `13_nonlinear_systems_dynamics` | 97 | 39,252,540 | 3 (`0b58a542...`) | 09:04:31 | `5B1D6DC0FCE176E97AFF1C6F9E99AFB48AFF81BEF5465F7FEAE83EFD588897CE` |
+
+Together these hold 939 files and 2,689,402,479 bytes. After the moves:
+
+- Every receipt is `activated`, and every old path is gone.
+- R opens every archived file except the six accepted long paths.
+- The writer guard refuses both the old and the archived paths.
+- All 40 output groups resolve their active root.
+- The foundation and Stage 14 residual inventories pass.
+
+`14_nextgen_behavioral_phenotyping` was not moved: a File Explorer window was
+open inside it, which could hold a handle during the rename or write a new
+thumbnail cache.
+
+**Live files.** `Maintenance/Refresh-BehaviorOutputIndex.R` added two rows to
+`output_index.csv` (`00-history`, `15-inputs`), and 12 notes gained the
+retained-original location. The new index has SHA-256
+`A1CB1E2B643B2DADE2F4926400DDFF6761B94A654BCF1B317BE2C0CB195961BF`; its
+predecessor is
+`_migration_control/output_index_before_remaining_roots_20260926.csv`
+(`783BDFB7A7FE5316ABA04F416FC80AD62D6C9475518E08D00D27AA0298C08AB9`).
+
+Earlier the same day:
+
+- `QUARANTINE_MANIFEST.csv` was edited to `reversible = FALSE` with a
+  not-to-be-restored note (now SHA-256 `7C3719B4...`). The original is at
+  `_migration_control/QUARANTINE_MANIFEST_before_no_restore_20260925.csv`
+  (`42CF893E...`).
+- The two superseded `output_index_contract_*.csv` copies moved to
+  `_migration_control/superseded_index_copies_20260924/`.
+
+No scientific output was changed or rerun.
