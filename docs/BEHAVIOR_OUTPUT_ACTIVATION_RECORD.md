@@ -964,3 +964,22 @@ Earlier the same day:
   `_migration_control/superseded_index_copies_20260924/`.
 
 No scientific output was changed or rerun.
+
+## 2026-09-26 copy parity check after the archive
+
+Until now no check compared copy and original for the groups whose originals
+were archived without a residual inventory: the `06`-sourced groups, the
+spatial groups from `03` and the two copies made on 2026-09-26.
+`Maintenance/Test-BehaviorCopyParityInventory.ps1` now covers all 40 activated
+groups at once; it is read-only. Each receipt matched its rows in exactly one
+reviewed plan: 36 in the order `Prepare` uses today, three
+(`adaptation_kinetics_10min`, `sleep_like_inactivity_10min`,
+`phase_organization_10min`) in ordinal order and `systems_phenotyping_5min` in
+plan-file order. All 2,181 planned files match their plan hash, both in the
+semantic copy and in the retained original under `history/original_layout/`.
+The seven dashboard metadata files pinned by the `systems_dashboard_5min`
+receipt match that receipt. No copy root holds an unplanned file. The per-row
+report (2,181 rows, SHA-256
+`C4A5ED16339E9E222DC6200D12141DFA25CF0954B350871584451D72B500E467`) is kept
+outside the repository as
+`rfid_numbered_root_archive_review_20260924/copy_parity_20260926.csv`.

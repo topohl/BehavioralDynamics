@@ -234,7 +234,8 @@ builder was rerun during this migration.
 The PowerShell tool is
 `Maintenance/Invoke-BehaviorOutputMigration.ps1`. Its `Inspect` action reads
 and hashes sources without writing. `Prepare` copies a ready group into
-`analysis_ready/_migration_incoming/<group>/`, verifies the file inventory and
+`analysis_ready/_migration_control/incoming/<group>/` (the top-level
+`_migration_incoming/` until 2026-09-26), verifies the file inventory and
 hashes, checks that originals stayed unchanged, and writes a plan-bound receipt
 under `analysis_ready/_migration_control/`. The receipt binds to the approved
 rows for its own group, so later review of a different group does not invalidate
@@ -247,6 +248,23 @@ or replaces an existing destination. A failed or interrupted preparation leaves
 staging visible for inspection; a retry verifies existing files and copies only
 missing ones. Mismatched files are never overwritten and no automatic cleanup
 occurs.
+
+`Prepare` hashes a group's plan rows after a culture-aware `Sort-Object`, so
+the receipt's plan hash depends on the row order of the process that wrote it.
+Three live receipts (`adaptation_kinetics_10min`,
+`sleep_like_inactivity_10min`, `phase_organization_10min`) hold the ordinal
+order of their rows and `systems_phenotyping_5min` the plan-file order; the
+rows themselves are unchanged. A later `Verify` of those groups would fail
+closed; all four are already activated.
+
+`Maintenance/Test-BehaviorCopyParityInventory.ps1` is the read-only check
+across every activated group. It matches each receipt to its rows in exactly
+one reviewed plan, accepting the three row orders above. It then rehashes every
+planned file in both the semantic copy and the retained original (found
+through the root's archive receipt) and checks the metadata that a receipt
+pins. Files beside a copy that neither a plan nor a receipt names are listed,
+not failed. It needs PowerShell 7, writes nothing under `analysis_ready`, and
+refuses a `-ReportCsv` path inside it.
 
 Example read-only inspection, from the repository root:
 
