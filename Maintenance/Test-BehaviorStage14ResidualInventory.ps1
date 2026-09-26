@@ -9,11 +9,15 @@ param(
 # Read-only check of all activated Stage 14 source partitions and the files
 # still present only in the numbered systems-summary tree. The retained tree
 # is found through its archive receipt, so the check also runs after the move.
+# A copy that a reviewed producer rerun changed must match the recorded rerun
+# (docs/behavior_output_producer_reruns/); its original must still match the plan.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'BehaviorNumberedRootLocation.ps1')
+. (Join-Path $PSScriptRoot 'BehaviorProducerReruns.ps1')
 $ready = [System.IO.Path]::GetFullPath($AnalysisReadyRoot).TrimEnd('\', '/')
 $repo = [System.IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\', '/')
+$reruns = Import-BehaviorProducerReruns (Join-Path $repo 'docs\behavior_output_producer_reruns')
 $oldRoot = Resolve-BehaviorNumberedRoot $ready '12_systems_neuroscience_summary'
 if (-not (Test-Path -LiteralPath $oldRoot -PathType Container)) {
   throw "Missing numbered Stage 14 tree: $oldRoot"
@@ -76,7 +80,8 @@ foreach ($group in $groups) {
     $source = Resolve-BehaviorRetainedPath $ready $item.source_rel
     $target = Join-Path $targetRoot ($item.target_file.Replace('/', '\'))
     $expected = $item.source_sha256.ToLowerInvariant()
-    if ((FileHash $source) -cne $expected -or (FileHash $target) -cne $expected) {
+    $expectedCopy = Resolve-BehaviorRerunHash $reruns $group.Name $item.target_file $expected
+    if ((FileHash $source) -cne $expected -or (FileHash $target) -cne $expectedCopy) {
       throw "Source or target hash mismatch: $($item.source_rel)"
     }
     [void]$allowed.Add($target)
@@ -84,11 +89,18 @@ foreach ($group in $groups) {
   if ($group.Name -ceq 'systems_dashboard_5min') {
     foreach ($metadata in $receipt.generated_metadata) {
       $path = Join-Path $targetRoot ($metadata.path.Replace('/', '\'))
-      if ((FileHash $path) -cne $metadata.sha256) {
+      if ((FileHash $path) -cne (Resolve-BehaviorRerunHash $reruns $group.Name $metadata.path $metadata.sha256)) {
         throw "Generated dashboard metadata changed: $path"
       }
       [void]$allowed.Add($path)
     }
+  }
+  foreach ($file in @(Get-BehaviorRerunAddedFiles $reruns $group.Name)) {
+    $path = Join-Path $targetRoot ($file.Replace('/', '\'))
+    if ((FileHash $path) -cne (Resolve-BehaviorRerunHash $reruns $group.Name $file '')) {
+      throw "File added by a recorded rerun changed: $path"
+    }
+    [void]$allowed.Add($path)
   }
   $actualTarget = @(Get-ChildItem -LiteralPath $targetRoot -File -Recurse |
                     Where-Object { $_.Name -ine 'Thumbs.db' })

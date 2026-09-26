@@ -124,5 +124,31 @@ $out = & $tool -AnalysisReadyRoot $ready -PlanPaths $plan
 if (-not ($out -match '^PASS: ') -or -not ($out -match '1 unplanned file')) {
   throw 'An unplanned file beside the copy was not reported'
 }
+
+# A reviewed producer rerun: B.csv rewritten and new.csv added in the copy.
+# The copy must match the record, the original must still match the plan.
+$rerunDir = Join-Path $fixture 'reruns'
+New-Item -ItemType Directory -Path $rerunDir | Out-Null
+[System.IO.File]::WriteAllText($copy, 'rerun output')
+function Write-Rerun([string] $priorB) {
+  @([pscustomobject]@{ group = 'adaptation_kinetics_10min'; target_root_rel = $target; target_file = 'tables/B.csv'
+                       prior_sha256 = $priorB; sha256 = (Sha256Text 'rerun output'); change = 'rewritten' },
+    [pscustomobject]@{ group = 'adaptation_kinetics_10min'; target_root_rel = $target; target_file = 'tables/new.csv'
+                       prior_sha256 = ''; sha256 = (Sha256Text 'x'); change = 'added' }) |
+    Export-Csv -LiteralPath (Join-Path $rerunDir 'rerun_20260926.csv') -NoTypeInformation -Encoding utf8
+}
+Expect-Failure { & $tool -AnalysisReadyRoot $ready -PlanPaths $plan -RerunDir $rerunDir } 'Copy parity check failed'
+Write-Rerun (Sha256Text 'content of tables/B.csv')
+$out = & $tool -AnalysisReadyRoot $ready -PlanPaths $plan -RerunDir $rerunDir
+if (-not ($out -match '^PASS: ') -or -not ($out -match '1 copies match a recorded rerun') -or
+    -not ($out -match '1 file\(s\) added by recorded reruns') -or -not ($out -match '0 unplanned file')) {
+  throw 'A recorded rerun was not accepted'
+}
+Write-Rerun ('e' * 64)
+Expect-Failure { & $tool -AnalysisReadyRoot $ready -PlanPaths $plan -RerunDir $rerunDir } 'does not follow its previous state'
+Write-Rerun (Sha256Text 'content of tables/B.csv')
+$archivedB = Join-Path $ready "history\original_layout\$root\10min_based\tables\B.csv"
+[System.IO.File]::WriteAllText($archivedB, 'tampered original')
+Expect-Failure { & $tool -AnalysisReadyRoot $ready -PlanPaths $plan -RerunDir $rerunDir } 'Copy parity check failed'
 Remove-Item -LiteralPath $fixture -Recurse -Force
 Write-Output 'Copy parity inventory: PASS'

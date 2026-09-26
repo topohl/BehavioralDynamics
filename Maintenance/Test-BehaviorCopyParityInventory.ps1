@@ -5,18 +5,25 @@ param(
   # Reviewed plans; each activated group must appear in exactly one of them.
   [string[]] $PlanPaths,
   # Optional per-row report. It must lie outside analysis_ready.
-  [string] $ReportCsv
+  [string] $ReportCsv,
+  # Reviewed producer reruns (BehaviorProducerReruns.ps1).
+  [string] $RerunDir
 )
 
 # Read-only check of every activated output group: its receipt against its
 # reviewed plan, and each planned file in both the semantic copy and the
-# retained original, which is found through the root's archive receipt.
-# Nothing under analysis_ready is written.
+# retained original, which is found through the root's archive receipt. A copy
+# that a reviewed producer rerun changed must match the recorded rerun hash;
+# the original must still match the plan. Nothing under analysis_ready is
+# written.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'BehaviorNumberedRootLocation.ps1')
+. (Join-Path $PSScriptRoot 'BehaviorProducerReruns.ps1')
 $ready = [System.IO.Path]::GetFullPath($AnalysisReadyRoot).TrimEnd('\', '/')
 $repo = [System.IO.Path]::GetFullPath($RepositoryRoot).TrimEnd('\', '/')
+if (-not $RerunDir) { $RerunDir = Join-Path $repo 'docs\behavior_output_producer_reruns' }
+$reruns = Import-BehaviorProducerReruns $RerunDir
 if (-not $PlanPaths) {
   $PlanPaths = @(
     'docs\BEHAVIOR_OUTPUT_MIGRATION_PLAN.csv',
@@ -111,23 +118,25 @@ foreach ($receipt in $receipts) {
       @($rows.contract_sha256 | Sort-Object -Unique) -cne $receipt.contract_sha256) {
     throw "Receipt for $group differs from its reviewed plan in $planName"
   }
-  $originalOk = 0; $copyOk = 0; $planned = [System.Collections.Generic.HashSet[string]]::new(
+  $originalOk = 0; $copyOk = 0; $copyRerun = 0; $planned = [System.Collections.Generic.HashSet[string]]::new(
     [System.StringComparer]::OrdinalIgnoreCase)
   foreach ($row in $rows) {
     $want = $row.source_sha256.ToLowerInvariant()
+    $wantCopy = Resolve-BehaviorRerunHash $reruns $group $row.target_file $want
     $original = Resolve-BehaviorRetainedPath $ready $row.source_rel
     $copy = Join-Path $ready (($row.target_root_rel + '/' + $row.target_file).Replace('/', '\'))
     [void] $planned.Add($copy)
     $originalHash = FileHash $original
     $copyHash = FileHash $copy
     if ($originalHash -ceq $want) { $originalOk++ }
-    if ($copyHash -ceq $want) { $copyOk++ }
+    if ($copyHash -ceq $wantCopy) { if ($wantCopy -ceq $want) { $copyOk++ } else { $copyRerun++ } }
     $details.Add([pscustomobject]@{
       group = $group; source_rel = $row.source_rel
       target_rel = $row.target_root_rel + '/' + $row.target_file
       plan_sha256 = $want
       original = if ($originalHash -ceq $want) { 'match' } elseif ($originalHash -ceq 'missing') { 'missing' } else { 'differs' }
-      copy = if ($copyHash -ceq $want) { 'match' } elseif ($copyHash -ceq 'missing') { 'missing' } else { 'differs' }
+      copy = if ($copyHash -ceq $wantCopy) { if ($wantCopy -ceq $want) { 'match' } else { 'rerun' } }
+             elseif ($copyHash -ceq 'missing') { 'missing' } else { 'differs' }
     })
   }
   # Metadata the migration generated at activation is pinned by the receipt.
@@ -137,19 +146,29 @@ foreach ($receipt in $receipts) {
   })
   foreach ($entry in $metadata) {
     $path = Join-Path $targetRoot $entry.path.Replace('/', '\')
-    if ((FileHash $path) -cne $entry.sha256.ToLowerInvariant()) {
+    $wantMeta = Resolve-BehaviorRerunHash $reruns $group $entry.path $entry.sha256
+    if ((FileHash $path) -cne $wantMeta) {
       throw "Generated metadata recorded in the $group receipt changed: $path"
     }
     [void] $planned.Add($path)
   }
-  # Files a later producer run added beside the copy are reported, not failed.
+  # Files a reviewed rerun added must match their record.
+  $added = @(Get-BehaviorRerunAddedFiles $reruns $group)
+  foreach ($file in $added) {
+    $path = Join-Path $targetRoot $file.Replace('/', '\')
+    if ((FileHash $path) -cne (Resolve-BehaviorRerunHash $reruns $group $file '')) {
+      throw "File added by a recorded rerun is missing or changed: $path"
+    }
+    [void] $planned.Add($path)
+  }
+  # Files an unrecorded producer run added beside the copy are reported, not failed.
   $extra = @(Get-ChildItem -LiteralPath $targetRoot -File -Recurse -Force |
              Where-Object { $_.Name -ine 'Thumbs.db' -and -not $planned.Contains($_.FullName) })
   foreach ($file in $extra) { $extraFiles.Add($file.FullName.Substring($ready.Length + 1)) }
   $summary.Add([pscustomobject]@{
     group = $group; plan = $planName; plan_order = $order; files = $rows.Count
-    originals_match = $originalOk; copies_match = $copyOk
-    receipt_metadata = $metadata.Count; extra_in_copy_root = $extra.Count
+    originals_match = $originalOk; copies_match = $copyOk; copies_rerun = $copyRerun
+    rerun_added = $added.Count; receipt_metadata = $metadata.Count; extra_in_copy_root = $extra.Count
   })
 }
 
@@ -158,13 +177,15 @@ $summary | Format-Table -AutoSize | Out-String -Width 200 | Write-Output
 $files = ($summary | Measure-Object files -Sum).Sum
 $originals = ($summary | Measure-Object originals_match -Sum).Sum
 $copies = ($summary | Measure-Object copies_match -Sum).Sum
+$rerunCopies = ($summary | Measure-Object copies_rerun -Sum).Sum
+$rerunAdded = ($summary | Measure-Object rerun_added -Sum).Sum
 $extras = ($summary | Measure-Object extra_in_copy_root -Sum).Sum
-Write-Output ("{0} activated groups, {1} planned files: {2} originals and {3} copies match the plan; {4} unplanned file(s) beside the copies" -f
-  $summary.Count, $files, $originals, $copies, $extras)
+Write-Output ("{0} activated groups, {1} planned files: {2} originals and {3} copies match the plan, {4} copies match a recorded rerun; {5} file(s) added by recorded reruns; {6} unplanned file(s) beside the copies" -f
+  $summary.Count, $files, $originals, $copies, $rerunCopies, $rerunAdded, $extras)
 $extraFiles | ForEach-Object { Write-Output "  unplanned: $_" }
-if ($originals -ne $files -or $copies -ne $files) {
-  @($details | Where-Object { $_.original -cne 'match' -or $_.copy -cne 'match' }) |
+if ($originals -ne $files -or ($copies + $rerunCopies) -ne $files) {
+  @($details | Where-Object { $_.original -cne 'match' -or $_.copy -notin @('match', 'rerun') }) |
     Format-Table group, source_rel, original, copy -AutoSize | Out-String -Width 250 | Write-Output
   throw 'Copy parity check failed'
 }
-Write-Output 'PASS: every planned original and semantic copy matches its reviewed hash'
+Write-Output 'PASS: every planned original matches its reviewed hash, and every copy matches it or a recorded rerun'
