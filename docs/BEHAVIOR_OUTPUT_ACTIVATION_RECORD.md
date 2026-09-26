@@ -926,6 +926,15 @@ retained-original location. The new index has SHA-256
 predecessor is
 `_migration_control/output_index_before_remaining_roots_20260926.csv`
 (`783BDFB7A7FE5316ABA04F416FC80AD62D6C9475518E08D00D27AA0298C08AB9`).
+Four live READMEs (root, `history/`, `analyses/`, `foundations/`) were
+replaced by their sources at `8868f1d` after backups to `_migration_control/`:
+
+| Backup | SHA-256 |
+| --- | --- |
+| `analysis_ready_README_before_remaining_roots_20260926.md` | `B6382FE2EDD60B0B8D06A7F48FC83A43326CFC239186C80DA82182E3BC4E8045` |
+| `history_README_before_remaining_roots_20260926.md` | `EDE9A1196E93EC76CE02DD93CE8BF303DA829A5614C5C5A1EF28A69F7704BF91` |
+| `analyses_README_before_remaining_roots_20260926.md` | `FFE05B008DF7B6F4A85DC5915E9CD9F1496F533C0D65615AF6D992A0DD35BD39` |
+| `foundations_README_before_remaining_roots_20260926.md` | `CA4ED10C04643CBF6FEA3FE141917A5682AC5A41AA0F358E177CCD7C55188A25` |
 
 Earlier the same day:
 
