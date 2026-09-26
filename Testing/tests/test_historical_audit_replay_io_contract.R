@@ -17,7 +17,14 @@ stopifnot(identical(suppressWarnings(system2(
 plan <- read.csv(plan_file, stringsAsFactors = FALSE)
 stopifnot(identical(sort(plan$script), sort(queue$script)))
 
-numbered_literal <- "(^|[/\\\\])(03_derived_metrics|06_behavioral_dynamics|12_systems_neuroscience_summary)([/\\\\]|$)"
+# Every top-level tree of the original layout, parsed from the resolver.
+root_list <- Filter(function(e) is.call(e) && identical(e[[1L]], as.name("<-")) &&
+                      identical(e[[2L]], as.name("MMM_NUMBERED_BEHAVIOR_ROOTS")),
+                    as.list(parse("Functions/project_paths.R", keep.source = FALSE)))
+stopifnot(length(root_list) == 1L)
+numbered_literal <- paste0("(^|[/\\\\])(",
+                           paste(eval(root_list[[1L]][[3L]], baseenv()), collapse = "|"),
+                           ")([/\\\\]|$)")
 resolvers <- c("mmm_behavior_numbered_source_root", "mmm_behavior_numbered_writer_root",
                "mmm_behavior_retained_source_root")
 # Path argument of each writer: a formal name and its position.
