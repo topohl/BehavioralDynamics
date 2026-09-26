@@ -46,7 +46,9 @@ OUT     <- mmm_behavior_audit_replay_output_root("first_night_hmm_components", P
 HMM     <- file.path(mmm_behavior_numbered_source_root(
   "06_behavioral_dynamics", PROJ), "hmm_states")
 DERIV   <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
-COMBZ_XLSX <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
+# As-recorded CombZ, as the saved originals used: the pinned pre-restructure
+# workbook (the restructured one has no zScore sheet).
+COMBZ_XLSX <- mmm_combz_source_workbook(PROJ)
 
 BIN_SEC      <- c("10min_based" = 600, "5min_based" = 300)
 RESOLUTIONS  <- c("10min_based", "5min_based")  # 10min PRIMARY, 5min SENSITIVITY

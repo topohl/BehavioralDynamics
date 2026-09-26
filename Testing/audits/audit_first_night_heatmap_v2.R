@@ -63,7 +63,9 @@ INPUT   <- mmm_behavior_audit_replay_input_root("first_night_domain_scores_v2", 
 OUT     <- mmm_behavior_audit_replay_output_root("first_night_heatmap_v2", PROJ)
 DERIV   <- mmm_behavior_numbered_source_root("03_derived_metrics", PROJ)
 PROD_CC1 <- file.path(STAGE14, "tables/sis_CC1_first_active_domain_contrasts.csv")
-COMBZ_XLSX <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
+# As-recorded CombZ, as the saved originals used: the pinned pre-restructure
+# workbook (the restructured one has no zScore sheet).
+COMBZ_XLSX <- mmm_combz_source_workbook(PROJ)
 
 THIS_SCRIPT <- "Testing/audits/audit_first_night_heatmap_v2.R"
 UPSTREAM    <- "Testing/audits/audit_first_night_domain_scores_v2.R"

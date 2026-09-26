@@ -106,7 +106,13 @@ cat("  endpoint source root:", mmm_endpoint_source_root(project_root), "\n")
 cat("  output               :", out_dir, "\n")
 
 # --------------------------------------------------------------- read upstream
-wb  <- mmm_path_get("behavior.combz_upstream_workbook", "workbook", root = project_root)
+# The workbook was restructured on 2026-09-23: the zScore sheet was replaced
+# and values were rounded to 15 significant digits. The canonical tables were
+# built from the workbook as it was before, which is kept byte for byte as
+# E9_Behavior_Data_before_restructure.xlsx; the restructured workbook's README
+# names it for exact reproduction. Its hash is pinned, so any edit to that file
+# stops this producer.
+wb  <- mmm_combz_source_workbook(project_root)
 sus_file <- mmm_path_get("behavior.combz_upstream_workbook", "susceptible_ids",
                          root = project_root)
 con_file <- mmm_path_get("behavior.combz_upstream_workbook", "control_ids",
@@ -287,16 +293,20 @@ dat$n_components_present <- rowSums(is.finite(comp_mat))
 dat$CombZ <- rowMeans(comp_mat, na.rm = TRUE)
 dat$CombZ[dat$n_components_present == 0L] <- NA_real_
 
-combz_abs_diff <- abs(dat$CombZ - dat$combz_upstream)
+# Workbook parity is the step (0) check: the workbook's recorded CombZ against
+# the mean of its recorded components. After the corrections combz_upstream
+# holds the corrected mean, so comparing it with dat$CombZ would compare a value
+# with itself.
+combz_abs_diff <- abs(asrec_combz - raw$combz_as_recorded)
 max_combz_diff <- max(combz_abs_diff, na.rm = TRUE)
 
 component_parity <- tibble(
   quantity = COMBZ_COMPONENTS,
   n_compared = vapply(COMBZ_COMPONENTS,
                       function(c) sum(is.finite(dat[[c]])), integer(1)),
-  # components are carried through verbatim, so their parity is exact by
-  # construction; recorded explicitly so the audit is complete rather than
-  # silently assuming it
+  # the components as read from the workbook (the *_as_recorded columns) are
+  # its values verbatim; the documented corrections then change sucrose_pref
+  # for 18 animals and delta_cort for one, which these rows do not describe
   max_abs_difference = 0)
 
 # ------------------------------------------- derive the later outcome group

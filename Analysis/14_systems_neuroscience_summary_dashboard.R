@@ -736,7 +736,6 @@ paths <- tibble(
     "adaptation_kinetics",
     "sleep_like_inactivity",
     "phase_organization",
-    "behavior_proteomics",
     "nextgen_selective"
   ),
   Path = c(
@@ -760,7 +759,6 @@ paths <- tibble(
               domain_bin_preference("sleep_like_inactivity")[1], project_root), "tables"),
     file.path(mmm_phase_analysis_resolution_root("phase_organization",
               domain_bin_preference("phase_organization")[1], project_root), "tables"),
-    file.path(project_root, "analysis_ready/12_behavior_proteomics_integration", "tables"),
     file.path(mmm_supporting_resolution_root("systems_phenotyping", primary_bin_level, project_root), "tables")
   )
 )
@@ -2094,14 +2092,14 @@ integration_audit_registry <- tibble(
     file.path(mmm_phase_analysis_resolution_root("adaptation_kinetics", domain_bin_preference("adaptive_recovery"), project_root), "tables/adaptation_kinetics_features.csv"),
     file.path(mmm_phase_analysis_resolution_root("sleep_like_inactivity", domain_bin_preference("sleep_like_inactivity"), project_root), "tables/sleep_like_inactivity_features.csv"),
     file.path(mmm_phase_analysis_resolution_root("phase_organization", domain_bin_preference("phase_organization"), project_root), "tables/phase_contrast_features.csv"),
+    # Behavior-proteomics is owned by Stage 15 (exploratory; not integrated into this
+    # dashboard unless proteomics_module_file is set).
     c(
       proteomics_module_file,
-      file.path(project_root, "analysis_ready/12_behavior_proteomics_integration", "tables/behavior_proteomics_merged.csv")
+      file.path(mmm_behavior_output_active_root("proteomics_mnn_primary", project_root),
+                "tables/all_curated_behavior_proteomics_models.csv")
     ),
-    c(
-      file.path(project_root, "analysis_ready/00_tracking_qc_rfid_loss", "tables/tracking_qc_by_animal.csv"),
-      file.path(dirname(project_root), "raw_tracking_qc_rfid_loss", "tables/raw_tracking_qc_by_animal.csv")
-    )
+    file.path(mmm_tracking_qc_historical_root(project_root), "tables/tracking_qc_by_animal.csv")
   )),
   expected_status = c(
     "implemented",
@@ -2116,7 +2114,7 @@ integration_audit_registry <- tibble(
     "implemented",
     "implemented",
     "implemented",
-    if_else(is.null(proteomics_module_file), "optional_not_requested", "implemented_if_table_valid"),
+    if_else(is.null(proteomics_module_file), "not_integrated_stage15_owned", "implemented_if_table_valid"),
     "qc_available_if_upstream_run"
   ),
   reviewer_risk = c(
@@ -2163,7 +2161,7 @@ systems_computation_integration_audit <- integration_audit_registry %>%
     imported_into_dashboard = replace_na(imported_into_dashboard, FALSE),
     used_in_main_figure = SourceScript %in% main_dashboard_source_scripts & imported_into_dashboard,
     integration_status = case_when(
-      expected_status == "optional_not_requested" ~ "optional_not_requested",
+      expected_status == "not_integrated_stage15_owned" ~ "not_integrated_stage15_owned",
       !already_available ~ "missing_upstream_output",
       already_available & imported_into_dashboard ~ "available_and_imported",
       already_available & !imported_into_dashboard ~ "available_not_imported_or_qc_only",
@@ -2171,7 +2169,7 @@ systems_computation_integration_audit <- integration_audit_registry %>%
     ),
     reviewer_action = case_when(
       feature_module_name == "Behavior-proteomics integration" & is.null(proteomics_module_file) ~
-        "Do not interpret behavior-proteomics; set proteomics_module_file to an animal-level module table to enable.",
+        "Behavior-proteomics is the exploratory Stage 15 analysis (S15_BEHAVIOR_PROTEOMICS; reviewed rerun required); it is not integrated into this dashboard.",
       feature_module_name == "Chip-loss and low-observation QC" ~
         "Use as exclusion/sensitivity evidence; do not treat QC flags as biological phenotypes.",
       reviewer_risk == "high" ~
@@ -2200,7 +2198,7 @@ systems_robustness_audit <- tibble(
     file.path(output_dir, "tables/systems_prediction_ladder_performance.csv"),
     file.path(output_dir, "tables/systems_prediction_ladder_loo_predictions.csv"),
     file.path(output_dir, "tables/systems_prediction_ladder_performance_duration_sensitivity.csv"),
-    file.path(project_root, "analysis_ready/00_tracking_qc_rfid_loss", "tables/tracking_qc_by_animal.csv"),
+    file.path(output_dir, "tables/qc_chip_loss_flags.csv"),
     file.path(output_dir, "tables/systems_duration_negative_control_by_animal.csv"),
     if (is.null(proteomics_module_file)) NA_character_ else proteomics_module_file
   ),
@@ -2209,9 +2207,10 @@ systems_robustness_audit <- tibble(
     resolve_stage09_early_prediction_artifact(project_root, "model_ladder_performance.csv", domain_bin_preference("early_prediction"))$path,
     resolve_stage09_early_prediction_artifact(project_root, "model_ladder_repeated_grouped_kfold_performance.csv", domain_bin_preference("early_prediction"))$path,
     resolve_stage09_early_prediction_artifact(project_root, "model_ladder_performance_duration_sensitivity.csv", domain_bin_preference("early_prediction"))$path,
-    file.path(project_root, "analysis_ready/00_tracking_qc_rfid_loss", "tables/tracking_qc_by_animal.csv"),
+    file.path(mmm_tracking_qc_historical_root(project_root), "tables/tracking_qc_by_animal.csv"),
     file.path(output_dir, "tables/duration_sensitivity"),
-    file.path(project_root, "analysis_ready/12_behavior_proteomics_integration", "tables/behavior_proteomics_merged.csv")
+    file.path(mmm_behavior_output_active_root("proteomics_mnn_primary", project_root),
+              "tables/all_curated_behavior_proteomics_models.csv")
   ),
   interpretation = c(
     "Permutation p-values benchmark whether LOOCV performance exceeds label-shuffled baselines.",
@@ -2220,16 +2219,16 @@ systems_robustness_audit <- tibble(
     "Main prediction ladder is rerun after excluding animals with short-duration epochs when enough animals remain.",
     "RFID chip-loss QC is a data-validity guard, not a behavioral endpoint.",
     "Duration and completeness screens reduce false positives from low-observation epochs.",
-    "Behavior-proteomics claims remain disabled unless an animal-level proteomics module table is configured."
+    "Behavior-proteomics is the exploratory Stage 15 analysis and is not integrated into this dashboard."
   )
 ) %>%
   mutate(
     dashboard_available = !is.na(dashboard_evidence) & file.exists(dashboard_evidence),
     upstream_available = !is.na(upstream_evidence) & file.exists(upstream_evidence),
     status = case_when(
+      robustness_check == "Proteomics module availability" & is.null(proteomics_module_file) ~ "not_integrated_stage15_owned",
       dashboard_available ~ "dashboard_available",
       upstream_available ~ "upstream_available_not_dashboard_specific",
-      robustness_check == "Proteomics module availability" & is.null(proteomics_module_file) ~ "optional_not_requested",
       TRUE ~ "missing_or_not_run"
     )
   )
@@ -6724,7 +6723,7 @@ systems_claim_hierarchy <- tibble(
     "09 animal-level social dynamics plus dyadic threshold sensitivity if available.",
     "10 HMM occupancy, dwell and transition outputs.",
     "16 sleep-like inactivity features.",
-    "12_behavior_proteomics_integration low-dimensional axis associations.",
+    "Stage 15 (Analysis/15_behavior_proteomics_integration.R) curated axis associations; exploratory, not integrated into this dashboard.",
     "14 next-generation behavioral phenotyping outputs."
   ),
   ClaimType = c("predictive", "predictive", "descriptive", "descriptive", "descriptive", "descriptive", "descriptive", "associative", "exploratory"),

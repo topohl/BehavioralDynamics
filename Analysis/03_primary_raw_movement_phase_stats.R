@@ -35,8 +35,12 @@ bin_level_priority <- c("10min_based", "5min_based", "30min_based", "1min_based"
 analysis_name <- "03_primary_raw_movement_phase_stats"
 min_bins_per_animal <- 2
 export_global_family_corrections <- FALSE
-combz_endpoint_file <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
-combz_endpoint_sheet <- "zScore"
+# As in Stages 09 and 14, CombZ comes from the canonical producer,
+# Analysis/build_later_outcome_combz.R, not from the upstream workbook: its
+# zScore sheet held the uncorrected CombZ, and the workbook restructured on
+# 2026-09-23 no longer has that sheet.
+combz_endpoint_file <- file.path(base_dir, "analysis_ready/canonical/later_outcome_combz/tables",
+                                 "later_outcome_combz_animal_level.csv")
 
 .pipeline_setup_candidates <- c(
   file.path(getwd(), "Analysis", "_pipeline_setup.R"),
@@ -380,11 +384,9 @@ readr::write_csv(movement_endpoints, file.path(dirs$tables, "raw_movement_animal
 if (!file.exists(combz_endpoint_file)) {
   stop("CombZ endpoint file not found: ", combz_endpoint_file, call. = FALSE)
 }
-if (!requireNamespace("readxl", quietly = TRUE)) {
-  stop("Install readxl to read CombZ endpoint Excel files.", call. = FALSE)
-}
-
-combz_raw <- readxl::read_excel(combz_endpoint_file, sheet = combz_endpoint_sheet)
+combz_raw <- readr::read_csv(combz_endpoint_file, show_col_types = FALSE, progress = FALSE,
+                             col_types = readr::cols(AnimalNum = readr::col_character(),
+                                                     .default = readr::col_guess()))
 combz_animal_col <- first_existing_col(combz_raw, c("ID", "AnimalNum", "Animal", "MouseID", "Mouse", "RFID", "animal_id"), "CombZ animal column")
 combz_col <- first_existing_col(combz_raw, c("CombZ", "combz", "Comb_Z", "CompositeZ"), "CombZ column")
 

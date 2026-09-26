@@ -935,15 +935,19 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
         "UPSTREAM, NOT PRODUCED BY THIS REPOSITORY. The hand-maintained SIS",
         "endpoint workbook that supplies the six standardized outcome",
         "components, plus the two phenotype-classification identifier lists.",
-        "Sheet 'zScore' is the ONLY canonical composite; sheets 'combZScore'",
-        "and 'CombZScore_noBatch' are noncanonical alternatives and must never",
-        "be read. See docs/COMBZ_CANONICAL_DEFINITION.md."),
+        "'workbook' is the restructured file (2026-09-23; sheet",
+        "combz_canonical). 'source_workbook' is the pre-restructure original",
+        "(SHA-256 bf257c2c...), whose sheet 'zScore' is the ONLY canonical",
+        "composite and the producer's input; sheets 'combZScore' and",
+        "'CombZScore_noBatch' are noncanonical alternatives and must never be",
+        "read. See docs/COMBZ_CANONICAL_DEFINITION.md."),
       producer_stage = "external",
       producer_script = "none - hand-maintained Excel workbook",
       resolution = "per animal; the composite has no time resolution",
       analysis_role = "upstream endpoint source (external dependency)",
       dir = function(root) file.path(mmm_endpoint_source_root(root)),
       files = c(workbook = "SIS_Analysis/E9_Behavior_Data.xlsx",
+                source_workbook = "SIS_Analysis/E9_Behavior_Data_before_restructure.xlsx",
                 susceptible_ids = "sus_animals.csv",
                 control_ids = "con_animals.csv")
     ),
@@ -1261,6 +1265,21 @@ mmm_file_sha256 <- function(path) {
     if (!requireNamespace("digest", quietly = TRUE)) return(NA_character_)
     digest::digest(p, algo = "sha256", file = TRUE)
   }, character(1), USE.NAMES = FALSE)
+}
+
+# The pre-restructure endpoint workbook (sheet 'zScore') that the canonical
+# CombZ tables were built from, and that historical audit replays read for the
+# as-recorded CombZ. Its hash is pinned: an edited or replaced file stops the
+# caller before anything is written.
+MMM_COMBZ_SOURCE_WORKBOOK_SHA256 <- "bf257c2c8b77fa35e2a8068ff19e3053b4fe83c61f7c20d5a9434a20f829e33d"
+mmm_combz_source_workbook <- function(root = mmm_project_root()) {
+  wb <- mmm_path_get("behavior.combz_upstream_workbook", "source_workbook", root = root)
+  sha <- mmm_file_sha256(wb)
+  if (is.na(sha) || !identical(tolower(sha), MMM_COMBZ_SOURCE_WORKBOOK_SHA256)) {
+    stop("The CombZ source workbook is not the pinned pre-restructure file (SHA-256 ",
+         sha, "): ", wb, call. = FALSE)
+  }
+  wb
 }
 
 #' Provenance table for the registry: one row per semantic key x file role.

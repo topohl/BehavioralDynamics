@@ -57,6 +57,20 @@ check(!any(grepl("stats::sd\\(|[^_a-zA-Z.]sd\\(", prod)),
       "the producer must not use sample SD anywhere in the classification path")
 ok("producer pins the canonical sheet, uses population SD, and gates on parity")
 
+# The workbook was restructured on 2026-09-23 without the zScore sheet. The
+# producer reads the hash-pinned pre-restructure original through one helper,
+# and records the step (0) workbook check as its CombZ parity.
+check("source_workbook" %in% names(.mmm_path_specs()[["behavior.combz_upstream_workbook"]]$files),
+      "the upstream workbook key lacks the pinned source_workbook role")
+check(identical(MMM_COMBZ_SOURCE_WORKBOOK_SHA256,
+                "bf257c2c8b77fa35e2a8068ff19e3053b4fe83c61f7c20d5a9434a20f829e33d"),
+      "the pinned source-workbook hash changed")
+check(any(grepl("wb\\s*<-\\s*mmm_combz_source_workbook\\(", prod)),
+      "the producer must read the pinned source workbook through mmm_combz_source_workbook()")
+check(any(grepl("combz_abs_diff <- abs(asrec_combz - raw$combz_as_recorded)", prod, fixed = TRUE)),
+      "the recorded CombZ parity must be the workbook check, not the corrected CombZ against itself")
+ok("producer reads the hash-pinned pre-restructure workbook and records the real workbook parity")
+
 # =====================================================================
 cat("\n[B] noncanonical composites can never become the endpoint\n")
 # =====================================================================
@@ -119,6 +133,29 @@ for (nc in NONCANON) {
         paste0("Stage 14 references the noncanonical artifact '", nc, "'"))
 }
 ok("Stage 14 takes CombZ from the canonical producer output and stops without it")
+
+# Stage 03 is the last live stage that read the workbook; it now takes the
+# canonical producer output too.
+s03 <- code_lines("Analysis/03_primary_raw_movement_phase_stats.R")
+check(any(grepl("later_outcome_combz_animal_level\\.csv", s03)),
+      "Stage 03 must take CombZ from the canonical producer output, not the workbook")
+check(!any(grepl("E9_Behavior_Data|\"zScore\"|read_excel", s03)),
+      "Stage 03 must not read the upstream workbook")
+ok("Stage 03 takes CombZ from the canonical producer output")
+
+# The first-night audit replays keep the as-recorded CombZ of their saved
+# originals, read from the pinned pre-restructure workbook, never by a
+# hard-coded path.
+for (aud in c("Testing/audits/audit_first_night_domain_scores.R",
+              "Testing/audits/audit_first_night_heatmap_v2.R",
+              "Testing/audits/audit_first_night_hmm_components.R")) {
+  a_code <- code_lines(aud)
+  check(any(grepl("mmm_combz_source_workbook(PROJ)", a_code, fixed = TRUE)),
+        paste0(aud, " must read CombZ from the pinned source workbook"))
+  check(!any(grepl("SIS_Analysis/E9_Behavior_Data", a_code, fixed = TRUE)),
+        paste0(aud, " must not hard-code the workbook path"))
+}
+ok("the three first-night audits read the pinned pre-restructure workbook")
 
 # Stage 27 must not touch the endpoint definition at all.
 s27 <- code_lines(STAGE27)
@@ -285,6 +322,15 @@ if (!have_out) {
           paste0("alternative-composite audit does not cover '", nc, "'"))
   }
   ok(paste0(nrow(alt), " alternatives audited, all NONCANONICAL_ALTERNATIVE, none read"))
+}
+
+src_wb <- tryCatch(mmm_combz_source_workbook(project_root), error = function(e) e)
+if (inherits(src_wb, "error") && grepl("not the pinned", conditionMessage(src_wb))) {
+  fail(conditionMessage(src_wb))
+} else if (!inherits(src_wb, "error")) {
+  ok("the pinned pre-restructure source workbook is present with the expected SHA-256")
+} else {
+  skipped <- c(skipped, "[F0] pinned source workbook (not reachable)")
 }
 
 if (have_wb && have_out) {

@@ -39,7 +39,9 @@ BASE5   <- file.path(mmm_behavior_numbered_source_root(
   "03_derived_metrics", PROJ), "5min_based/all_behavior_metrics.csv")
 SLEEP5  <- file.path(mmm_behavior_numbered_source_root(
   "16_sleep_like_inactivity_metrics", PROJ), "5min_based/tables/sleep_like_inactivity_features.csv")
-COMBZ   <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
+# As-recorded CombZ, as the saved originals used: the pinned pre-restructure
+# workbook (the restructured one has no zScore sheet).
+COMBZ   <- mmm_combz_source_workbook(PROJ)
 
 PH_INACT <- "\\binactive\\b|\\blight\\b|\\bday\\b"
 PH_ACT   <- "\\bactive\\b|\\bdark\\b|\\bnight\\b"

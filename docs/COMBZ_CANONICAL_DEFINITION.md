@@ -17,7 +17,7 @@ This distinguishes two different things, and the distinction matters:
 
 | | what it covers | established here? |
 |---|---|---|
-| **A. downstream reproducibility** | canonical component z-scores → CombZ → outcome group | **YES, exactly.** `max|dCombZ| = 2.22e-16`; 0 of 93 label mismatches |
+| **A. downstream reproducibility** | canonical component z-scores → CombZ → outcome group | **YES, exactly.** The recorded CombZ is the mean of the recorded components (`max|dCombZ| = 2.22e-16`); after the three documented corrections (§4b), 0 of 93 labels differ from the corrected identifier lists |
 | **B. upstream derivation** | raw measurement → component z-score | **NO.** Not reconstructed under a single internally coherent algorithm |
 
 **Do not write** "CombZ is fully regenerated from raw behavioural and
@@ -58,15 +58,21 @@ canonical Movement→CombZ association is **negative** (ρ ≈ −0.39), which m
 Reporting CombZ as a "burden score" without inverting the sign inverts the
 biological claim.
 
-Group means over the 117 workbook animals: CON `+0.027`, RES `+0.379`,
-SUS `−0.713`.
+Group means over the 117 workbook animals, after the §4b corrections: CON
+`+0.006`, RES `+0.296`, SUS `−0.755` (before: `+0.027`, `+0.379`, `−0.713`).
 
 ---
 
 ## 2. Source variables and direction conventions
 
-Canonical source: `SIS_Analysis/E9_Behavior_Data.xlsx`, sheet **`zScore`**,
-columns **E:J** (components) and **K** (composite), 117 animals.
+Canonical source: sheet **`zScore`**, columns **E:J** (components) and **K**
+(composite), 117 animals, of the workbook as it was before its 2026-09-23
+restructure: `SIS_Analysis/E9_Behavior_Data_before_restructure.xlsx`, SHA-256
+`bf257c2c...` (path role `source_workbook`; the producer stops if the hash
+differs). The restructured `SIS_Analysis/E9_Behavior_Data.xlsx` no longer has a
+`zScore` sheet; its `combz_canonical` sheet carries the same components, with
+the former values as `*_as_recorded` and the §4b corrections applied, rounded to
+15 significant digits.
 
 | zScore col | component | domain | raw measure | raw derivation | sign inverted | higher means |
 |---|---|---|---|---|---|---|
@@ -104,8 +110,9 @@ CombZ = mean(NOR, sucrose_pref, weight_dev, delta_cort,
   five of six components is averaged over five — *not* missing-as-zero, and
   *not* dropped. In R this is `mean(x, na.rm = TRUE)`.
   Two of 117 animals are affected: **`OQ762`** and **`OR126`** (5 of 6).
-- **Reproduction:** the producer recomputes this and agrees with the workbook to
-  `2.22e-16`.
+- **Reproduction:** the producer recomputes this from the recorded components
+  and agrees with the recorded CombZ to `2.22e-16`. The canonical CombZ is then
+  recomputed from the corrected components (§4b).
 
 ---
 
@@ -167,6 +174,26 @@ primary endpoint and invalidate every downstream validated result.
 match the workbook's `*_noBatch` family; the batch-referenced variants are not
 used.
 
+### 4b. Documented corrections (2026-09-20)
+
+Three errors in the workbook were established by direct audit and are corrected
+in the producer, the single place they are applied. The workbook itself was not
+edited; the original values are kept as `combz_as_recorded` and the
+`*_as_recorded` components.
+
+1. The sucrose component had been pasted into `zScore` by row position, but
+   `zScore` and `sucrosePreference` order 17 female animals differently. The
+   producer rebuilds the component from `sucrosePreference`, keyed by animal.
+2. A bottle cannot gain fluid, so a negative consumption counts as zero; two
+   cells (`WatCon3` for OR555 and OR630) had escaped that rule.
+3. OR620's `invertedD` was `−3.8125`; its own corticosterone rise implies
+   `−1.6355578560`, the linear map every other batch-5 male follows.
+
+Together they change 18 sucrose components and one corticosterone component, so
+CombZ changes for 19 animals (by up to `0.448`), and four females move from SUS
+to RES (OR424, OR430, OR434, OR554). This is not a redefinition of the endpoint:
+each correction reproduces the workbook's own formulas and reference rows.
+
 ---
 
 ## 5. Later outcome classification (CON / RES / SUS)
@@ -181,22 +208,25 @@ RES  : any other SIS-exposed animal
 ```
 
 - Computed **within Sex**.
-- **Population SD is required.** With sample SD, four animals misclassify
-  (`OR434`, `OR554`, `OR625`, `13856`).
-- Thresholds, recomputed by the producer:
+- **Population SD is required.** With sample SD, two animals misclassify
+  (`OR625`, `13856`); before the §4b corrections it was four, including
+  `OR434` and `OR554`.
+- Thresholds, recomputed by the producer from the corrected CombZ:
 
 | Sex | n control | control mean | control population SD | susceptibility threshold |
 |---|---|---|---|---|
 | Male | 12 | `0.011033945` | `0.447675643` | **`−0.436641698`** |
-| Female | 12 | `0.042130160` | `0.264521004` | **`−0.222390844`** |
+| Female | 12 | `0.000000000` | `0.316628592` | **`−0.316628592`** |
 
 - **Parity: 0 label mismatches** across all 93 SIS-exposed animals.
 - CON animals are retained and are never labelled RES or SUS.
-- Group counts (117 workbook animals): Female CON 12 / RES 24 / SUS 22;
+- Before the §4b corrections the female threshold was `−0.222390844` (control
+  mean `0.042130160`, SD `0.264521004`); the male row is unchanged.
+- Group counts (117 workbook animals): Female CON 12 / RES 28 / SUS 18;
   Male CON 12 / RES 30 / SUS 17. The RFID analysis set is the 111 of these
-  with a resolvable first-night window (CON 24 / RES 49 / SUS 38).
+  with a resolvable first-night window (CON 24 / RES 53 / SUS 34).
 
-The repository reaches the same labels by reading `sus_animals.csv` (39 ids)
+The repository reaches the same labels by reading `sus_animals.csv` (35 ids)
 and `con_animals.csv` (24 ids) in `Analysis/01_build_multiscale_behavior_metrics.R`
 (unlisted SIS animals → RES). The producer derives the labels *independently
 from CombZ* and gates on exact agreement with those lists, so the rule and the
@@ -279,8 +309,14 @@ separate from `outcome_group` (CON/RES/SUS, outcome-derived).
 
 `Analysis/build_later_outcome_combz.R` **hard-stops** unless:
 
-- `max |recomputed CombZ − workbook CombZ| ≤ 1e-12` (observed: `2.22e-16`), and
-- outcome-group label mismatches `== 0` (observed: `0` of 93).
+- the workbook's recorded CombZ equals the mean of its recorded components,
+  `≤ 1e-12` (observed: `2.22e-16`), before any correction is applied, and
+- after the §4b corrections, outcome-group label mismatches against the
+  identifier lists `== 0` (observed: `0` of 93).
+
+The parity audit's CombZ row records the first check. Until 2026-09-26 it
+compared the corrected CombZ with itself and recorded `0`; the live audit file
+still shows that value until the producer is next run.
 
 The workbook endpoint is authoritative. If parity ever fails, the correct action
 is to investigate the component columns — **never** to redefine the outcome so
