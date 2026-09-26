@@ -8,6 +8,16 @@ been copied and activated as `nonlinear_dynamics/5min/` and
 `systems_phenotyping/5min/`; their originals remain. See the activation record
 for the current state. This document authorizes no further cutover.
 
+Current-state update, 2026-09-26: the other 17 top-level trees of the old
+numbered layout, including both supporting roots, moved unchanged to
+`history/original_layout/` under their own activated receipts, after two
+copies (`history/tracking_integrity/10sec/` and
+`foundations/proteomics_module_scores/`) were activated. No top-level tree of
+the old layout remains in `analysis_ready/`. Statements below that the
+supporting originals "remain" refer to their archived location. Stage 14's
+phase-resolver defect is fixed (c518e96); Stage 14 has not been run on the
+new layout. See the activation record.
+
 Current-state update, 2026-09-25: `03_derived_metrics` (53 files),
 `06_behavioral_dynamics` (1,469) and `12_systems_neuroscience_summary` (702)
 moved unchanged to `analysis_ready/history/original_layout/`, each under an

@@ -602,9 +602,13 @@ and no reader.
 
 Open items:
 
-- The pre-existing Stage 14 defect remains: it passes multi-resolution
-  preference vectors that `mmm_phase_analysis_resolution_root()` rejects.
-  Stage 14 cannot run until that is fixed. This is independent of the move.
+- Stage 14 has not been run on the new layout. Its pre-existing resolver
+  defect is fixed (c518e96): `mmm_phase_analysis_resolution_root()` rejected
+  the multi-resolution preference vectors Stage 14 passes, so Stage 14 could
+  not start. The resolver now accepts the same five resolutions as the other
+  resolution helpers; only 10min reads a copy, the rest read the retained
+  original. Stages 11-13 and the two supporting producers now guard their
+  output root. The fix is covered by fixture tests only.
 - Branches other than this one (`main`, the release branches,
   `exp9-upstream-endpoint-corrections`) read and write every one of these
   trees by fixed path and must not run against this RFID tree.
