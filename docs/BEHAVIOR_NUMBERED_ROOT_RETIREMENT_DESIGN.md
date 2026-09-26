@@ -593,17 +593,15 @@ The archive is no longer tied to three roots (`c426e16`):
 Two copies were activated first, so that no current reader depends on the
 archive: `history/tracking_integrity/10sec/` for the May 2026 QC snapshot (the
 release builder refuses `history/original_layout/`), and
-`foundations/proteomics_module_scores/` for the Stage 15 inputs. Sixteen trees
-were then archived; see the activation record. Thirty-three archived files
-now have paths of 260 to 266 characters; nine of them have no copy and no
-reader.
+`foundations/proteomics_module_scores/` for the Stage 15 inputs. All 17 trees
+were then archived, `14_nextgen_behavioral_phenotyping` last, once no File
+Explorer window was open inside it; see the activation record. No top-level
+tree of the old numbered layout remains in `analysis_ready/`. Forty-two
+archived files have paths of 260 to 270 characters; nine of them have no copy
+and no reader.
 
 Open items:
 
-- `14_nextgen_behavioral_phenotyping` (140 files, nine archived paths of
-  260–270 characters, gate `a03c42bf...`) waits until no File Explorer window
-  is open inside it. Run it with the same transaction and
-  `-AcceptLongArchivedPaths`, using the list SHA that `Inspect` reports.
 - The pre-existing Stage 14 defect remains: it passes multi-resolution
   preference vectors that `mmm_phase_analysis_resolution_root()` rejects.
   Stage 14 cannot run until that is fixed. This is independent of the move.

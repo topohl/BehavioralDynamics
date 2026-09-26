@@ -230,7 +230,7 @@ identify the stage.**
 | `13_ethological_phase_organization.R` | `analysis_ready/analyses/phase_organization/10min/` (older five-minute tree retained) |
 | `14_systems_neuroscience_summary_dashboard.R` | `analysis_ready/analyses/systems_dashboard/5min/` (numbered dashboard and separate audit originals retained) |
 | `_supporting/13_nonlinear_systems_dynamics.R` | `analysis_ready/analyses/nonlinear_dynamics/5min/` (numbered original under `history/original_layout/`) |
-| `_supporting/14_nextgen_behavioral_phenotyping.R` | `analysis_ready/analyses/systems_phenotyping/5min/` (numbered original retained) |
+| `_supporting/14_nextgen_behavioral_phenotyping.R` | `analysis_ready/analyses/systems_phenotyping/5min/` (numbered original under `history/original_layout/`) |
 | `Testing/audits/audit_inactive_phase_qc_redesign.R` | `analysis_ready/analyses/inactive_phase_qc_audit/` (manual QC proposal; numbered original retained) |
 
 Stages 03, 09 and 20-27 write under `analysis_ready/pipeline/<stage>_<name>/`.
@@ -258,8 +258,8 @@ the owning producer at its declared resolution instead.
 `14_nextgen_behavioral_phenotyping.R`. Their filename numbers correspond to no
 current logical stage. They are exploratory and unregistered in the runner.
 Their active five-minute outputs are under `analysis_ready/analyses/` with
-semantic names; the numbered originals remain available for provenance, the
-nonlinear one under `history/original_layout/`.
+semantic names; their numbered originals are retained for provenance under
+`history/original_layout/`.
 
 `_archive/` holds superseded producers, including the `18*` movement lineage
 that `03_primary_raw_movement_phase_stats.R` replaced. Their output trees are

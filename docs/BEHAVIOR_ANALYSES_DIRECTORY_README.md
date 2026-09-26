@@ -85,9 +85,7 @@ source-validity review before they are reused or rebuilt.
 
 The numbered original folders remain intact for provenance and historical
 readers. They are retained unchanged under `../history/original_layout/`,
-each with its own archive receipt; see `../history/README.md`. Only
-`../14_nextgen_behavioral_phenotyping/`, the original of
-`systems_phenotyping/5min/`, has not moved yet. The active path for each group is recorded by its `activated` receipt
+each with its own archive receipt; see `../history/README.md`. The active path for each group is recorded by its `activated` receipt
 in `../_migration_control/`. Scientific stages and release builders were not
 rerun as part of the folder migration. Publication copies remain under
 `../../publication_ready/`.

@@ -14,15 +14,13 @@ read their semantic copies under `../foundations/`, `../analyses/` and this
 directory, but their receipt checks require this archive, so never move,
 rename, or edit it. Historical replays read it through the receipts, as does
 the SLEAPanalyzer BORIS metadata script for `03_derived_metrics/`.
-`14_nextgen_behavioral_phenotyping/` has not moved yet and is still at the top
-level of `analysis_ready/`.
 
-Thirty-three archived files have full paths of 260 to 266 characters: 27 in
+Forty-two archived files have full paths of 260 to 270 characters: 27 in
 `06_behavioral_dynamics/` and `12_systems_neuroscience_summary/`, 3 in
-`13_nonlinear_systems_dynamics/` and 3 in
-`18c_raw_movement_broad_phase_stats_corrected/`. On Windows hosts without
-long-path support, R and File Explorer cannot open them here. Twenty-four have
-hash-identical copies in active groups. No code reads the other nine: six
+`13_nonlinear_systems_dynamics/`, 9 in `14_nextgen_behavioral_phenotyping/`
+and 3 in `18c_raw_movement_broad_phase_stats_corrected/`. On Windows hosts
+without long-path support, R and File Explorer cannot open them here.
+Thirty-three have hash-identical copies in active groups. No code reads the other nine: six
 historical HMM audit CSVs in
 `original_layout/12_systems_neuroscience_summary/5min_based/audit_hmm_state_architecture/first_night_domain_heatmap/`
 and three superseded Stage 18c figures. Open those with PowerShell 7 or on a
@@ -41,7 +39,7 @@ host with long paths enabled.
 | `original_layout/00_qc_tracking_integrity/` | Original of `tracking_integrity/10sec/`. |
 | `original_layout/03_primary_raw_movement_phase_stats/` | Pre-migration Stage 03 outputs; the current Stage 03 writes `../pipeline/03_movement_phase_stats/`. |
 | `original_layout/04_model_outputs/`, `original_layout/05_figures/` | Stage 19 model and figure originals of `../analyses/spatial_occupancy/models/` and `figures/`. |
-| `original_layout/13_nonlinear_systems_dynamics/` | Original of `../analyses/nonlinear_dynamics/5min/`. |
+| `original_layout/13_nonlinear_systems_dynamics/`, `original_layout/14_nextgen_behavioral_phenotyping/` | Originals of `../analyses/nonlinear_dynamics/5min/` and `../analyses/systems_phenotyping/5min/`. |
 | `original_layout/15_behavioral_adaptation_kinetics/`, `16_sleep_like_inactivity_metrics/`, `17_ethological_phase_organization/` | Stage 11–13 roots: the ten-minute originals of the `../analyses/` copies, and the older five-minute branches, which exist only here and predate the exact-phase-classifier fix. |
 | `original_layout/16_manuscript_behavior_report/` | Superseded August 2026 Stage 16 export; the current package is `../manuscript/behavior/`. |
 | `original_layout/18_raw_movement_publication_trajectory/`, `18b_raw_movement_broad_phase_stats/`, `18c_raw_movement_broad_phase_stats_corrected/` | Superseded raw-movement runs that Stage 03 replaced; nothing reads them. |

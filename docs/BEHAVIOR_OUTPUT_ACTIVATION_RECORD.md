@@ -915,9 +915,23 @@ Together these hold 939 files and 2,689,402,479 bytes. After the moves:
 - All 40 output groups resolve their active root.
 - The foundation and Stage 14 residual inventories pass.
 
-`14_nextgen_behavioral_phenotyping` was not moved: a File Explorer window was
-open inside it, which could hold a handle during the rename or write a new
-thumbnail cache.
+`14_nextgen_behavioral_phenotyping` waited at first: a File Explorer window
+was open inside it, which could hold a handle during the rename or write a new
+thumbnail cache. Once no Explorer window was open, it went through the same
+transaction:
+
+| Root | Files | Bytes | Accepted long paths | Activated (UTC) | Receipt SHA-256 |
+| --- | ---: | ---: | --- | --- | --- |
+| `14_nextgen_behavioral_phenotyping` | 138 | 78,788,782 | 9 (`a5bfb08c...`) | 09:16:09 | `FFB834833AD112E9E9BB5CD5861ECAB466FAA6472095A395F49725C36297AADA` |
+
+R opens 129 of its 138 archived files. Each of the nine long paths (up to 270
+characters) has a hash-identical copy in `analyses/systems_phenotyping/5min/`.
+All 40 output groups still resolve. The refresh added the retained-original
+note to `support-14` (index SHA-256
+`5C1C45DFAC5EE661235BCD2DF2A94FEFF538E9926146B5B855C7554C10D5460E`; its
+predecessor is `_migration_control/output_index_before_14_archive_20260926.csv`,
+`A1CB1E2B...`). No top-level tree of the old numbered layout remains in
+`analysis_ready/`.
 
 **Live files.** `Maintenance/Refresh-BehaviorOutputIndex.R` added two rows to
 `output_index.csv` (`00-history`, `15-inputs`), and 12 notes gained the

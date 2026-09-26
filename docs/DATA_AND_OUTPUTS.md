@@ -236,8 +236,7 @@ the older Stage 11–13 five-minute branches exist only in their archived
 roots. The `03`, `06` and `12` numbered roots moved unchanged to
 `analysis_ready/history/original_layout/` on 2026-09-25, and on 2026-09-26
 every other top-level tree of the original layout followed, including the
-superseded, retired and quarantined trees; only
-`14_nextgen_behavioral_phenotyping/` has not moved yet. The May 2026 QC
+superseded, retired and quarantined trees. The May 2026 QC
 snapshot and the Stage 15 proteomics inputs were copied first, to
 `history/tracking_integrity/10sec/` and `foundations/proteomics_module_scores/`.
 The rest of this section, and `LOCAL_OUTPUT_TREE_AUDIT.csv` (a 2026-09-03

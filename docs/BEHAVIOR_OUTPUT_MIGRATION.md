@@ -186,7 +186,8 @@ their own receipts: `00_qc_tracking_integrity`,
 May 2026 QC snapshot was copied to `history/tracking_integrity/10sec/` and the
 Stage 15 proteomics inputs to `foundations/proteomics_module_scores/`, under
 `docs/BEHAVIOR_REMAINING_MIGRATION_PLAN.csv`. `14_nextgen_behavioral_phenotyping`
-(the original of `analyses/systems_phenotyping/5min/`) has not moved yet. See
+(the original of `analyses/systems_phenotyping/5min/`) followed once no File
+Explorer window was open inside it. See
 `BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md` for counts and receipts.
 The pre-archive (2026-09-23/24) live-tree and code-dependency snapshot for the
 remaining roots is `docs/BEHAVIOR_OUTPUT_REMAINING_AUDIT.md`.
