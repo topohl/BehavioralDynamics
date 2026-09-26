@@ -5,8 +5,8 @@ param(
   [string] $Action,
   [Parameter(Mandatory = $true)] [string] $AnalysisReadyRoot,
   [Parameter(Mandatory = $true)]
-  [ValidateSet('03_derived_metrics', '06_behavioral_dynamics',
-               '12_systems_neuroscience_summary')]
+  [ValidateScript({ . (Join-Path $PSScriptRoot 'BehaviorNumberedRootLocation.ps1'); Test-BehaviorNumberedRootName $_ },
+                  ErrorMessage = 'Unknown numbered behavioral root: {0}')]
   [string] $RootName,
   [Parameter(Mandatory = $true)] [string] $Manifest,
   [ValidateSet('Original', 'Archived')]

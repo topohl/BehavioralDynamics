@@ -67,5 +67,21 @@ Set-Content -LiteralPath $receipt -Value '{' -Encoding utf8
 Expect-Failure { Resolve-BehaviorNumberedRoot $ready $root } 'Invalid numbered-root archive receipt'
 Write-Receipt 'unknown'
 Expect-Failure { Resolve-BehaviorNumberedRoot $ready $root } 'not readable.*unknown'
+
+# A tree listed after 03/06/12 resolves the same way under its own receipt.
+$late = '16_manuscript_behavior_report'
+$lateOriginal = Join-Path $ready $late
+$lateArchived = Join-Path $ready "history\original_layout\$late"
+New-Item -ItemType Directory -Path (Join-Path $lateOriginal '10min_based') -Force | Out-Null
+if ((Resolve-BehaviorNumberedRoot $ready $late) -cne $lateOriginal) { throw 'Late root did not resolve to its original' }
+Move-Item -LiteralPath $lateOriginal -Destination $lateArchived
+[pscustomobject]@{
+  root = $late; source_root_rel = $late; archive_root_rel = "history/original_layout/$late"
+  state = 'activated'; files = 1; bytes = 1; manifest_sha256 = ('c' * 64)
+  reader_gate_kind = 'ArchivePath'; reader_gate_sha256 = ('e' * 64); reader_queue_sha256 = ('f' * 64)
+} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path (Split-Path -Parent $receipt) "$late.json") -Encoding utf8
+if ((Resolve-BehaviorRetainedPath $ready "$late/10min_based/x.csv") -cne (Join-Path $lateArchived '10min_based\x.csv')) {
+  throw 'Late root did not map to its archive'
+}
 Remove-Item -LiteralPath $fixture -Recurse -Force
 Write-Output 'Numbered root location resolver fixture: PASS'

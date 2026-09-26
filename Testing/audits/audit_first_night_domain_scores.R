@@ -37,7 +37,8 @@ HMM     <- file.path(mmm_behavior_numbered_source_root(
   "06_behavioral_dynamics", PROJ), "hmm_states")
 BASE5   <- file.path(mmm_behavior_numbered_source_root(
   "03_derived_metrics", PROJ), "5min_based/all_behavior_metrics.csv")
-SLEEP5  <- file.path(PROJ, "analysis_ready/16_sleep_like_inactivity_metrics/5min_based/tables/sleep_like_inactivity_features.csv")
+SLEEP5  <- file.path(mmm_behavior_numbered_source_root(
+  "16_sleep_like_inactivity_metrics", PROJ), "5min_based/tables/sleep_like_inactivity_features.csv")
 COMBZ   <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
 
 PH_INACT <- "\\binactive\\b|\\blight\\b|\\bday\\b"

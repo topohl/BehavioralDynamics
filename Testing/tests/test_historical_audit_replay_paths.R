@@ -199,9 +199,10 @@ for (name in c("audit_first_night_heatmap_v2.R",
                        downstream, fixed = TRUE)))
 }
 
+# The v1 domain-score audit also reads the retained five-minute sleep table.
 for (entry in list(
-  c("audit_first_night_domain_scores.R", "first_night_domain_scores_v1"),
-  c("audit_first_night_hmm_components.R", "first_night_hmm_components"))) {
+  c("audit_first_night_domain_scores.R", "first_night_domain_scores_v1", "4"),
+  c("audit_first_night_hmm_components.R", "first_night_hmm_components", "3"))) {
   standalone <- readLines(file.path("Testing/audits", entry[[1L]]),
                           warn = FALSE)
   invisible(parse(text = standalone))
@@ -209,7 +210,9 @@ for (entry in list(
                             entry[[2L]], '", PROJ)'), standalone,
                      fixed = TRUE)),
             sum(grepl('mmm_behavior_numbered_source_root(', standalone,
-                      fixed = TRUE)) == 3L,
+                      fixed = TRUE)) == as.integer(entry[[3L]]),
+            !any(grepl('analysis_ready/16_sleep_like_inactivity_metrics', standalone,
+                       fixed = TRUE)),
             !any(grepl('analysis_ready/06_behavioral_dynamics', standalone,
                        fixed = TRUE)),
             !any(grepl('analysis_ready/12_systems_neuroscience_summary',

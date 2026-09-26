@@ -81,15 +81,16 @@ cat("\n=== 5. no artifact references a missing source ===\n")
 # recorded path, which then fails as missing.
 retained_source <- function(path) {
   normalized <- gsub("\\\\", "/", path)
-  m <- regmatches(normalized, regexec(
-    "^(.*/analysis_ready)/(03_derived_metrics|06_behavioral_dynamics|12_systems_neuroscience_summary)/(.*)$",
-    normalized))[[1L]]
+  m <- regmatches(normalized, regexec("^(.*/analysis_ready)/([^/]+)/(.*)$",
+                                      normalized))[[1L]]
   if (length(m) != 4L) return(path)
+  # Any top-level tree with its own activated archive receipt qualifies.
   receipt <- file.path(m[[2L]], "_migration_control", "numbered_root_archive",
                        paste0(m[[3L]], ".json"))
   if (!file.exists(receipt)) return(path)
-  state <- jsonlite::fromJSON(receipt, simplifyVector = FALSE)[["state"]]
-  if (!identical(state, "activated")) return(path)
+  record <- jsonlite::fromJSON(receipt, simplifyVector = FALSE)
+  if (!identical(record[["state"]], "activated") ||
+      !identical(record[["root"]], m[[3L]])) return(path)
   file.path(m[[2L]], "history", "original_layout", m[[3L]], m[[4L]])
 }
 source_now <- vapply(man$source_path, retained_source, character(1), USE.NAMES = FALSE)

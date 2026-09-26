@@ -2,8 +2,25 @@
 # Mirrors mmm_behavior_retained_source_root() in Functions/project_paths.R:
 # the root archive receipt selects the location, never directory existence
 # alone, and every intermediate or inconsistent state stops the caller.
-$BehaviorNumberedRoots = @('03_derived_metrics', '06_behavioral_dynamics',
-                           '12_systems_neuroscience_summary')
+# The same roots as MMM_NUMBERED_BEHAVIOR_ROOTS in Functions/project_paths.R
+# (Testing/tests/test_numbered_root_lists_agree.R). The archive tools validate
+# their RootName against this list.
+$BehaviorNumberedRoots = @(
+  '03_derived_metrics', '06_behavioral_dynamics',
+  '12_systems_neuroscience_summary',
+  '00_qc_tracking_integrity', '03_primary_raw_movement_phase_stats',
+  '04_model_outputs', '05_figures', '13_nonlinear_systems_dynamics',
+  '14_nextgen_behavioral_phenotyping', '15_behavioral_adaptation_kinetics',
+  '16_manuscript_behavior_report', '16_sleep_like_inactivity_metrics',
+  '17_ethological_phase_organization', '18_raw_movement_publication_trajectory',
+  '18b_raw_movement_broad_phase_stats',
+  '18c_raw_movement_broad_phase_stats_corrected', 'proteomics',
+  '_archive_stale_stage10_outputs', '_archive_stale_stage27_candidates',
+  '_quarantine_legacy_s09')
+
+function Test-BehaviorNumberedRootName([string] $Name) {
+  $Name -cin $BehaviorNumberedRoots
+}
 
 function Resolve-BehaviorNumberedRoot([string] $Ready, [string] $RootName) {
   if ($RootName -cnotin $BehaviorNumberedRoots) {

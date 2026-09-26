@@ -202,7 +202,13 @@ mmm_behavior_output_group_root <- function(group,
       semantic = "analyses/rfid_alternative_inference_audit"),
     rfid_reliability_audit = c(
       current = "12_systems_neuroscience_summary/5min_based/audit_rfid_reliability_improvement",
-      semantic = "analyses/rfid_reliability_audit")
+      semantic = "analyses/rfid_reliability_audit"),
+    history_tracking_integrity_10sec = c(
+      current = "00_qc_tracking_integrity",
+      semantic = "history/tracking_integrity/10sec"),
+    proteomics_module_scores = c(
+      current = "proteomics",
+      semantic = "foundations/proteomics_module_scores")
   )
   if (length(group) != 1L || is.na(group) || !group %in% names(paths)) {
     stop("Unknown behavioral output group: ", paste(group, collapse = ", "),
@@ -211,11 +217,24 @@ mmm_behavior_output_group_root <- function(group,
   file.path(project_root, "analysis_ready", paths[[group]][[layout]])
 }
 
-# A numbered root may eventually be retained under history/original_layout/.
-# Its archive receipt is separate from each semantic-copy activation receipt.
-# Without that receipt, the original source location is still mandatory.
-MMM_NUMBERED_BEHAVIOR_ROOTS <- c("03_derived_metrics", "06_behavioral_dynamics",
-                                 "12_systems_neuroscience_summary")
+# Each top-level tree of the original layout may be retained unchanged under
+# history/original_layout/<root>/. Its archive receipt is separate from each
+# semantic-copy activation receipt; without that receipt the original location
+# is still mandatory. Maintenance/BehaviorNumberedRootLocation.ps1 and the
+# archive tools' RootName lists must name the same roots
+# (Testing/tests/test_numbered_root_lists_agree.R).
+MMM_NUMBERED_BEHAVIOR_ROOTS <- c(
+  "03_derived_metrics", "06_behavioral_dynamics",
+  "12_systems_neuroscience_summary",
+  "00_qc_tracking_integrity", "03_primary_raw_movement_phase_stats",
+  "04_model_outputs", "05_figures", "13_nonlinear_systems_dynamics",
+  "14_nextgen_behavioral_phenotyping", "15_behavioral_adaptation_kinetics",
+  "16_manuscript_behavior_report", "16_sleep_like_inactivity_metrics",
+  "17_ethological_phase_organization", "18_raw_movement_publication_trajectory",
+  "18b_raw_movement_broad_phase_stats",
+  "18c_raw_movement_broad_phase_stats_corrected", "proteomics",
+  "_archive_stale_stage10_outputs", "_archive_stale_stage27_candidates",
+  "_quarantine_legacy_s09")
 
 # Paths on the Windows share are case-insensitive, and normalizePath() keeps
 # the caller's spelling for a path that does not exist yet.
@@ -282,33 +301,39 @@ mmm_behavior_retained_source_root <- function(group,
   }
   numbered <- parts[[1L]]
   if (!numbered %in% MMM_NUMBERED_BEHAVIOR_ROOTS) return(current)
+  retained <- .mmm_behavior_retained_root(numbered, project_root)
+  if (length(parts) == 1L) retained else
+    file.path(retained, paste(parts[-1L], collapse = "/"))
+}
 
-  archived <- file.path(project_root, "analysis_ready", "history",
-                        "original_layout", paste(parts, collapse = "/"))
+# Where a top-level tree of the original layout is now: analysis_ready/<root>
+# without a receipt or while prepared, history/original_layout/<root> once
+# activated. The receipt selects the location, never directory existence
+# alone, and every intermediate or inconsistent state stops the caller.
+.mmm_behavior_retained_root <- function(numbered, project_root) {
+  old_root <- file.path(project_root, "analysis_ready", numbered)
+  archive_root <- file.path(project_root, "analysis_ready", "history",
+                            "original_layout", numbered)
   receipt_path <- file.path(project_root, "analysis_ready", "_migration_control",
                             "numbered_root_archive", paste0(numbered, ".json"))
   if (!file.exists(receipt_path)) {
-    if (dir.exists(file.path(project_root, "analysis_ready", "history",
-                             "original_layout", numbered))) {
+    if (dir.exists(archive_root)) {
       stop("Numbered source archive exists without a receipt for ", numbered,
            call. = FALSE)
     }
-    return(current)
+    return(old_root)
   }
   if (!requireNamespace("jsonlite", quietly = TRUE)) {
     stop("jsonlite is required to validate a numbered source archive receipt.",
          call. = FALSE)
   }
   state <- .mmm_read_numbered_archive_receipt(receipt_path, numbered)[["state"]]
-  old_root <- file.path(project_root, "analysis_ready", numbered)
-  archive_root <- file.path(project_root, "analysis_ready", "history",
-                            "original_layout", numbered)
   if (identical(state, "prepared")) {
     if (!dir.exists(old_root) || dir.exists(archive_root)) {
       stop("Prepared numbered source archive has unexpected locations for ",
            numbered, call. = FALSE)
     }
-    return(current)
+    return(old_root)
   }
   if (identical(state, "transferring")) {
     stop("Numbered source archive is transferring for ", numbered,
@@ -318,25 +343,19 @@ mmm_behavior_retained_source_root <- function(group,
     stop("Activated numbered source archive has unexpected locations for ",
          numbered, call. = FALSE)
   }
-  archived
+  archive_root
 }
 
 # Historical audit replays read the retained original lineage, regardless of
 # whether its top-level numbered root has later been archived.
 mmm_behavior_numbered_source_root <- function(root_name,
                                               project_root = mmm_project_root()) {
-  representative <- c(
-    "03_derived_metrics" = "behavior_metrics_foundation",
-    "06_behavioral_dynamics" = "dyadic_contacts",
-    "12_systems_neuroscience_summary" = "systems_dashboard_5min")
   if (length(root_name) != 1L || is.na(root_name) ||
-      !root_name %in% names(representative)) {
+      !root_name %in% MMM_NUMBERED_BEHAVIOR_ROOTS) {
     stop("Unknown numbered behavioral source root: ", root_name,
          call. = FALSE)
   }
-  path <- mmm_behavior_retained_source_root(representative[[root_name]],
-                                           project_root)
-  if (identical(root_name, "03_derived_metrics")) path else dirname(path)
+  .mmm_behavior_retained_root(root_name, project_root)
 }
 
 # A historical or optional producer must not recreate a numbered top-level
@@ -526,9 +545,10 @@ mmm_derived_metrics_output_root <- function(project_root = mmm_project_root(),
 
 # The eight May 2026 QC products have no proved lineage to the current Stage 01
 # files. A new Stage 00 run must not overwrite them or silently replace the
-# optional manuscript/release sources before its results are reviewed.
+# optional manuscript/release sources before its results are reviewed. Their
+# receipt-selected copy is history/tracking_integrity/10sec/.
 mmm_tracking_qc_historical_root <- function(project_root = mmm_project_root()) {
-  file.path(project_root, "analysis_ready", "00_qc_tracking_integrity")
+  mmm_behavior_output_active_root("history_tracking_integrity_10sec", project_root)
 }
 
 mmm_tracking_qc_new_run_root <- function(project_root = mmm_project_root()) {
@@ -708,7 +728,8 @@ mmm_temporal_instability_resolution_root <- function(resolution,
 }
 
 # Stages 11-13 currently produce ten-minute results. Their older five-minute
-# branches remain at the original paths for historical and optional readers.
+# branches are read from the retained original root, which follows its
+# archive receipt; a writer there is refused by the numbered-root guard.
 mmm_phase_analysis_resolution_root <- function(analysis, resolution,
                                                project_root = mmm_project_root()) {
   old_roots <- c(adaptation_kinetics = "15_behavioral_adaptation_kinetics",
@@ -723,7 +744,7 @@ mmm_phase_analysis_resolution_root <- function(analysis, resolution,
     if (identical(one, "10min_based")) {
       mmm_behavior_output_active_root(paste0(analysis, "_10min"), project_root)
     } else {
-      file.path(project_root, "analysis_ready", old_roots[[analysis]], one)
+      file.path(mmm_behavior_numbered_source_root(old_roots[[analysis]], project_root), one)
     }
   }, character(1), USE.NAMES = FALSE)
 }
@@ -747,7 +768,9 @@ mmm_supporting_resolution_root <- function(analysis, resolution,
     if (identical(one, "5min_based")) {
       mmm_behavior_output_active_root(group_names[[analysis]], project_root)
     } else {
-      file.path(project_root, "analysis_ready", old_roots[[analysis]], one)
+      # No other resolution exists; the retained root keeps a reader on the
+      # original lineage and lets the guard refuse a writer there.
+      file.path(mmm_behavior_numbered_source_root(old_roots[[analysis]], project_root), one)
     }
   }, character(1), USE.NAMES = FALSE)
 }

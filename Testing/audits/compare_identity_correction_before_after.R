@@ -115,7 +115,9 @@ resolve_registered_table <- function(root, stage, table_name, legacy_subfolder, 
   legacy_filename <- if (is.na(legacy_filename)) table_name else legacy_filename
   if (identical(stage, "03")) {
     canonical <- file.path(behavior_stage_tables(root, "03", "movement_phase_stats", resolution_10min), paste0(table_name, ".csv"))
-    legacy <- file.path(root, "analysis_ready/03_primary_raw_movement_phase_stats", paste0(resolution_10min, "_based"), legacy_subfolder, paste0(table_name, ".csv"))
+    legacy <- file.path(mmm_behavior_numbered_source_root(
+      "03_primary_raw_movement_phase_stats", root), paste0(resolution_10min, "_based"),
+      legacy_subfolder, paste0(table_name, ".csv"))
   } else if (identical(stage, "09")) {
     canonical <- file.path(behavior_stage_tables(root, "09", "early_prediction", resolution_10min), paste0(table_name, ".csv"))
     legacy <- file.path(mmm_behavior_numbered_source_root(

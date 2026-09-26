@@ -278,7 +278,18 @@ message("Resolved ", nrow(to_copy), " artifacts (",
 # ---------------------------------------------------------------- upstream cross-check
 # Stage 16 recorded a SHA-256 per upstream source. If a file we are about to ship
 # is one of those, it must still match: a mismatch means the artifact changed
-# after the manuscript package was assembled.
+# after the manuscript package was assembled. A recorded path in a numbered root
+# that has since moved unchanged under its archive receipt is hashed at its
+# retained location; it is only compared, never bundled from there.
+upstream_live_path <- function(recorded) {
+  parts <- strsplit(gsub("\\\\", "/", recorded), "/", fixed = TRUE)[[1L]]
+  if (length(parts) >= 3L && identical(parts[[1L]], "analysis_ready") &&
+      parts[[2L]] %in% MMM_NUMBERED_BEHAVIOR_ROOTS) {
+    return(file.path(mmm_behavior_numbered_source_root(parts[[2L]], PROJECT_ROOT),
+                     paste(parts[-(1:2)], collapse = "/")))
+  }
+  file.path(PROJECT_ROOT, recorded)
+}
 s16_prov_path <- file.path(MANU, "provenance.csv")
 upstream_check <- tibble(source_id = character(), path = character(),
                          recorded_sha256 = character(), live_sha256 = character(),
@@ -288,7 +299,7 @@ if (file.exists(s16_prov_path)) {
   upstream_check <- prov %>%
     rowwise() %>%
     mutate(
-      full = file.path(PROJECT_ROOT, path),
+      full = upstream_live_path(path),
       live_sha256 = if (file.exists(full)) sha256_file(full) else NA_character_,
       match = !is.na(live_sha256) && identical(tolower(live_sha256), tolower(sha256))
     ) %>%

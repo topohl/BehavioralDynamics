@@ -39,6 +39,8 @@ sensitivity_bin_level <- "5min"
 stage09_sensitivity_dir <- behavior_stage_dir(base_dir, "09", "early_prediction", sensitivity_bin_level)
 stage03_dir <- behavior_stage_dir(base_dir, "03", "movement_phase_stats", bin_level)
 qc_dir <- mmm_tracking_qc_historical_root(base_dir)
+# QC source labels name the file actually read, relative to analysis_ready.
+source_label <- function(path) paste0("analysis_ready/", mmm_source_relative_path(path, base_dir))
 output_dir <- behavior_manuscript_dir(base_dir, "behavior")
 
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -911,14 +913,14 @@ if (nrow(qc_summary) > 0L) {
     mutate(
       qc_record_type = "Stage 00 animal-level tracking QC",
       qc_reporting_status = "Historical May 2026 diagnostic snapshot; current Stage 01 input lineage unverified. No automatic exclusion decision is encoded by Stage 00.",
-      source_table = "analysis_ready/00_qc_tracking_integrity/tables/tracking_qc_by_animal.csv"
+      source_table = source_label(file.path(qc_dir, "tables/tracking_qc_by_animal.csv"))
     )
 } else if (nrow(qc_review) > 0L) {
   qc_animal_rows <- qc_review %>%
     mutate(
       qc_record_type = "Stage 00 suggested manual tracking review",
       qc_reporting_status = "Historical May 2026 suggestions; current Stage 01 input lineage unverified. Not an automatic exclusion decision.",
-      source_table = "analysis_ready/00_qc_tracking_integrity/tables/suggested_animals_for_manual_tracking_review.csv"
+      source_table = source_label(file.path(qc_dir, "tables/suggested_animals_for_manual_tracking_review.csv"))
     )
 } else {
   qc_animal_rows <- tibble(
@@ -926,7 +928,7 @@ if (nrow(qc_summary) > 0L) {
     status = "missing_optional",
     reason = "No Stage 00 animal-level QC source was available; no exclusions were fabricated.",
     qc_reporting_status = "Unavailable",
-    source_table = "analysis_ready/00_qc_tracking_integrity/tables/tracking_qc_by_animal.csv"
+    source_table = source_label(file.path(qc_dir, "tables/tracking_qc_by_animal.csv"))
   )
 }
 if (nrow(stage03_filter_qc) > 0L) {
@@ -934,7 +936,7 @@ if (nrow(stage03_filter_qc) > 0L) {
     mutate(
       qc_record_type = "Stage 03 phase-filter retention QC",
       qc_reporting_status = "Counts before and after the predefined minimum-bin filter; not an animal exclusion decision.",
-      source_table = "analysis_ready/03_primary_raw_movement_phase_stats/10min_based/tables/raw_movement_phase_filter_qc.csv"
+      source_table = source_label(file.path(stage03_dir, "tables/raw_movement_phase_filter_qc.csv"))
     )
 } else {
   qc_filter_rows <- tibble(
@@ -942,7 +944,7 @@ if (nrow(stage03_filter_qc) > 0L) {
     status = "missing_optional",
     reason = "Stage 03 phase-filter QC table was unavailable; no counts were fabricated.",
     qc_reporting_status = "Unavailable",
-    source_table = "analysis_ready/03_primary_raw_movement_phase_stats/10min_based/tables/raw_movement_phase_filter_qc.csv"
+    source_table = source_label(file.path(stage03_dir, "tables/raw_movement_phase_filter_qc.csv"))
   )
 }
 qc_exclusions <- bind_rows(qc_animal_rows, qc_filter_rows) %>%
@@ -1985,9 +1987,12 @@ rfid_reliability_audit <- output_group_index("rfid_reliability_audit")
 systems_dashboard_5min <- output_group_index("systems_dashboard_5min")
 proteomics_mnn_primary <- output_group_index("proteomics_mnn_primary")
 proteomics_mnn_sensitivity <- output_group_index("proteomics_mnn_sensitivity")
+tracking_qc_history <- output_group_index("history_tracking_integrity_10sec")
+proteomics_inputs <- output_group_index("proteomics_module_scores")
 output_index <- tribble(
   ~stage, ~analysis, ~resolution, ~artifact_type, ~canonical_path, ~producer, ~manuscript_role, ~status, ~legacy_path, ~notes, ~runner_registration,
   "00", "QC tracking integrity", NA_character_, "manual diagnostic output group", NA_character_, "Analysis/00_qc_tracking_integrity.R", "technical QC", "legacy_pending_migration", "analysis_ready/00_qc_tracking_integrity/", "May 2026 historical optional QC snapshot; current Stage 01 lineage unverified. September 2026 pooled and 10-second diagnostic runs under quality_control/tracking_integrity/ are unpromoted and unsuitable for exclusions.", "manual diagnostic",
+  "00-history", "Historical tracking-integrity QC snapshot", "10sec", "historical output group", tracking_qc_history$canonical_path, "Analysis/00_qc_tracking_integrity.R (May 2026 run)", "historical optional input", tracking_qc_history$status, tracking_qc_history$legacy_path, "Eight May 2026 files; two tables are optional Stage 16 and release sources. Current Stage 01 lineage unverified (113 animals against the canonical 111).", "manual historical",
   "01", "Multiscale behavior metrics", "multiple", "pipeline output group", behavior_metrics_foundation$canonical_path, "Analysis/01_build_multiscale_behavior_metrics.R", "canonical input layer", behavior_metrics_foundation$status, behavior_metrics_foundation$legacy_path, "Current Stage 01 metrics; separate identity-audit and spatial outputs retain distinct owners.", "run_all_analysis.R",
   "01-identity-history", "Historical cross-scale identity audit", "multiple", "historical audit output group", NA_character_, "Testing/audits/validate_cross_scale_animal_identity.R", "historical provenance", "historical_source_retained", "analysis_ready/03_derived_metrics/qc/", "Eight August cross_scale_identity_*.csv reports predate the current Stage 01 metrics; a future manual run writes under analyses/cross_scale_identity_validation/.", "manual historical",
   "02", "Dyadic RFID contacts", "10min contact bins", "pipeline output group", dyadic_contacts$canonical_path, "Analysis/02_build_dyadic_rfid_contacts.R", "secondary/social source", dyadic_contacts$status, dyadic_contacts$legacy_path, "Current Stage 02 output; cookie-habituation uses a separate explicit output override.", "run_all_analysis.R",
@@ -2033,6 +2038,7 @@ output_index <- tribble(
   "14-rfid-reliability-audit", "RFID reliability and stability diagnostic", "10min", "manual audit output group", rfid_reliability_audit$canonical_path, "Testing/audits/audit_rfid_reliability_and_improvement.R", "diagnostic reliability audit", rfid_reliability_audit$status, rfid_reliability_audit$legacy_path, "Seven audit tables; cross-occasion stability is distinct from instrument reliability.", "manual audit",
   "15-primary", "Behavior-proteomics MNN primary", NA_character_, "pipeline output group", proteomics_mnn_primary$canonical_path, "Analysis/15_behavior_proteomics_integration.R", "exploratory cross-modal layer", proteomics_mnn_primary$status, proteomics_mnn_primary$legacy_path, "Historical integration includes HMM features in primary axes and unverified five-minute phase inputs; requires reviewed rerun. Full proteomics label is in proteomics_integration_output_dir_map.csv.", "run_all_analysis.R (RUN_BEHAVIOR_PROTEOMICS, default FALSE)",
   "15-sensitivity", "Behavior-proteomics MNN sensitivity", NA_character_, "pipeline output group", proteomics_mnn_sensitivity$canonical_path, "Analysis/15_behavior_proteomics_integration.R", "exploratory cross-modal sensitivity", proteomics_mnn_sensitivity$status, proteomics_mnn_sensitivity$legacy_path, "Historical integration includes HMM features in primary axes and unverified five-minute phase inputs; requires reviewed rerun. Full proteomics label is in proteomics_integration_output_dir_map.csv.", "run_all_analysis.R (RUN_BEHAVIOR_PROTEOMICS, default FALSE)",
+  "15-inputs", "Proteomics module scores", NA_character_, "input layer", proteomics_inputs$canonical_path, "External proteomics module-score export (May 2026)", "Stage 15 input", proteomics_inputs$status, proteomics_inputs$legacy_path, "Two module-score tables read by Stage 15 and one earlier draft that no code reads; not regenerated here.", "external input",
   "16", "Manuscript behavior report", "10min", "manuscript reporting group", "analysis_ready/manuscript/behavior/", "Analysis/16_manuscript_behavior_report.R", "recommended manuscript entry point", "canonical", "analysis_ready/16_manuscript_behavior_report/10min_based/", "Exporter only; no statistical refitting or canonical-value recomputation.", "manual",
   "19-tables", "Spatial occupancy derived tables", NA_character_, "pipeline output subgroup", spatial_tables$canonical_path, "Analysis/19_spatial_occupancy_maps.R", "secondary/spatial", spatial_tables$status, spatial_tables$legacy_path, "Six result tables; selected tables also have publication_ready copies.", "manual",
   "19-audit", "Spatial occupancy audit and provenance", NA_character_, "pipeline output subgroup", spatial_audit$canonical_path, "Analysis/19_spatial_occupancy_maps.R", "supporting audit", spatial_audit$status, spatial_audit$legacy_path, "Eight QC and provenance files; the current layout shares the result-table directory.", "manual",

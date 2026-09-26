@@ -13,6 +13,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'BehaviorNumberedRootLocation.ps1')
 if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
   $RepositoryRoot = Join-Path $PSScriptRoot '..'
 }
@@ -136,18 +137,22 @@ $groupPlanText = (@($rows | Sort-Object source_rel | ForEach-Object {
 }) -join "`n")
 $groupPlanHash = Sha256Text $groupPlanText
 $targetRoot = ChildPath $root $rows[0].target_root_rel
-$stagingRoot = ChildPath $root ("_migration_incoming/$Group")
+# Staging lives under _migration_control so no top-level working folder is
+# recreated in analysis_ready.
+$stagingRoot = ChildPath $root ("_migration_control/incoming/$Group")
 $receiptPath = ChildPath $root ("_migration_control/$Group.json")
+# Approved history groups: exact source root and destination root.
 $historicalRoots = @{
-  history_social_networks_10sec = @('social_networks', '10sec_based', '10sec')
-  history_social_networks_1min = @('social_networks', '1min_based', '1min')
-  history_social_networks_10min = @('social_networks', '10min_based', '10min')
-  history_social_networks_30min = @('social_networks', '30min_based', '30min')
-  history_state_space_1min = @('state_space', '1min_based', '1min')
-  history_state_space_10min = @('state_space', '10min_based', '10min')
-  history_temporal_instability_1min = @('temporal_instability', '1min_based', '1min')
-  history_temporal_instability_5min = @('temporal_instability', '5min_based', '5min')
-  history_gamm_features_30min = @('gamm_features', '30min_based', '30min')
+  history_social_networks_10sec = @('06_behavioral_dynamics/social_networks/10sec_based', 'history/social_networks/10sec')
+  history_social_networks_1min = @('06_behavioral_dynamics/social_networks/1min_based', 'history/social_networks/1min')
+  history_social_networks_10min = @('06_behavioral_dynamics/social_networks/10min_based', 'history/social_networks/10min')
+  history_social_networks_30min = @('06_behavioral_dynamics/social_networks/30min_based', 'history/social_networks/30min')
+  history_state_space_1min = @('06_behavioral_dynamics/state_space/1min_based', 'history/state_space/1min')
+  history_state_space_10min = @('06_behavioral_dynamics/state_space/10min_based', 'history/state_space/10min')
+  history_temporal_instability_1min = @('06_behavioral_dynamics/temporal_instability/1min_based', 'history/temporal_instability/1min')
+  history_temporal_instability_5min = @('06_behavioral_dynamics/temporal_instability/5min_based', 'history/temporal_instability/5min')
+  history_gamm_features_30min = @('06_behavioral_dynamics/gamm_features/30min_based', 'history/gamm_features/30min')
+  history_tracking_integrity_10sec = @('00_qc_tracking_integrity', 'history/tracking_integrity/10sec')
 }
 if ($HistoricalDestination -and -not $historicalRoots.ContainsKey($Group)) {
   throw "Historical destination is not an approved resolution group: $Group"
@@ -159,8 +164,8 @@ $mapping = @(foreach ($row in $rows) {
   }
   if ($HistoricalDestination) {
     $spec = $historicalRoots[$Group]
-    $expectedSourceRoot = "06_behavioral_dynamics/$($spec[0])/$($spec[1])"
-    $expectedTargetRoot = "history/$($spec[0])/$($spec[2])"
+    $expectedSourceRoot = $spec[0]
+    $expectedTargetRoot = $spec[1]
     if ($row.target_root_rel.Replace('\', '/') -cne $expectedTargetRoot -or
         $row.source_rel.Replace('\', '/') -cne
           ($expectedSourceRoot + '/' + $row.target_file.Replace('\', '/'))) {
@@ -216,8 +221,7 @@ function Assert-Sources([bool] $RequireReady = $true) {
     # (Test-Behavior*ResidualInventory.ps1); the 06-sourced and 03 spatial
     # groups have none.
     $numbered = $sourceRoot.Replace('\', '/').Split('/')[0]
-    if ($numbered -in @('03_derived_metrics', '06_behavioral_dynamics',
-                        '12_systems_neuroscience_summary') -and
+    if ((Test-BehaviorNumberedRootName $numbered) -and
         ((Test-Path -LiteralPath (ChildPath $root "_migration_control/numbered_root_archive/$numbered.json")) -or
          (Test-Path -LiteralPath (ChildPath $root "history/original_layout/$numbered")))) {
       throw "Numbered root $numbered is under archive control; this migration tool reads only unarchived sources"

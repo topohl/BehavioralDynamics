@@ -488,5 +488,30 @@ if ($null -ne $longPaths -and $longPaths.LongPathsEnabled -eq 1) {
   }
   if ((Invoke-LongArchive 'Rollback').state -cne 'prepared') { throw 'Long-path root did not roll back' }
 }
+# A tree added to the root list after 03/06/12 goes through the same reviewed
+# transaction under its own receipt; an unlisted name is refused at binding.
+$lateName = '_quarantine_legacy_s09'
+$lateReady = Join-Path $fixture 'late\analysis_ready'
+New-Item -ItemType Directory -Path (Join-Path $lateReady "$lateName\early_prediction") -Force | Out-Null
+[System.IO.File]::WriteAllText((Join-Path $lateReady "$lateName\early_prediction\a.csv"), "x`n1`n")
+$lateManifest = Join-Path $fixture 'late-manifest.csv'
+& $manifestTool -Action Build -AnalysisReadyRoot $lateReady -RootName $lateName `
+  -Manifest $lateManifest | Out-Null
+$lateHash = (Get-FileHash -LiteralPath $lateManifest -Algorithm SHA256).Hash.ToLowerInvariant()
+Write-Queue
+Write-Gate 'archive_path_ready' -Evidence -ArchiveRoot $lateName
+function Invoke-LateArchive([string] $Action, [string] $Root = $lateName) {
+  & $tool -Action $Action -AnalysisReadyRoot $lateReady -RootName $Root `
+    -Manifest $lateManifest -ManifestSha256 $lateHash -ReaderQueue $queue `
+    -ReviewedReaderGate $gate -ReviewedReaderGateSha256 $gateHash -ReaderGateKind ArchivePath
+}
+Expect-Failure { Invoke-LateArchive 'Inspect' 'not_a_root' } 'Unknown numbered behavioral root'
+if ((Invoke-LateArchive 'Prepare').state -cne 'prepared' -or
+    (Invoke-LateArchive 'Activate').state -cne 'activated' -or
+    (Test-Path -LiteralPath (Join-Path $lateReady $lateName)) -or
+    -not (Test-Path -LiteralPath (Join-Path $lateReady "history\original_layout\$lateName\early_prediction\a.csv")) -or
+    (Invoke-LateArchive 'Verify').hashes -cne 'PASS') {
+  throw 'A late-listed root did not archive and verify'
+}
 Remove-Item -LiteralPath $fixture -Recurse -Force
 Write-Output 'Numbered root archive transaction fixture: PASS'

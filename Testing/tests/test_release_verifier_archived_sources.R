@@ -20,8 +20,10 @@ receipt <- file.path(ready, "_migration_control", "numbered_root_archive",
 dir.create(dirname(receipt), recursive = TRUE)
 stopifnot(identical(retained_source(recorded), recorded),
           identical(retained_source(other), other))
-write_state <- function(state) jsonlite::write_json(list(state = state), receipt,
-                                                    auto_unbox = TRUE)
+write_state <- function(state, root_name = "12_systems_neuroscience_summary",
+                        path = receipt) {
+  jsonlite::write_json(list(root = root_name, state = state), path, auto_unbox = TRUE)
+}
 write_state("activated")
 stopifnot(identical(retained_source(recorded), archived),
           identical(retained_source(gsub("/", "\\\\", recorded)), archived),
@@ -30,4 +32,16 @@ for (state in c("prepared", "transferring", "unknown")) {
   write_state(state)
   stopifnot(identical(retained_source(recorded), recorded))
 }
+# A receipt naming another root is ignored.
+write_state("activated", root_name = "06_behavioral_dynamics")
+stopifnot(identical(retained_source(recorded), recorded))
+
+# Any other top-level tree with its own activated receipt maps the same way.
+qc <- file.path(ready, "00_qc_tracking_integrity", "tables", "tracking_qc_by_animal.csv")
+qc_receipt <- file.path(dirname(receipt), "00_qc_tracking_integrity.json")
+stopifnot(identical(retained_source(qc), qc))
+write_state("activated", "00_qc_tracking_integrity", qc_receipt)
+stopifnot(identical(retained_source(qc),
+                    file.path(ready, "history", "original_layout", "00_qc_tracking_integrity",
+                              "tables", "tracking_qc_by_animal.csv")))
 cat("Release verifier source mapping after a numbered-root archive: PASS\n")

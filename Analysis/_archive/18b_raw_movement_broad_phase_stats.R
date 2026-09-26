@@ -148,7 +148,9 @@ if (length(hits) == 0) stop("No retained all_behavior_metrics.csv found for the 
 input_file <- hits[1]
 bin_level <- bin_level_priority[match(input_file, input_candidates)]
 
-output_dir <- file.path(base_dir, "analysis_ready", analysis_name, bin_level)
+# Refused once this numbered root is under archive control.
+output_dir <- mmm_behavior_guard_numbered_output_path(
+  file.path(base_dir, "analysis_ready", analysis_name, bin_level), base_dir)
 if (exists("analysis_output_dirs")) {
   dirs <- analysis_output_dirs(output_dir)
 } else {

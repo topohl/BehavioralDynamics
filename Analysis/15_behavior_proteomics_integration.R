@@ -63,7 +63,9 @@ behavior_file <- resolve_stage09_early_prediction_artifact(
   required = TRUE
 )$path
 
-proteomics_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/analysis_ready/proteomics"
+# Receipt-selected module-score inputs (foundations/proteomics_module_scores
+# once activated; the original analysis_ready/proteomics before that).
+proteomics_dir <- mmm_behavior_output_active_root("proteomics_module_scores", project_root)
 
 base_output_dir <- mmm_behavior_guard_numbered_output_path(
   mmm_behavior_proteomics_base_dir(project_root), project_root)

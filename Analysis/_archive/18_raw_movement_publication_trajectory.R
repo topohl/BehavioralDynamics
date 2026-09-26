@@ -190,7 +190,9 @@ if (length(analysis_ready_hits) > 0) {
 
 bin_size_sec <- infer_bin_seconds_local(primary_bin_level)
 
-output_dir <- file.path(base_dir, "analysis_ready", analysis_name, primary_bin_level)
+# Refused once this numbered root is under archive control.
+output_dir <- mmm_behavior_guard_numbered_output_path(
+  file.path(base_dir, "analysis_ready", analysis_name, primary_bin_level), base_dir)
 if (exists("analysis_output_dirs")) {
   output_dirs <- analysis_output_dirs(output_dir)
 } else {

@@ -4,8 +4,8 @@ param(
   [string] $ReaderQueue = '',
   # An ArchivePath review covers one numbered root's move; the archive tool
   # refuses a path gate whose rows name another root.
-  [ValidateSet('', '03_derived_metrics', '06_behavioral_dynamics',
-               '12_systems_neuroscience_summary')]
+  [ValidateScript({ $_ -eq '' -or $(. (Join-Path $PSScriptRoot 'BehaviorNumberedRootLocation.ps1'); Test-BehaviorNumberedRootName $_) },
+                  ErrorMessage = 'Unknown numbered behavioral root: {0}')]
   [string] $RootName = ''
 )
 

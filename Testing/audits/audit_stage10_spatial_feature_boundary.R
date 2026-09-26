@@ -24,8 +24,7 @@ if (sum(spatial_models) != 4L || any(loaded[spatial_models | spatial_figures])) 
 # The recorded paths are provenance of the 2026-09-22 run. A numbered root may
 # since have been archived, so check each file at its retained location.
 retained_path <- function(path) {
-  for (numbered in c("03_derived_metrics", "06_behavioral_dynamics",
-                     "12_systems_neuroscience_summary")) {
+  for (numbered in MMM_NUMBERED_BEHAVIOR_ROOTS) {
     old <- paste0(normalizePath(file.path(root, "analysis_ready", numbered),
                                 winslash = "/", mustWork = FALSE), "/")
     if (startsWith(path, old)) {

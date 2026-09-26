@@ -40,13 +40,13 @@ try {
     throw 'Read-only inspection did not report the blocked group correctly'
   }
   Expect-Failure { & $script -Action Prepare -Group fixture -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo } 'blocked gate'
-  if (Test-Path -LiteralPath (Join-Path $root '_migration_incoming')) {
+  if (Test-Path -LiteralPath (Join-Path $root '_migration_control\incoming')) {
     throw 'Blocked prepare created a staging directory'
   }
 
   $row.gate = 'ready'
   $row | Export-Csv -LiteralPath $plan -NoTypeInformation
-  $staged = Join-Path $root '_migration_incoming\fixture\sample.txt'
+  $staged = Join-Path $root '_migration_control\incoming\fixture\sample.txt'
   New-Item -ItemType Directory -Path (Split-Path -Parent $staged) -Force | Out-Null
   Copy-Item -LiteralPath $source -Destination $staged
   & $script -Action Prepare -Group fixture -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo | Out-Null
@@ -206,7 +206,7 @@ try {
   & $script -Action Prepare -Group systems_dashboard_5min -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo -OwnershipManifest $ownersPath -OwnershipManifestSha256 $dashboardOwnerHash | Out-Null
   & $script -Action Verify -Group systems_dashboard_5min -AnalysisReadyRoot $root -Plan $plan -RepositoryRoot $repo -OwnershipManifest $ownersPath -OwnershipManifestSha256 $dashboardOwnerHash | Out-Null
   $dashboardTarget = Join-Path $root 'analyses\systems_dashboard\5min'
-  $dashboardStage = Join-Path $root '_migration_incoming\systems_dashboard_5min'
+  $dashboardStage = Join-Path $root '_migration_control\incoming\systems_dashboard_5min'
   New-Item -ItemType Directory -Path (Split-Path -Parent $dashboardTarget) -Force | Out-Null
   Move-Item -LiteralPath $dashboardStage -Destination $dashboardTarget
   $partialIndex = Join-Path $dashboardTarget 'tables\output_figure_inventory.csv'

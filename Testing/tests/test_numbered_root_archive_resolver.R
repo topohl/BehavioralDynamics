@@ -224,6 +224,13 @@ for (script in c("Analysis/_archive/18_raw_movement_publication_trajectory.R",
   stopifnot(any(grepl('mmm_behavior_numbered_source_root(', code,
                      fixed = TRUE)))
 }
+# The archived raw-movement writers guard their own numbered output root.
+for (script in c("Analysis/_archive/18_raw_movement_publication_trajectory.R",
+                 "Analysis/_archive/18b_raw_movement_broad_phase_stats.R")) {
+  code <- paste(readLines(script, warn = FALSE), collapse = "\n")
+  stopifnot(grepl("output_dir <- mmm_behavior_guard_numbered_output_path(", code,
+                  fixed = TRUE))
+}
 
 contracts <- c(
   "Analysis/01_build_multiscale_behavior_metrics.R",
