@@ -144,11 +144,15 @@ output_dir <- mmm_behavior_guard_numbered_output_path(
       "12_systems_neuroscience_summary", project_root), primary_bin_level)
   }, project_root)
 
-# Optional endpoint file for physiology/behavioral burden/proteomics module data.
-# Expected: one row per animal, with an AnimalNum-like column and endpoint columns.
-# If NULL, the script tries to use endpoint columns already present in the integrated data.
-endpoint_file <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
-endpoint_sheet <- "zScore"
+# Endpoint table: one row per animal, with an AnimalNum-like column and endpoint columns.
+# As in Stage 09, the endpoint comes from the canonical producer,
+# Analysis/build_later_outcome_combz.R, NOT from the upstream workbook. The
+# workbook's zScore sheet held the uncorrected CombZ (Stage 09 describes the three
+# documented corrections), and the workbook restructured on 2026-09-23 no longer
+# has that sheet.
+endpoint_file <- file.path(project_root, "analysis_ready/canonical/later_outcome_combz/tables",
+                           "later_outcome_combz_animal_level.csv")
+endpoint_sheet <- NULL   # the canonical endpoint is a CSV, not a workbook sheet
 endpoint_cols <- c(
   "CombZ", "stress_z_score", "NOR", "sucrose_pref", "weight_dev", "delta_cort", "adrenal_weight", "spleen_weight",
   "SucrosePreference", "Corticosterone", "DeltaCorticosterone"
@@ -1535,6 +1539,12 @@ systems_features <- full_join(core_feature_wide, optional_wide, by = c("AnimalNu
 # ------------------------------------------------
 
 endpoint_dat <- read_any_table(endpoint_file, sheet = endpoint_sheet)
+# CombZ is the primary outcome. A missing or renamed endpoint table must stop the
+# stage rather than silently drop every outcome analysis.
+if (is.null(endpoint_dat) || !primary_outcome %in% names(endpoint_dat)) {
+  stop("Endpoint table is missing or has no ", primary_outcome, " column: ",
+       endpoint_file, call. = FALSE)
+}
 if (!is.null(endpoint_dat)) {
   endpoint_dat <- standardize_id_columns(endpoint_dat)
   endpoint_keep <- intersect(endpoint_cols, names(endpoint_dat))

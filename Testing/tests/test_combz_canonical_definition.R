@@ -101,6 +101,25 @@ check(any(grepl('outcome_col\\s*<-\\s*"CombZ"', s09)),
       "Stage 09 must declare CombZ as its outcome column")
 ok("Stage 09 pins the canonical sheet and the CombZ endpoint, references no alternative")
 
+# Stage 14 read the workbook's zScore sheet directly until 2026-09-26, so it used
+# the uncorrected CombZ; the restructured workbook (2026-09-23) no longer has
+# that sheet. Like Stage 09 it must take the canonical producer output, and it
+# must stop rather than run without its primary outcome.
+s14 <- code_lines("Analysis/14_systems_neuroscience_summary_dashboard.R")
+check(any(grepl("later_outcome_combz_animal_level\\.csv", s14)),
+      "Stage 14 must take its endpoint from the canonical producer output, not the workbook")
+check(!any(grepl("E9_Behavior_Data|\"zScore\"", s14)),
+      "Stage 14 must not read the upstream workbook directly")
+check(any(grepl("endpoint_sheet\\s*<-\\s*NULL", s14)),
+      "Stage 14 must not name a workbook sheet for its endpoint")
+check(any(grepl("!primary_outcome %in% names(endpoint_dat)", s14, fixed = TRUE)),
+      "Stage 14 must stop when the endpoint table lacks its primary outcome")
+for (nc in NONCANON) {
+  check(!any(grepl(nc, s14, fixed = TRUE)),
+        paste0("Stage 14 references the noncanonical artifact '", nc, "'"))
+}
+ok("Stage 14 takes CombZ from the canonical producer output and stops without it")
+
 # Stage 27 must not touch the endpoint definition at all.
 s27 <- code_lines(STAGE27)
 for (nc in c(NONCANON, "read_excel", "excel_sheets")) {
@@ -270,9 +289,38 @@ if (!have_out) {
 
 if (have_wb && have_out) {
   cat("\n[F] direct parity against the upstream workbook\n")
+  sheets <- readxl::excel_sheets(wb)
+  a <- read_csv(canon, show_col_types = FALSE, progress = FALSE)
+}
+if (have_wb && have_out && !CANON_SHEET %in% sheets) {
+  # The workbook restructured on 2026-09-23 replaced zScore with combz_canonical:
+  # comb_z_as_recorded is the former zScore CombZ, and comb_z carries the same
+  # three documented corrections the producer applies. Its original is kept as
+  # E9_Behavior_Data_before_restructure.xlsx next to it.
+  check("combz_canonical" %in% sheets,
+        "the restructured workbook has neither zScore nor combz_canonical")
+  z <- suppressWarnings(as.data.frame(readxl::read_excel(wb, sheet = "combz_canonical")))
+  m <- merge(data.frame(k = canonical_animal_id(z$animal_id), wb_combz = z$comb_z,
+                        wb_asrec = z$comb_z_as_recorded, wb_group = z$outcome_group,
+                        wb_corrected = z$corrected),
+             data.frame(k = canonical_animal_id(a$AnimalNum), repo_combz = a$CombZ,
+                        repo_asrec = a$combz_as_recorded, repo_group = a$outcome_group),
+             by = "k")
+  check(nrow(m) == 117L, paste0("workbook/repo join is ", nrow(m), ", expected 117"))
+  d_asrec <- max(abs(m$wb_asrec - m$repo_asrec), na.rm = TRUE)
+  d_corr <- max(abs(m$wb_combz - m$repo_combz), na.rm = TRUE)
+  check(d_asrec <= 1e-12, paste0("as-recorded CombZ differs from the workbook by ", format(d_asrec)))
+  check(d_corr <= 1e-12, paste0("corrected CombZ differs from the workbook by ", format(d_corr)))
+  check(all(m$wb_group == m$repo_group), "outcome_group differs between the workbook and the producer")
+  check(sum(m$wb_corrected %in% TRUE) == 19L,
+        paste0("expected 19 corrected animals in the workbook, found ", sum(m$wb_corrected %in% TRUE)))
+  check("combz_alternative_long" %in% sheets,
+        "the restructured workbook must keep the noncanonical composites (combz_alternative_long)")
+  ok(paste0("restructured workbook: as-recorded and corrected CombZ both match (max ",
+            format(max(d_asrec, d_corr)), "), labels identical, 19 corrected animals"))
+} else if (have_wb && have_out) {
   z <- suppressWarnings(as.data.frame(
         readxl::read_excel(wb, sheet = CANON_SHEET)))
-  a <- read_csv(canon, show_col_types = FALSE, progress = FALSE)
   z$k <- canonical_animal_id(z$ID)
   # Since 2026-09-20 the producer applies three documented corrections to the
   # upstream components, so the repo CombZ is deliberately NOT equal to the
