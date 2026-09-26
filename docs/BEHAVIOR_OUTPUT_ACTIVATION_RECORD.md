@@ -931,7 +931,11 @@ note to `support-14` (index SHA-256
 `5C1C45DFAC5EE661235BCD2DF2A94FEFF538E9926146B5B855C7554C10D5460E`; its
 predecessor is `_migration_control/output_index_before_14_archive_20260926.csv`,
 `A1CB1E2B...`). No top-level tree of the old numbered layout remains in
-`analysis_ready/`.
+`analysis_ready/`. The live root, `history/` and `analyses/` READMEs were
+replaced by their sources at `ae4d41f` after backups:
+`analysis_ready_README_before_14_archive_20260926.md` (`2312CBAF...`),
+`history_README_before_14_archive_20260926.md` (`D27391D8...`) and
+`analyses_README_before_14_archive_20260926.md` (`61DA642F...`).
 
 **Live files.** `Maintenance/Refresh-BehaviorOutputIndex.R` added two rows to
 `output_index.csv` (`00-history`, `15-inputs`), and 12 notes gained the
