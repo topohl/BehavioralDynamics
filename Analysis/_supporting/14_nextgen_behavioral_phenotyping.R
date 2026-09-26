@@ -40,7 +40,10 @@ bin_level <- "5min_based"
 source(file.path(repo_root, "Functions/project_paths.R"))
 
 input_file <- file.path(mmm_derived_metrics_output_root(project_root), bin_level, "all_behavior_metrics.csv")
-output_dir <- mmm_supporting_resolution_root("systems_phenotyping", bin_level, project_root)
+# Any resolution other than 5min resolves to the retained original root, so
+# the guard refuses it rather than writing into the archive.
+output_dir <- mmm_behavior_guard_numbered_output_path(
+  mmm_supporting_resolution_root("systems_phenotyping", bin_level, project_root), project_root)
 data_dir <- file.path(output_dir, "derived_data")
 stats_dir <- file.path(output_dir, "statistical_results")
 first_active_figure_dir <- file.path(output_dir, "figures/first_cage_change_active_12h")

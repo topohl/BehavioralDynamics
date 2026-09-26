@@ -727,17 +727,21 @@ mmm_temporal_instability_resolution_root <- function(resolution,
   }, character(1), USE.NAMES = FALSE)
 }
 
-# Stages 11-13 currently produce ten-minute results. Their older five-minute
-# branches are read from the retained original root, which follows its
-# archive receipt; a writer there is refused by the numbered-root guard.
+# Stages 11-13 currently produce ten-minute results. Every other resolution,
+# including the older five-minute branches, is read from the retained original
+# root, which follows its archive receipt; a writer there is refused by the
+# numbered-root guard. Stage 14 passes its full domain preference vectors, so
+# the same five resolutions as the other resolution helpers are accepted.
 mmm_phase_analysis_resolution_root <- function(analysis, resolution,
                                                project_root = mmm_project_root()) {
   old_roots <- c(adaptation_kinetics = "15_behavioral_adaptation_kinetics",
                  sleep_like_inactivity = "16_sleep_like_inactivity_metrics",
                  phase_organization = "17_ethological_phase_organization")
+  allowed <- c("10sec_based", "1min_based", "5min_based",
+               "10min_based", "30min_based")
   if (length(analysis) != 1L || is.na(analysis) ||
       !analysis %in% names(old_roots) || length(resolution) == 0L ||
-      anyNA(resolution) || any(!resolution %in% c("5min_based", "10min_based"))) {
+      anyNA(resolution) || any(!resolution %in% allowed)) {
     stop("Unknown phase-analysis group or resolution.", call. = FALSE)
   }
   vapply(resolution, function(one) {

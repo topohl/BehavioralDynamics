@@ -540,8 +540,12 @@ stopifnot(identical(mmm_phase_analysis_resolution_root(
   c(file.path(fixture_root, "analysis_ready", "analyses/adaptation_kinetics/10min"),
     file.path(fixture_root, "analysis_ready",
               "15_behavioral_adaptation_kinetics/5min_based"))),
+  identical(mmm_phase_analysis_resolution_root("adaptation_kinetics",
+                                               "30min_based", fixture_root),
+            file.path(fixture_root, "analysis_ready",
+                      "15_behavioral_adaptation_kinetics/30min_based")),
   inherits(try(mmm_phase_analysis_resolution_root("adaptation_kinetics",
-                                                  "30min_based", fixture_root),
+                                                  "invalid", fixture_root),
                silent = TRUE), "try-error"))
 stopifnot(identical(mmm_supporting_resolution_root(
   "nonlinear_dynamics", c("5min_based", "10min_based"), fixture_root),

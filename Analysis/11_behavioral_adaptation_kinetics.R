@@ -35,7 +35,10 @@ source_mmm_helper("project_paths.R")
 bin_level <- "10min_based"
 base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 input_file <- file.path(mmm_derived_metrics_output_root(base_dir), bin_level, "all_behavior_metrics.csv")
-output_dir <- mmm_phase_analysis_resolution_root("adaptation_kinetics", bin_level, base_dir)
+# Any resolution other than 10min resolves to the retained original root, so
+# the guard refuses it rather than writing into the archive.
+output_dir <- mmm_behavior_guard_numbered_output_path(
+  mmm_phase_analysis_resolution_root("adaptation_kinetics", bin_level, base_dir), base_dir)
 proximity_col <- "ProximityFraction"
 primary_metrics <- c("Movement", "Entropy", "Proximity")
 early_fraction <- 0.25
