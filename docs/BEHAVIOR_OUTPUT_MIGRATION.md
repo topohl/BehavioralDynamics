@@ -266,6 +266,15 @@ pins. Files beside a copy that neither a plan nor a receipt names are listed,
 not failed. It needs PowerShell 7, writes nothing under `analysis_ready`, and
 refuses a `-ReportCsv` path inside it.
 
+An activated copy is a snapshot of its original. When a producer later reruns
+into the semantic folder, the rerun is reviewed and recorded as one CSV in
+`docs/behavior_output_producer_reruns/`. For each file the record holds the
+prior hash (empty for an added file) and the new hash
+(`Maintenance/BehaviorProducerReruns.ps1`). The parity check and the Stage 14
+residual inventory accept a changed copy only if the recorded reruns lead from
+its activation hash to its current hash; the retained original must still
+match the plan. The first record is the Stage 14 rerun of 2026-09-26.
+
 Example read-only inspection, from the repository root:
 
 ```powershell

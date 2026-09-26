@@ -983,3 +983,81 @@ report (2,181 rows, SHA-256
 `C4A5ED16339E9E222DC6200D12141DFA25CF0954B350871584451D72B500E467`) is kept
 outside the repository as
 `rfid_numbered_root_archive_review_20260924/copy_parity_20260926.csv`.
+
+## 2026-09-26 Stage 14 rerun on the new layout
+
+Stage 14 had last run on 2026-09-22, on the old layout. It now reads its
+endpoint from the canonical CombZ table (`c82eca5`); the restructured workbook
+no longer has the `zScore` sheet it read before. It was first run in guarded
+sandboxes under `C:\Users\topohl\Documents\s14_sandbox_20260926_*`, with the
+wrapper and launcher from two adversarial reviews (scripts in
+`rfid_numbered_root_archive_review_20260924/stage14_sandbox_scripts/`). The
+wrapper redirects the three Stage 14 output groups into the sandbox and stops
+the process before any write, delete or device opens outside it. Every run's
+post-scan of the live RFID tree, `SIS_Analysis`, the repository and the
+neighbouring folders found no change.
+
+- **Validation run** (the 2026-09-22 endpoint input: the pre-restructure
+  workbook's `zScore` sheet, SHA-256 `BF257C2C...`, the file the restructure was
+  built from). The first attempt crashed natively (0xC0000005) inside
+  `cairo_pdf` while writing `Fig_social_reorganization_dynamics.pdf`, after
+  162 s. The crash did not reproduce in isolation, and a rerun of the same
+  configuration completed. Compared with the live outputs:
+  - every live file was reproduced, and every table matches except for these:
+    - recorded paths now name the semantic layout;
+    - the GAMM trajectory features resolve, where the 2026-09-22 run had used a
+      wrong path (`gamm_trajectory_features/5min_based`) and kept a placeholder
+      domain;
+    - three mirrored `Fig_integrated_systems_dashboard` copies and three run
+      manifests are new;
+    - one documentation sentence was reworded;
+  - figures differ only by PDF creation dates and unseeded jitter.
+- **Corrected run** (canonical CombZ). Compared with the validation run, the
+  first-night outputs are identical and 32 CombZ-dependent dashboard tables
+  change. The dashboard's group labels already matched the corrected outcome
+  groups (0 of 111 differ), so the live dashboard had combined corrected labels
+  with the uncorrected CombZ.
+  - Movement-only prediction: cv R² 0.130 -> 0.149.
+  - Integrated model: cv R² 0.209 -> 0.212.
+  - Female PC1-CombZ association: rho -0.33 (q 0.013) -> -0.29 (q 0.030).
+  - No sign changes, and no result crossed 0.05.
+
+The comparison reports are in the review folder:
+`stage14_live_vs_asrecorded_files.csv` (SHA-256 `51B187B7...`),
+`stage14_live_vs_canonical_files.csv` (`0EE3C29A...`) and
+`stage14_asrecorded_vs_canonical_files.csv`.
+
+**Promotion (approved).** The corrected sandbox outputs replaced the live
+contents of the three semantic folders, in these steps:
+1. All 320 live files were backed up to
+   `_migration_control/stage14_before_rerun_20260926/` and hash-verified
+   (`backup_manifest.csv`, SHA-256 `D08D51E9...`). The longest backup path has
+   279 characters, so a restore must use PowerShell 7.
+2. The reviewed files were staged locally. The sandbox root was rewritten to
+   the live root in the two tables that recorded it:
+   `manifest/input_output_manifest.csv` and
+   `tables/systems_robustness_audit.csv`.
+3. The staged files were copied into place, and every one of the 326 live files
+   was verified against its staged hash (`promote_manifest.csv`, `95F21AB4...`).
+
+The three folders changed as follows:
+
+| Group | Unchanged | Rewritten | Added |
+| --- | ---: | ---: | ---: |
+| `systems_dashboard_5min` | 182 | 118 | 6 |
+| `first_night_10min` | 8 | 2 | 0 |
+| `first_night_5min` | 8 | 2 | 0 |
+
+The rerun is recorded in
+`docs/behavior_output_producer_reruns/stage14_20260926.csv` (SHA-256
+`3FCE6FFC...`). The copy-parity check and the Stage 14 residual inventory accept
+a changed copy only through that record: its prior hash must be the activation
+hash, and the retained original must still match the plan. After the promotion
+all three read-only checks pass: the Stage 14 residual inventory, the
+foundation inventory, and the copy-parity check. In the copy-parity check all
+2,181 originals match their plans; 2,061 copies match the plan unchanged, and
+120 match the recorded rerun (116 dashboard files, the two changed dashboard
+metadata files, and two per first-night folder). The 6 added files match the
+record, and no copy root holds an unplanned file. Stage 16's recorded
+hashes, Stage 27 and the release bundle predate this rerun and were not
+regenerated.
