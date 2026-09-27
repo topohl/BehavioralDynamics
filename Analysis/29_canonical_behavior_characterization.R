@@ -139,7 +139,7 @@ fsub <- function(f) gsub("AnimalID", "AnimalNum", f)
 trf <- function(k, which = c("pooled", "sex")) { which <- match.arg(which); mm <- if (which == "pooled") M$TR_POOLED else M$TR_BY_SEX
   fsub(if (k == "crossing_rate") mm$formula_crossing_rate else mm$formula) }
 dat <- function(k, cc1 = TRUE, d = sisd) { x <- d[is.finite(get(k))]; if (cc1) x <- x[CC == "CC1"]; x <- data.table::copy(x); x[, y := get(k)]; x }
-batch_avg <- function(fit) { nm <- names(lme4::fixef(fit)); bd <- grep("^Batch", nm, value = TRUE)
+batch_avg <- function(fit) { if (is.null(fit)) return(list()); nm <- names(lme4::fixef(fit)); bd <- grep("^Batch", nm, value = TRUE)
   if (!length(bd)) return(list()); as.list(stats::setNames(rep(1 / (length(bd) + 1), length(bd)), bd)) }
 cw <- function(...) { x <- list(...); x[lengths(x) > 0] }
 tag_rows <- function(x, ...) { a <- list(...); x[, (names(a)) := a]; x }
@@ -205,6 +205,13 @@ holm_member <- function(fid, member, p_member, p_partner = NULL) { f <- MULT[fam
 
 # ---------------------------------------------------------------- 4. robustness
 sens <- list(); het <- list(); zone <- list(); lobo <- list()
+# fitting$failure_rule at block level: an unexpected error inside a robustness, diagnostic, secondary or Stage 09 block is
+# recorded in audit/run_failures.csv (block, error) and the run continues; primary results never depend on these blocks.
+run_failures <- list()
+guarded <- function(block, expr) tryCatch(expr, error = function(e) {
+  run_failures[[length(run_failures) + 1]] <<- data.table(block = block, error = conditionMessage(e))
+  message("BLOCK FAILED (recorded): ", block, ": ", conditionMessage(e)); invisible(NULL) })
+DIAG <- data.table(); EXPO <- data.table(); CONT <- data.table(); LAG <- data.table(); CUM <- data.table(); S09S <- data.table(); S09X <- data.table()
 prim_row <- function(k, e) EST[construct == k & estimand == e & is.na(sex)]
 add_sens <- function(id, k, e, x) { p <- prim_row(k, e); if (!nrow(p) || is.null(x)) return(invisible())
   sens[[length(sens) + 1]] <<- data.table(sensitivity_id = id, construct = k, estimand = e, primary_estimate = p$estimate, primary_se = p$se,
@@ -223,6 +230,7 @@ sens_all <- function(id, k, r) { if (!is.null(r$Q1)) add_sens(id, k, "Q1", r$Q1)
   for (cc in 2:4) if (!is.null(r[[paste0("c", cc)]])) add_sens(id, k, paste0("Q2b_component_c", cc), r[[paste0("c", cc)]]) }
 
 # 4a. heteroscedastic comparators A and B for Q1 and Q2b of all four constructs
+guarded("4a heteroscedastic comparators", {
 HA <- list(); HB <- list()
 for (k in CON_SET) {
   rf <- EST[estimand == "RS_by_sex_CC1" & construct == k & sex == "Female"]; rm_ <- EST[estimand == "RS_by_sex_CC1" & construct == k & sex == "Male"]
@@ -259,9 +267,11 @@ for (k in CON_SET) for (cmp in c("A", "B")) {
     primary_holm_reject = rej_prim, comparator_holm_reject = rej_alt), xj, data.table(material = length(reasons) > 0, reasons = paste(reasons, collapse = "; "),
     components = paste(sprintf("%s=%.4g(%.4g)", comp$component, comp$estimate, comp$se), collapse = "; ")))
 }
+})
 
 # 4b. LOBO, other prespecified sensitivities
 sexcc <- list()
+guarded("4b LOBO and other sensitivities", {
 hw6 <- c("314|CC4", "318|CC4", "OR620|CC4", "OR630|CC4", "OR112|CC3", "OR141|CC3")
 hw_found <- des[paste(AnimalNum, CC, sep = "|") %in% hw6]
 if (nrow(hw_found) != 6) stop("S13: expected the 6 frozen hardware windows, found ", nrow(hw_found), call. = FALSE)
@@ -293,8 +303,10 @@ for (k in CON_SET) {
     af <- merge(sisd[, !"fragmentation"], alt_frag[criterion == cn, .(AnimalNum, CC, fragmentation)], by = c("AnimalNum", "CC"))
     sens_all(paste0("S11_bout_criterion_", cn), k, refit(k, dat(k, TRUE, af), dat(k, FALSE, af), paste0("S11_", cn), r1 = 8, rL = 20)) }
 }
+})
 
 # 4c. shared-zone D1-D4, complete case, S18
+guarded("4c shared-zone robustness", {
 k <- "shared_zone_use"; pz <- prim_row(k, "Q1")
 D1c <- mmm_ci_cr2(fits[[paste0("CC1_POOLED|", k)]], "g_RS:sex_c")
 d1_rej <- holm_member("P-CC1", "Q1|shared_zone_use", D1c$p_raw)
@@ -331,7 +343,7 @@ zone[[length(zone) + 1]] <- cbind(data.table(analysis = "D2_dyadic_TR"), d2b[est
 fD3 <- sub("(1 | CageEpisodeID)", "(0 + d1 | CageEpisodeID) + (0 + d2 | CageEpisodeID) + (0 + d3 | CageEpisodeID) + (0 + d4 | CageEpisodeID)",
            fsub(M$TR_POOLED$formula), fixed = TRUE)
 r <- refit(k, NULL, dat(k, FALSE), "D3", fL = fD3, rL = 20); sens_all("D3_cc_specific_cage_variance", k, r)
-zone[[length(zone) + 1]] <- cbind(data.table(analysis = "D3_cc_specific_cage", estimand = "Q2b"), r$Q2b)
+zone[[length(zone) + 1]] <- cbind(data.table(analysis = "D3_cc_specific_cage"), data.table::copy(r$Q2b)[, p_raw := NA_real_])   # p withheld: p_value_policy (no p for D3)
 four <- sisd[n_in_cage == 4]; sens_all("D4a_four_tracked_cages", k, refit(k, dat(k, TRUE, four), dat(k, FALSE, four), "D4a", r1 = 8, rL = 20))
 sens_all("D4b_tracked_mate_factor", k, refit(k, dat(k), dat(k, FALSE), "D4b",
   f1 = sub("+ (1 | CageEpisodeID)", "+ factor(n_tracked_mates) + (1 | CageEpisodeID)", fsub(M$CC1_POOLED$formula), fixed = TRUE),
@@ -340,8 +352,10 @@ miss <- unique(sisd[!is.finite(shared_zone_use), AnimalNum]); ccd <- sisd[!(Anim
 if (!setequal(miss, c("OQ755", "OQ770", "OQ771"))) stop("Complete case: missing-window animals differ from the frozen set: ", paste(miss, collapse = ", "), call. = FALSE)
 sens_all("complete_case_zone", k, refit(k, dat(k, TRUE, ccd), dat(k, FALSE, ccd), "complete_case", r1 = 8, rL = 20))
 sens_all("S18_B1_excluded", k, refit(k, dat(k, TRUE, sisd[Batch != "B1"]), dat(k, FALSE, sisd[Batch != "B1"]), "S18", r1 = 7, rL = 19))
+})
 
 # ---------------------------------------------------------------- 5. diagnostics (reported; zone_variance is the only trigger)
+guarded("5 diagnostics", {
 diag <- list()
 capture <- function(expr) { msgs <- character()
   val <- withCallingHandlers(expr, warning = function(w) { msgs <<- c(msgs, conditionMessage(w)); invokeRestart("muffleWarning") },
@@ -362,12 +376,15 @@ diag$pooled_vs_strat <- rbindlist(lapply(CON_SET, function(k) { m1 <- fits[[past
                diff_sd = (x$estimate - st_$estimate) / sdz[[k]], flag = abs((x$estimate - st_$estimate) / sdz[[k]]) > 0.10) })) }))
 diag$drop_cage <- rbindlist(lapply(CON_SET, function(k) { d1 <- dat(k); cages <- unique(d1$CageEpisodeID)
   v <- vapply(cages, function(cg) mmm_ci_contrast(mmm_ci_fit(fsub(M$CC1_POOLED$formula), d1[CageEpisodeID != cg], "drop_cage"), CFG$contrasts$Q1$L, "Q1")$estimate, 0)
-  data.table(diagnostic = "drop_one_cage_Q1", construct = k, n_refits = length(v), min = min(v), max = max(v), primary = prim_row(k, "Q1")$estimate) }))
+  data.table(diagnostic = "drop_one_cage_Q1", construct = k, n_refits = length(v), n_failed = sum(is.na(v)), min = min(v, na.rm = TRUE), max = max(v, na.rm = TRUE),
+             primary = prim_row(k, "Q1")$estimate) }))
 diag$homog <- rbindlist(lapply(CON_SET, function(k) rbindlist(lapply(c("Female", "Male"), function(sx) {
   m <- mmm_ci_fit("y ~ Batch * g_RS + (1 | CageEpisodeID)", dat(k)[Sex == sx], "homog")
+  if (mmm_ci_fit_failed(m)) return(data.table(diagnostic = "within_sex_batch_homogeneity", construct = k, sex = sx, status = "FAILED"))
   j <- mmm_ci_joint(m, grep("^Batch.*:g_RS$|^g_RS:Batch", names(lme4::fixef(m$fit)), value = TRUE), "batch_x_g_RS")
   data.table(diagnostic = "within_sex_batch_homogeneity", construct = k, sex = sx, F = j$F, df1 = j$df1, df2 = j$df2, p = j$p_raw) }))))
 diag$resid <- rbindlist(lapply(CON_SET, function(k) { m1 <- fits[[paste0("CC1_POOLED|", k)]]
+  if (mmm_ci_fit_failed(m1)) return(data.table(diagnostic = "residual_sd", construct = k, status = "FAILED"))
   data.table(m1$data[, .(AnimalNum, Sex, Group)], resid = stats::residuals(m1$fit))[, .(diagnostic = "residual_sd", construct = k, sd = stats::sd(resid), n = .N), by = .(Sex, Group)] }))
 af <- rbindlist(lapply(c(paste0("TR_POOLED|crossing_rate"), paste0("TR_BY_SEX|crossing_rate|", c("Female", "Male"))), function(id) {
   cbind(data.table(diagnostic = "optimizer_check_crossing_slope", model_id = id), mmm_ci_optimizer_check(fits[[id]])) }), fill = TRUE)
@@ -375,8 +392,10 @@ af[, bobyqa_convergence_warning := vapply(model_id, function(id) !fits[[id]]$inf
 af[, failure_rule_triggered := vapply(model_id, function(id) isTRUE(fits[[id]]$info$failed), TRUE)]
 diag$allfit <- af
 DIAG <- rbindlist(diag, fill = TRUE)
+})
 
 # ---------------------------------------------------------------- 6. secondary estimation
+guarded("6a exposure and light phase", {
 expo <- list(); cont <- list(); lagb <- list(); cumr <- list()
 ee <- function(m, w, estimand, ...) expo[[length(expo) + 1]] <<- tag_rows(mmm_ci_contrast(m, w, estimand), ...)
 for (k in c(CON_SET, "light_phase_crossing_rate")) {
@@ -406,23 +425,30 @@ for (sx in c("Female", "Male")) {
                      paste0("RS_by_sex_TR_CC", cc, "_light"), construct = k, sex = sx)
 }
 EXPO <- rbindlist(expo, fill = TRUE)[, `:=`(p_raw = NA_real_, role = "estimation only")]
+})
 
+guarded("6b continuous", {
 for (pop in CFG$models$CONTINUOUS$populations) for (xk in CFG$models$CONTINUOUS$predictors) {
   d <- des[CC == "CC1" & is.finite(get(xk)) & is.finite(CombZ)]; if (pop == "SIS_ONLY") d <- d[Group != "CON"]
   d <- data.table::copy(d); d[, x := get(xk)]
   m <- mmm_ci_fit(M$CONTINUOUS$formula, d, paste("CONTINUOUS", pop, xk, sep = "|"), engine = "lm", expected_rank = M$CONTINUOUS$expected_rank); reg[[m$info$model_id]] <- m$info
+  if (mmm_ci_fit_failed(m)) { cont[[length(cont) + 1]] <- data.table(population = pop, predictor = xk, estimand = c("slope_sexavg", "slope_DiD_F_minus_M"), status = "FAILED"); next }
   V <- clubSandwich::vcovCR(m$fit, cluster = d$CageEpisodeID, type = "CR2"); ct <- summary(m$fit)$coefficients; dfm <- m$fit$df.residual
   for (cf in c("x", "x:sex_c")) { cr <- clubSandwich::coef_test(m$fit, vcov = V, test = "Satterthwaite", coefs = cf)
     cont[[length(cont) + 1]] <- data.table(population = pop, predictor = xk, estimand = ifelse(cf == "x", "slope_sexavg", "slope_DiD_F_minus_M"),
       estimate = ct[cf, 1], se = ct[cf, 2], df = dfm, ci_low = ct[cf, 1] - stats::qt(.975, dfm) * ct[cf, 2], ci_high = ct[cf, 1] + stats::qt(.975, dfm) * ct[cf, 2],
       se_cr2 = cr$SE, df_cr2 = cr$df_Satt, n = nrow(d)) }
   for (sx in c("Female", "Male")) { ms <- mmm_ci_fit(M$CONTINUOUS$formula_by_sex, d[Sex == sx], paste("CONTINUOUS", pop, xk, sx, sep = "|"), engine = "lm", expected_rank = M$CONTINUOUS$expected_rank_by_sex)
-    reg[[ms$info$model_id]] <- ms$info; ct <- summary(ms$fit)$coefficients; dfs <- ms$fit$df.residual
+    reg[[ms$info$model_id]] <- ms$info
+    if (mmm_ci_fit_failed(ms)) { cont[[length(cont) + 1]] <- data.table(population = pop, predictor = xk, estimand = paste0("slope_", sx), status = "FAILED"); next }
+    ct <- summary(ms$fit)$coefficients; dfs <- ms$fit$df.residual
     cont[[length(cont) + 1]] <- data.table(population = pop, predictor = xk, estimand = paste0("slope_", sx), estimate = ct["x", 1], se = ct["x", 2],
       df = dfs, ci_low = ct["x", 1] - stats::qt(.975, dfs) * ct["x", 2], ci_high = ct["x", 1] + stats::qt(.975, dfs) * ct["x", 2], n = nrow(d[Sex == sx])) }
 }
 CONT <- rbindlist(cont, fill = TRUE)[, `:=`(p_raw = NA_real_, role = "secondary estimand (continuous view)")]
+})
 
+guarded("6c lag block", {
 lagdir <- file.path(AR, "pipeline", "28_rfid_behavioral_domains")
 for (res in c("10min", "5min")) {
   lf <- data.table::fread(file.path(lagdir, res, "tables", "acute_window_raw_features.csv"),
@@ -440,7 +466,9 @@ for (res in c("10min", "5min")) {
   }
 }
 LAG <- rbindlist(lagb, fill = TRUE)[, `:=`(p_raw = NA_real_, role = "descriptive")]
+})
 
+guarded("6d cumulative windows", {
 for (h in CFG$windows$cumulative$hours) {
   mk <- as.character(CFG$windows$cumulative$metric_matrix[[paste0("h", h)]])
   cwd <- merge(sisd[CC == "CC1", .(AnimalNum, CC, Group, Sex, Batch, CageEpisodeID, g_RS, sex_c)], cum[window_h == h & CC == "CC1"], by = c("AnimalNum", "CC"))
@@ -453,8 +481,10 @@ for (h in CFG$windows$cumulative$hours) {
 }
 CUM <- rbindlist(cumr, fill = TRUE)[, `:=`(p_raw = NA_real_, role = "estimation-only temporal localisation")]
 CUM[construct %in% names(sdz), estimate_standardized := estimate / sdz[construct]]
+})
 
 # ---------------------------------------------------------------- 7. Stage 09 declared sensitivities
+guarded("7 Stage 09 sensitivities", {
 s09 <- data.table::fread(file.path(AR, "pipeline", "09_early_prediction", "10min", "tables", "model_ladder_input.csv"))
 s09[, AnimalNum := canonical_animal_id(AnimalNum)]
 s09 <- merge(s09, des[CC == "CC1", .(AnimalNum, Batch, CageEpisodeID, sex_c)], by = "AnimalNum")
@@ -473,6 +503,7 @@ S09X <- rbindlist(lapply(as.character(CFG$stage09$registered$features), function
   d <- s09[is.finite(get(fx))]; d[, x := get(fx)]; f <- stats::lm(outcome ~ Batch + x + x:sex_c, data = d); ct <- summary(f)$coefficients["x:sex_c", ]
   data.table(feature = fx, estimand = "batch_adjusted_x_by_sex (F - M)", estimate = ct[1], se = ct[2], df = f$df.residual,
              ci_low = ct[1] - stats::qt(.975, f$df.residual) * ct[2], ci_high = ct[1] + stats::qt(.975, f$df.residual) * ct[2], p_raw = ct[4], n = nrow(d)) }))
+})
 
 # ---------------------------------------------------------------- 8. write
 SEXCC <- rbindlist(sexcc, fill = TRUE)[, estimate_standardized := estimate / sdz[construct]]
@@ -511,6 +542,9 @@ data.table::fwrite(as.data.table(RUN), file.path(AUD, "run_manifest.csv"))
 outs <- list.files(TAB, full.names = TRUE)
 data.table::fwrite(data.table(file = basename(outs), bytes = file.size(outs), sha256 = vapply(outs, function(f) digest::digest(file = f, algo = "sha256"), "")),
                    file.path(AUD, "output_manifest.csv"))
+RF <- if (length(run_failures)) rbindlist(run_failures) else data.table(block = character(), error = character())
+data.table::fwrite(RF, file.path(AUD, "run_failures.csv"))
+if (nrow(RF)) warning(nrow(RF), " block(s) FAILED and were recorded in audit/run_failures.csv: ", paste(RF$block, collapse = "; "))
 n_failed <- sum(vapply(reg, function(i) isTRUE(i$failed), TRUE))
 if (n_failed) warning(n_failed, " model(s) FAILED under fitting$failure_rule; their rows are reported FAILED (see model_registry.csv).")
 message("Stage 29 complete: ", length(outs), " tables, ", length(reg), " models in ", TAB)

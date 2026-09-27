@@ -56,17 +56,23 @@ mmm_ci_fit <- function(formula, data, label, engine = c("lmer", "lm", "glmmTMB")
   msgs <- character()
   handler_w <- function(w) { msgs <<- c(msgs, paste("warning:", conditionMessage(w))); invokeRestart("muffleWarning") }
   handler_m <- function(m) { msgs <<- c(msgs, paste("message:", trimws(conditionMessage(m)))); invokeRestart("muffleMessage") }
-  fit <- withCallingHandlers({
+  # fitting$failure_rule: an erroring fit becomes an explicit FAILED model (fit = NULL, error kept in the registry);
+  # every downstream helper returns FAILED rows for it and the run continues, so no failure disappears silently.
+  fit <- tryCatch(withCallingHandlers({
     switch(engine,
            lmer = lmerTest::lmer(f, data = data, REML = TRUE,
                                  control = lme4::lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5), check.rankX = "stop.deficient")),
            lm = stats::lm(f, data = data),
            glmmTMB = glmmTMB::glmmTMB(f, dispformula = if (is.null(dispformula)) ~1 else stats::as.formula(dispformula),
                                       data = data, REML = TRUE))
-  }, warning = handler_w, message = handler_m)
-  if (engine == "lmer" && length(attr(lme4::getME(fit, "X"), "col.dropped"))) stop("lme4 dropped columns in ", label, call. = FALSE)
-  singular <- if (engine == "lmer") lme4::isSingular(fit) else NA
-  converged <- !any(grepl("converge", msgs, ignore.case = TRUE))
+  }, warning = handler_w, message = handler_m), error = function(e) e)
+  fit_error <- if (inherits(fit, "error")) conditionMessage(fit) else NA_character_
+  if (!is.na(fit_error)) fit <- NULL
+  if (!is.null(fit) && engine == "lmer" && length(attr(lme4::getME(fit, "X"), "col.dropped"))) stop("lme4 dropped columns in ", label, call. = FALSE)
+  singular <- if (!is.null(fit) && engine == "lmer") lme4::isSingular(fit) else NA
+  # convergence-class conditions: lme4 convergence checks (incl. "nearly unidentifiable") and glmmTMB optimiser / Hessian problems
+  pd_hess <- if (!is.null(fit) && engine == "glmmTMB") isTRUE(fit$sdr$pdHess) else NA
+  converged <- is.na(fit_error) && !any(grepl("converge|unidentifiable|non-positive-definite", msgs, ignore.case = TRUE)) && !isFALSE(pd_hess)
   info <- data.table::data.table(model_id = label, engine = engine, formula = paste(deparse(f, width.cutoff = 500L), collapse = " "),
     dispformula = if (is.null(dispformula)) NA_character_ else dispformula,
     n_obs = nrow(data), n_animals = data.table::uniqueN(data$AnimalNum),
@@ -74,24 +80,42 @@ mmm_ci_fit <- function(formula, data, label, engine = c("lmer", "lm", "glmmTMB")
     n_batches = data.table::uniqueN(data$Batch), n_fixed_cols = ncol(X0), rank = rank0, expected_rank = expected_rank %||% NA_integer_,
     singular = singular, converged = converged,
     messages = paste(unique(msgs), collapse = " | "))
-  # fitting$failure_rule: a persistent convergence warning fails the fit unless the converging optimizers agree
+  # a persistent convergence problem fails the fit unless the converging optimizers agree (lmer: five lme4 optimizers;
+  # glmmTMB: nlminb vs optim BFGS); an error always fails it
   out <- list(fit = fit, info = info, data = data)
-  oc <- if (engine == "lmer" && !converged) mmm_ci_optimizer_check(out) else NULL
+  oc <- if (!is.null(fit) && !converged && engine == "lmer") mmm_ci_optimizer_check(out) else
+        if (!is.null(fit) && !converged && engine == "glmmTMB") mmm_ci_optimizer_check_glmmtmb(out) else NULL
   out$info[, `:=`(optimizer_check_agree = if (is.null(oc)) NA else oc$agree,
-                  failed = !is.null(oc) && !isTRUE(oc$agree),
-                  optimizer_check_messages = if (is.null(oc)) NA_character_ else oc$messages)]
+                  failed = !is.na(fit_error) || (!is.null(oc) && !isTRUE(oc$agree)),
+                  optimizer_check_messages = if (is.null(oc)) NA_character_ else oc$messages,
+                  error = fit_error)]
   out
 }
 
+mmm_ci_fit_failed <- function(m) isTRUE(m$info$failed) || is.null(m$fit)
+
 #' fitting$failure_rule: rows from a FAILED fit carry no estimate or p.
 mmm_ci_mark_failed <- function(x, m) {
-  failed <- isTRUE(m$info$failed)
+  failed <- mmm_ci_fit_failed(m)
   if (failed) for (cl in intersect(c("estimate", "se", "df", "statistic", "ci_low", "ci_high", "p_raw", "F", "df1", "df2"), names(x))) data.table::set(x, j = cl, value = NA_real_)
   x[, status := if (failed) "FAILED" else "OK"][]
 }
 
+#' FAILED placeholder row (same columns as the successful row) for a model whose fit errored.
+mmm_ci_failed_row <- function(m, estimand, type = c("contrast", "joint"), weights = NULL, rows = NULL) {
+  type <- match.arg(type)
+  x <- if (type == "contrast") { w <- unlist(weights)
+    data.table::data.table(model_id = m$info$model_id, estimand = estimand, L = paste(sprintf("%s=%g", names(w), w), collapse = "; "),
+      estimate = NA_real_, se = NA_real_, df = NA_real_, statistic = NA_real_, ci_low = NA_real_, ci_high = NA_real_, p_raw = NA_real_,
+      test = "KR t", df_method = "Kenward-Roger")
+  } else data.table::data.table(model_id = m$info$model_id, estimand = estimand, rows = paste(rows, collapse = "; "),
+      F = NA_real_, df1 = NA_real_, df2 = NA_real_, p_raw = NA_real_, test = "KR joint F", df_method = "Kenward-Roger")
+  x[, status := "FAILED"][]
+}
+
 #' One-row KR contrast.
 mmm_ci_contrast <- function(m, weights, estimand, level = 0.95) {
+  if (is.null(m$fit)) return(mmm_ci_failed_row(m, estimand, "contrast", weights = weights))
   fit <- m$fit; b <- lme4::fixef(fit)
   L <- mmm_ci_L(names(b), weights)
   ct <- lmerTest::contest(fit, L, joint = FALSE, ddf = "Kenward-Roger", confint = TRUE, level = level)
@@ -104,6 +128,7 @@ mmm_ci_contrast <- function(m, weights, estimand, level = 0.95) {
 
 #' Joint KR F test of several rows (each row a single coefficient).
 mmm_ci_joint <- function(m, rows, estimand) {
+  if (is.null(m$fit)) return(mmm_ci_failed_row(m, estimand, "joint", rows = rows))
   fit <- m$fit; b <- lme4::fixef(fit)
   L <- do.call(rbind, lapply(rows, function(r) mmm_ci_L(names(b), stats::setNames(1, r))))
   ct <- lmerTest::contest(fit, L, joint = TRUE, ddf = "Kenward-Roger")
@@ -116,6 +141,7 @@ mmm_ci_holm <- function(p) stats::p.adjust(p, method = "holm", n = length(p))   
 #' Optimizer check (config fitting$optimizer_check): refit with lme4's built-in optimizers (the allFit set without optional
 #' packages) directly from the stored formula and data; lme4::allFit's update() cannot re-evaluate these calls.
 mmm_ci_optimizer_check <- function(m) {
+  if (is.null(m$fit)) return(data.table::data.table(n_ok = 0L, n_opt = 0L, agree = NA, messages = "fit FAILED; no optimizer check"))
   opts <- list(bobyqa = list("bobyqa", list()), Nelder_Mead = list("Nelder_Mead", list()), nlminbwrap = list("nlminbwrap", list()),
                nloptwrap.NLOPT_LN_NELDERMEAD = list("nloptwrap", list(algorithm = "NLOPT_LN_NELDERMEAD")),
                nloptwrap.NLOPT_LN_BOBYQA = list("nloptwrap", list(algorithm = "NLOPT_LN_BOBYQA")))
@@ -141,8 +167,27 @@ mmm_ci_optimizer_check <- function(m) {
     agree = diff(range(ll)) < 1e-6 & se_scaled < 0.01, messages = msgs)
 }
 
+#' glmmTMB analogue of the optimizer check: refit with optim(BFGS) and compare with the default nlminb fit
+#' (same agreement rule: logLik range < 1e-6 and every conditional fixed effect within 0.01 SE). Runs only for a
+#' glmmTMB fit with a convergence-class problem.
+mmm_ci_optimizer_check_glmmtmb <- function(m) {
+  f <- stats::as.formula(m$info$formula)
+  disp <- if (is.na(m$info$dispformula)) ~1 else stats::as.formula(m$info$dispformula)
+  alt <- tryCatch(suppressWarnings(glmmTMB::glmmTMB(f, dispformula = disp, data = m$data, REML = TRUE,
+                    control = glmmTMB::glmmTMBControl(optimizer = stats::optim, optArgs = list(method = "BFGS")))), error = function(e) e)
+  if (inherits(alt, "error")) return(data.table::data.table(n_ok = 1L, n_opt = 2L, agree = NA, messages = paste("optim BFGS refit failed:", conditionMessage(alt))))
+  b0 <- glmmTMB::fixef(m$fit)$cond; b1 <- glmmTMB::fixef(alt)$cond
+  se <- sqrt(diag(as.matrix(stats::vcov(m$fit)$cond)))
+  ll <- c(as.numeric(stats::logLik(m$fit)), as.numeric(stats::logLik(alt)))
+  sc <- max(abs(b1[names(b0)] - b0) / se)
+  data.table::data.table(n_ok = 2L, n_opt = 2L, optimizers_ok = "nlminb; optim BFGS", loglik_range = diff(range(ll)),
+    max_fixef_range_over_se = sc, max_rel_fixef_diff = NA_real_, agree = isTRUE(diff(range(ll)) < 1e-6 && sc < 0.01),
+    messages = paste("pdHess nlminb:", isTRUE(m$fit$sdr$pdHess), "| BFGS:", isTRUE(alt$sdr$pdHess)))
+}
+
 #' KR-adjusted covariance of selected coefficients.
 mmm_ci_vcov_kr <- function(m, rows) {
+  if (is.null(m$fit)) return(matrix(NA_real_, length(rows), length(rows), dimnames = list(rows, rows)))
   V <- as.matrix(pbkrtest::vcovAdj(methods::as(m$fit, "lmerMod")))
   nm <- names(lme4::fixef(m$fit)); dimnames(V) <- list(nm, nm)
   r <- mmm_ci_match(rows, nm); V[r, r, drop = FALSE]
@@ -160,6 +205,9 @@ mmm_ci_het_A_q1 <- function(rs_f, rs_m) {
 
 #' A for Q2b: 3-df Wald on b_F - b_M of g_RS:ck with KR-adjusted V_F + V_M, F(3, nu); plus per-component differences.
 mmm_ci_het_A_q2b <- function(m_f, m_m, nu) {
+  if (is.null(m_f$fit) || is.null(m_m$fit))
+    return(list(joint = data.table::data.table(F = NA_real_, df1 = 3, df2 = nu, p_raw = NA_real_, test = "stratified-difference Wald F(3, nu); a stratum fit FAILED", status = "FAILED"),
+                components = data.table::data.table(component = MMM_CI_Q2B_ROWS, estimate = NA_real_, se = NA_real_)))
   rF <- mmm_ci_match(MMM_CI_Q2A_ROWS, names(lme4::fixef(m_f$fit))); rM <- mmm_ci_match(MMM_CI_Q2A_ROWS, names(lme4::fixef(m_m$fit)))
   bF <- lme4::fixef(m_f$fit)[rF]; bM <- lme4::fixef(m_m$fit)[rM]
   VF <- mmm_ci_vcov_kr(m_f, MMM_CI_Q2A_ROWS); VM <- mmm_ci_vcov_kr(m_m, MMM_CI_Q2A_ROWS)
@@ -171,6 +219,14 @@ mmm_ci_het_A_q2b <- function(m_f, m_m, nu) {
 
 #' B: glmmTMB with dispformula ~ sex_c; Wald z (one row / components) or chi-square (joint).
 mmm_ci_glmmtmb_tests <- function(g, one = NULL, rows = NULL) {
+  if (mmm_ci_fit_failed(g)) {
+    out <- list()
+    if (!is.null(one)) out$one <- data.table::data.table(estimate = NA_real_, se = NA_real_, df = Inf, statistic = NA_real_, ci_low = NA_real_, ci_high = NA_real_,
+                                                     p_raw = NA_real_, test = "glmmTMB fit FAILED", status = "FAILED")
+    if (!is.null(rows)) { out$joint <- data.table::data.table(F = NA_real_, df1 = length(rows), df2 = Inf, p_raw = NA_real_, test = "glmmTMB fit FAILED", status = "FAILED")
+      out$components <- data.table::data.table(component = rows, estimate = NA_real_, se = NA_real_) }
+    return(out)
+  }
   b <- glmmTMB::fixef(g$fit)$cond; V <- as.matrix(stats::vcov(g$fit)$cond)
   out <- list()
   if (!is.null(one)) { L <- mmm_ci_L(names(b), one); e <- sum(L * b); se <- sqrt(as.numeric(t(L) %*% V %*% L))
@@ -193,6 +249,8 @@ mmm_ci_shift_material <- function(prim_est, prim_se, alt_est) {
 # ---------------------------------------------------------------- shared-zone D1 / D2
 #' D1 at CC1: CR2 cluster-robust by cage epoch on the lmer working model, Satterthwaite df (clubSandwich).
 mmm_ci_cr2 <- function(m, coef) {
+  if (mmm_ci_fit_failed(m)) return(data.table::data.table(estimate = NA_real_, se = NA_real_, df = NA_real_, statistic = NA_real_, ci_low = NA_real_,
+    ci_high = NA_real_, p_raw = NA_real_, n_clusters = data.table::uniqueN(m$data$CageEpisodeID), test = "working-model fit FAILED", status = "FAILED"))
   fit <- methods::as(m$fit, "lmerMod")
   V <- clubSandwich::vcovCR(fit, cluster = m$data$CageEpisodeID, type = "CR2")
   ct <- clubSandwich::coef_test(fit, vcov = V, test = "Satterthwaite", coefs = coef)
@@ -204,7 +262,9 @@ mmm_ci_cr2 <- function(m, coef) {
 
 #' D1 longitudinal: OLS fixed part with two-way (animal, cage epoch) cluster-robust SEs; Wald F for Q2b.
 mmm_ci_twoway_q2b <- function(formula_fixed, data) {
-  fit <- stats::lm(stats::as.formula(formula_fixed), data = data)
+  fit <- tryCatch(stats::lm(stats::as.formula(formula_fixed), data = data), error = function(e) e)
+  if (inherits(fit, "error")) return(data.table::data.table(F = NA_real_, df1 = 3, df2 = NA_real_, p_raw = NA_real_,
+    test = paste("OLS two-way fit FAILED:", conditionMessage(fit)), status = "FAILED"))
   V <- sandwich::vcovCL(fit, cluster = ~ AnimalNum + CageEpisodeID, type = "HC3", cadjust = TRUE, multi0 = FALSE)
   ev <- eigen(V, symmetric = TRUE); if (any(ev$values < 0)) V <- ev$vectors %*% diag(pmax(ev$values, 0)) %*% t(ev$vectors)
   dimnames(V) <- list(names(stats::coef(fit)), names(stats::coef(fit)))
@@ -237,7 +297,7 @@ mmm_ci_d2 <- function(dy, longitudinal = FALSE) {
     rn <- mmm_ci_match(rows, names(stats::coef(fit)))
     wt <- clubSandwich::Wald_test(fit, constraints = clubSandwich::constrain_zero(rn), vcov = V, test = "HTZ")
     res <- data.table::rbindlist(list(comp, data.table::data.table(estimand = "Q2b_dyad_joint", coef = paste(rows, collapse = "; "),
-      F = wt$Fstat, df1 = wt$df_num, df2 = wt$df_denom, p_raw = wt$p_val)), fill = TRUE)
+      F = wt$Fstat, df1 = wt$df_num, df2 = wt$df_denom, p_raw = NA_real_)), fill = TRUE)   # p withheld: sensitivities$p_value_policy (no p for D2)
   }
   res[, `:=`(n_dyads = nrow(dy), n_animals = G, n_cages = data.table::uniqueN(dy$CageEpisodeID),
              test = "within-cage dyadic FE (unweighted), CR2 by cage epoch, Satterthwaite t / HTZ Wald F")]
