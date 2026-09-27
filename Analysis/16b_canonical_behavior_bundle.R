@@ -229,11 +229,12 @@ for (n in names(files)) data.table::fwrite(files[[n]], file.path(BD, paste0(n, "
 if (DRY) writeLines(mmm_behavior_config_json(CFG), file.path(BD, "I_analysis_config.json"), useBytes = TRUE) else
   file.copy(file.path(frozen_dir, "behavior_analysis_config.json"), file.path(BD, "I_analysis_config.json"))
 writeLines(cfg_sha, file.path(BD, "I_config_sha256.txt"))
-H <- data.table(key = c("bundle_id", "status", "generated_at", "generator", "mmm_git_commit", "mmm_branch", "stage29_run_commit", "config_id",
+H <- data.table(field = c("bundle_id", "status", "generated_at", "generator", "mmm_git_commit", "mmm_branch", "stage29_run_commit", "config_id",
                         "config_version", "config_sha256", "stage29_started_at", "r_version", "packages", "active_window", "primary_population"),
                 value = c(bundle_id, STATUS, format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"), "Analysis/16b_canonical_behavior_bundle.R", commit,
                           git("branch", "--show-current")[1], run$git_commit, CFG$meta$config_id, CFG$meta$config_version, cfg_sha, run$started_at,
                           run$r_version, run$packages, CFG$windows$primary$definition, CFG$population$primary$definition))
+data.table::setnames(H, "field", "key")   # "key" cannot be a data.table() argument name
 data.table::fwrite(H, file.path(BD, "H_provenance.csv"))
 s09_inputs <- c(file.path(S09, "10min", "tables", c("primary_prediction_predictions.csv", "model_ladder_input.csv", "early_prediction_permutation_draws.csv",
                 "primary_movement_entropyacf1_associations.csv", "primary_prediction_performance.csv", "primary_prediction_permutation_test.csv",
