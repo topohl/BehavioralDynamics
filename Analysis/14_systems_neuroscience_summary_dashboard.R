@@ -2099,7 +2099,8 @@ integration_audit_registry <- tibble(
       file.path(mmm_behavior_output_active_root("proteomics_mnn_primary", project_root),
                 "tables/all_curated_behavior_proteomics_models.csv")
     ),
-    file.path(mmm_tracking_qc_historical_root(project_root), "tables/tracking_qc_by_animal.csv")
+    # Stage 14 computes its chip-loss QC itself, from the preprocessed positions.
+    file.path(output_dir, "tables/qc_chip_loss_flags.csv")
   )),
   expected_status = c(
     "implemented",
