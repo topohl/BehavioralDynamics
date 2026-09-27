@@ -24,6 +24,15 @@
 # exists anywhere and none may be invented. It is exported for annotation and
 # Extended Data rather than as a main panel.
 
+# LEGACY PRODUCT (2026-09-27). Superseded as a source of behavioural manuscript products by the canonical
+# path Analysis/29_canonical_behavior_characterization.R -> Analysis/16b_canonical_behavior_bundle.R
+# (frozen config v1.0.0, Functions/behavior_analysis_config.R). Its group tests duplicate the canonical
+# inference and are legacy/exploratory. It regenerates only when explicitly allowed; existing outputs are
+# kept unchanged as historical records.
+if (!identical(Sys.getenv("MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS"), "1"))
+  stop("Legacy behavioural product: superseded by Analysis/16b_canonical_behavior_bundle.R. ",
+       "Set MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS=1 only to regenerate it for historical comparison.", call. = FALSE)
+
 suppressPackageStartupMessages({ library(dplyr) })
 
 .pipeline_setup_candidates <- c(
