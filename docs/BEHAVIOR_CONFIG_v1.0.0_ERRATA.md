@@ -117,6 +117,83 @@ These are REML comparisons. That is valid, because the fixed parts are identical
 - **Dry-run bundle check:** a bundle built from the re-run passes every 16b check. 17 of 19 bundle files are byte-identical to `ebb_v100_20260927_95e5dc8`, including P, C2, D, E and F. The remaining two show only the same added columns and withheld p-values.
 - **No new FROZEN bundle has been created.** `ebb_v100_20260927_95e5dc8` remains the canonical bundle.
 
+## E8. The Stage 29 movement variable is an RFID position-change rate, not an antenna-crossing rate (terminology only)
+
+**Frozen text.**
+- `metrics$crossing_rate`: label "antenna-crossing rate", interpretation "overall locomotor activity", unit "crossings/hour".
+- `event_stream$source`: "change-only RFID reads", and the input rows are called "reads" throughout.
+- The same wording appears in:
+  - the fragmentation and descriptive definitions and `figure1`;
+  - `behavior_analysis_config.json`, which equals the bundle's `I_analysis_config.json`;
+  - two strings hard-coded in `Analysis/16b_canonical_behavior_bundle.R` (:89, :130-132), which reached bundle `ebb_v100_20260927_95e5dc8`: `A0_design_timeline.csv` line 3 and the `unit` column of `C2_estimates.csv` (122 rows).
+
+**What the variable counts.** Evidence: Stage 30 audit V1, all 24 Stage 29 source files compared with their raw PhenoSoft logs (`stage30_sleep_cookie/evidence/wfB/V1_vendor_filter/`).
+- **How a record is written.** The input rows are vendor AnimalPos position records. The vendor writes a record only when the tag's estimated position is at least 200 grid units from the last record. The estimated position is the read-weighted mean antenna position over 0.5 s; this reproduces 99.91% of 646,817 records.
+- **Step size.** The smallest step is exactly 200 units in all 24 files. Every step moves at least 165 units along the long axis, i.e. about two antenna spacings.
+- **Correspondence with Stage 29 events.** A Stage 29 event is one of these records, 1:1: 592,609 rows, 0 synthetic, and n_events recounted in 444/444 windows.
+- **What the antennas actually log.** They read continuously. The raw logs contain 7.5–12.0 times more antenna changes than there are records (pooled 8.75×), and 92% of those changes are neighbour moves that are never registered.
+- **So the variable is not:** an antenna-crossing count, a distance, or a validated measure of overall locomotor activity. A gap between records is not stillness.
+
+**Corrected wording.**
+- **Names and unit.** Use "RFID position-change rate", unit "position changes/h", and "light-phase RFID position-change rate".
+- **First use.** "vendor-defined RFID position-change rate (a position change is registered only when the tag's estimated position moves at least 200 grid units, about two antenna spacings)".
+- **Unchanged.** `crossing_rate` and the related ids stay as legacy identifiers. No number, model, family or decision changes.
+
+**Where the wording occurs.** Every occurrence is in `stage30_sleep_cookie/evidence/wfC/R7_terminology_audit/r7_06_occurrence_table_v2.csv` (111 rows): frozen config, code comments, 16b export strings, bundle, MMM docs, the Figure 1 branch (legend, contract, panel labels, annotation map, rendered SVG) and master Methods.
+- The frozen config v1.0.0 and bundle `ebb_v100_20260927_95e5dc8` are not edited; this erratum corrects them.
+- The two 16b strings change only together with a future bundle.
+- **Manuscript text is not edited here.** The Figure 1 branch needs the relabel and a re-render. The master Methods needs the unit definition.
+
+## E9. Cage labels of four animal-files were wrong; data version v2 and a data-integrity re-run (2026-09-28)
+
+**Finding.** In 4 of 448 animal-files the cage label (the system suffix of the vendor label) disagrees with the antenna board that read the tag. The evidence establishes that the label is wrong and the board right in all four cases. It includes the planned round cages (GroupComposition), initScan placements, the vendor placeholder-label lineage, an experimenter's note and 100% board reads. Evidence folder: `stage30_sleep_cookie/evidence/wfC/R5_cage_metadata/`.
+
+| File | Animal | Label | Correct | Correct CageEpisodeID | Basis |
+|---|---|---|---|---|---|
+| B1 CC2 | OQ764 | sys.5 | sys.2 | B1\|sys.2\|CC2 | 30-s mistaken first placement in cage 5; board 2 for 4 days (99.94%); the board partition equals the planned round-2 cage |
+| B1 CC2 | OQ770 | sys.2 | sys.5 | B1\|sys.5\|CC2 | 77-s mistaken first placement in cage 2; board 5 (99.89%); the board partition equals the plan |
+| B1 CC2 | OQ772 | sys.3 | sys.4 | B1\|sys.4\|CC2 | never read on board 3 (100% board 4); the Dec-2022 renamed vendor outputs already had sys.4; so OQ755 was not alone |
+| B6 CC4 | OR646 | sys.2 | sys.5 | B6\|sys.5\|CC4 | initScan places her directly on board 5; 100% board 5 in CC4 and all later sessions; the experimenter's sheet says "OR646_sys2 in cage 5". The label was copied from the plan. **Protocol deviation:** re-housed with former mates 00690 (CC1) and 00694 (CC3), and cage 2 ran with 3 animals |
+
+**Data version v2.**
+- **Location:** `S:/.../Analysis/Behavior/RFID/MMMSociability/data_versions/v2_cage_label_correction_2026-09-28/`, with `cage_label_corrections.csv`, `MANIFEST_SHA256.csv` and `README.txt`.
+- **Contents:** identical to the original `preprocessed_data/` except the System field of these animals' rows. That is 3,961 rows in B1 CC2 and 1,982 in B6 CC4; the other 22 files are byte-identical.
+- **The original is unchanged** and remains the frozen v1.0.0 input.
+
+**Re-run under the unchanged frozen models.** Evidence: `stage30_sleep_cookie/evidence/cage_fix_rerun/`.
+- **The patched copy.** Stage 29 at commit 8497516 was run as a sandbox copy with 5 documented patches (`29_CAGEFIX.diff`):
+  - the input directory;
+  - the output directory;
+  - the run record;
+  - two data-integrity gates set to the corrected expectations: 346 instead of 345 shared-zone windows, and missing-window set {OQ770, OQ771} instead of {OQ755, OQ770, OQ771}.
+
+  No model, contrast, family, estimator or threshold was changed.
+- **Control.** The same sandbox on the original data reproduces all 23 frozen tables byte for byte.
+- **Result.**
+  - **CC1:** every CC1 analysis is identical, including P-CC1, S-CC1-ORG, FU-CC1, the continuous and cumulative estimates, the lag block and Stage 09.
+  - **Longitudinal estimates:** they change by at most 0.47 SE (shared-zone use, TR_BY_SEX) and by at most 0.07 SE for the other constructs; SEs change by at most 7%.
+  - **Q2b joint tests:**
+
+    | Construct | p (frozen) | p (corrected) |
+    |---|---|---|
+    | shared-zone use | 0.826 | 0.755 |
+    | position-change rate (crossing_rate) | 0.954 | 0.954 |
+    | fragmentation | 0.388 | 0.372 |
+    | occupancy dispersion | 0.478 | 0.470 |
+
+  - **No multiplicity decision changes.** 24/24 family members are still non-rejecting.
+  - **Other decisions:** no robustness label, heteroscedasticity materiality flag, diagnostic trigger or shared-zone D1/D2 decision changes.
+  - **LOBO:** shared-zone Q2b component c2 becomes robust to single-batch removal (5/6 → 6/6).
+- The frozen outputs and bundle are not replaced. Whether the corrected results become the reported ones is the user's decision.
+
+## E10. Group guard of the canonical reader (commit 8497516)
+
+`mmm_evs_read_preprocessed` checked for a Group column after `fread(select = ...)` had already dropped it, so the guard could never fire. It now checks the file header first.
+- On the 24 inputs the reader returns an identical table (592,609 rows), and none of them has a Group column.
+- The sandbox control run at 8497516 reproduces all 23 frozen tables byte for byte.
+- A synthetic contract test (`Testing/tests/test_rfid_event_stream_group_guard.R`) fails on the pre-fix code.
+- Because canonical code has changed since the Stage 29 run commit, a future bundle needs a Stage 29 re-run at the new commit.
+
 ## Proposed v1.0.1 (documentation only; not applied)
 
 | Field | Proposed text change |
@@ -128,4 +205,12 @@ These are REML comparisons. That is valid, because the fixed parts are identical
 | `population$rfid_cohort` | Replace "never tracked" with the E5 description. |
 | `fitting$failure_rule`, `fitting$optimizer_check` | Describe the FAILED-row mechanism, the glmmTMB optimizer check and the block-level `run_failures.csv`. |
 | `diagnostics$zone_variance` | State that the co-primary consequence is applied by the analyst (not programmatically) if triggered. |
-| `meta$change_log` | "v1.0.1: documentation only; no analytic change; changed after outcome inspection (errata E1-E7)". |
+| `event_stream$source`, `$seed`, `$carry_forward`, `$event` | "vendor AnimalPos position records, written only when the estimated tag position has moved >= 200 grid units"; "position record" instead of "read"; carry-forward is "an assignment rule, not an observed location" (E8). |
+| `metrics$crossing_rate` label, interpretation, unit (+ display_name) | "RFID position-change rate"; "vendor-registered position changes (>= 200 grid units, about two antenna spacings) per observed hour; not an antenna-crossing count, a distance or a validated locomotor measure"; "position changes/hour"; `crossing_rate` kept as legacy identifier (E8). |
+| `metrics$light_phase_crossing_rate`, `windows$light_phase$role` | "light-phase RFID position-change rate", "position changes/hour"; never "sleep" or "rest" (E8). |
+| `metrics$fragmentation$definition`, `metrics$descriptive` | "position change(s)" instead of "crossing(s)"; 1341.67 s is "3-process long-gap boundary of vendor inter-record intervals; not a rest or sleep criterion" (E8; provenance audited in Stage 30 R4). |
+| `figure1` panels, units | "RFID position-change rate", "position changes/h" (E8). |
+| `population$expected_counts$shared_zone_use$windows` and the Stage 29 complete-case missing set | For data version v2 only: 346 and {OQ770, OQ771} (E9). The frozen v1.0.0 values stay with data version v1. |
+| `meta$change_log` | "v1.0.1: documentation only; no analytic change; changed after outcome inspection (errata E1-E10)". |
+
+The full terminology row list is `stage30_sleep_cookie/evidence/wfC/R7_terminology_audit/r7_08_v101_rows.csv`.
