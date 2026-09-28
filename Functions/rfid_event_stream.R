@@ -24,9 +24,10 @@ mmm_evs_read_preprocessed <- function(pre_dir) {
   files <- list.files(pre_dir, pattern = "_CC[0-9]_AnimalPos_preprocessed[.]csv$", full.names = TRUE)
   if (!length(files)) stop("No preprocessed files in ", pre_dir, call. = FALSE)
   out <- data.table::rbindlist(lapply(files, function(f) {
+    # Check the file header, not the selected columns: select= would drop a Group column before the check.
+    if ("Group" %in% names(data.table::fread(f, nrows = 0))) stop("Unexpected Group column in ", f, call. = FALSE)
     d <- data.table::fread(f, select = c("DateTime", "AnimalID", "System", "PositionID", "Batch", "CageChange"),
                            colClasses = c(AnimalID = "character"))
-    if ("Group" %in% names(d)) stop("Unexpected Group column in ", f, call. = FALSE)
     d[, SourceFile := basename(f)]
     d
   }))
