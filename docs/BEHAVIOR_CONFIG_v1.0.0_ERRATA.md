@@ -214,3 +214,36 @@ These are REML comparisons. That is valid, because the fixed parts are identical
 | `meta$change_log` | "v1.0.1: documentation only; no analytic change; changed after outcome inspection (errata E1-E10)". |
 
 The full terminology row list is `stage30_sleep_cookie/evidence/wfC/R7_terminology_audit/r7_08_v101_rows.csv`.
+
+## E11. Bundle provenance: stage29_started_at was written as epoch seconds (16b; provenance only)
+
+`Analysis/16b_canonical_behavior_bundle.R` read `run_manifest.csv` with `fread` using automatic types. The ISO timestamp `started_at` became a POSIXct value, and `c()` then coerced it to its number of seconds.
+
+- Bundle `ebb_v100_20260927_95e5dc8` therefore records `stage29_started_at = 1790526632`, which is 2026-09-27T18:30:32+0200. This is the 0555c90 run's `started_at`; it was verified against the archived snapshot.
+- From config v1.0.1 on, 16b reads the run manifest as character. The key keeps its name and order, and the value is the ISO string.
+- The same change protects commit hashes that consist only of digits and 'e' from being read as numbers.
+- Nothing else in ebb_v100 is affected. The bundle is not edited.
+
+## E12. Count correction: tables that differ between data versions v1 and v2
+
+The cage-label re-run changes 15 of the 23 Stage 29 tables, not 17. The other 8 are byte-identical:
+
+- continuous_estimates
+- cumulative_window_estimates
+- lag_block_estimates
+- stage09_batch_adjusted_sex_interaction
+- stage09_cv_sensitivities
+- validation_anchor_vs_stage28
+- validation_events_vs_stage01
+- validation_window_coverage
+
+Evidence: `cage_fix_rerun/compare_cagefix/table_summary.csv`, re-checked by hash in the E3 release rehearsal.
+
+## Proposed v1.0.1: status
+
+The documentation-only v1.0.1 proposed above has been **applied**. It was frozen at commit `b2ce507` with JSON SHA-256 `236a1b0827ee5bee9f5a42691f976c8279479e93b67ac9208a590e884ce8eaf7` and bound to data version `v2_cage_label_correction_2026-09-28`. Details are in `docs/STAGE29_RELEASE_v1.0.1_dv2.md`.
+
+Two aspects changed from the proposal:
+
+- **The complete-case set and the shared-position window count** now live in `data_versions`. The frozen v1.0.0 values stay in `population$expected_counts` as the data-version v1 facts.
+- **Terminology.** The shared-position display name is "shared RFID-position occupancy" (user decision 2026-09-29, item 31). The metric is strictly simultaneous, so "occupancy" replaces the earlier proposal "use".
