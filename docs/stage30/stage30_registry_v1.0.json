@@ -1,0 +1,2307 @@
+{
+  "meta": {
+    "registry_id": "stage30_exploratory",
+    "version": "1.0",
+    "status": "FROZEN",
+    "prepared": "2026-09-29",
+    "supersedes": "registry_draft_v0.3.json",
+    "companion": "STAGE30_REGISTRY_v1.0.md",
+    "decisions_source": {
+      "primary": "evidence/wfE/USER_DECISIONS_2026-09-29_round5.txt (user decisions, verbatim)",
+      "follow_up": {
+        "date": "2026-09-29",
+        "note": "supersedes the counts in sections 8, 20-24 and 34 of the round-5 decisions",
+        "Q1": {
+          "question": "What role should the global Stage 30 BH benchmark play?",
+          "options": [
+            "Descriptive column only (Recommended)",
+            "Drop it entirely",
+            "Keep as a gate"
+          ],
+          "selected": "Descriptive column only (Recommended)"
+        },
+        "Q2": {
+          "question": "For each metric and question, which sex analyses should be registered as discovery tests?",
+          "options": [
+            "F + M + interaction",
+            "F + M + interaction + pooled",
+            "F + M only, interaction estimated"
+          ],
+          "selected": "F + M + interaction + pooled"
+        },
+        "Q3": {
+          "question": "Where should this sex structure apply?",
+          "options": [
+            "All blocks and question types (Recommended)",
+            "Cookie and inactivity only",
+            "Continuous and categorical only"
+          ],
+          "selected": "All blocks and question types (Recommended)"
+        }
+      },
+      "round6": {
+        "file": "evidence/wfE/USER_DECISIONS_2026-09-29_round6_POOL_estimation_only.txt (verbatim)",
+        "summary": "POOL -> ESTIMATION_ONLY in every cell; F, M, INT are the 48 discovery hypotheses; global BH over the 48 (descriptive column); all other decisions approved"
+      }
+    },
+    "tier": "exploratory",
+    "decision_basis": "POST_HOC_CONTEXT",
+    "disclosure": [
+      "added after the frozen Stage 29 primary results (null)",
+      "historical sleep/cookie results were seen before registration",
+      "never primary, confirmatory or preregistered"
+    ],
+    "outcome_contact_before_freeze": "none: no Stage 30 RES/SUS, Group or CombZ association computed or inspected",
+    "separation_from_stage29": "Stage 29 model specification, endpoints and multiplicity are not changed by Stage 30 findings",
+    "measurement_rule": "all new locomotor measures = canonical Stage 29 vendor-defined RFID position changes via the Stage 29 code path; vendor ActivityIndex and raw-detection coverage are provenance only",
+    "prefreeze_evidence": {
+      "calibration_64": "evidence/wfE/E4_registry_audit (manifest e4_99_manifest_sha256.csv sha256 2c76803dc09675d3ed105ab4384e752fef556c2614181d122291a6a9f3a96228)",
+      "calibration_superseded_24": [
+        "evidence/wfE/E1a_cr2_calibration",
+        "evidence/wfE/E1b_kr_calibration"
+      ],
+      "cookie_dataset": "evidence/wfE/E2_cookie_dataset/staged/cookie_postEPM_v1 (MANIFEST sha256 0abe20ee9bcf34b422c81202bf58409d133e26834d3d395d8aa608c3b2c19666)",
+      "stage29_release_rehearsal": "evidence/wfE/E3_stage29_release_rehearsal"
+    },
+    "frozen_on": "2026-09-29",
+    "frozen_at": "2026-09-29T11:21:10+0200",
+    "hash_record": "REGISTRY_SHA256.txt and FREEZE_RECORD.csv beside this file (the hash is recorded outside the file)"
+  },
+  "code": {
+    "repo": "MMMSociability",
+    "commit_at_candidate": "4116498",
+    "movement_wrapper": {
+      "file": "Functions/stage30_movement.R",
+      "sha256": "9a368491ff373194a22e6baacd4874bfa260c4e1296e81d9be5863ed6bfde659",
+      "commit": "4116498",
+      "delegates_to": [
+        "Functions/rfid_event_stream.R (mmm_evs_*)",
+        "Functions/rfid_binfree_metrics.R (mmm_bf_*)"
+      ],
+      "validation": [
+        "identical() to direct canonical calls in 888/888 Stage 29 windows",
+        "independent oracle on 312 arbitrary windows (5,753 animal-windows)",
+        "raw-export oracle on 1,358 cookie animal-windows",
+        "Testing/tests/test_stage30_movement_wrapper.R (passes)",
+        "sandbox rerun of Testing/tests/test_stage30_movement_wrapper.R (blob c3b8e895cceebbc9c300319db893925df99e32b6) at 4116498 passed on 2026-09-29 (wfE/E2)"
+      ]
+    },
+    "inference_engine": "Functions/rfid_canonical_inference.R (frozen Stage 29 engine; sha256 886d8bc06807b5958482a31449d0b8e5886db106cc7d02f63863d535dc78b92c, last changed f3a25da, unchanged at 4116498): mmm_ci_fit (rank gate), mmm_ci_contrast (KR t), mmm_ci_joint (KR F), mmm_ci_match (order-invariant coefficient names), mmm_ci_robust_label, mmm_ci_optimizer_check; KR via lmerTest::contest / pbkrtest; CR2 tests use the Stage 29 section-6b lm route (Analysis/29_canonical_behavior_characterization.R:436-437); mmm_ci_cr2 is NOT used (it coerces to lmerMod and errors on lm fits: evidence/wfE/E1a_cr2_calibration/e1a_07_engine_probe.csv; evidence/wfE/E4_registry_audit/e4_01_engine_probe_mmm_ci_cr2.txt); failure rule and optimizer check as in Stage 29",
+    "outcome_driver": "Analysis/30_exploratory_screen.R (written only after freeze; refuses to fit unless the frozen registry SHA-256 matches)"
+  },
+  "data": {
+    "cc1_cc4": {
+      "source": "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/data_versions/v2_cage_label_correction_2026-09-28/preprocessed_data",
+      "manifest_sha256_prefix": "bb33a111",
+      "seeds": "S:/.../Analysis/Behavior/RFID/MMMSociability/raw_data (Stage 29 run_inputs, unchanged)",
+      "cage_id": "CageEpisodeID = Batch|System|CC with System from data version v2 (board-based; B1 CC2 OQ764 sys.2, OQ770 sys.5, OQ772 sys.4; B6 CC4 OR646 sys.5)",
+      "gate": "Stage 30 recomputation of the canonical window metrics on v2 must equal, on the measure columns (tolerance 1e-9), the Stage 29 v2 table with sha256 fc053468f2a1d1a07e981b6a76c71caa6cfd89b19da7318ee2c2f82f49050dd1 (evidence/cage_fix_rerun/out/tables/canonical_window_metrics.csv; byte-identical to the E3-rehearsed release table analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_<commit7>/tables/canonical_window_metrics.csv, whose path is recorded after the release)"
+    },
+    "cookie": {
+      "destination": "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/data_versions/cookie_postEPM_v1/ (created at freeze; immutable)",
+      "sources_AnimalPos_sha256": {
+        "B2": "e7fe8900c0d9a1e531ff9e9bc17cd93b61b4af48099e37cfc10afeaf75863fd2",
+        "B3": "29f290090bfbc89f5d18e64667e5304b4db4dc6555cd3c956703655999e79413",
+        "B4": "3b0020df5396a9c58cd5a1e68f9064c06f8151fcdf93d66c0a0f57faca1a0511",
+        "B5": "3ab4b72d87a4e0324b1d9df40df7e3fffd1b7d7738e6a12ecbe839c62163f39c",
+        "B6": "89be10efff23586f1bab972ef1ac65feedd95ecfba317c812360b54e39a89b1f"
+      },
+      "preprocessing": "canonical preprocess_animalpos_file (Functions/animalpos_preprocessing_helpers.R) incl. remove_phases; board-based cage override B6 OR646 sys.2 -> sys.5; override applied to the System field of all 1,487 preprocessed OR646 rows after preprocess_animalpos_file (byte-identical canonical file to relabelling the 1,608 raw rows before preprocessing); remove_phases removes only block I1 (EPM day 06:30-18:30, which contains the first presentation); the 5 preprocessed files are byte-identical to the verified W3 cache",
+      "cage_id": "CageEpisodeID = Batch|board System (= v2 CC4 cage for 97/97)",
+      "historical_b6_only_cookiehab_outputs": "preserved unchanged as provenance (S:/.../RFID/cookiehab/)",
+      "sources_AnimalPos_path": {
+        "B2": "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Raw Data/Behavior/RFID/BatchAnalysis/males/B2/20230222_EPMaftercagechange/E9_SIS_B2_EPMaftercagechange_AnimalPos.csv",
+        "B3": "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Raw Data/Behavior/RFID/BatchAnalysis/females/B3/20230518_EPM/E9_SIS_B3_EPMaftercagechange_AnimalPos.csv",
+        "B4": "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Raw Data/Behavior/RFID/BatchAnalysis/females/B4/20230818_EPM/E9_SIS_B4_EPMaftercagechange_AnimalPos.csv",
+        "B5": "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Raw Data/Behavior/RFID/BatchAnalysis/males/B5/EPM/E9_SIS_B5_EPMaftercagechange_AnimalPos.csv",
+        "B6": "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Raw Data/Behavior/RFID/MMMdata/B6/afterEPM/E9_SIS_B6_EPMaftercagechange_AnimalPos.csv"
+      },
+      "data_version": {
+        "id": "cookie_postEPM_v1",
+        "manifest_sha256": "0abe20ee9bcf34b422c81202bf58409d133e26834d3d395d8aa608c3b2c19666",
+        "n_files_in_manifest": 21,
+        "cookie_response_sha256": "329e2455a243a8e393f60bfe600f2f8a267fb03714571432890f7beb488e16d8",
+        "animals_sha256": "ce66d07475cee8ea384ebbd7b6708c24a83e0aaba04a6a5fa6467914c9fb0163",
+        "cookie_windows_sha256": "e7e7e27edc6288405b84001aaff524355fd2ae1d5777be34105d656e0c289e1d",
+        "built_from_commit": "4116498",
+        "build_script_sha256": "178bd190bde12435d50aff46458e374c7e5b7aae8aa719ae2fb19d57f580af45",
+        "verify": "Rscript build/e2_03_verify_staged.R <version_dir> (manifest + unseeded recomputation + counts)"
+      },
+      "source_inventory": "38 B2-B6 post-EPM AnimalPos files under S:/Lab_Member/Tobi (Exp9_Social-Stress + Exp9_Social-Stress_backup mirror): 5 chosen, 19 byte-identical copies, 10 xlsx re-saves, 2 B6 copies with the same rows in a different order (preprocess to the byte-identical canonical file), 2 derived cookiehab preprocessed files; cookie_postEPM_v1/source_inventory.csv",
+      "cage_corrections_table": "evidence/wfD/W5a_data_terminology_release/proposed/data/stage30_cage_label_corrections.csv (sha256 a41367aef47e4db7afa1a56089f5d2708715dc3207d79297994237844b46bcbf); copied into cookie_postEPM_v1/cage_corrections.csv"
+    },
+    "labels": {
+      "sus": "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/sus_animals.csv",
+      "con": "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/con_animals.csv",
+      "sha256_recorded_at_freeze": true
+    },
+    "outcome": {
+      "CombZ": "S:/.../analysis_ready/canonical/later_outcome_combz/tables/later_outcome_combz_animal_level.csv (as Stage 29)",
+      "sha256_recorded_at_freeze": true,
+      "CombZ_wb": "animal-level CombZ minus the mean of animal-level CombZ over the analysis population's animals in the same batch (one value per animal, not window-weighted; identical for POOL, F and M because Sex is nested in Batch)"
+    },
+    "coding": {
+      "sex_c": "+1/2 female, -1/2 male",
+      "g_RS": "+1/2 RES, -1/2 SUS",
+      "Batch": "treatment-coded factor",
+      "c2_c3_c4": "CC dummies (CC1 reference)",
+      "cc1": "CC - 1 (crossing_rate random slope only)"
+    }
+  },
+  "measures": {
+    "position_change_rate": {
+      "identifier": "crossing_rate",
+      "display": "RFID position-change rate",
+      "unit": "position changes/h",
+      "definition": "canonical Stage 29 vendor-defined RFID position changes per observed hour; a position change is registered only when the vendor-estimated position moves >= 200 grid units (about two antenna spacings); the carried-forward vendor position persists until the next qualifying change; absence of a change means no sufficiently large relocation was registered, not complete bodily immobility"
+    },
+    "light_phase_position_change_rate": {
+      "identifier": "light_phase_crossing_rate",
+      "display": "light-phase RFID position-change rate",
+      "unit": "position changes/h"
+    },
+    "shared_position": {
+      "identifier": "shared_zone_use",
+      "display": "shared RFID-position occupancy",
+      "unit": "fraction of co-assigned dyadic time (0-1)",
+      "definition": "per animal: sum over tracked cage-mates of the time both animals simultaneously carry the same carried-forward vendor PositionID, divided by the time both are assigned (rfid_binfree_metrics.R:57-79); an assignment-based simultaneous co-occupancy, not raw antenna co-detection; not sociability, coordination or huddling",
+      "rename": "renamed from 'shared antenna-zone use' (Stage 29 config v1.0.0 label; renamed in config v1.0.1) because the metric uses the carried-forward vendor PositionID, not raw antenna identity; the code counts simultaneous time at the same position (rfid_binfree_metrics.R:57-79), hence 'occupancy' (decision 31)"
+    },
+    "occupancy_dispersion": {
+      "identifier": "occupancy_dispersion",
+      "definition": "frozen Stage 29 definition"
+    },
+    "fragmentation": {
+      "identifier": "fragmentation",
+      "definition": "frozen Stage 29 definition (share of position-change bouts with exactly one change at bout_criterion_s = 39.397 s)"
+    },
+    "positional_inactivity_40": {
+      "identifier": "posinact40_frac",
+      "display": "RFID-defined sustained positional inactivity (>= 40 s)",
+      "definition": "per animal x canonical window: sum of the durations of canonical occupancy runs (intervals between consecutive canonical position-change events, same-PositionID runs merged; mmm_evs_window_stream) whose window-clipped duration is >= 40 s, divided by observed seconds obs_s",
+      "convention": "an interval qualifying at >= 40 s counts in full (Pack 2007; Fisher 2012; McShane 2012; Keenan 2020); intervals are clipped to the analysis window first, then qualify; no bridging across the 06:30/18:30 boundaries; no recording interruptions or file ends inside the audited windows; the 12 zero-event light windows count (fraction 1)",
+      "windows": {
+        "active": "[anchor, anchor + 43,200 s), anchor = 18:30:00 logger clock on the cage-change day, observed from t0",
+        "light": "[anchor + 43,200 s, anchor + 86,400 s)"
+      },
+      "interpretation": "literature-motivated threshold; the signal detects absence of large positional relocation, not total bodily immobility; the canonical representation is much coarser than video/EEG immobility detection; absolute percentages are not estimates of physiological sleep duration",
+      "group_blind_qc": {
+        "active_median": 0.942,
+        "active_iqr": [
+          0.928,
+          0.953
+        ],
+        "light_median": 0.996,
+        "light_windows_ge_0.99": 0.874,
+        "rho_with_rate_BxCC": [
+          -0.96,
+          -0.93
+        ],
+        "icc_after_rate": [
+          0.11,
+          0.08
+        ],
+        "rho_40_60": [
+          0.966,
+          0.945
+        ],
+        "basis": "444 animal-windows per phase (all 111 RFID animals x CC1-CC4, all groups); rho_with_rate_BxCC = Spearman after Batch x CC centring; icc_after_rate = ICC1 by Batch x CC after a spline on the position-change rate (wfD/W1 w1_04_gate_values.csv, w1_04_reliability_rate_dependence.csv; wfD/X4 x4_01_gate_summary.csv)"
+      },
+      "source_verified": "evidence/wfD/X4_critic/x4_01_inactivity_animal_window.csv (sha256 a533b239852fbe46c8a4ff776754984f4fe1f29c0c4277082487c1546f7acf8a): data version v2, 888 animal-windows at 40 s, identical to W1 w1_03 (max diff 0); rates identical to the v2 Stage 29 table"
+    },
+    "positional_inactivity_60": {
+      "identifier": "posinact60_frac",
+      "role": "measurement sensitivity only (no p-values, no family)",
+      "definition": "as posinact40_frac at >= 60 s"
+    },
+    "cookie_response_60": {
+      "identifier": "dcookie60",
+      "display": "home-cage cookie response (second presentation, EPM+1)",
+      "unit": "position changes/h",
+      "definition": "canonical RFID position-change rate in POST60 = EPM+1 [17:00:00, 18:00:00) minus that in PRE60 = EPM+1 [16:00:00, 17:00:00), logger clock stored as UTC; computed with s30mv_window_metrics (crossing_rate); PRE60, POST60 and dcookie60 all retained",
+      "interpretation": "change in canonical home-cage locomotor activity from the hour immediately before to the hour after cookie presentation; a locomotor challenge-response phenotype; not cookie approach, proximity, investigation or consumption, and not a pure appetitive response (presentation/experimenter effects cannot be separated)",
+      "epm1_dates": {
+        "B2": "2023-02-23",
+        "B3": "2023-05-19",
+        "B4": "2023-08-19",
+        "B5": "2023-12-15",
+        "B6": "2024-05-02"
+      },
+      "descriptive_disclosure": "group-blind trace: low baseline, activity rises somewhat toward the end of PRE60 (particularly B4; cause not established by records), strong response after 17:00 peaking ~17:10-17:20, decay by ~17:45-18:00; descriptive only, not used for window choice",
+      "consumption": "the experimenter's documented recollection (USER_DECISIONS_2026-09-29_round5.txt sections 10 and 17): the home-cage cookie was generally completely consumed within ~45-60 min; no removal was needed; no contemporaneous weighing or note is known; the B2 EPM+1 scored videos (a different test) are not evidence for this assay",
+      "group_blind_qc": {
+        "median": 18,
+        "iqr": [
+          6,
+          37
+        ],
+        "increased": "94/97"
+      },
+      "precision": "rates stored with 15 significant digits; exact rate = n_events x 3600 / obs_s (cookie_windows.csv); all 388 animal-windows fully observed (obs_s = window_s), position known at window start, seeded == unseeded"
+    },
+    "cookie_response_45": {
+      "identifier": "dcookie45",
+      "role": "sensitivity only",
+      "definition": "rate POST45 = EPM+1 [17:00:00, 17:45:00) minus rate PRE45 = EPM+1 [16:15:00, 17:00:00)",
+      "historical_convention": "the historical MMManalyzer filter (CookieHab.R:30, TimeOnly >= '17:00' & <= '17:45') included the 17:45 minute, i.e. [17:00, 17:46) on 1-min vendor ActivityIndex rows; the Stage 30 sensitivity uses [17:00, 17:45) with the matched PRE45; the historical filter also required ConsecInactive == 2 (the session selector) and used vendor ActivityIndex (MMManalyzer Analysis/CookieHab.R:30, commit dacf5e9)"
+    }
+  },
+  "populations": {
+    "SIS_CC1": {
+      "n_animals": 87,
+      "cc1_cage_clusters": 24,
+      "females": "46 (B3, B4, B6)",
+      "males": "41 (B1, B2, B5)",
+      "batches": 6,
+      "cage_sizes": "19 x 4, 3 x 3, 2 x 1 (singletons OQ770 B1|sys.2|CC1 and OQ771 B1|sys.5|CC1, mates untracked/excluded)",
+      "res_sus_counts_by_batch": {
+        "B1": "4/6",
+        "B2": "14/2",
+        "B3": "7/9",
+        "B4": "9/6",
+        "B5": "7/8",
+        "B6": "12/3",
+        "total": "53/34",
+        "note": "RES/SUS counts only"
+      }
+    },
+    "SIS_CC1_CC4": {
+      "n_windows": 348,
+      "shared_position_windows_v2": 346,
+      "n_animals": 87,
+      "cage_episodes": 96,
+      "cage_episodes_shared_position": 94,
+      "batches": 6,
+      "shared_position_na_windows": "OQ770 CC1 (B1|sys.2|CC1), OQ771 CC1 (B1|sys.5|CC1): no tracked cage-mate"
+    },
+    "COOKIE_SIS": {
+      "n_animals": 77,
+      "cage_clusters": 20,
+      "batches": 5,
+      "group_counts": "RES 49, SUS 28"
+    },
+    "COOKIE_SIS_F": {
+      "n_animals": 46,
+      "cage_clusters": 12,
+      "batches": "3 (B3, B4, B6)",
+      "cage_sizes": "10 x 4, 2 x 3",
+      "group_counts": "RES 28, SUS 18 (B3 7/9, B4 9/6, B6 12/3)"
+    },
+    "COOKIE_SIS_M": {
+      "n_animals": 31,
+      "cage_clusters": 8,
+      "batches": "2 (B2, B5); B1 received no home-cage cookie, so the male batch structure is limited",
+      "cage_sizes": "7 x 4, 1 x 3",
+      "group_counts": "RES 21, SUS 10 (B2 14/2, B5 7/8); within-batch RES-SUS information in males comes mainly from B5 because B2 has only 2 SUS"
+    },
+    "cookie_all_eligible": {
+      "n_animals": 97,
+      "cages": 25,
+      "note": "B2-B6; CON 20 in 5 cages are not analysed in the discovery tests",
+      "cage_sizes": "22 cages of 4, 3 cages of 3 (B4|sys.1, B5|sys.3, B6|sys.2 after the OR646 override)"
+    },
+    "or646": "included in all analyses with her corrected physical cage (B6|sys.5); re-housing with two former cage-mates documented as a protocol deviation; no exclusion or exclusion sensitivity",
+    "exclusions": "none beyond the canonical upstream exclusions; an animal or cage is excluded only for an actual predefined data-quality defect",
+    "SIS_CC1_F": {
+      "n_animals": 46,
+      "cc1_cage_clusters": 12,
+      "batches": "3 (B3, B4, B6)",
+      "cage_sizes": "10 x 4, 2 x 3"
+    },
+    "SIS_CC1_M": {
+      "n_animals": 41,
+      "cc1_cage_clusters": 12,
+      "batches": "3 (B1, B2, B5)",
+      "cage_sizes": "9 x 4, 1 x 3, 2 x 1"
+    },
+    "SIS_CC1_CC4_F": {
+      "description": "SIS females, CC1-CC4 windows",
+      "n_animals": 46,
+      "n_windows": 184,
+      "cage_episodes": 48,
+      "batches": "3 (B3, B4, B6)"
+    },
+    "SIS_CC1_CC4_M": {
+      "description": "SIS males, CC1-CC4 windows",
+      "n_animals": 41,
+      "n_windows": 164,
+      "n_windows_shared_position": 162,
+      "cage_episodes": 48,
+      "cage_episodes_shared_position": 46,
+      "batches": "3 (B1, B2, B5)"
+    }
+  },
+  "inference": {
+    "CR2": "m <- mmm_ci_fit(formula, data, id, engine = 'lm', expected_rank); focal <- mmm_ci_match(focal, names(coef(m$fit))); V <- clubSandwich::vcovCR(m$fit, cluster = m$data$CageEpisodeID, type = 'CR2'); ct <- clubSandwich::coef_test(m$fit, vcov = V, test = 'Satterthwaite', coefs = focal); p = p_Satt; 95% CI = beta +/- qt(0.975, df_Satt) x SE; OLS t (n - p df) reported alongside, descriptive only (E4 null size up to 0.31)",
+    "KR": "lmerTest::lmer REML (bobyqa, check.rankX = 'stop.deficient'); Kenward-Roger t (single term, mmm_ci_contrast) or joint F(3) (mmm_ci_joint); singular fits retained and flagged in every row (E4: unconditional size within [0.025, 0.075] for all 40 KR tests; conditional on fit state, singular fits are conservative and non-singular fits of near-boundary models liberal, e.g. SCREEN-L-SPO-POOL 0.094, SLEEP-CAT-IA40L-POOL 0.19); optimizer check as Stage 29: always for the (1 + cc1 || AnimalID) crossing-rate models (SCREEN-L-PCR-*), otherwise on any convergence warning; FAILED only if a convergence problem persists and the optimizers disagree",
+    "failure_rule": "an erroring or non-converged fit whose optimizers disagree is reported FAILED; a design that mmm_ci_fit refuses (rank < number of columns, or columns != expected_rank; mmm_ci_fit calls stop()) is caught by the driver and reported FAILED_RANK; both enter their local family and the global column with p = 1 (m unchanged); the driver never stops on a single hypothesis",
+    "standardized_estimate": "CONT: estimate x SD_x (POOL/F/M: slope of x; INT: x:sex_c coefficient); CAT: estimate / SD_y (g_RS or g_RS:sex_c); SD = sd(residuals of lm(variable ~ Batch)) in the hypothesis's own analysis population (n - 1 divisor); L: none (joint F); the three focal component estimates with KR SEs are reported",
+    "report_per_hypothesis": [
+      "estimate",
+      "standardized estimate",
+      "SE (CR2 or KR)",
+      "df",
+      "95% CI",
+      "raw p",
+      "local BH q",
+      "global BH q (descriptive)",
+      "N animals",
+      "N cages",
+      "N batches",
+      "fit diagnostics (rank vs expected, singular, converged, optimizer agreement, failed)",
+      "N windows (L)",
+      "OLS t p (CONT; descriptive)",
+      "design CR2 df vs expected_df_cr2 and LOW_DF label",
+      "LOBO: focal sign per refit and leverage batches (L: per component)",
+      "robustness label per declared sensitivity",
+      "Movement-adjusted estimate and 95% CI (inactivity CONT/CAT) or joint KR F p (inactivity L)",
+      "classification A/B/C/D and reason code",
+      "POOL estimates reported separately and flagged ESTIMATION_ONLY"
+    ],
+    "null_calibration": "pre-freeze group-blind calibration of all 64 registered tests with synthetic outcomes/labels on the real measurement data; results below and per hypothesis (calibration fields)",
+    "design_gate": "the driver stops before any outcome read if a CR2 hypothesis's design rank != expected_rank or |df_Satt - expected_df_cr2| > 1e-6; df_Satt depends only on X and the clusters (E1a/E4: spread 0 over 40,000 fits per test), so a mismatch means that the population, measure or cage metadata drifted; the gate also covers the CR2 POOL estimates (expected_df_cr2 in estimation_only.entries)",
+    "low_df_rule": "a CR2 row (primary or diagnostic) with df_Satt < 4 keeps its registered p and is labelled LOW_DF; the primary tests affected by design are SLEEP-CONT-IA40A-M (3.56) and SLEEP-CONT-IA40L-F (3.83), which are conservative under the E4 null (size 0.030 / 0.032; 0.023-0.061 over 4 scenarios); the COOKIE-CAT-DC60-M lm + CR2 diagnostic has df < 4 in 19.8% of random label draws",
+    "null_calibration_results": {
+      "source": "evidence/wfE/E4_registry_audit (e4_03_verdict_by_hypothesis.csv sha256 b918107aaf05c0d331d5444e06c29835c9b9ee408ced2181c8b72104ddfd6c8c; e4_03_calibration_by_hypothesis_scenario.csv sha256 b9983d196acf3350172ee03aed10aac77cd92f58d1a5099f94d86d99e24e2338; manifest e4_99_manifest_sha256.csv sha256 2c76803dc09675d3ed105ab4384e752fef556c2614181d122291a6a9f3a96228)",
+      "design": "all 64 registered tests; real measures and design; CONT synthetic CombZ (iid, own-cage ICC 0.30, leverage-linked heteroscedasticity, misaligned-epoch cage ICC 0.30; 10,000 each); CAT synthetic RES/SUS with the real per-batch counts (random within-batch 5,000; cage-clustered stress 2,000); L synthetic batch-centred CombZ_wb (iid 2,000; CC1-cage ICC 0.30 1,000); engine sha 886d8bc0; R 4.5.1",
+      "result": "every test within [0.025, 0.075] at alpha 0.05 at its design-appropriate null; CR2 0.023-0.068 (alpha 0.10 0.069-0.134; coverage 0.932-0.977); KR t random 0.034-0.071, cage 0.014-0.068; KR F iid 0.038-0.067, cage1 0.026-0.064; 1 FAILED of 84,000 KR t fits (none of the KR F fits); family P(any local BH q < 0.05) 0.020-0.055",
+      "verdicts": {
+        "ACCEPTABLE": 59,
+        "ACCEPTABLE_CONSERVATIVE": 1,
+        "ACCEPTABLE_WATCH": 2,
+        "ACCEPTABLE_WITH_LOW_DF_DECLARATION": 2
+      },
+      "low_df": "SLEEP-CONT-IA40A-M df 3.56, SLEEP-CONT-IA40L-F df 3.83 (conservative)",
+      "watch": "SLEEP-CAT-IA40A-M 0.068, SLEEP-CAT-IA40L-M 0.071, SLEEP-CAT-IA40L-POOL 0.063, SCREEN-L-SPO-F 0.067 (100% singular), SCREEN-L-FRAG-INT 0.0625; conservative COOKIE-CAT-DC60-M 0.034/0.016, SLEEP-CAT-IA40L-F 0.014 under cage stress",
+      "decision": "accept every test as registered (no remedy adopted; no permutation companion); calibration notes recorded per hypothesis",
+      "superseded_calibrations": "E1a and E1b calibrated the superseded 24-test candidate; identical tests (SCREEN-CONT-*-INT, SLEEP-CONT-*-INT, COOKIE-CONT-DC60-F/M/INT, COOKIE-CAT-DC60-F/M) reproduce within Monte Carlo error; their OLS, KR-alternative and wild cluster bootstrap conclusions stand (OLS and the CONT KR alternative are never decision quantities)",
+      "pool_note": "the 16 POOL calibrations (e4_03) are retained as evidence but no longer describe a discovery test; the 48 F/M/INT tests are unchanged, so no recalibration was needed (round-6 decision 19)"
+    }
+  },
+  "hypotheses": [
+    {
+      "id": "SCREEN-CONT-OCC-F",
+      "family": "SCREEN-CONT",
+      "block": "broad",
+      "question": "CONT",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_F",
+      "measure": "occupancy_dispersion (CC1 active)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in females)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0424,
+        "size10": 0.0947,
+        "mcse05": 0.00201,
+        "size05_range_scenarios": [
+          0.0423,
+          0.0578
+        ],
+        "df_median": 5.916625,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 5.91662454
+    },
+    {
+      "id": "SCREEN-CONT-OCC-M",
+      "family": "SCREEN-CONT",
+      "block": "broad",
+      "question": "CONT",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_M",
+      "measure": "occupancy_dispersion (CC1 active)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in males)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0433,
+        "size10": 0.0909,
+        "mcse05": 0.00204,
+        "size05_range_scenarios": [
+          0.0433,
+          0.065
+        ],
+        "df_median": 5.425729,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 5.42572881
+    },
+    {
+      "id": "SCREEN-CONT-OCC-INT",
+      "family": "SCREEN-CONT",
+      "block": "broad",
+      "question": "CONT",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1",
+      "measure": "occupancy_dispersion (CC1 active)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x + x:sex_c",
+      "focal": "x:sex_c",
+      "engine": "CR2",
+      "expected_rank": 8,
+      "calibration": {
+        "size05": 0.0428,
+        "size10": 0.0899,
+        "mcse05": 0.00202,
+        "size05_range_scenarios": [
+          0.0428,
+          0.0584
+        ],
+        "df_median": 8.341728,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 8.34172829
+    },
+    {
+      "id": "SCREEN-CONT-FRAG-F",
+      "family": "SCREEN-CONT",
+      "block": "broad",
+      "question": "CONT",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_F",
+      "measure": "fragmentation (CC1 active)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in females)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.045,
+        "size10": 0.0882,
+        "mcse05": 0.00207,
+        "size05_range_scenarios": [
+          0.0445,
+          0.0556
+        ],
+        "df_median": 8.472445,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 8.472445
+    },
+    {
+      "id": "SCREEN-CONT-FRAG-M",
+      "family": "SCREEN-CONT",
+      "block": "broad",
+      "question": "CONT",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_M",
+      "measure": "fragmentation (CC1 active)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in males)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0454,
+        "size10": 0.0991,
+        "mcse05": 0.00208,
+        "size05_range_scenarios": [
+          0.0387,
+          0.0617
+        ],
+        "df_median": 7.330193,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 7.33019266
+    },
+    {
+      "id": "SCREEN-CONT-FRAG-INT",
+      "family": "SCREEN-CONT",
+      "block": "broad",
+      "question": "CONT",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1",
+      "measure": "fragmentation (CC1 active)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x + x:sex_c",
+      "focal": "x:sex_c",
+      "engine": "CR2",
+      "expected_rank": 8,
+      "calibration": {
+        "size05": 0.043,
+        "size10": 0.093,
+        "mcse05": 0.00203,
+        "size05_range_scenarios": [
+          0.043,
+          0.0577
+        ],
+        "df_median": 15.20115,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 15.2011515
+    },
+    {
+      "id": "SCREEN-CONT-LPCR-F",
+      "family": "SCREEN-CONT",
+      "block": "broad",
+      "question": "CONT",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_F",
+      "measure": "light_phase_crossing_rate (CC1)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in females)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0355,
+        "size10": 0.0836,
+        "mcse05": 0.00185,
+        "size05_range_scenarios": [
+          0.0329,
+          0.0632
+        ],
+        "df_median": 4.507507,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 4.50750726
+    },
+    {
+      "id": "SCREEN-CONT-LPCR-M",
+      "family": "SCREEN-CONT",
+      "block": "broad",
+      "question": "CONT",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_M",
+      "measure": "light_phase_crossing_rate (CC1)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in males)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0494,
+        "size10": 0.0952,
+        "mcse05": 0.00217,
+        "size05_range_scenarios": [
+          0.0407,
+          0.0562
+        ],
+        "df_median": 6.34085,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 6.34084995
+    },
+    {
+      "id": "SCREEN-CONT-LPCR-INT",
+      "family": "SCREEN-CONT",
+      "block": "broad",
+      "question": "CONT",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1",
+      "measure": "light_phase_crossing_rate (CC1)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x + x:sex_c",
+      "focal": "x:sex_c",
+      "engine": "CR2",
+      "expected_rank": 8,
+      "calibration": {
+        "size05": 0.0475,
+        "size10": 0.099,
+        "mcse05": 0.00213,
+        "size05_range_scenarios": [
+          0.0452,
+          0.0642
+        ],
+        "df_median": 10.82468,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 10.8246751
+    },
+    {
+      "id": "SCREEN-L-PCR-F",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_CC4_F",
+      "measure": "crossing_rate (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 + cc1 || AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in females)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.0525,
+        "size10": 0.1005,
+        "mcse05": 0.00499,
+        "size05_range_scenarios": [
+          0.031,
+          0.0525
+        ],
+        "df_median": 91.20836,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-PCR-M",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_CC4_M",
+      "measure": "crossing_rate (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 + cc1 || AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in males)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.0425,
+        "size10": 0.0945,
+        "mcse05": 0.00451,
+        "size05_range_scenarios": [
+          0.03,
+          0.0425
+        ],
+        "df_median": 80.28091,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-PCR-INT",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1_CC4",
+      "measure": "crossing_rate (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + CombZ_wb:sex_c + (c2 + c3 + c4):sex_c + CombZ_wb:(c2 + c3 + c4):sex_c + (1 + cc1 || AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:c2:sex_c, CombZ_wb:c3:sex_c, CombZ_wb:c4:sex_c",
+      "engine": "KR F(3)",
+      "expected_rank": 20,
+      "calibration": {
+        "size05": 0.0425,
+        "size10": 0.0875,
+        "mcse05": 0.00451,
+        "size05_range_scenarios": [
+          0.026,
+          0.0425
+        ],
+        "df_median": 172.3621,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-SPO-F",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_CC4_F",
+      "measure": "shared_zone_use (data version v2; active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in females)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.0665,
+        "size10": 0.1245,
+        "mcse05": 0.00557,
+        "size05_range_scenarios": [
+          0.064,
+          0.0665
+        ],
+        "df_median": 115.1452,
+        "singular_share": 1,
+        "verdict": "ACCEPTABLE"
+      },
+      "calibration_note": "E4 null size 0.067; 100% of null fits singular; within band; singular flag reported"
+    },
+    {
+      "id": "SCREEN-L-SPO-M",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_CC4_M",
+      "measure": "shared_zone_use (data version v2; active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in males)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.054,
+        "size10": 0.0945,
+        "mcse05": 0.00505,
+        "size05_range_scenarios": [
+          0.041,
+          0.054
+        ],
+        "df_median": 98.61222,
+        "singular_share": 0.002,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-SPO-INT",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1_CC4",
+      "measure": "shared_zone_use (data version v2; active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + CombZ_wb:sex_c + (c2 + c3 + c4):sex_c + CombZ_wb:(c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:c2:sex_c, CombZ_wb:c3:sex_c, CombZ_wb:c4:sex_c",
+      "engine": "KR F(3)",
+      "expected_rank": 20,
+      "calibration": {
+        "size05": 0.0525,
+        "size10": 0.109,
+        "mcse05": 0.00499,
+        "size05_range_scenarios": [
+          0.0525,
+          0.058
+        ],
+        "df_median": 216.0311,
+        "singular_share": 0.509,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-OCC-F",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_CC4_F",
+      "measure": "occupancy_dispersion (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in females)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.048,
+        "size10": 0.0995,
+        "mcse05": 0.00478,
+        "size05_range_scenarios": [
+          0.045,
+          0.048
+        ],
+        "df_median": 124.8091,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-OCC-M",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_CC4_M",
+      "measure": "occupancy_dispersion (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in males)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.0375,
+        "size10": 0.081,
+        "mcse05": 0.00425,
+        "size05_range_scenarios": [
+          0.0375,
+          0.045
+        ],
+        "df_median": 112.4457,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-OCC-INT",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1_CC4",
+      "measure": "occupancy_dispersion (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + CombZ_wb:sex_c + (c2 + c3 + c4):sex_c + CombZ_wb:(c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:c2:sex_c, CombZ_wb:c3:sex_c, CombZ_wb:c4:sex_c",
+      "engine": "KR F(3)",
+      "expected_rank": 20,
+      "calibration": {
+        "size05": 0.0435,
+        "size10": 0.0875,
+        "mcse05": 0.00456,
+        "size05_range_scenarios": [
+          0.039,
+          0.0435
+        ],
+        "df_median": 239.108,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-FRAG-F",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_CC4_F",
+      "measure": "fragmentation (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in females)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.0575,
+        "size10": 0.106,
+        "mcse05": 0.00521,
+        "size05_range_scenarios": [
+          0.037,
+          0.0575
+        ],
+        "df_median": 117.1387,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-FRAG-M",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_CC4_M",
+      "measure": "fragmentation (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in males)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.056,
+        "size10": 0.114,
+        "mcse05": 0.00514,
+        "size05_range_scenarios": [
+          0.036,
+          0.056
+        ],
+        "df_median": 96.9599,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-FRAG-INT",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1_CC4",
+      "measure": "fragmentation (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + CombZ_wb:sex_c + (c2 + c3 + c4):sex_c + CombZ_wb:(c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:c2:sex_c, CombZ_wb:c3:sex_c, CombZ_wb:c4:sex_c",
+      "engine": "KR F(3)",
+      "expected_rank": 20,
+      "calibration": {
+        "size05": 0.0625,
+        "size10": 0.125,
+        "mcse05": 0.00541,
+        "size05_range_scenarios": [
+          0.047,
+          0.0625
+        ],
+        "df_median": 213.515,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      },
+      "calibration_note": "E4 null size 0.0625; within band"
+    },
+    {
+      "id": "SCREEN-L-LPCR-F",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_CC4_F",
+      "measure": "light_phase_crossing_rate (CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in females)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.0535,
+        "size10": 0.103,
+        "mcse05": 0.00503,
+        "size05_range_scenarios": [
+          0.036,
+          0.0535
+        ],
+        "df_median": 118.6388,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-LPCR-M",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_CC4_M",
+      "measure": "light_phase_crossing_rate (CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in males)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.048,
+        "size10": 0.0905,
+        "mcse05": 0.00478,
+        "size05_range_scenarios": [
+          0.035,
+          0.048
+        ],
+        "df_median": 102.3371,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SCREEN-L-LPCR-INT",
+      "family": "SCREEN-L",
+      "block": "broad",
+      "question": "L",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1_CC4",
+      "measure": "light_phase_crossing_rate (CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + CombZ_wb:sex_c + (c2 + c3 + c4):sex_c + CombZ_wb:(c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:c2:sex_c, CombZ_wb:c3:sex_c, CombZ_wb:c4:sex_c",
+      "engine": "KR F(3)",
+      "expected_rank": 20,
+      "calibration": {
+        "size05": 0.0515,
+        "size10": 0.097,
+        "mcse05": 0.00494,
+        "size05_range_scenarios": [
+          0.033,
+          0.0515
+        ],
+        "df_median": 221.5317,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SLEEP-CONT-IA40A-F",
+      "family": "SLEEP-CONT",
+      "block": "inactivity",
+      "question": "CONT",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_F",
+      "measure": "posinact40_frac (CC1 active)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in females)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.041,
+        "size10": 0.0916,
+        "mcse05": 0.00198,
+        "size05_range_scenarios": [
+          0.04,
+          0.0624
+        ],
+        "df_median": 6.15827,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 6.15827018
+    },
+    {
+      "id": "SLEEP-CONT-IA40A-M",
+      "family": "SLEEP-CONT",
+      "block": "inactivity",
+      "question": "CONT",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_M",
+      "measure": "posinact40_frac (CC1 active)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in males)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0299,
+        "size10": 0.079,
+        "mcse05": 0.0017,
+        "size05_range_scenarios": [
+          0.0228,
+          0.056
+        ],
+        "df_median": 3.563511,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE_WITH_LOW_DF_DECLARATION"
+      },
+      "expected_df_cr2": 3.56351122,
+      "calibration_note": "design-fixed Satterthwaite df 3.56 (one CC1 cage carries 44% of the partialled focal information); conservative (size 0.030); LOW_DF label"
+    },
+    {
+      "id": "SLEEP-CONT-IA40A-INT",
+      "family": "SLEEP-CONT",
+      "block": "inactivity",
+      "question": "CONT",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1",
+      "measure": "posinact40_frac (CC1 active)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x + x:sex_c",
+      "focal": "x:sex_c",
+      "engine": "CR2",
+      "expected_rank": 8,
+      "calibration": {
+        "size05": 0.0433,
+        "size10": 0.0936,
+        "mcse05": 0.00204,
+        "size05_range_scenarios": [
+          0.0352,
+          0.0609
+        ],
+        "df_median": 6.824745,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 6.82474464
+    },
+    {
+      "id": "SLEEP-CONT-IA40L-F",
+      "family": "SLEEP-CONT",
+      "block": "inactivity",
+      "question": "CONT",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_F",
+      "measure": "posinact40_frac (CC1 light)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in females)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0323,
+        "size10": 0.078,
+        "mcse05": 0.00177,
+        "size05_range_scenarios": [
+          0.0311,
+          0.0609
+        ],
+        "df_median": 3.826635,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE_WITH_LOW_DF_DECLARATION"
+      },
+      "expected_df_cr2": 3.82663493,
+      "calibration_note": "design-fixed Satterthwaite df 3.83 (one CC1 cage carries 43% of the partialled focal information); conservative (size 0.032); LOW_DF label"
+    },
+    {
+      "id": "SLEEP-CONT-IA40L-M",
+      "family": "SLEEP-CONT",
+      "block": "inactivity",
+      "question": "CONT",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_M",
+      "measure": "posinact40_frac (CC1 light)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in males)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0481,
+        "size10": 0.1007,
+        "mcse05": 0.00214,
+        "size05_range_scenarios": [
+          0.0407,
+          0.0566
+        ],
+        "df_median": 7.2773,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 7.27730043
+    },
+    {
+      "id": "SLEEP-CONT-IA40L-INT",
+      "family": "SLEEP-CONT",
+      "block": "inactivity",
+      "question": "CONT",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1",
+      "measure": "posinact40_frac (CC1 light)",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x + x:sex_c",
+      "focal": "x:sex_c",
+      "engine": "CR2",
+      "expected_rank": 8,
+      "calibration": {
+        "size05": 0.0476,
+        "size10": 0.1003,
+        "mcse05": 0.00213,
+        "size05_range_scenarios": [
+          0.0429,
+          0.0678
+        ],
+        "df_median": 11.02081,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 11.0208131
+    },
+    {
+      "id": "SLEEP-CAT-IA40A-F",
+      "family": "SLEEP-CAT",
+      "block": "inactivity",
+      "question": "CAT",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_F",
+      "measure": "posinact40_frac (CC1 active)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + g_RS + (1 | CageEpisodeID)",
+      "focal": "g_RS (RES - SUS in females)",
+      "engine": "KR t",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0458,
+        "size10": 0.0918,
+        "mcse05": 0.00296,
+        "size05_range_scenarios": [
+          0.039,
+          0.0458
+        ],
+        "df_median": 40.88291,
+        "singular_share": 0.0308,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SLEEP-CAT-IA40A-M",
+      "family": "SLEEP-CAT",
+      "block": "inactivity",
+      "question": "CAT",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_M",
+      "measure": "posinact40_frac (CC1 active)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + g_RS + (1 | CageEpisodeID)",
+      "focal": "g_RS (RES - SUS in males)",
+      "engine": "KR t",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0676,
+        "size10": 0.1354,
+        "mcse05": 0.00355,
+        "size05_range_scenarios": [
+          0.0485,
+          0.0676
+        ],
+        "df_median": 35.57648,
+        "singular_share": 0.0382,
+        "verdict": "ACCEPTABLE"
+      },
+      "calibration_note": "E4 null size 0.068 (alpha 0.05) / 0.135 (alpha 0.10), random labels; within the declared band; mildly liberal; no remedy adopted"
+    },
+    {
+      "id": "SLEEP-CAT-IA40A-INT",
+      "family": "SLEEP-CAT",
+      "block": "inactivity",
+      "question": "CAT",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1",
+      "measure": "posinact40_frac (CC1 active)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + g_RS + g_RS:sex_c + (1 | CageEpisodeID)",
+      "focal": "g_RS:sex_c",
+      "engine": "KR t",
+      "expected_rank": 8,
+      "calibration": {
+        "size05": 0.0492,
+        "size10": 0.0958,
+        "mcse05": 0.00306,
+        "size05_range_scenarios": [
+          0.0395,
+          0.0492
+        ],
+        "df_median": 77.53649,
+        "singular_share": 0.0108,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SLEEP-CAT-IA40L-F",
+      "family": "SLEEP-CAT",
+      "block": "inactivity",
+      "question": "CAT",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_F",
+      "measure": "posinact40_frac (CC1 light)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + g_RS + (1 | CageEpisodeID)",
+      "focal": "g_RS (RES - SUS in females)",
+      "engine": "KR t",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0474,
+        "size10": 0.098,
+        "mcse05": 0.00301,
+        "size05_range_scenarios": [
+          0.014,
+          0.0474
+        ],
+        "df_median": 41.25688,
+        "singular_share": 0.9416,
+        "verdict": "ACCEPTABLE_CONSERVATIVE"
+      },
+      "calibration_note": "E4 null size 0.047 random labels, 0.014 under cage-clustered labels: conservative; no remedy adopted"
+    },
+    {
+      "id": "SLEEP-CAT-IA40L-M",
+      "family": "SLEEP-CAT",
+      "block": "inactivity",
+      "question": "CAT",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_M",
+      "measure": "posinact40_frac (CC1 light)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + g_RS + (1 | CageEpisodeID)",
+      "focal": "g_RS (RES - SUS in males)",
+      "engine": "KR t",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0706,
+        "size10": 0.1292,
+        "mcse05": 0.00362,
+        "size05_range_scenarios": [
+          0.02,
+          0.0706
+        ],
+        "df_median": 35.80374,
+        "singular_share": 0.0682,
+        "verdict": "ACCEPTABLE_WATCH"
+      },
+      "calibration_note": "E4 null size 0.071 / 0.129, random labels; within the declared band; mildly liberal; no remedy adopted"
+    },
+    {
+      "id": "SLEEP-CAT-IA40L-INT",
+      "family": "SLEEP-CAT",
+      "block": "inactivity",
+      "question": "CAT",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1",
+      "measure": "posinact40_frac (CC1 light)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + g_RS + g_RS:sex_c + (1 | CageEpisodeID)",
+      "focal": "g_RS:sex_c",
+      "engine": "KR t",
+      "expected_rank": 8,
+      "calibration": {
+        "size05": 0.0516,
+        "size10": 0.108,
+        "mcse05": 0.00313,
+        "size05_range_scenarios": [
+          0.0265,
+          0.0516
+        ],
+        "df_median": 78.02964,
+        "singular_share": 0.7788,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SLEEP-L-IA40A-F",
+      "family": "SLEEP-L",
+      "block": "inactivity",
+      "question": "L",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_CC4_F",
+      "measure": "posinact40_frac (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in females)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.059,
+        "size10": 0.106,
+        "mcse05": 0.00527,
+        "size05_range_scenarios": [
+          0.043,
+          0.059
+        ],
+        "df_median": 114.1044,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SLEEP-L-IA40A-M",
+      "family": "SLEEP-L",
+      "block": "inactivity",
+      "question": "L",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_CC4_M",
+      "measure": "posinact40_frac (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in males)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.0575,
+        "size10": 0.1065,
+        "mcse05": 0.00521,
+        "size05_range_scenarios": [
+          0.03,
+          0.0575
+        ],
+        "df_median": 97.30866,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SLEEP-L-IA40A-INT",
+      "family": "SLEEP-L",
+      "block": "inactivity",
+      "question": "L",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1_CC4",
+      "measure": "posinact40_frac (active, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + CombZ_wb:sex_c + (c2 + c3 + c4):sex_c + CombZ_wb:(c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:c2:sex_c, CombZ_wb:c3:sex_c, CombZ_wb:c4:sex_c",
+      "engine": "KR F(3)",
+      "expected_rank": 20,
+      "calibration": {
+        "size05": 0.051,
+        "size10": 0.1015,
+        "mcse05": 0.00492,
+        "size05_range_scenarios": [
+          0.038,
+          0.051
+        ],
+        "df_median": 213.693,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SLEEP-L-IA40L-F",
+      "family": "SLEEP-L",
+      "block": "inactivity",
+      "question": "L",
+      "sex_analysis": "F",
+      "population": "SIS_CC1_CC4_F",
+      "measure": "posinact40_frac (light, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in females)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.053,
+        "size10": 0.0955,
+        "mcse05": 0.00501,
+        "size05_range_scenarios": [
+          0.031,
+          0.053
+        ],
+        "df_median": 122.4422,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SLEEP-L-IA40L-M",
+      "family": "SLEEP-L",
+      "block": "inactivity",
+      "question": "L",
+      "sex_analysis": "M",
+      "population": "SIS_CC1_CC4_M",
+      "measure": "posinact40_frac (light, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:(c2, c3, c4) (in males)",
+      "engine": "KR F(3)",
+      "expected_rank": 10,
+      "calibration": {
+        "size05": 0.0505,
+        "size10": 0.092,
+        "mcse05": 0.0049,
+        "size05_range_scenarios": [
+          0.034,
+          0.0505
+        ],
+        "df_median": 105.8284,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "SLEEP-L-IA40L-INT",
+      "family": "SLEEP-L",
+      "block": "inactivity",
+      "question": "L",
+      "sex_analysis": "INT",
+      "population": "SIS_CC1_CC4",
+      "measure": "posinact40_frac (light, CC1-CC4)",
+      "measure_role": "y",
+      "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + CombZ_wb:sex_c + (c2 + c3 + c4):sex_c + CombZ_wb:(c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+      "focal": "joint CombZ_wb:c2:sex_c, CombZ_wb:c3:sex_c, CombZ_wb:c4:sex_c",
+      "engine": "KR F(3)",
+      "expected_rank": 20,
+      "calibration": {
+        "size05": 0.0435,
+        "size10": 0.0855,
+        "mcse05": 0.00456,
+        "size05_range_scenarios": [
+          0.031,
+          0.0435
+        ],
+        "df_median": 229.2902,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      }
+    },
+    {
+      "id": "COOKIE-CONT-DC60-F",
+      "family": "COOKIE-CONT",
+      "block": "cookie",
+      "question": "CONT",
+      "sex_analysis": "F",
+      "population": "COOKIE_SIS_F",
+      "measure": "dcookie60",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in females)",
+      "engine": "CR2",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.045,
+        "size10": 0.0949,
+        "mcse05": 0.00207,
+        "size05_range_scenarios": [
+          0.036,
+          0.0545
+        ],
+        "df_median": 5.77643,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 5.77643011
+    },
+    {
+      "id": "COOKIE-CONT-DC60-M",
+      "family": "COOKIE-CONT",
+      "block": "cookie",
+      "question": "CONT",
+      "sex_analysis": "M",
+      "population": "COOKIE_SIS_M",
+      "measure": "dcookie60",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x",
+      "focal": "x (in males)",
+      "engine": "CR2",
+      "expected_rank": 3,
+      "calibration": {
+        "size05": 0.0393,
+        "size10": 0.092,
+        "mcse05": 0.00194,
+        "size05_range_scenarios": [
+          0.0393,
+          0.0572
+        ],
+        "df_median": 4.381017,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 4.38101747
+    },
+    {
+      "id": "COOKIE-CONT-DC60-INT",
+      "family": "COOKIE-CONT",
+      "block": "cookie",
+      "question": "CONT",
+      "sex_analysis": "INT",
+      "population": "COOKIE_SIS",
+      "measure": "dcookie60",
+      "measure_role": "x",
+      "formula": "CombZ ~ Batch + x + x:sex_c",
+      "focal": "x:sex_c",
+      "engine": "CR2",
+      "expected_rank": 7,
+      "calibration": {
+        "size05": 0.049,
+        "size10": 0.1006,
+        "mcse05": 0.00216,
+        "size05_range_scenarios": [
+          0.0426,
+          0.064
+        ],
+        "df_median": 9.663416,
+        "singular_share": null,
+        "verdict": "ACCEPTABLE"
+      },
+      "expected_df_cr2": 9.66341563
+    },
+    {
+      "id": "COOKIE-CAT-DC60-F",
+      "family": "COOKIE-CAT",
+      "block": "cookie",
+      "question": "CAT",
+      "sex_analysis": "F",
+      "population": "COOKIE_SIS_F",
+      "measure": "dcookie60",
+      "measure_role": "y",
+      "formula": "y ~ Batch + g_RS + (1 | CageEpisodeID)",
+      "focal": "g_RS (RES - SUS in females)",
+      "engine": "KR t",
+      "expected_rank": 4,
+      "calibration": {
+        "size05": 0.0468,
+        "size10": 0.0988,
+        "mcse05": 0.00299,
+        "size05_range_scenarios": [
+          0.0468,
+          0.0595
+        ],
+        "df_median": 36.76238,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      },
+      "robustness": "lm(y ~ Batch + g_RS) with CR2 by CageEpisodeID, Satterthwaite df (diagnostic, no family); a row with df < 4 is labelled LOW_DF and judged on direction and magnitude only (E4 null: COOKIE-CAT-DC60-M median df 5.1, < 4 in 19.8% of random draws)"
+    },
+    {
+      "id": "COOKIE-CAT-DC60-M",
+      "family": "COOKIE-CAT",
+      "block": "cookie",
+      "question": "CAT",
+      "sex_analysis": "M",
+      "population": "COOKIE_SIS_M",
+      "measure": "dcookie60",
+      "measure_role": "y",
+      "formula": "y ~ Batch + g_RS + (1 | CageEpisodeID)",
+      "focal": "g_RS (RES - SUS in males)",
+      "engine": "KR t",
+      "expected_rank": 3,
+      "calibration": {
+        "size05": 0.034,
+        "size10": 0.0744,
+        "mcse05": 0.00256,
+        "size05_range_scenarios": [
+          0.016,
+          0.034
+        ],
+        "df_median": 25.05218,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE_WATCH"
+      },
+      "calibration_note": "E4 null size 0.034 random labels, 0.016 under cage-clustered labels: conservative (valid, reduced power); no remedy adopted",
+      "robustness": "lm(y ~ Batch + g_RS) with CR2 by CageEpisodeID, Satterthwaite df (diagnostic, no family); a row with df < 4 is labelled LOW_DF and judged on direction and magnitude only (E4 null: COOKIE-CAT-DC60-M median df 5.1, < 4 in 19.8% of random draws)"
+    },
+    {
+      "id": "COOKIE-CAT-DC60-INT",
+      "family": "COOKIE-CAT",
+      "block": "cookie",
+      "question": "CAT",
+      "sex_analysis": "INT",
+      "population": "COOKIE_SIS",
+      "measure": "dcookie60",
+      "measure_role": "y",
+      "formula": "y ~ Batch + g_RS + g_RS:sex_c + (1 | CageEpisodeID)",
+      "focal": "g_RS:sex_c",
+      "engine": "KR t",
+      "expected_rank": 7,
+      "calibration": {
+        "size05": 0.0492,
+        "size10": 0.0956,
+        "mcse05": 0.00306,
+        "size05_range_scenarios": [
+          0.0492,
+          0.053
+        ],
+        "df_median": 62.27098,
+        "singular_share": 0,
+        "verdict": "ACCEPTABLE"
+      },
+      "robustness": "lm(y ~ Batch + g_RS + g_RS:sex_c) with CR2 by CageEpisodeID, Satterthwaite df (diagnostic, no family); a row with df < 4 is labelled LOW_DF and judged on direction and magnitude only (E4 null: COOKIE-CAT-DC60-M median df 5.1, < 4 in 19.8% of random draws)"
+    }
+  ],
+  "multiplicity": {
+    "method": "Benjamini-Hochberg within each local family (the decision unit)",
+    "local_families": {
+      "SCREEN-CONT": [
+        "SCREEN-CONT-OCC-F",
+        "SCREEN-CONT-OCC-M",
+        "SCREEN-CONT-OCC-INT",
+        "SCREEN-CONT-FRAG-F",
+        "SCREEN-CONT-FRAG-M",
+        "SCREEN-CONT-FRAG-INT",
+        "SCREEN-CONT-LPCR-F",
+        "SCREEN-CONT-LPCR-M",
+        "SCREEN-CONT-LPCR-INT"
+      ],
+      "SCREEN-L": [
+        "SCREEN-L-PCR-F",
+        "SCREEN-L-PCR-M",
+        "SCREEN-L-PCR-INT",
+        "SCREEN-L-SPO-F",
+        "SCREEN-L-SPO-M",
+        "SCREEN-L-SPO-INT",
+        "SCREEN-L-OCC-F",
+        "SCREEN-L-OCC-M",
+        "SCREEN-L-OCC-INT",
+        "SCREEN-L-FRAG-F",
+        "SCREEN-L-FRAG-M",
+        "SCREEN-L-FRAG-INT",
+        "SCREEN-L-LPCR-F",
+        "SCREEN-L-LPCR-M",
+        "SCREEN-L-LPCR-INT"
+      ],
+      "SLEEP-CONT": [
+        "SLEEP-CONT-IA40A-F",
+        "SLEEP-CONT-IA40A-M",
+        "SLEEP-CONT-IA40A-INT",
+        "SLEEP-CONT-IA40L-F",
+        "SLEEP-CONT-IA40L-M",
+        "SLEEP-CONT-IA40L-INT"
+      ],
+      "SLEEP-CAT": [
+        "SLEEP-CAT-IA40A-F",
+        "SLEEP-CAT-IA40A-M",
+        "SLEEP-CAT-IA40A-INT",
+        "SLEEP-CAT-IA40L-F",
+        "SLEEP-CAT-IA40L-M",
+        "SLEEP-CAT-IA40L-INT"
+      ],
+      "SLEEP-L": [
+        "SLEEP-L-IA40A-F",
+        "SLEEP-L-IA40A-M",
+        "SLEEP-L-IA40A-INT",
+        "SLEEP-L-IA40L-F",
+        "SLEEP-L-IA40L-M",
+        "SLEEP-L-IA40L-INT"
+      ],
+      "COOKIE-CONT": [
+        "COOKIE-CONT-DC60-F",
+        "COOKIE-CONT-DC60-M",
+        "COOKIE-CONT-DC60-INT"
+      ],
+      "COOKIE-CAT": [
+        "COOKIE-CAT-DC60-F",
+        "COOKIE-CAT-DC60-M",
+        "COOKIE-CAT-DC60-INT"
+      ]
+    },
+    "m": {
+      "broad": 24,
+      "inactivity": 18,
+      "cookie": 6,
+      "total": 48,
+      "by_family": {
+        "SCREEN-CONT": 9,
+        "SCREEN-L": 15,
+        "SLEEP-CONT": 6,
+        "SLEEP-CAT": 6,
+        "SLEEP-L": 6,
+        "COOKIE-CONT": 3,
+        "COOKIE-CAT": 3
+      }
+    },
+    "global_benchmark": {
+      "method": "BH over all 48 discovery hypotheses",
+      "role": "descriptive column only; not used for classification; never redefines local families"
+    },
+    "failed_fits": "a FAILED hypothesis enters its family with p = 1 (m unchanged)",
+    "screen_membership_rule": "the broad screen tests only metric x question combinations not addressed by frozen Stage 29 (continuous: occupancy_dispersion, fragmentation, light_phase_crossing_rate; longitudinal CombZ trajectories: all 5; categorical RES/SUS: none); Stage 29-addressed combinations appear as carry-over rows with their Stage 29 estimates and no new p",
+    "never_in_a_family": [
+      "sensitivities",
+      "robustness diagnostics",
+      "Movement-adjusted incremental models",
+      "leave-one-batch-out refits",
+      "the Stage 29-determined screen combinations (carry-over rows: CONT crossing_rate and shared_zone_use; CAT all 5 metrics = 7 metric x question combinations), shown with their Stage 29 rows (sex-averaged, INT, F, M) from the manuscript-facing v1.0.1 / data version v2 release (ebb_v101); no Stage 30 POOL row and no new p",
+      "posinact60",
+      "dcookie45",
+      "EPM+2",
+      "EPM-day first presentation",
+      "POOL estimates (ESTIMATION_ONLY)"
+    ]
+  },
+  "sensitivities_estimation_only": {
+    "all": [
+      "leave-one-batch-out refits of the focal term: within-sex hypotheses leave out each same-sex batch only; when one batch remains (COOKIE-CONT-DC60-M, COOKIE-CAT-DC60-M) the Batch term is dropped; refits are gated on full rank only; L: the three focal components with KR SEs; report signs and leverage batches (Stage 29 lobo_sign_stability precedent)",
+      "animal influence: lm, stats::dfbeta; lmer, case-deletion refits by animal; reported as max |dfbeta| / SE with the animal ID; estimation only and not a classification input"
+    ],
+    "inactivity": [
+      "posinact60_frac in place of posinact40_frac (same models; measurement sensitivity)",
+      "Movement-adjusted incremental information, M = same-window canonical RFID position-change rate (active: crossing_rate; light: light_phase_crossing_rate; L: the window-matched rate): CONT CombZ ~ Batch + x + M (INT: + x:sex_c + M:sex_c); CAT y ~ Batch + g_RS + M + (1 | CageEpisodeID) (INT: + g_RS:sex_c + M:sex_c); L: registered formula + M (POOL and INT: + M:sex_c); same engine and focal terms (mmm_ci_match); estimation only except for rule D(i)"
+    ],
+    "cookie": [
+      "dcookie45 in place of dcookie60 (same models)",
+      "alternative inference: COOKIE-CONT (POOL/F/M/INT): lmer with (1 | CageEpisodeID), KR t (estimate and KR CI only; its p is never a decision quantity; E1a: KR size up to 0.16 under leverage-linked heteroscedasticity); COOKIE-CAT: see hypotheses[*].robustness (lm + CR2 by cage)",
+      "Movement-adjusted incremental information, M = Stage 29 CC1 active RFID position-change rate (crossing_rate, data version v2; finite for 77/77 cookie SIS): CONT CombZ ~ Batch + x + M (INT: + x:sex_c + M:sex_c); CAT dcookie60 ~ Batch + g_RS + M + (1 | CageEpisodeID) (INT: + g_RS:sex_c + M:sex_c)",
+      "nested leave-one-batch-out prediction for every cookie hypothesis classified A (estimation only; no effect on classification)"
+    ],
+    "robustness_label": "mmm_ci_robust_label (SIGN_CHANGE / LARGE_SHIFT / COMPATIBLE) against the primary; sensitivities are judged on direction, magnitude and leverage, not on crossing 0.05",
+    "excluded_by_decision": [
+      "OR646 or cage exclusion",
+      "known-wrong label-based cages (provenance only)",
+      "EPM+2 (procedure unresolved; not a no-cookie control)",
+      "vendor ActivityIndex",
+      "1341.67-s threshold",
+      "B2 EPM+1 BORIS-scored videos (a different test; removed from the evidence chain by decision 10)"
+    ],
+    "broad_CONT": "OLS t alongside CR2 (descriptive only; E4 null size up to 0.31)"
+  },
+  "result_classification_rules": {
+    "order": "D, then A, then B, then C; the first rule that matches assigns the category; every row records its reason code",
+    "D_measurement_or_fit_limited": "(i) an inactivity-block hypothesis with raw p < 0.05 whose Movement-adjusted model (sensitivities_estimation_only.inactivity[2]) gives a focal 95% CI including 0 (CONT/CAT), or a Movement-adjusted joint KR F p >= 0.05 (L) [reason D-MOVEMENT]; (ii) the primary fit is FAILED or FAILED_RANK [reason D-FIT]",
+    "A_robust_exploratory_signal": "not D, AND local BH q < 0.05, AND the focal sign is the same in every leave-one-batch-out refit (L: the focal component with the largest |KR t| in the primary fit), AND no declared sensitivity of the hypothesis's block is labelled SIGN_CHANGE by mmm_ci_robust_label (L: on that same component)",
+    "B_suggestive": "not D, not A, raw p < 0.05; reason B-MULT if local q >= 0.05 (multiplicity-negative), B-ROBUST if local q < 0.05 but the LOBO or SIGN_CHANGE criterion failed",
+    "C_clear_null": "not D and raw p >= 0.05; described as 'no evidence of association at the registered test' with its CI, never as 'no effect'",
+    "global_q": "reported for every hypothesis as context only (follow-up Q1)",
+    "wording": "inactivity associations in D-MOVEMENT are never described as independent sleep biology; every light-phase inactivity row states that the metric is saturated (87% of light windows >= 0.99) and that inference rests on its lower tail; within-sex results are 'in females' / 'in males'; 'female-specific' / 'male-specific' only if the INT hypothesis of the same metric and question has local BH q < 0.05; POOL estimates are 'pooled across sexes (estimation only)', never 'in both sexes'",
+    "pool": "POOL rows are ESTIMATION_ONLY and receive no classification"
+  },
+  "run_rules": [
+    "run every registered hypothesis once; do not stop at a significant result",
+    "no new endpoints, windows, interactions, features or thresholds after outcome contact",
+    "families and inference fixed as registered"
+  ],
+  "stage29_release": {
+    "status": "approved by the user 2026-09-29; executed separately from the Stage 30 freeze (runsheet evidence/wfE/E3_stage29_release_rehearsal/proposed/docs/ORCHESTRATOR_RELEASE_RUNSHEET.txt)",
+    "config": "v1.0.1 documentation-only + data_versions binding (release = v2_cage_label_correction_2026-09-28, manifest sha bb33a111...); rehearsed JSON sha256 236a1b0827ee5bee9f5a42691f976c8279479e93b67ac9208a590e884ce8eaf7 (frozen_on 2026-09-29); analytic parent v1.0.0 33d22430...; identity gate: 167 differing leaves, 0 disallowed, 9/9 checks",
+    "stage29_run": "analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_<commit7>/ (RELEASE mode; immutable, read-only; rehearsal: 23 tables byte-identical to cage_fix_rerun/out/tables; 233 models, 0 FAILED)",
+    "bundle": "ebb_v101_<YYYYMMDD>_<commit7> (supersedes ebb_v100_20260927_95e5dc8)",
+    "preserved": [
+      "config v1.0.0 (analysis_ready/canonical/behavior_config/v1.0.0, sha 33d22430...)",
+      "bundle ebb_v100_20260927_95e5dc8 (manifest sha f5a45fd4...)",
+      "pipeline/29_canonical_behavior (f3a25da re-run, config v1.0.0, data version v1; never written again)",
+      "0555c90 run snapshot archived read-only at analysis_ready/pipeline/29_canonical_behavior_releases/v100_dv1_0555c90 (11/11 checks against the ebb_v100 H2/H record; ARCHIVE_RECEIPT.csv)"
+    ],
+    "rehearsal": "evidence/wfE/E3_stage29_release_rehearsal: identity gate, sandbox freeze, DRY v2, CONTROL v1 23/23 identical to f3a25da, RELEASE v2 23/23 identical to cage_fix_rerun, 16b with every gate, 4-step bundle diff as predicted, 15 refusals",
+    "v1_to_v2_changed_tables": "15 of 23 Stage 29 tables differ (8 byte-identical); CC1 results identical; longitudinal estimates move <= 0.47 SE; shared-position P-TR p 0.826 -> 0.755; no inferential or multiplicity conclusion changes",
+    "manuscript_facing": "the corrected-metadata release"
+  },
+  "terminology": {
+    "movement": "RFID position-change rate (position changes/h); at first use 'vendor-defined RFID position changes requiring >= 200 grid units of displacement, about two antenna spacings'; never 'antenna crossing rate'",
+    "shared_position": "shared RFID-position occupancy",
+    "inactivity": "RFID-defined sustained positional inactivity (>= 40 s); may be discussed as an RFID-derived sleep/inactivity proxy with the stated qualifications",
+    "cookie": "home-cage cookie response (second presentation, EPM+1)"
+  },
+  "sex_analyses": {
+    "POOL": "pooled SIS, model without any phenotype x sex term: ESTIMATION_ONLY (estimate, 95% CI, N, diagnostics); no p, no family, no classification (round-6 decision)",
+    "F": "within females only",
+    "M": "within males only (cookie: B2 and B5 only, because B1 received no home-cage cookie)",
+    "INT": "pooled SIS, formal test that the association differs between the sexes",
+    "rule": "sex specificity is never inferred from separate F and M results; 'female-specific' / 'male-specific' wording requires the INT hypothesis of the same metric and question to have local BH q < 0.05",
+    "discovery": "F (within females), M (within males) and INT (formal sex-moderation test) are the discovery hypotheses in every metric x question cell"
+  },
+  "estimation_only": {
+    "description": "POOL (pooled SIS, no phenotype x sex term) for every metric x question cell: descriptive magnitude only; flagged ESTIMATION_ONLY in every output; no p-value, not in any local BH family, not in the global benchmark, no discovery classification",
+    "entries": [
+      {
+        "id": "SCREEN-CONT-OCC-POOL",
+        "family": "SCREEN-CONT",
+        "block": "broad",
+        "question": "CONT",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1",
+        "measure": "occupancy_dispersion (CC1 active)",
+        "measure_role": "x",
+        "formula": "CombZ ~ Batch + x",
+        "focal": "x",
+        "engine": "CR2",
+        "expected_rank": 7,
+        "calibration": {
+          "size05": 0.0437,
+          "size10": 0.0921,
+          "mcse05": 0.00204,
+          "size05_range_scenarios": [
+            0.0437,
+            0.0603
+          ],
+          "df_median": 9.431248,
+          "singular_share": null,
+          "verdict": "ACCEPTABLE"
+        },
+        "expected_df_cr2": 9.43124768,
+        "role": "ESTIMATION_ONLY",
+        "report": "focal estimate, standardized estimate, SE, df and 95% CI (same engine as the discovery tests); N animals, cages, batches; fit diagnostics; no p-value",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SCREEN-CONT-FRAG-POOL",
+        "family": "SCREEN-CONT",
+        "block": "broad",
+        "question": "CONT",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1",
+        "measure": "fragmentation (CC1 active)",
+        "measure_role": "x",
+        "formula": "CombZ ~ Batch + x",
+        "focal": "x",
+        "engine": "CR2",
+        "expected_rank": 7,
+        "calibration": {
+          "size05": 0.0478,
+          "size10": 0.095,
+          "mcse05": 0.00213,
+          "size05_range_scenarios": [
+            0.0435,
+            0.062
+          ],
+          "df_median": 14.9051,
+          "singular_share": null,
+          "verdict": "ACCEPTABLE"
+        },
+        "expected_df_cr2": 14.9051041,
+        "role": "ESTIMATION_ONLY",
+        "report": "focal estimate, standardized estimate, SE, df and 95% CI (same engine as the discovery tests); N animals, cages, batches; fit diagnostics; no p-value",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SCREEN-CONT-LPCR-POOL",
+        "family": "SCREEN-CONT",
+        "block": "broad",
+        "question": "CONT",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1",
+        "measure": "light_phase_crossing_rate (CC1)",
+        "measure_role": "x",
+        "formula": "CombZ ~ Batch + x",
+        "focal": "x",
+        "engine": "CR2",
+        "expected_rank": 7,
+        "calibration": {
+          "size05": 0.0439,
+          "size10": 0.0975,
+          "mcse05": 0.00205,
+          "size05_range_scenarios": [
+            0.0439,
+            0.0667
+          ],
+          "df_median": 10.12253,
+          "singular_share": null,
+          "verdict": "ACCEPTABLE"
+        },
+        "expected_df_cr2": 10.1225263,
+        "role": "ESTIMATION_ONLY",
+        "report": "focal estimate, standardized estimate, SE, df and 95% CI (same engine as the discovery tests); N animals, cages, batches; fit diagnostics; no p-value",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SCREEN-L-PCR-POOL",
+        "family": "SCREEN-L",
+        "block": "broad",
+        "question": "L",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1_CC4",
+        "measure": "crossing_rate (active, CC1-CC4)",
+        "measure_role": "y",
+        "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (c2 + c3 + c4):sex_c + (1 + cc1 || AnimalID) + (1 | CageEpisodeID)",
+        "focal": "joint CombZ_wb:c2, CombZ_wb:c3, CombZ_wb:c4",
+        "engine": "KR F(3)",
+        "expected_rank": 16,
+        "calibration": {
+          "size05": 0.0435,
+          "size10": 0.101,
+          "mcse05": 0.00456,
+          "size05_range_scenarios": [
+            0.026,
+            0.0435
+          ],
+          "df_median": 173.9627,
+          "singular_share": 0,
+          "verdict": "ACCEPTABLE"
+        },
+        "role": "ESTIMATION_ONLY",
+        "report": "the three focal component estimates CombZ_wb:c2, :c3, :c4 with KR SEs and 95% CIs; N animals, windows, cages, batches; fit diagnostics; no joint p",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SCREEN-L-SPO-POOL",
+        "family": "SCREEN-L",
+        "block": "broad",
+        "question": "L",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1_CC4",
+        "measure": "shared_zone_use (data version v2; active, CC1-CC4)",
+        "measure_role": "y",
+        "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+        "focal": "joint CombZ_wb:c2, CombZ_wb:c3, CombZ_wb:c4",
+        "engine": "KR F(3)",
+        "expected_rank": 16,
+        "calibration": {
+          "size05": 0.0535,
+          "size10": 0.1095,
+          "mcse05": 0.00503,
+          "size05_range_scenarios": [
+            0.0535,
+            0.063
+          ],
+          "df_median": 218.0513,
+          "singular_share": 0.504,
+          "verdict": "ACCEPTABLE"
+        },
+        "role": "ESTIMATION_ONLY",
+        "report": "the three focal component estimates CombZ_wb:c2, :c3, :c4 with KR SEs and 95% CIs; N animals, windows, cages, batches; fit diagnostics; no joint p",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SCREEN-L-OCC-POOL",
+        "family": "SCREEN-L",
+        "block": "broad",
+        "question": "L",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1_CC4",
+        "measure": "occupancy_dispersion (active, CC1-CC4)",
+        "measure_role": "y",
+        "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+        "focal": "joint CombZ_wb:c2, CombZ_wb:c3, CombZ_wb:c4",
+        "engine": "KR F(3)",
+        "expected_rank": 16,
+        "calibration": {
+          "size05": 0.051,
+          "size10": 0.103,
+          "mcse05": 0.00492,
+          "size05_range_scenarios": [
+            0.047,
+            0.051
+          ],
+          "df_median": 241.8397,
+          "singular_share": 0,
+          "verdict": "ACCEPTABLE"
+        },
+        "role": "ESTIMATION_ONLY",
+        "report": "the three focal component estimates CombZ_wb:c2, :c3, :c4 with KR SEs and 95% CIs; N animals, windows, cages, batches; fit diagnostics; no joint p",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SCREEN-L-FRAG-POOL",
+        "family": "SCREEN-L",
+        "block": "broad",
+        "question": "L",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1_CC4",
+        "measure": "fragmentation (active, CC1-CC4)",
+        "measure_role": "y",
+        "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+        "focal": "joint CombZ_wb:c2, CombZ_wb:c3, CombZ_wb:c4",
+        "engine": "KR F(3)",
+        "expected_rank": 16,
+        "calibration": {
+          "size05": 0.0485,
+          "size10": 0.1025,
+          "mcse05": 0.0048,
+          "size05_range_scenarios": [
+            0.042,
+            0.0485
+          ],
+          "df_median": 215.298,
+          "singular_share": 0,
+          "verdict": "ACCEPTABLE"
+        },
+        "role": "ESTIMATION_ONLY",
+        "report": "the three focal component estimates CombZ_wb:c2, :c3, :c4 with KR SEs and 95% CIs; N animals, windows, cages, batches; fit diagnostics; no joint p",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SCREEN-L-LPCR-POOL",
+        "family": "SCREEN-L",
+        "block": "broad",
+        "question": "L",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1_CC4",
+        "measure": "light_phase_crossing_rate (CC1-CC4)",
+        "measure_role": "y",
+        "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+        "focal": "joint CombZ_wb:c2, CombZ_wb:c3, CombZ_wb:c4",
+        "engine": "KR F(3)",
+        "expected_rank": 16,
+        "calibration": {
+          "size05": 0.0555,
+          "size10": 0.102,
+          "mcse05": 0.00512,
+          "size05_range_scenarios": [
+            0.033,
+            0.0555
+          ],
+          "df_median": 223.5855,
+          "singular_share": 0,
+          "verdict": "ACCEPTABLE"
+        },
+        "role": "ESTIMATION_ONLY",
+        "report": "the three focal component estimates CombZ_wb:c2, :c3, :c4 with KR SEs and 95% CIs; N animals, windows, cages, batches; fit diagnostics; no joint p",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SLEEP-CONT-IA40A-POOL",
+        "family": "SLEEP-CONT",
+        "block": "inactivity",
+        "question": "CONT",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1",
+        "measure": "posinact40_frac (CC1 active)",
+        "measure_role": "x",
+        "formula": "CombZ ~ Batch + x",
+        "focal": "x",
+        "engine": "CR2",
+        "expected_rank": 7,
+        "calibration": {
+          "size05": 0.0489,
+          "size10": 0.0995,
+          "mcse05": 0.00216,
+          "size05_range_scenarios": [
+            0.0429,
+            0.0634
+          ],
+          "df_median": 10.20502,
+          "singular_share": null,
+          "verdict": "ACCEPTABLE"
+        },
+        "expected_df_cr2": 10.2050191,
+        "role": "ESTIMATION_ONLY",
+        "report": "focal estimate, standardized estimate, SE, df and 95% CI (same engine as the discovery tests); N animals, cages, batches; fit diagnostics; no p-value",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SLEEP-CONT-IA40L-POOL",
+        "family": "SLEEP-CONT",
+        "block": "inactivity",
+        "question": "CONT",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1",
+        "measure": "posinact40_frac (CC1 light)",
+        "measure_role": "x",
+        "formula": "CombZ ~ Batch + x",
+        "focal": "x",
+        "engine": "CR2",
+        "expected_rank": 7,
+        "calibration": {
+          "size05": 0.0421,
+          "size10": 0.0925,
+          "mcse05": 0.00201,
+          "size05_range_scenarios": [
+            0.04,
+            0.0631
+          ],
+          "df_median": 8.927726,
+          "singular_share": null,
+          "verdict": "ACCEPTABLE"
+        },
+        "expected_df_cr2": 8.92772627,
+        "role": "ESTIMATION_ONLY",
+        "report": "focal estimate, standardized estimate, SE, df and 95% CI (same engine as the discovery tests); N animals, cages, batches; fit diagnostics; no p-value",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SLEEP-CAT-IA40A-POOL",
+        "family": "SLEEP-CAT",
+        "block": "inactivity",
+        "question": "CAT",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1",
+        "measure": "posinact40_frac (CC1 active)",
+        "measure_role": "y",
+        "formula": "y ~ Batch + g_RS + (1 | CageEpisodeID)",
+        "focal": "g_RS (RES - SUS)",
+        "engine": "KR t",
+        "expected_rank": 7,
+        "calibration": {
+          "size05": 0.0566,
+          "size10": 0.11,
+          "mcse05": 0.00327,
+          "size05_range_scenarios": [
+            0.0566,
+            0.068
+          ],
+          "df_median": 78.59491,
+          "singular_share": 0.0034,
+          "verdict": "ACCEPTABLE"
+        },
+        "role": "ESTIMATION_ONLY",
+        "report": "focal estimate, standardized estimate, SE, df and 95% CI (same engine as the discovery tests); N animals, cages, batches; fit diagnostics; no p-value",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SLEEP-CAT-IA40L-POOL",
+        "family": "SLEEP-CAT",
+        "block": "inactivity",
+        "question": "CAT",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1",
+        "measure": "posinact40_frac (CC1 light)",
+        "measure_role": "y",
+        "formula": "y ~ Batch + g_RS + (1 | CageEpisodeID)",
+        "focal": "g_RS (RES - SUS)",
+        "engine": "KR t",
+        "expected_rank": 7,
+        "calibration": {
+          "size05": 0.0632,
+          "size10": 0.114,
+          "mcse05": 0.00344,
+          "size05_range_scenarios": [
+            0.0285,
+            0.0632
+          ],
+          "df_median": 79.02781,
+          "singular_share": 0.8636,
+          "verdict": "ACCEPTABLE"
+        },
+        "calibration_note": "E4 null size 0.063; 86% of null fits singular (non-singular fits 0.19); unconditional size within band; singular flag reported",
+        "role": "ESTIMATION_ONLY",
+        "report": "focal estimate, standardized estimate, SE, df and 95% CI (same engine as the discovery tests); N animals, cages, batches; fit diagnostics; no p-value",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SLEEP-L-IA40A-POOL",
+        "family": "SLEEP-L",
+        "block": "inactivity",
+        "question": "L",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1_CC4",
+        "measure": "posinact40_frac (active, CC1-CC4)",
+        "measure_role": "y",
+        "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+        "focal": "joint CombZ_wb:c2, CombZ_wb:c3, CombZ_wb:c4",
+        "engine": "KR F(3)",
+        "expected_rank": 16,
+        "calibration": {
+          "size05": 0.048,
+          "size10": 0.1025,
+          "mcse05": 0.00478,
+          "size05_range_scenarios": [
+            0.039,
+            0.048
+          ],
+          "df_median": 215.5502,
+          "singular_share": 0,
+          "verdict": "ACCEPTABLE"
+        },
+        "role": "ESTIMATION_ONLY",
+        "report": "the three focal component estimates CombZ_wb:c2, :c3, :c4 with KR SEs and 95% CIs; N animals, windows, cages, batches; fit diagnostics; no joint p",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "SLEEP-L-IA40L-POOL",
+        "family": "SLEEP-L",
+        "block": "inactivity",
+        "question": "L",
+        "sex_analysis": "POOL",
+        "population": "SIS_CC1_CC4",
+        "measure": "posinact40_frac (light, CC1-CC4)",
+        "measure_role": "y",
+        "formula": "y ~ Batch + CombZ_wb + c2 + c3 + c4 + CombZ_wb:(c2 + c3 + c4) + (c2 + c3 + c4):sex_c + (1 | AnimalID) + (1 | CageEpisodeID)",
+        "focal": "joint CombZ_wb:c2, CombZ_wb:c3, CombZ_wb:c4",
+        "engine": "KR F(3)",
+        "expected_rank": 16,
+        "calibration": {
+          "size05": 0.05,
+          "size10": 0.098,
+          "mcse05": 0.00487,
+          "size05_range_scenarios": [
+            0.034,
+            0.05
+          ],
+          "df_median": 231.534,
+          "singular_share": 0,
+          "verdict": "ACCEPTABLE"
+        },
+        "role": "ESTIMATION_ONLY",
+        "report": "the three focal component estimates CombZ_wb:c2, :c3, :c4 with KR SEs and 95% CIs; N animals, windows, cages, batches; fit diagnostics; no joint p",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "COOKIE-CONT-DC60-POOL",
+        "family": "COOKIE-CONT",
+        "block": "cookie",
+        "question": "CONT",
+        "sex_analysis": "POOL",
+        "population": "COOKIE_SIS",
+        "measure": "dcookie60",
+        "measure_role": "x",
+        "formula": "CombZ ~ Batch + x",
+        "focal": "x",
+        "engine": "CR2",
+        "expected_rank": 6,
+        "calibration": {
+          "size05": 0.0458,
+          "size10": 0.0949,
+          "mcse05": 0.00209,
+          "size05_range_scenarios": [
+            0.0451,
+            0.0621
+          ],
+          "df_median": 10.78475,
+          "singular_share": null,
+          "verdict": "ACCEPTABLE"
+        },
+        "expected_df_cr2": 10.784745,
+        "role": "ESTIMATION_ONLY",
+        "report": "focal estimate, standardized estimate, SE, df and 95% CI (same engine as the discovery tests); N animals, cages, batches; fit diagnostics; no p-value",
+        "classification": "none (ESTIMATION_ONLY)"
+      },
+      {
+        "id": "COOKIE-CAT-DC60-POOL",
+        "family": "COOKIE-CAT",
+        "block": "cookie",
+        "question": "CAT",
+        "sex_analysis": "POOL",
+        "population": "COOKIE_SIS",
+        "measure": "dcookie60",
+        "measure_role": "y",
+        "formula": "y ~ Batch + g_RS + (1 | CageEpisodeID)",
+        "focal": "g_RS (RES - SUS)",
+        "engine": "KR t",
+        "expected_rank": 6,
+        "calibration": {
+          "size05": 0.0356,
+          "size10": 0.0776,
+          "mcse05": 0.00262,
+          "size05_range_scenarios": [
+            0.0356,
+            0.0375
+          ],
+          "df_median": 63.36904,
+          "singular_share": 0,
+          "verdict": "ACCEPTABLE"
+        },
+        "robustness": "lm(y ~ Batch + g_RS) with CR2 by CageEpisodeID, Satterthwaite df (diagnostic, no family); a row with df < 4 is labelled LOW_DF and judged on direction and magnitude only (E4 null: COOKIE-CAT-DC60-M median df 5.1, < 4 in 19.8% of random draws)",
+        "role": "ESTIMATION_ONLY",
+        "report": "focal estimate, standardized estimate, SE, df and 95% CI (same engine as the discovery tests); N animals, cages, batches; fit diagnostics; no p-value",
+        "classification": "none (ESTIMATION_ONLY)"
+      }
+    ]
+  }
+}
