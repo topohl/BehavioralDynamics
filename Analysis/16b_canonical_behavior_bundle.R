@@ -10,7 +10,10 @@
 #   * the Stage 29 run used the currently frozen configuration (config sha256),
 #   * every Stage 29 input is byte-identical to what the run recorded,
 #   * the canonical code has not changed since the Stage 29 run commit,
-#   * every Holm family recomputes exactly from its raw p-values and has its declared size.
+#   * every Holm family recomputes exactly from its raw p-values and has its declared size,
+#   * (config v1.0.1 on) the Stage 29 run is a RELEASE run of data_versions$release: its preprocessed inputs are the
+#     manifest files with the manifest hashes, it passed the analytic-identity gate, and it recorded no block failure;
+#     the configuration itself is re-checked against its frozen analytic parent.
 # A bundle version directory is never overwritten; there is no "latest" pointer.
 # ================================================================
 
@@ -19,33 +22,63 @@ suppressPackageStartupMessages({ library(data.table); library(jsonlite); library
 .pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
 if (is.na(.pipeline_setup)) stop("Run from the MMMSociability repo root.", call. = FALSE)
 source(.pipeline_setup)
-source_mmm_helper("project_paths.R"); source_mmm_helper("behavior_analysis_config.R")
+source_mmm_helper("project_paths.R"); source_mmm_helper("behavior_analysis_config.R"); source_mmm_helper("behavior_config_identity.R")
 
 CFG <- MMM_BEHAVIOR_CONFIG; ROOT <- mmm_project_root(); AR <- file.path(ROOT, "analysis_ready")
-# DRY RUN (code testing only): MMM_STAGE16B_DRY_RUN_DIR = a Stage 29 dry-run folder; the freeze and git gates are skipped,
-# the bundle is written inside that folder with status DRY_RUN_NOT_FOR_USE and never registered in analysis_ready.
+CFG_ROOT <- file.path(AR, "canonical", "behavior_config")                  # frozen configuration versions (read only)
+REL_ROOT <- file.path(AR, "pipeline", "29_canonical_behavior_releases")    # immutable Stage 29 release runs (read only here)
+BUNDLE_ROOT <- file.path(AR, "canonical", "behavior_bundle")               # bundle versions (each written once)
+DV <- mmm_dv_resolve(CFG, ROOT)                                            # the release data version (data_versions$release)
+norm_path <- function(p) tolower(normalizePath(p, winslash = "/", mustWork = FALSE))
+inside <- function(path, root) startsWith(paste0(norm_path(path), "/"), paste0(norm_path(root), "/"))
+# DRY RUN (code testing only): MMM_STAGE16B_DRY_RUN_DIR = a Stage 29 folder (dry run or release); the freeze, run-mode and git
+# gates are skipped (the data-version and identity gates are not), the bundle gets status DRY_RUN_NOT_FOR_USE and is written to
+# MMM_STAGE16B_DRY_BUNDLE_DIR (default <Stage 29 folder>/bundle), which must lie outside analysis_ready; never registered there.
 DRY <- nzchar(Sys.getenv("MMM_STAGE16B_DRY_RUN_DIR"))
-S29 <- if (DRY) Sys.getenv("MMM_STAGE16B_DRY_RUN_DIR") else behavior_stage_dir(ROOT, "29", "canonical_behavior")
+if (DRY) S29 <- Sys.getenv("MMM_STAGE16B_DRY_RUN_DIR") else {
+  prefix <- sprintf("v%s_%s_", gsub(".", "", CFG$meta$config_version, fixed = TRUE), DV$tag)
+  cand <- list.files(REL_ROOT, pattern = paste0("^", prefix, "[0-9a-f]{7}$"))
+  pick <- Sys.getenv("MMM_STAGE16B_STAGE29_RUN")
+  if (nzchar(pick)) { if (!pick %in% cand) stop("MMM_STAGE16B_STAGE29_RUN = ", pick, " is not a release run ", prefix, "<commit7> under ", REL_ROOT, call. = FALSE)
+    cand <- pick }
+  if (length(cand) != 1) stop("Expected exactly one Stage 29 release run ", prefix, "<commit7> under ", REL_ROOT, " (found ", length(cand), ": ",
+                              paste(cand, collapse = ", "), "); name one with MMM_STAGE16B_STAGE29_RUN.", call. = FALSE)
+  S29 <- file.path(REL_ROOT, cand)
+}
 T29 <- file.path(S29, "tables"); A29 <- file.path(S29, "audit")
 S09 <- file.path(AR, "pipeline", "09_early_prediction")
 git <- function(...) system2("git", c("-C", shQuote(MMM_REPO_ROOT), ...), stdout = TRUE, stderr = TRUE)
 rd <- function(...) data.table::fread(file.path(...))
 sha_file <- function(f) digest::digest(file = f, algo = "sha256")
+is_true <- function(x) identical(toupper(as.character(x)), "TRUE")
 
 # ---------------------------------------------------------------- currency gates
 cfg_sha <- mmm_behavior_config_sha256(CFG)
-frozen_dir <- file.path(AR, "canonical", "behavior_config", paste0("v", CFG$meta$config_version))
-run <- rd(A29, "run_manifest.csv")
+frozen_dir <- file.path(CFG_ROOT, paste0("v", CFG$meta$config_version))
+run <- data.table::fread(file.path(A29, "run_manifest.csv"), colClasses = "character")   # character: commits and timestamps stay verbatim
 if (!DRY) {
   if (!identical(cfg_sha, readLines(file.path(frozen_dir, "config_sha256.txt"))[1])) stop("Config is not the frozen version.", call. = FALSE)
   if (!identical(run$config_sha256, cfg_sha)) stop("Stage 29 ran with a different config.", call. = FALSE)
-  if (isTRUE(run$dry_run)) stop("The Stage 29 run is a dry run.", call. = FALSE)
+  if (is_true(run$dry_run)) stop("The Stage 29 run is a dry run.", call. = FALSE)
+  if (!identical(run$run_mode, "RELEASE")) stop("Only a RELEASE Stage 29 run can be bundled (run_mode: ", run$run_mode %||% "<none>", ").", call. = FALSE)
+  rf <- file.path(A29, "run_failures.csv")
+  if (!file.exists(rf) || nrow(data.table::fread(rf)) > 0) stop("The Stage 29 run recorded block failures (audit/run_failures.csv).", call. = FALSE)
 }
+# data-version binding and analytic identity (every mode)
+if (!identical(run$data_version, DV$id) || !identical(run$data_version_tag, DV$tag) || !identical(run$data_manifest_sha256, DV$manifest_sha256))
+  stop("The Stage 29 run is not bound to the release data version ", DV$id, " (run: ", run$data_version %||% "<none>", ").", call. = FALSE)
+IDN <- mmm_cfg_check_parent(CFG, CFG_ROOT)
+if (!is_true(run$analytic_identity_ok) || !identical(run$analytic_parent_config_sha256, IDN$parent_sha256))
+  stop("The Stage 29 run did not pass the analytic-identity gate against frozen v", IDN$parent_version, ".", call. = FALSE)
+invisible(mmm_dv_verify(DV))   # the data version on disk still matches its manifest
 inp <- rd(A29, "run_inputs.csv")
+dvr <- mmm_dv_verify_run_inputs(DV, as.data.frame(inp))
+if (!dvr$ok) stop("Stage 29 inputs do not match data version ", DV$id, ": ", paste(dvr$problems, collapse = "; "), call. = FALSE)
 now <- vapply(inp$input, sha_file, "")
 if (any(now != inp$sha256)) stop("A Stage 29 input changed since the run: ", paste(inp$input[now != inp$sha256], collapse = ", "), call. = FALSE)
 code_files <- c("Analysis/29_canonical_behavior_characterization.R", "Functions/behavior_analysis_config.R", "Functions/rfid_event_stream.R",
-                "Functions/rfid_binfree_metrics.R", "Functions/rfid_canonical_inference.R", "Analysis/16b_canonical_behavior_bundle.R")
+                "Functions/rfid_binfree_metrics.R", "Functions/rfid_canonical_inference.R", "Functions/behavior_config_identity.R",
+                "Analysis/16b_canonical_behavior_bundle.R")
 if (!DRY) {
   if (length(git(c("status", "--porcelain", "--", code_files)))) stop("Canonical code has uncommitted changes.", call. = FALSE)
   changed <- git(c("diff", "--name-only", run$git_commit, "HEAD", "--", setdiff(code_files, "Analysis/16b_canonical_behavior_bundle.R")))
@@ -86,7 +119,7 @@ A0 <- data.table(
   timing = c("P25", "18:30-06:30 (12 h), from an estimated 2.3-8.5 h after the change", "after CC1", "18:30-06:30 (12 h) after each change",
              "during and after the paradigm", "terminal", "after all components", "after CombZ"),
   role = c("reference", "primary window (CC1)", "stressor", "trajectory windows (CC1-CC4)", "outcome", "outcome", "outcome", "classification"),
-  detail = c("no RFID recording exists before CC1", "bin-free antenna crossings and shared antenna-zone use",
+  detail = c("no RFID recording exists before CC1", paste("bin-free", CFG$metrics$crossing_rate$label, "and", CFG$metrics$shared_zone_use$label),
              "SIS: repeated changes of cage composition; CON: never regrouped", "same window definition at every cage change",
              "novel-object recognition and sucrose preference", "corticosterone, adrenal weight, spleen weight",
              "unweighted mean of six within-sex control-referenced z-scores", "within-sex control mean minus one control population SD"),
@@ -127,9 +160,9 @@ C2 <- rbindlist(list(
 C2[, result_id := paste(source, construct, estimand, ifelse(is.na(sex), "pooled", sex), sep = "|")]
 C2[REG29, on = "model_id", `:=`(n = data.table::fcoalesce(as.numeric(n), as.numeric(i.n_animals)), n_obs = i.n_obs, n_cage_episodes = i.n_cage_episodes)]
 if (anyDuplicated(C2$result_id)) stop("Duplicated result ids: ", paste(head(C2$result_id[duplicated(C2$result_id)]), collapse = ", "), call. = FALSE)
-C2[, unit := data.table::fcase(construct == "crossing_rate", "crossings/hour", construct == "shared_zone_use", "fraction of dyadic observation time",
-       construct == "occupancy_dispersion", "bits", construct == "fragmentation", "proportion of bouts",
-       construct == "light_phase_crossing_rate", "crossings/hour", default = NA_character_)]
+unit_of <- vapply(c("crossing_rate", "shared_zone_use", "occupancy_dispersion", "fragmentation", "light_phase_crossing_rate"),
+                  function(k) CFG$metrics[[k]]$unit, "")   # config metrics$<k>$unit (v1.0.1: E8 and shared-position units)
+C2[, unit := unname(unit_of[construct])]
 sdz <- c(crossing_rate = CFG$metrics$crossing_rate$standardizer_sd, shared_zone_use = CFG$metrics$shared_zone_use$standardizer_sd,
          occupancy_dispersion = CFG$metrics$occupancy_dispersion$standardizer_sd, fragmentation = CFG$metrics$fragmentation$standardizer_sd)
 C2[construct %in% names(sdz) & source == "stage29", estimate_standardized := estimate / sdz[construct]]
@@ -213,7 +246,9 @@ commit <- git("rev-parse", "HEAD")[1]
 bundle_id <- sprintf("ebb_v%s_%s_%s", gsub("\\.", "", CFG$meta$config_version), format(Sys.Date(), "%Y%m%d"), substr(commit, 1, 7))
 if (DRY) bundle_id <- paste0(bundle_id, "_dry", format(Sys.time(), "%H%M%S"))
 STATUS <- if (DRY) "DRY_RUN_NOT_FOR_USE" else "FROZEN"
-BROOT <- if (DRY) file.path(S29, "bundle") else file.path(AR, "canonical", "behavior_bundle"); BD <- file.path(BROOT, bundle_id)
+BROOT <- if (DRY) { b <- Sys.getenv("MMM_STAGE16B_DRY_BUNDLE_DIR"); if (nzchar(b)) b else file.path(S29, "bundle") } else BUNDLE_ROOT
+if (DRY && inside(BROOT, AR)) stop("A DRY bundle must be written outside analysis_ready (set MMM_STAGE16B_DRY_BUNDLE_DIR): ", BROOT, call. = FALSE)
+BD <- file.path(BROOT, bundle_id)
 if (dir.exists(BD)) stop("Bundle version exists (immutable): ", BD, call. = FALSE)
 dir.create(BD, recursive = TRUE)
 files <- list(A0_design_timeline = A0, A4_combz_animals = A4, P_primary_results = P, B2_descriptive_summaries = rd(T29, "descriptive_summaries.csv"),
@@ -229,11 +264,23 @@ for (n in names(files)) data.table::fwrite(files[[n]], file.path(BD, paste0(n, "
 if (DRY) writeLines(mmm_behavior_config_json(CFG), file.path(BD, "I_analysis_config.json"), useBytes = TRUE) else
   file.copy(file.path(frozen_dir, "behavior_analysis_config.json"), file.path(BD, "I_analysis_config.json"))
 writeLines(cfg_sha, file.path(BD, "I_config_sha256.txt"))
+cl_now <- Filter(function(e) identical(e$version, CFG$meta$config_version), CFG$meta$change_log)
+errata_doc <- "docs/BEHAVIOR_CONFIG_v1.0.0_ERRATA.md"; errata_path <- file.path(MMM_REPO_ROOT, errata_doc)
 H <- data.table(field = c("bundle_id", "status", "generated_at", "generator", "mmm_git_commit", "mmm_branch", "stage29_run_commit", "config_id",
-                        "config_version", "config_sha256", "stage29_started_at", "r_version", "packages", "active_window", "primary_population"),
+                        "config_version", "config_sha256", "stage29_started_at", "r_version", "packages", "active_window", "primary_population",
+                        # config v1.0.1 on: release provenance (appended; the 15 keys above keep their order)
+                        "stage29_finished_at", "stage29_run_mode", "stage29_output_dir", "data_version", "data_version_tag", "data_manifest_sha256",
+                        "preprocessed_dir", "analytic_parent_config_version", "analytic_parent_config_sha256", "analytic_identity_ok", "change_class",
+                        "supersedes_bundle", "manuscript_facing", "errata_doc", "errata_doc_sha256", "errata_doc_git_blob", "release_record"),
                 value = c(bundle_id, STATUS, format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"), "Analysis/16b_canonical_behavior_bundle.R", commit,
                           git("branch", "--show-current")[1], run$git_commit, CFG$meta$config_id, CFG$meta$config_version, cfg_sha, run$started_at,
-                          run$r_version, run$packages, CFG$windows$primary$definition, CFG$population$primary$definition))
+                          run$r_version, run$packages, CFG$windows$primary$definition, CFG$population$primary$definition,
+                          run$finished_at, run$run_mode %||% NA_character_, normalizePath(S29, winslash = "/", mustWork = FALSE), run$data_version,
+                          run$data_version_tag, run$data_manifest_sha256, run$preprocessed_dir, IDN$parent_version, IDN$parent_sha256, as.character(IDN$ok),
+                          if (length(cl_now)) cl_now[[1]]$summary else NA_character_, CFG$meta$release$supersedes_bundle %||% NA_character_,
+                          as.character(CFG$meta$release$manuscript_facing %||% NA), errata_doc,
+                          if (file.exists(errata_path)) sha_file(errata_path) else NA_character_, git("rev-parse", paste0("HEAD:", errata_doc))[1],
+                          if (length(cl_now)) cl_now[[1]]$release_record else NA_character_))
 data.table::setnames(H, "field", "key")   # "key" cannot be a data.table() argument name
 data.table::fwrite(H, file.path(BD, "H_provenance.csv"))
 s09_inputs <- c(file.path(S09, "10min", "tables", c("primary_prediction_predictions.csv", "model_ladder_input.csv", "early_prediction_permutation_draws.csv",

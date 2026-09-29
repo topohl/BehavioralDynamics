@@ -5,11 +5,14 @@
 # Serialises Functions/behavior_analysis_config.R to canonical JSON, hashes it
 # (SHA-256) and writes an immutable, versioned freeze record under
 #   analysis_ready/canonical/behavior_config/v<config_version>/
-# It fits no model and reads no behavioural data.
+# It fits no model and reads no behavioural data (data-version files are hashed, never parsed).
 #
 # Refuses to run if:
-#   * the config file has uncommitted changes (the frozen version must be a commit),
-#   * the version directory already exists (a frozen version is never rewritten).
+#   * the config file (or the identity-gate code) has uncommitted changes (the frozen version must be a commit),
+#   * the version directory already exists (a frozen version is never rewritten),
+#   * the config declares meta$analytic_parent and is not analytically identical to that frozen parent
+#     (Functions/behavior_config_identity.R; the accepted differences are written to v<version>/analytic_identity.csv),
+#   * a declared data version (data_versions) does not match its pinned manifest hash, file set and file hashes.
 # ================================================================
 
 suppressPackageStartupMessages({ library(jsonlite); library(digest) })
@@ -20,10 +23,11 @@ if (is.na(.pipeline_setup)) stop("Run from the MMMSociability repo root.", call.
 source(.pipeline_setup)
 source_mmm_helper("project_paths.R")
 source_mmm_helper("behavior_analysis_config.R")
+source_mmm_helper("behavior_config_identity.R")
 
 cfg_file <- file.path(MMM_REPO_ROOT, "Functions", "behavior_analysis_config.R")
 git <- function(...) system2("git", c("-C", shQuote(MMM_REPO_ROOT), ...), stdout = TRUE, stderr = TRUE)
-dirty <- git("status", "--porcelain", "--", "Functions/behavior_analysis_config.R")
+dirty <- git("status", "--porcelain", "--", "Functions/behavior_analysis_config.R", "Functions/behavior_config_identity.R")
 if (length(dirty)) stop("Config file has uncommitted changes; commit it first:\n", paste(dirty, collapse = "\n"), call. = FALSE)
 commit <- git("rev-parse", "HEAD")[1]
 blob <- git("rev-parse", "HEAD:Functions/behavior_analysis_config.R")[1]
@@ -60,9 +64,23 @@ sha <- mmm_behavior_config_sha256(cfg)
 root <- file.path(mmm_project_root(), "analysis_ready", "canonical", "behavior_config")
 vdir <- file.path(root, paste0("v", cfg$meta$config_version))
 if (dir.exists(vdir)) stop("Frozen version already exists (immutable): ", vdir, call. = FALSE)
+# analytic identity against the frozen parent (a documentation / data-version revision); stops unless ok
+idn <- NULL
+if (!is.null(cfg$meta$analytic_parent)) {
+  idn <- mmm_cfg_check_parent(cfg, root)
+  message("Analytic-identity gate passed against frozen v", idn$parent_version, " (", idn$parent_sha256, "): ",
+          nrow(idn$differences), " documentation/data-version leaves differ, 0 disallowed; ", sum(idn$checks$ok), "/", nrow(idn$checks), " checks")
+}
+# data-version binding: every declared version must match its pinned manifest, file set and file hashes (no rows are read)
+dv_ids <- setdiff(names(cfg$data_versions %||% list()), c("release", "rule"))
+for (id in dv_ids) { v <- mmm_dv_verify(mmm_dv_resolve(cfg, mmm_project_root(), id)); message("Data version ", id, ": ", sum(v$role == "preprocessed"), " files verified") }
 dir.create(vdir, recursive = TRUE)
 writeLines(json, file.path(vdir, "behavior_analysis_config.json"), useBytes = TRUE)
 file.copy(cfg_file, file.path(vdir, "behavior_analysis_config.R"))
+if (!is.null(idn)) {
+  write.csv(idn$differences, file.path(vdir, "analytic_identity.csv"), row.names = FALSE)
+  write.csv(idn$checks, file.path(vdir, "analytic_identity_checks.csv"), row.names = FALSE)
+}
 rec <- data.frame(
   config_id = cfg$meta$config_id, config_version = cfg$meta$config_version,
   config_json_sha256 = sha,

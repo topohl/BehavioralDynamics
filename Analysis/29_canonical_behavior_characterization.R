@@ -12,11 +12,20 @@
 #   2. primary / secondary / follow-up  5. diagnostics (zone variance, influence, homogeneity, allFit)
 #   3. multiplicity (applied once)      6. secondary estimation (exposure, continuous, light phase, lag, cumulative)
 #                                       7. Stage 09 declared sensitivities
-# Outputs: analysis_ready/pipeline/29_canonical_behavior/{tables,audit}/. Stage 16b bundles them.
-# Manual stage (not in run_all_analysis.R).
+# Outputs (config v1.0.1 on): one new immutable release folder per run,
+#   analysis_ready/pipeline/29_canonical_behavior_releases/v<config_version without dots>_<data-version tag>_<commit7>/{tables,audit}/,
+# written in a .tmp_<name> staging folder and renamed only after a complete run without block failures; an existing
+# release folder is never overwritten. pipeline/29_canonical_behavior/ (the config v1.0.0 runs) is never written again.
+# Stage 16b bundles a release folder. Manual stage (not in run_all_analysis.R).
 #
-# DRY RUN (code testing only): set MMM_STAGE29_DRY_RUN_DIR; RES/SUS labels are permuted among SIS
-# animals within Batch, CombZ is permuted, the freeze gate is skipped and output goes to that folder.
+# RUN MODES
+#   RELEASE (default): freeze gate (config hash), committed code, analytic-identity gate against the frozen parent
+#     (meta$analytic_parent), data version = data_versions$release with its manifest gate. The only mode 16b bundles.
+#   CONTROL: MMM_STAGE29_CONTROL_DIR = an output folder outside analysis_ready. Every RELEASE gate, unpermuted labels,
+#     optionally MMM_STAGE29_DATA_VERSION = another declared data version (e.g. v1_original, to reproduce the frozen
+#     v1.0.0 tables byte for byte). Never bundled.
+#   DRY (code testing only): MMM_STAGE29_DRY_RUN_DIR (outside analysis_ready); RES/SUS labels are permuted among SIS
+#     animals within Batch, CombZ is permuted, the freeze and code gates are skipped; the identity and data gates run.
 # ================================================================
 
 suppressPackageStartupMessages({ library(data.table); library(jsonlite); library(digest) })
@@ -24,7 +33,8 @@ suppressPackageStartupMessages({ library(data.table); library(jsonlite); library
 .pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
 if (is.na(.pipeline_setup)) stop("Run from the MMMSociability repo root.", call. = FALSE)
 source(.pipeline_setup)
-for (h in c("project_paths.R", "behavior_analysis_config.R", "rfid_event_stream.R", "rfid_binfree_metrics.R", "rfid_canonical_inference.R"))
+for (h in c("project_paths.R", "behavior_analysis_config.R", "behavior_config_identity.R", "rfid_event_stream.R", "rfid_binfree_metrics.R",
+            "rfid_canonical_inference.R"))
   source_mmm_helper(h)
 for (p in c("lmerTest", "pbkrtest", "glmmTMB", "clubSandwich", "sandwich", "Matrix", "reformulas"))
   if (!requireNamespace(p, quietly = TRUE)) stop("Missing package ", p, call. = FALSE)
@@ -32,33 +42,64 @@ for (p in c("lmerTest", "pbkrtest", "glmmTMB", "clubSandwich", "sandwich", "Matr
 CFG <- MMM_BEHAVIOR_CONFIG; M <- CFG$models; ALPHA <- CFG$meta$alpha
 ROOT <- mmm_project_root(); AR <- file.path(ROOT, "analysis_ready")
 RFID_SRC <- file.path(ROOT, "MMMSociability")
-PRE <- file.path(RFID_SRC, "preprocessed_data"); RAW <- file.path(RFID_SRC, "raw_data")
+CFG_ROOT <- file.path(AR, "canonical", "behavior_config")                  # frozen configuration versions (read only)
+REL_ROOT <- file.path(AR, "pipeline", "29_canonical_behavior_releases")    # immutable Stage 29 release runs (written once)
+DRY <- nzchar(Sys.getenv("MMM_STAGE29_DRY_RUN_DIR")); CONTROL <- nzchar(Sys.getenv("MMM_STAGE29_CONTROL_DIR"))
+if (DRY && CONTROL) stop("Set at most one of MMM_STAGE29_DRY_RUN_DIR and MMM_STAGE29_CONTROL_DIR.", call. = FALSE)
+MODE <- if (DRY) "DRY" else if (CONTROL) "CONTROL" else "RELEASE"
+dv_req <- Sys.getenv("MMM_STAGE29_DATA_VERSION")
+DV <- mmm_dv_resolve(CFG, ROOT, if (nzchar(dv_req)) dv_req else CFG$data_versions$release); DVX <- DV$spec
+if (MODE == "RELEASE" && !DV$is_release)
+  stop("A RELEASE run reads data_versions$release (", CFG$data_versions$release, "); MMM_STAGE29_DATA_VERSION is for CONTROL and DRY runs.", call. = FALSE)
+PRE <- DV$dir; RAW <- file.path(RFID_SRC, "raw_data")
 if (!dir.exists(PRE)) stop("Missing ", PRE, call. = FALSE)
-DRY <- nzchar(Sys.getenv("MMM_STAGE29_DRY_RUN_DIR"))
-OUT <- if (DRY) Sys.getenv("MMM_STAGE29_DRY_RUN_DIR") else behavior_stage_dir(ROOT, "29", "canonical_behavior")
-TAB <- file.path(OUT, "tables"); AUD <- file.path(OUT, "audit")
-dir.create(TAB, recursive = TRUE, showWarnings = FALSE); dir.create(AUD, recursive = TRUE, showWarnings = FALSE)
-wr <- function(x, name) data.table::fwrite(x, file.path(TAB, name))
+git <- function(...) system2("git", c("-C", shQuote(MMM_REPO_ROOT), ...), stdout = TRUE, stderr = TRUE)
+norm_path <- function(p) tolower(normalizePath(p, winslash = "/", mustWork = FALSE))
+inside <- function(path, root) startsWith(paste0(norm_path(path), "/"), paste0(norm_path(root), "/"))
 
-# ---------------------------------------------------------------- 0. freeze gate
+# ---------------------------------------------------------------- 0. freeze, code, analytic-identity and data-version gates
 cfg_sha <- mmm_behavior_config_sha256(CFG)
-frozen_dir <- file.path(AR, "canonical", "behavior_config", paste0("v", CFG$meta$config_version))
+frozen_dir <- file.path(CFG_ROOT, paste0("v", CFG$meta$config_version))
 frozen_sha <- if (file.exists(file.path(frozen_dir, "config_sha256.txt"))) readLines(file.path(frozen_dir, "config_sha256.txt"))[1] else NA
 if (!DRY && !identical(cfg_sha, frozen_sha))
   stop("Configuration is not frozen or differs from frozen v", CFG$meta$config_version, " (", frozen_sha, " vs ", cfg_sha, ").", call. = FALSE)
-git <- function(...) system2("git", c("-C", shQuote(MMM_REPO_ROOT), ...), stdout = TRUE, stderr = TRUE)
 code_files <- c("Analysis/29_canonical_behavior_characterization.R", "Functions/behavior_analysis_config.R", "Functions/rfid_event_stream.R",
-                "Functions/rfid_binfree_metrics.R", "Functions/rfid_canonical_inference.R")
+                "Functions/rfid_binfree_metrics.R", "Functions/rfid_canonical_inference.R", "Functions/behavior_config_identity.R")
 dirty <- git(c("status", "--porcelain", "--", code_files))
 if (!DRY && length(dirty)) stop("Canonical code has uncommitted changes:\n", paste(dirty, collapse = "\n"), call. = FALSE)
-RUN <- list(config_version = CFG$meta$config_version, config_sha256 = cfg_sha, git_commit = git("rev-parse", "HEAD")[1],
-            dry_run = DRY, started_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"))
-message(if (DRY) "Stage 29 DRY RUN (not frozen-gated): config " else "Stage 29: frozen config v", CFG$meta$config_version, " ", cfg_sha,
-        " at commit ", RUN$git_commit)
+commit <- git("rev-parse", "HEAD")[1]
+if (!DRY && !grepl("^[0-9a-f]{40}$", commit)) stop("Cannot resolve the git commit: ", commit, call. = FALSE)
+# analytic identity: v<config_version> must be analytically identical to its frozen parent (stops otherwise)
+IDN <- if (is.null(CFG$meta$analytic_parent)) list(ok = NA, parent_version = NA_character_, parent_sha256 = NA_character_, differences = data.frame()) else
+  mmm_cfg_check_parent(CFG, CFG_ROOT)
+if (MODE == "RELEASE") {
+  REL_NAME <- sprintf("v%s_%s_%s", gsub(".", "", CFG$meta$config_version, fixed = TRUE), DV$tag, substr(commit, 1, 7))
+  OUT <- file.path(REL_ROOT, REL_NAME); WORK <- file.path(REL_ROOT, paste0(".tmp_", REL_NAME))
+  if (dir.exists(OUT)) stop("Stage 29 release run exists (immutable): ", OUT, call. = FALSE)
+  if (dir.exists(WORK)) stop("A partial release run exists; inspect and remove it first: ", WORK, call. = FALSE)
+} else {
+  OUT <- normalizePath(Sys.getenv(if (DRY) "MMM_STAGE29_DRY_RUN_DIR" else "MMM_STAGE29_CONTROL_DIR"), winslash = "/", mustWork = FALSE); WORK <- OUT
+  if (inside(OUT, AR)) stop(MODE, " runs must write outside analysis_ready: ", OUT, call. = FALSE)
+}
+# data version: manifest hash, exact file set and per-file hashes, before any row is read (stops otherwise)
+dv_inputs <- mmm_dv_verify(DV)
+TAB <- file.path(WORK, "tables"); AUD <- file.path(WORK, "audit")
+dir.create(TAB, recursive = TRUE, showWarnings = FALSE); dir.create(AUD, recursive = TRUE, showWarnings = FALSE)
+wr <- function(x, name) data.table::fwrite(x, file.path(TAB, name))
+if (nrow(IDN$differences)) data.table::fwrite(IDN$differences, file.path(AUD, "analytic_identity.csv"))
+RUN <- list(config_version = CFG$meta$config_version, config_sha256 = cfg_sha, git_commit = commit,
+            dry_run = DRY, run_mode = MODE, data_version = DV$id, data_version_tag = DV$tag, data_manifest_sha256 = DV$manifest_sha256,
+            preprocessed_dir = PRE, out_dir = OUT, analytic_parent_config_version = IDN$parent_version,
+            analytic_parent_config_sha256 = IDN$parent_sha256, analytic_identity_ok = IDN$ok,
+            started_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"))
+message(if (DRY) "Stage 29 DRY RUN (not frozen-gated): config " else paste0("Stage 29 ", MODE, ": frozen config v"), CFG$meta$config_version, " ", cfg_sha,
+        " at commit ", RUN$git_commit, "; data version ", DV$id, " (", DV$tag, "); output ", OUT)
 
 # ---------------------------------------------------------------- 1. metrics and runtime gates
 crit <- CFG$metrics$fragmentation$bout_criterion_s
 st <- mmm_evs_build_stream(PRE, RAW)
+if (!setequal(norm_path(st$input_files), norm_path(dv_inputs$input[dv_inputs$role == "preprocessed"])))
+  stop("The event stream read files other than the verified data-version files.", call. = FALSE)
 aw <- mmm_evs_window_stream(st, "active"); lw <- mmm_evs_window_stream(st, "light")
 prim <- mmm_bf_window_table(aw, crit)
 file_end <- st$pos[, .(file_last = max(DateTime)), by = SourceFile]
@@ -86,16 +127,17 @@ new_only <- fsetdiff(key_cc(st$seeds), key_cc(old_seeds))
 chk <- merge(prim$animals[, .(AnimalNum, CC, n_events)], s01sum, by = c("AnimalNum", "CC"), all = TRUE)
 chk[, reseeded := paste(AnimalNum, CC) %in% paste(new_only$AnimalNum, new_only$CC)]
 wr(chk, "validation_events_vs_stage01.csv")
-if (nrow(new_only) != 8) stop("Expected 8 newly seeded animal-windows, found ", nrow(new_only), call. = FALSE)
+rg <- DVX$runtime_gates   # data-version facts (config data_versions); identical for v1_original and v2
+if (nrow(new_only) != rg$reseeded_windows) stop("Expected ", rg$reseeded_windows, " newly seeded animal-windows, found ", nrow(new_only), call. = FALSE)
 if (nrow(chk[reseeded == FALSE & (is.na(n_events) | is.na(mov01) | n_events != mov01)])) stop("Event-stream gate failed.", call. = FALSE)
-if (nrow(prim$animals) != 444) stop("Expected 444 active windows.", call. = FALSE)
+if (nrow(prim$animals) != rg$active_windows) stop("Expected ", rg$active_windows, " active windows.", call. = FALSE)
 # gate 2: anchors equal the Stage 28 provenance for 24/24 SourceFiles
 prov <- data.table::fread(file.path(AR, "pipeline", "28_rfid_behavioral_domains", "10min", "tables", "acute_window_provenance_by_animal_cagechange.csv"),
                           select = c("SourceFile", "target_window_start"))
 prov <- unique(prov); prov[, target_window_start := as.POSIXct(target_window_start, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")]
 anc <- merge(st$windows[, .(SourceFile, active_start)], prov, by = "SourceFile")
 wr(anc, "validation_anchor_vs_stage28.csv")
-if (nrow(anc) != 24 || any(anc$active_start != anc$target_window_start)) stop("Anchor gate failed.", call. = FALSE)
+if (nrow(anc) != rg$anchor_sourcefiles || any(anc$active_start != anc$target_window_start)) stop("Anchor gate failed.", call. = FALSE)
 if (!all(wcov$light_complete)) warning("Some light-phase windows are incomplete and set to NA (see audit).")
 wr(wcov, "validation_window_coverage.csv")
 
@@ -129,9 +171,24 @@ wr(des, "canonical_window_metrics.csv"); wr(prim$dyads, "canonical_dyads.csv")
 CON_SET <- c("crossing_rate", "shared_zone_use", "occupancy_dispersion", "fragmentation")
 tier <- c(crossing_rate = "primary", shared_zone_use = "primary", occupancy_dispersion = "secondary", fragmentation = "secondary")
 sisd <- des[Group != "CON"]
-ex <- CFG$population$expected_counts
+ex <- DVX$expected_counts   # data-version facts; data_versions$v1_original$expected_counts == population$expected_counts (v1.0.0)
 for (k in CON_SET) { e <- if (k == "shared_zone_use") ex$shared_zone_use else ex$other_constructs
   if (sisd[CC == "CC1" & is.finite(get(k)), .N] != e$CC1_animals || sisd[is.finite(get(k)), .N] != e$windows) stop("Count gate failed for ", k, call. = FALSE) }
+# data-version gates, hard stops before any model: complete-case missing set and D2 dyad / cage-epoch counts
+miss0 <- unique(sisd[!is.finite(shared_zone_use), AnimalNum])
+if (!setequal(miss0, as.character(unlist(DVX$complete_case_missing))))
+  stop("Data gate: SIS animals with a missing shared_zone_use window (", paste(sort(miss0), collapse = ", "), ") differ from data version ",
+       DV$id, " (", paste(unlist(DVX$complete_case_missing), collapse = ", "), ").", call. = FALSE)
+g0 <- unique(des[, .(AnimalNum, CC, Group, CageEpisodeID)])
+dy0 <- merge(merge(prim$dyads[, .(A, B, CC, obs_s)], g0[, .(A = AnimalNum, CC, GA = Group, CageEpisodeID)], by = c("A", "CC")),
+             g0[, .(B = AnimalNum, CC, GB = Group)], by = c("B", "CC"))[GA != "CON" & GB != "CON" & obs_s > 0]
+d2n <- c(cc1_cage_epochs = uniqueN(dy0[CC == "CC1", CageEpisodeID]), cc1_dyads = nrow(dy0[CC == "CC1"]),
+         tr_cage_epochs = uniqueN(dy0$CageEpisodeID), tr_dyads = nrow(dy0))
+d2e <- unlist(DVX$d2)[names(d2n)]
+if (any(d2n != d2e) || DVX$d2$tr_rank != DVX$d2$tr_cage_epochs + 8)
+  stop("Data gate: D2 dyad counts ", paste(names(d2n), d2n, sep = "=", collapse = ", "), " differ from data version ", DV$id, " (",
+       paste(names(d2e), d2e, sep = "=", collapse = ", "), ").", call. = FALSE)
+rm(g0, dy0)
 
 fits <- list(); est <- list(); jt <- list(); reg <- list()
 keep <- function(m) { reg[[m$info$model_id]] <<- m$info; fits[[m$info$model_id]] <<- m; m }
@@ -326,7 +383,7 @@ dy[, `:=`(c2 = as.numeric(cc == 2), c3 = as.numeric(cc == 3), c4 = as.numeric(cc
 wr(dy, "d2_dyads.csv")
 scale_fac <- sisd[is.finite(shared_zone_use), .(f = mean((n_in_cage - 2) / (n_in_cage - 1))), by = CC]
 d2a <- mmm_ci_d2(dy[CC == "CC1"]); d2b <- mmm_ci_d2(dy, longitudinal = TRUE)
-if (d2a$n_cages[1] != CFG$population$expected_counts$shared_zone_use$CC1_cage_clusters$pooled) stop("D2: unexpected CC1 cage count.", call. = FALSE)
+if (d2a$n_cages[1] != DVX$expected_counts$shared_zone_use$CC1_cage_clusters$pooled) stop("D2: unexpected CC1 cage count.", call. = FALSE)
 assess <- function(beta, beta_se, dfv, fac, pe) { implied <- beta * fac
   lo <- 2 * (beta - stats::qt(.975, dfv) * beta_se); hi <- 2 * (beta + stats::qt(.975, dfv) * beta_se)
   list(implied_animal_level = implied, same_direction = sign(implied) == sign(pe$estimate),
@@ -349,7 +406,7 @@ sens_all("D4b_tracked_mate_factor", k, refit(k, dat(k), dat(k, FALSE), "D4b",
   f1 = sub("+ (1 | CageEpisodeID)", "+ factor(n_tracked_mates) + (1 | CageEpisodeID)", fsub(M$CC1_POOLED$formula), fixed = TRUE),
   fL = sub("+ (1 | AnimalNum)", "+ factor(n_tracked_mates) + (1 | AnimalNum)", fsub(M$TR_POOLED$formula), fixed = TRUE), r1 = 9, rL = 22))
 miss <- unique(sisd[!is.finite(shared_zone_use), AnimalNum]); ccd <- sisd[!(AnimalNum %in% miss)]
-if (!setequal(miss, c("OQ755", "OQ770", "OQ771"))) stop("Complete case: missing-window animals differ from the frozen set: ", paste(miss, collapse = ", "), call. = FALSE)
+if (!setequal(miss, as.character(unlist(DVX$complete_case_missing)))) stop("Complete case: missing-window animals differ from the data-version set: ", paste(miss, collapse = ", "), call. = FALSE)
 sens_all("complete_case_zone", k, refit(k, dat(k, TRUE, ccd), dat(k, FALSE, ccd), "complete_case", r1 = 8, rL = 20))
 sens_all("S18_B1_excluded", k, refit(k, dat(k, TRUE, sisd[Batch != "B1"]), dat(k, FALSE, sisd[Batch != "B1"]), "S18", r1 = 7, rL = 19))
 })
@@ -527,13 +584,17 @@ wr(S09S, "stage09_cv_sensitivities.csv"); wr(S09X, "stage09_batch_adjusted_sex_i
 wr(rbindlist(reg, fill = TRUE), "model_registry.csv")
 wr(rbindlist(lapply(c(CON_SET, "light_phase_crossing_rate"), function(k) des[, .(construct = k, n = sum(is.finite(get(k))),
   mean = mean(get(k), na.rm = TRUE), sd = stats::sd(get(k), na.rm = TRUE)), by = .(CC, Sex, Group)])), "descriptive_summaries.csv")
-inputs <- c(st$input_files, file.path(AR, "canonical", "later_outcome_combz", "tables", "later_outcome_combz_animal_level.csv"),
+stage_inputs <- c(file.path(AR, "canonical", "later_outcome_combz", "tables", "later_outcome_combz_animal_level.csv"),
             file.path(AR, "pipeline", "09_early_prediction", "10min", "tables", "model_ladder_input.csv"),
             file.path(lagdir, "10min", "tables", "acute_window_raw_features.csv"), file.path(lagdir, "5min", "tables", "acute_window_raw_features.csv"),
             file.path(lagdir, "10min", "tables", "acute_window_provenance_by_animal_cagechange.csv"),
             file.path(mmm_derived_metrics_output_root(ROOT), "10min_based", "all_behavior_metrics.csv"))
-data.table::fwrite(data.table(input = inputs, bytes = file.size(inputs), sha256 = vapply(inputs, function(f) digest::digest(file = f, algo = "sha256"), "")),
-                   file.path(AUD, "run_inputs.csv"))
+seed_inputs <- sort(unique(c(st$seeds$raw_file, old_seeds$raw_file)))   # raw_data AnimalPos files read for the pre-window seeds
+dv_extra <- dv_inputs[dv_inputs$role != "preprocessed", ]
+inputs <- c(st$input_files, stage_inputs, seed_inputs, dv_extra$input)
+roles <- c(rep("preprocessed", length(st$input_files)), rep("stage_input", length(stage_inputs)), rep("raw_seed", length(seed_inputs)), dv_extra$role)
+data.table::fwrite(data.table(input = inputs, bytes = file.size(inputs), sha256 = vapply(inputs, function(f) digest::digest(file = f, algo = "sha256"), ""),
+                              role = roles), file.path(AUD, "run_inputs.csv"))
 pk <- c("lme4", "lmerTest", "pbkrtest", "glmmTMB", "clubSandwich", "sandwich", "data.table", "Matrix", "reformulas")
 RUN$finished_at <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"); RUN$r_version <- R.version.string
 RUN$packages <- paste(sprintf("%s %s", pk, vapply(pk, function(p) as.character(utils::packageVersion(p)), "")), collapse = "; ")
@@ -547,4 +608,10 @@ data.table::fwrite(RF, file.path(AUD, "run_failures.csv"))
 if (nrow(RF)) warning(nrow(RF), " block(s) FAILED and were recorded in audit/run_failures.csv: ", paste(RF$block, collapse = "; "))
 n_failed <- sum(vapply(reg, function(i) isTRUE(i$failed), TRUE))
 if (n_failed) warning(n_failed, " model(s) FAILED under fitting$failure_rule; their rows are reported FAILED (see model_registry.csv).")
-message("Stage 29 complete: ", length(outs), " tables, ", length(reg), " models in ", TAB)
+if (MODE == "RELEASE") {   # finalise: an unexpected block failure leaves the staging folder for inspection and no release
+  if (nrow(RF)) stop("Release NOT finalised: ", nrow(RF), " block failure(s) recorded in ", file.path(AUD, "run_failures.csv"), call. = FALSE)
+  if (dir.exists(OUT)) stop("Release folder appeared during the run (immutable): ", OUT, call. = FALSE)
+  if (!file.rename(WORK, OUT)) stop("Could not rename ", WORK, " to ", OUT, call. = FALSE)
+  Sys.chmod(list.files(OUT, recursive = TRUE, full.names = TRUE), mode = "0444")
+}
+message("Stage 29 ", MODE, " complete: ", length(outs), " tables, ", length(reg), " models in ", file.path(OUT, "tables"))
