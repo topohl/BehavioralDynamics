@@ -10,7 +10,10 @@
 # standardization rule (deterministic unit rescaling, checked against the stored standardized estimate to 1e-12), and
 # (d) compute descriptive summaries of declared plotting quantities only: counts, medians, quartiles (R quantile
 # type 7), minima / maxima and centroid (arithmetic) means. The one derived line (S3d) is the COOKIE-CONT display line
-# through the sex-specific centroid with the frozen slope; no model is refitted.
+# through the sex-resolved centroid with the frozen slope; no model is refitted.
+# Gate order of a write: every pre-write gate (runner) -> staging folder (tables, H_provenance, H2_inputs, H3_gate_results
+# = the pre-write gate table, 00_manifest) -> rename -> 0444 -> post-write gates (manifest re-verification, read-only) ->
+# only then the BUNDLE_REGISTRY.csv row -> registration gate -> the complete gate table in logs/<bundle_id>_gate_results.csv.
 # Requires: data.table, digest.
 # ================================================================
 
@@ -55,7 +58,7 @@ S30FB_SEX_ORDER <- c("F", "M", "INT")
 S30FB_ESTIMAND_KEY <- list(CAT = c(F = "RS_F", M = "RS_M", INT = "INT_FM", POOL = "POOL"),
                            CONT = c(F = "SLOPE_F", M = "SLOPE_M", INT = "INT_FM", POOL = "POOL"))
 S30FB_LINE_DERIVATION <- paste("batch-averaged (n-weighted) fitted line of the registered CombZ ~ Batch + x (OLS normal equations:",
-                               "passes through the sex-specific centroid with the frozen slope); no model refitted")
+                               "passes through the sex-resolved centroid with the frozen slope); no model refitted")
 S30FB_SCIENTIFIC_RECOMPUTATION <- paste("none; copies of frozen values; descriptive summaries (counts, medians, quartiles, centroid means)",
                                         "and unit rescaling of stored estimates only")
 S30FB_GROUP_RULE <- "CON if on con_animals.csv, else SUS if on sus_animals.csv, else RES (the Stage 30 driver rule, s30sc_labels_from_lists)"
@@ -64,11 +67,19 @@ S30FB_DESCRIPTIVE_COMPUTATIONS <- c(
   "S1c: n, median, q25/q75 (R quantile type 7), min, max of light_phase_crossing_rate and posinact40_light by Sex x Group and over all 87 SIS animals at CC1; n_ge_0.99 = count of posinact40_light >= 0.99",
   "S2b: n_windows and n_animals counted in x4_01 (X = 40, per phase); rho and ICC are copies (registry rounded; w1_04 full precision)",
   "S3b: n, median, q25/q75 (type 7) of PRE60, POST60, dcookie60 by Sex and pooled (77) and of dcookie60 by Sex x Group; n_increased = count of dcookie60 > 0; the all_97_registry_qc row is copied from the registry",
-  "S3d: x_mean, y_mean = arithmetic means of dcookie60 and CombZ over the model's animals; x_min, x_max; y_at_x = y_mean + slope * (x - x_mean) with the frozen slope",
+  "S3d: x_mean, y_mean = arithmetic means of dcookie60 and CombZ over the model's animals (the sex-resolved centroid); x_min, x_max; y_at_x = y_mean + slope * (x - x_mean) with the frozen slope",
   "S4: ordinal layout keys (row_order, col_order) only")
 S30FB_PROVENANCE_KEYS <- c("bundle_id", "status", "generated_at", "generator", "mmm_git_commit", "mmm_branch", "stage30_run_dir",
                            "stage30_run_commit", "stage30_registry_sha256", "stage30_output_manifest_sha256", "stage29_bundle_id",
-                           "stage29_bundle_manifest_sha256", "scientific_recomputation", "descriptive_computations")
+                           "stage29_bundle_manifest_sha256", "scientific_recomputation", "descriptive_computations",
+                           "pre_write_gates_passed", "gate_results")
+# gate tables: the pre-write gates inside the bundle (listed in 00_manifest); the complete table (pre-write, post-write and
+# registration gates) in a run log beside BUNDLE_REGISTRY.csv, outside the immutable bundle folder
+S30FB_GATE_FILE <- "H3_gate_results.csv"
+S30FB_LOG_DIR <- "logs"
+S30FB_GATE_COLS <- c("stage", "gate", "passed", "hard", "detail")
+s30fb_log_path <- function(out_root, bundle_id) file.path(out_root, S30FB_LOG_DIR, paste0(bundle_id, "_gate_results.csv"))
+s30fb_gate_count <- function(gates) sprintf("%d of %d", sum(gates$passed), nrow(gates))
 S30FB_TABLES <- c("S0_master_hypotheses", "S0b_pool_estimates", "S0c_l_components", "S0d_sensitivities", "S0e_lobo",
                   "S1_light_animals_cc1", "S1b_light_estimates", "S1c_light_descriptives", "S2_rate_inactivity_windows",
                   "S2b_rate_inactivity_relationship", "S3_cookie_animals", "S3b_cookie_descriptives", "S3c_cookie_estimates",
@@ -415,9 +426,11 @@ s30fb_cookie_descriptives <- function(s3, qc) {
 #' S3d: one display line per sex through the centroid of (x, y) over exactly the model's animals with the frozen slope.
 #' For CombZ ~ Batch + x the OLS normal equations give intercept_b = ybar_b - slope * xbar_b in every batch; their
 #' n-weighted average is ybar - slope * xbar, so the batch-averaged fitted line passes through the centroid.
-s30fb_cookie_lines <- function(s3, master, ids = c(Female = "COOKIE-CONT-DC60-F", Male = "COOKIE-CONT-DC60-M"), x_col = "dcookie60", y_col = "CombZ") {
+#' The derivation text is checked with the banned-display-word guard (it may be shown as a figure note).
+s30fb_cookie_lines <- function(s3, master, ids = c(Female = "COOKIE-CONT-DC60-F", Male = "COOKIE-CONT-DC60-M"), x_col = "dcookie60", y_col = "CombZ",
+                               derivation = S30FB_LINE_DERIVATION) {
   s3 <- data.table::as.data.table(s3); M <- s30fb_drop_run_mode(master)
-  data.table::rbindlist(lapply(names(ids), function(sx) {
+  out <- data.table::rbindlist(lapply(names(ids), function(sx) {
     fr <- s30fb_one(M[id == ids[[sx]]], ids[[sx]]); d <- s3[Sex == sx]
     x <- d[[x_col]]; y <- d[[y_col]]
     if (anyNA(x) || anyNA(y)) stop("S3d: NA in the line data for ", sx, call. = FALSE)
@@ -428,8 +441,10 @@ s30fb_cookie_lines <- function(s3, master, ids = c(Female = "COOKIE-CONT-DC60-F"
     data.table::data.table(Sex = sx, sex_analysis = fr$sex_analysis, id = fr$id, n = nrow(d), n_batches = data.table::uniqueN(d$Batch), x_col = x_col, y_col = y_col,
                            x_mean = x_mean, y_mean = y_mean, slope = b, slope_ci_low = fr$ci_low, slope_ci_high = fr$ci_high,
                            x_min = x_min, x_max = x_max, y_at_x_min = y_mean + b * (x_min - x_mean), y_at_x_max = y_mean + b * (x_max - x_mean),
-                           derivation = S30FB_LINE_DERIVATION)
+                           derivation = derivation)
   }))
+  s30fb_check_display(out, "derivation", "S3d_cookie_cont_lines")
+  out[]
 }
 
 #' S2b: the stored rate-inactivity relationship: registry rounded values and the w1_04 full-precision values, with the
@@ -521,29 +536,98 @@ s30fb_provenance <- function(fields) {
   if (anyDuplicated(h$key)) stop("H_provenance has duplicated keys.", call. = FALSE)
   h
 }
-#' Write the bundle once: refuse if the version folder, its staging folder or its registry row exists; write every table,
-#' H_provenance, H2_inputs and 00_manifest (file, bytes, sha256, schema_version; every other file) into a staging folder,
-#' rename it, make the files read-only (0444) and append the BUNDLE_REGISTRY.csv row beside it.
-s30fb_write_bundle <- function(tables, out_root, bundle_id, provenance, inputs, status, stage30_run_commit, mmm_git_commit, created_at) {
+#' The files a bundle's 00_manifest.csv must list (00_manifest.csv itself is not listed).
+s30fb_bundle_files <- function() c(paste0(S30FB_TABLES, ".csv"), "H_provenance.csv", "H2_inputs.csv", S30FB_GATE_FILE)
+
+#' Post-write gates on the renamed bundle folder, run BEFORE the BUNDLE_REGISTRY.csv row is appended: 00_manifest.csv read
+#' back equals the manifest written; every listed file matches it (bytes, SHA-256) and nothing else is in the folder; the
+#' manifest lists exactly the declared files; every file is read-only. Returns gate rows (stage 7-write); never stops.
+s30fb_post_write_gates <- function(bd, manifest, expected_files = s30fb_bundle_files()) {
+  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("7-write", name, passed, detail)
+  m <- data.table::as.data.table(manifest); mf <- file.path(bd, "00_manifest.csv")
+  back <- if (file.exists(mf)) data.table::fread(mf, colClasses = "character") else data.table::data.table()
+  add("00_manifest.csv read back = the manifest written (file, bytes, sha256, schema_version)",
+      nrow(back) == nrow(m) && identical(names(back), names(m)) && identical(back$file, m$file) && identical(back$sha256, m$sha256) &&
+        identical(as.numeric(back$bytes), as.numeric(m$bytes)) && identical(back$schema_version, as.character(m$schema_version)), mf)
+  chk <- s30fb_manifest_check(bd, m); on_disk <- s30fb_files_on_disk(bd); extra <- setdiff(on_disk, c(m$file, "00_manifest.csv"))
+  add("written bundle: every file = 00_manifest (bytes and SHA-256); nothing else in the folder",
+      nrow(chk) > 0L && all(chk$ok) && !length(extra) && "00_manifest.csv" %in% on_disk,
+      paste(c(bd, if (!all(chk$ok)) paste("mismatch:", paste(chk$file[!chk$ok], collapse = ",")), if (length(extra)) paste("extra:", paste(extra, collapse = ","))), collapse = "; "))
+  add("00_manifest lists exactly the declared files (16 tables, H_provenance, H2_inputs, H3_gate_results)",
+      setequal(m$file, expected_files) && !anyDuplicated(m$file), paste(c(setdiff(expected_files, m$file), setdiff(m$file, expected_files)), collapse = ","))
+  fl <- list.files(bd, full.names = TRUE, all.files = TRUE, no.. = TRUE)
+  add("written files are read-only", length(fl) > 0L && all(file.access(fl, 2L) != 0L), bd)
+  data.table::rbindlist(g)
+}
+#' Registration gate: BUNDLE_REGISTRY.csv holds exactly one row for the bundle, with its status and 00_manifest hash.
+s30fb_registration_gate <- function(reg, bundle_id, status, manifest_sha256) {
+  r <- if (file.exists(reg)) data.table::fread(reg, colClasses = "character") else data.table::data.table(bundle_id = character(), status = character(), manifest_sha256 = character())
+  hit <- r$bundle_id == bundle_id; r <- r[hit]                     # computed outside [ ]: bundle_id is also a column name
+  s30fb_gate_row("8-register", "BUNDLE_REGISTRY.csv: exactly one row for the bundle, with its status and 00_manifest SHA-256",
+                 nrow(r) == 1L && identical(r$status, status) && identical(r$manifest_sha256, manifest_sha256),
+                 paste(nrow(r), "row(s)", paste(r$status, collapse = ","), paste(r$manifest_sha256, collapse = ",")))
+}
+#' Write a gate table once (refused if it exists), exact round trip, then 0444.
+s30fb_write_gate_log <- function(gates, path) {
+  if (file.exists(path)) stop("A gate log for this bundle exists (immutable): ", path, call. = FALSE)
+  if (!dir.exists(dirname(path))) dir.create(dirname(path), recursive = TRUE)
+  s30fb_write_csv(gates, path); Sys.chmod(path, mode = "0444")
+  invisible(path)
+}
+
+#' Write the bundle once. Refuses if the version folder, its staging folder, its registry row or its gate log exists, if a
+#' hard gate in `gates` (the runner's pre-write gate table) did not pass, or if H_provenance pre_write_gates_passed does not
+#' count that table. Writes every table, H_provenance, H2_inputs, H3_gate_results (= `gates`) and 00_manifest (file, bytes,
+#' sha256, schema_version; every other file) into a staging folder, renames it and makes the files read-only (0444). Then
+#' runs the post-write gates; only if all pass is the BUNDLE_REGISTRY.csv row appended and checked. The complete gate table
+#' (pre-write, post-write, registration) is written to logs/<bundle_id>_gate_results.csv beside the registry (0444), also
+#' when a post-write gate fails (the bundle is then NOT registered). `.before_verify` is a test hook (never set by the runner).
+s30fb_write_bundle <- function(tables, out_root, bundle_id, provenance, inputs, gates, status, stage30_run_commit, mmm_git_commit, created_at,
+                               .before_verify = NULL) {
   bd <- file.path(out_root, bundle_id); stg <- file.path(out_root, paste0(".tmp_", bundle_id)); reg <- file.path(out_root, "BUNDLE_REGISTRY.csv")
+  log <- s30fb_log_path(out_root, bundle_id)
+  registered <- function() file.exists(reg) && bundle_id %in% data.table::fread(reg, colClasses = "character")$bundle_id
   if (dir.exists(bd)) stop("Bundle version exists (immutable): ", bd, call. = FALSE)
   if (dir.exists(stg)) stop("A staging folder for this bundle exists (earlier aborted write): ", stg, call. = FALSE)
-  if (file.exists(reg) && bundle_id %in% data.table::fread(reg, colClasses = "character")$bundle_id) stop("Bundle id already registered: ", bundle_id, call. = FALSE)
+  if (registered()) stop("Bundle id already registered: ", bundle_id, call. = FALSE)
+  if (file.exists(log)) stop("A gate log for this bundle exists (immutable): ", log, call. = FALSE)
   bad <- setdiff(names(tables), S30FB_TABLES); miss <- setdiff(S30FB_TABLES, names(tables))
   if (length(bad) || length(miss)) stop("Table set differs from the declared set: extra ", paste(bad, collapse = ","), "; missing ", paste(miss, collapse = ","), call. = FALSE)
+  gates <- data.table::as.data.table(gates)
+  if (!identical(names(gates), S30FB_GATE_COLS) || !is.logical(gates$passed) || !is.logical(gates$hard))
+    stop("The gate table must have columns ", paste(S30FB_GATE_COLS, collapse = ", "), " (passed / hard logical).", call. = FALSE)
+  if (!nrow(gates) || anyNA(gates$passed) || any(gates$hard & !gates$passed)) stop("Refusing to write: a hard pre-write gate did not pass.", call. = FALSE)
+  pv <- provenance$value[provenance$key == "pre_write_gates_passed"]
+  if (!identical(pv, s30fb_gate_count(gates)))
+    stop("H_provenance pre_write_gates_passed (", paste(pv, collapse = ","), ") does not count the gate table (", s30fb_gate_count(gates), ").", call. = FALSE)
   if (!dir.exists(out_root)) dir.create(out_root, recursive = TRUE)
   dir.create(stg)
   for (n in S30FB_TABLES) s30fb_write_csv(tables[[n]], file.path(stg, paste0(n, ".csv")))
   s30fb_write_csv(provenance, file.path(stg, "H_provenance.csv"))
   s30fb_write_csv(inputs, file.path(stg, "H2_inputs.csv"))
+  s30fb_write_csv(gates, file.path(stg, S30FB_GATE_FILE))
   fl <- sort(list.files(stg, full.names = TRUE))
   man <- data.table::data.table(file = basename(fl), bytes = as.numeric(file.size(fl)), sha256 = vapply(fl, s30fb_sha, "", USE.NAMES = FALSE), schema_version = S30FB_SCHEMA_VERSION)
   s30fb_write_csv(man, file.path(stg, "00_manifest.csv"))
   if (dir.exists(bd)) stop("Bundle version appeared during the write (immutable): ", bd, call. = FALSE)
   if (!file.rename(stg, bd)) stop("Could not rename ", stg, " to ", bd, call. = FALSE)
   Sys.chmod(list.files(bd, full.names = TRUE), mode = "0444")
+  if (is.function(.before_verify)) .before_verify(bd)
+  post <- s30fb_post_write_gates(bd, man)
+  if (!all(post$passed)) {
+    s30fb_write_gate_log(rbind(gates, post), log)
+    stop("Post-write gate failed; the bundle is NOT registered (folder ", bd, " left for inspection; gate log ", log, "): ",
+         paste(post$gate[!post$passed], collapse = "; "), call. = FALSE)
+  }
   msha <- s30fb_sha(file.path(bd, "00_manifest.csv"))
+  if (registered()) stop("A registry row for this bundle appeared during the write: ", bundle_id, call. = FALSE)
+  if (file.exists(log)) stop("A gate log for this bundle appeared during the write: ", log, call. = FALSE)
   data.table::fwrite(data.table::data.table(bundle_id = bundle_id, status = status, manifest_sha256 = msha, stage30_run_commit = stage30_run_commit,
                                             mmm_git_commit = mmm_git_commit, created_at = created_at), reg, append = file.exists(reg))
-  list(dir = bd, manifest_sha256 = msha, manifest = man, registry = reg)
+  rg <- s30fb_registration_gate(reg, bundle_id, status, msha)
+  all_gates <- rbind(gates, post, rg)
+  s30fb_write_gate_log(all_gates, log)
+  if (!isTRUE(rg$passed)) stop("Registration gate failed: ", rg$detail, call. = FALSE)
+  list(dir = bd, manifest_sha256 = msha, manifest = man, registry = reg, log = log, log_sha256 = s30fb_sha(log),
+       post_gates = rbind(post, rg), gates = all_gates)
 }

@@ -32,9 +32,15 @@ Group follows the Stage 30 driver rule: CON if on the con list, else SUS if on t
 
 - REAL: `analysis_ready/canonical/stage30_figure_bundle/<bundle_id>/`, with `BUNDLE_REGISTRY.csv` beside it (`bundle_id, status, manifest_sha256, stage30_run_commit, mmm_git_commit, created_at`).
   - `bundle_id = s30b_v10_<YYYYMMDD>_<commit7>`.
-  - The folder is written once through a staging folder and refused if it, its staging folder or its registry row exists. Files are 0444.
+  - The folder is written once through a staging folder and refused if it, its staging folder, its registry row or its gate log exists. Files are 0444.
   - `--real` is refused unless the MMM files used are committed and clean and the committed runner is executing.
-- DRY (`--dry-run`): `<dry root>/<YYYYMMDD_HHMMSS>/<bundle_id>/`, status `DRY_RUN_NOT_FOR_USE`, plus `gate_results.csv`. It is never written to S:.
+- Gate order and gate records:
+  1. Every pre-write gate (hash gates, labels, tables). H_provenance `pre_write_gates_passed` counts exactly these, and the writer refuses unless it equals the gate table it writes.
+  2. The staging folder receives the 16 tables, `H_provenance.csv`, `H2_inputs.csv`, `H3_gate_results.csv` (the pre-write gate table) and `00_manifest.csv`. It is renamed into place and made read-only.
+  3. Post-write gates: `00_manifest.csv` read back equals the manifest written; every file matches it and nothing else is present; the manifest lists exactly the declared files; every file is read-only.
+  4. Only if all post-write gates pass is the `BUNDLE_REGISTRY.csv` row appended, then checked (registration gate).
+  5. The complete gate table (pre-write, post-write, registration) is written to `logs/<bundle_id>_gate_results.csv` beside the registry, outside the immutable bundle, and made read-only. If a post-write gate fails, the log records the failure, the bundle is not registered and the run stops.
+- DRY (`--dry-run`): `<dry root>/<YYYYMMDD_HHMMSS>/<bundle_id>/`, status `DRY_RUN_NOT_FOR_USE`, with its `BUNDLE_REGISTRY.csv` and `logs/` beside it. It is never written to S:.
 - Doubles are written as the shortest decimal (15-17 significant digits) that reads back to the identical double. Every CSV is re-read and compared; embedded double quotes are refused.
 
 ## Tables (one CSV each; `run_mode` dropped)
@@ -58,6 +64,7 @@ Group follows the Stage 30 driver rule: CON if on the con list, else SUS if on t
 | `S4_screen_matrix.csv` | 48 | layout keys (16 metric rows × Female / Male / Female − male) plus plotting fields from S0 |
 | `S5_display_labels.csv` | 15 | measure_col → display label and unit, each with its source |
 | `H_provenance.csv`, `H2_inputs.csv`, `00_manifest.csv` | | provenance keys; every input with bytes, sha256, role; every file with bytes, sha256, schema_version 1 |
+| `H3_gate_results.csv` | | the pre-write gate table (stage, gate, passed, hard, detail); the complete table is `logs/<bundle_id>_gate_results.csv` |
 
 ## Descriptive computations (the only numbers not copied)
 
@@ -65,7 +72,7 @@ Group follows the Stage 30 driver rule: CON if on the con list, else SUS if on t
 2. **S1c and S3b.** Counts, medians and quartiles (R `quantile` type 7), plus minima and maxima in S1c, over the exported animals. The all-97 cookie row is copied from the registry.
 3. **S2b counts.** The window and animal counts are taken from the x4_01 rows. ρ and ICC are copies.
 4. **S3d.** `x_mean` and `y_mean` are the arithmetic means of dcookie60 and CombZ over exactly the model's animals; n and the batch count must equal the frozen `n_animals` / `n_batches`.
-   - The line is `y = y_mean + slope·(x − x_mean)`, with the frozen slope.
+   - The line is `y = y_mean + slope·(x − x_mean)`, with the frozen slope: it passes through the sex-resolved centroid.
    - For the registered `CombZ ~ Batch + x`, the OLS normal equations give batch intercepts ȳ_b − slope·x̄_b. Their n-weighted mean is ȳ − slope·x̄, so this is the batch-averaged fitted line. No model is refitted.
 5. **S4 layout keys.** Ordinal positions only.
 
@@ -74,4 +81,4 @@ Group follows the Stage 30 driver rule: CON if on the con list, else SUS if on t
 - Display labels are the registry `measures` `display` strings. The only transform is typesetting `>= ` as `≥`.
 - Occupancy dispersion and fragmentation have no registry display field. For these two, the ebb_v101 configuration labels and units are used, and `label_source` says so.
 - Block, question and sex-column labels follow DESIGN section 2 (S4).
-- A banned-wording guard stops the run if any display label contains antenna, crossing, sleep, confirmatory, preregistered, approach, investigation, consumption, habituation or sex-specific wording. Legacy identifiers (for example `crossing_rate`) appear only as column values, never as labels.
+- A banned-wording guard stops the run if any display label (S0, S4, S5) or the S3d `derivation` text contains antenna, crossing, sleep, confirmatory, preregistered, approach, investigation, consumption, habituation, time near, or female-/sex-specific wording. Legacy identifiers (for example `crossing_rate`) appear only as column values, never as labels.

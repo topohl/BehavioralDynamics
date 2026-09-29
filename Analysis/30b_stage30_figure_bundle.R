@@ -15,9 +15,12 @@
 # v101 A1 / A4 Group of every SIS animal.
 #
 # Output (REAL): analysis_ready/canonical/stage30_figure_bundle/<bundle_id>/ with BUNDLE_REGISTRY.csv beside it;
-#   bundle_id = s30b_v10_<YYYYMMDD>_<commit7>; written once (refused if it exists), files 0444.
+#   bundle_id = s30b_v10_<YYYYMMDD>_<commit7>; written once (refused if it, its staging folder, its registry row or its
+#   gate log exists), files 0444. The bundle holds H3_gate_results.csv (the pre-write gates, listed in 00_manifest). The
+#   post-write gates (manifest re-verification, read-only) run BEFORE the registry row is appended; the complete gate
+#   table (pre-write, post-write, registration) goes to logs/<bundle_id>_gate_results.csv beside the registry (0444).
 # Modes (exactly one argument; with none the runner refuses before reading anything):
-#   --dry-run  code testing: writes <dry root>/<YYYYMMDD_HHMMSS>/<bundle_id>/ + BUNDLE_REGISTRY.csv + gate_results.csv
+#   --dry-run  code testing: writes <dry root>/<YYYYMMDD_HHMMSS>/<bundle_id>/ + BUNDLE_REGISTRY.csv + logs/<bundle_id>_gate_results.csv
 #              (status DRY_RUN_NOT_FOR_USE); never writes to S:. Dry root: MMM_S30B_DRY_ROOT or the default below
 #              (must be on C:, outside analysis_ready and outside this repo).
 #   --real     writes the S: bundle once; refused unless the MMM files it uses are committed and clean and this is the
@@ -80,8 +83,15 @@ if (DRY) {
 } else {
   OUT_ROOT <- file.path(AR, "canonical", "stage30_figure_bundle")
   gate("0-output", "REAL bundle version folder does not exist (immutable)", !dir.exists(file.path(OUT_ROOT, bundle_id)), file.path(OUT_ROOT, bundle_id))
+  gate("0-output", "REAL staging folder does not exist (no earlier aborted write)", !dir.exists(file.path(OUT_ROOT, paste0(".tmp_", bundle_id))),
+       file.path(OUT_ROOT, paste0(".tmp_", bundle_id)))
+  REG_OUT <- file.path(OUT_ROOT, "BUNDLE_REGISTRY.csv")
+  gate("0-output", "REAL BUNDLE_REGISTRY.csv has no row for this bundle id",
+       !file.exists(REG_OUT) || !(bundle_id %in% fread(REG_OUT, colClasses = "character")$bundle_id), REG_OUT)
+  gate("0-output", "REAL gate log for this bundle does not exist (immutable)", !file.exists(s30fb_log_path(OUT_ROOT, bundle_id)), s30fb_log_path(OUT_ROOT, bundle_id))
 }
-longest <- max(nchar(file.path(OUT_ROOT, paste0(".tmp_", bundle_id), paste0(S30FB_TABLES, ".csv"))))
+OUT_PATHS <- c(file.path(OUT_ROOT, paste0(".tmp_", bundle_id), c(s30fb_bundle_files(), "00_manifest.csv")), s30fb_log_path(OUT_ROOT, bundle_id))
+longest <- max(nchar(OUT_PATHS))
 gate("0-output", "every output path shorter than 250 characters (Windows R path limit)", longest < 250, longest)
 
 # ---------------------------------------------------------------- 1. frozen Stage 30 run and registry
@@ -197,7 +207,8 @@ S4 <- s30fb_screen_matrix(S0)
 gate("6-tables", "S4: 48 cells = 16 metric rows (CONT 6, CAT 3, L 7) x 3 columns",
      nrow(S4) == 48L && max(S4$row_order) == 16L && identical(S4[, uniqueN(row_order), by = question][match(S30FB_QUESTION_ORDER, question), V1], c(6L, 3L, 7L)))
 s30fb_check_display(S0, c("display_metric", "display_block", "display_question"), "S0_master_hypotheses")
-gate("6-tables", "display labels contain no banned wording (S0, S4, S5)", TRUE)
+gate("6-tables", "display labels contain no banned wording (S0, S3d derivation, S4, S5)",
+     { s30fb_check_display(S3d, "derivation", "S3d_cookie_cont_lines"); !grepl(S30FB_FORBIDDEN_DISPLAY, S30FB_LINE_DERIVATION, ignore.case = TRUE) })
 TABLES <- list(S0_master_hypotheses = S0, S0b_pool_estimates = S0b, S0c_l_components = S0c, S0d_sensitivities = S0d, S0e_lobo = S0e,
                S1_light_animals_cc1 = S1, S1b_light_estimates = S1b, S1c_light_descriptives = S1c, S2_rate_inactivity_windows = S2,
                S2b_rate_inactivity_relationship = S2b, S3_cookie_animals = S3, S3b_cookie_descriptives = S3b, S3c_cookie_estimates = S3c,
@@ -226,14 +237,16 @@ H <- s30fb_provenance(list(
   cookie_line_derivation = S30FB_LINE_DERIVATION, value_precision = "doubles written as the shortest decimal (15-17 significant digits) that reads back to the identical double; every CSV re-read and compared",
   label_sources = "S5_display_labels.csv label_source / unit_source; block / question / sex column labels: DESIGN 2026-09-29 section 2 (S4)",
   tables = paste(sprintf("%s (%d rows)", names(TABLES), vapply(TABLES, nrow, 1L)), collapse = "; "),
-  gates_passed = sprintf("%d of %d", sum(GT$passed), nrow(GT)), r_version = R.version.string,
+  pre_write_gates_passed = s30fb_gate_count(GT),
+  gate_results = paste0(S30FB_GATE_FILE, " (this bundle, listed in 00_manifest): the ", nrow(GT), " pre-write gates; the complete gate table ",
+                        "(pre-write, post-write and registration gates; the post-write gates run before the registry row is appended) is ",
+                        S30FB_LOG_DIR, "/", bundle_id, "_gate_results.csv beside BUNDLE_REGISTRY.csv, outside the bundle"),
+  r_version = R.version.string,
   packages = paste(sprintf("%s %s", pk, vapply(pk, function(p) as.character(utils::packageVersion(p)), "")), collapse = "; ")))
 IN <- unique(rbindlist(INPUTS), by = c("input", "role"))
-W <- s30fb_write_bundle(TABLES, OUT_ROOT, bundle_id, H, IN, STATUS, S30FB_STAGE30$run_commit, commit, GEN_AT)
-chk <- s30fb_manifest_check(W$dir, W$manifest)
-gate("7-write", "written bundle: every file = 00_manifest; nothing else in the folder",
-     all(chk$ok) && setequal(s30fb_files_on_disk(W$dir), c(W$manifest$file, "00_manifest.csv")), W$dir)
-gate("7-write", "written files are read-only", all(file.access(list.files(W$dir, full.names = TRUE), 2L) != 0L), W$dir)
-if (DRY) fwrite(rbindlist(GATES), file.path(OUT_ROOT, "gate_results.csv"))
+# writes the bundle, runs the post-write gates, and only then appends and checks the registry row and writes the gate log
+W <- s30fb_write_bundle(TABLES, OUT_ROOT, bundle_id, H, IN, GT, STATUS, S30FB_STAGE30$run_commit, commit, GEN_AT)
+gate_rows(W$post_gates)                                        # console record; the helper has already stopped on any failure
 message("Stage 30b ", MODE, " complete: bundle ", bundle_id, " ", STATUS, " at ", W$dir, " (manifest sha256 ", W$manifest_sha256, ")")
+message("  gate log ", W$log, " (", s30fb_gate_count(W$gates), " gates passed; sha256 ", W$log_sha256, ")")
 for (n in names(TABLES)) message(sprintf("  %-34s %5d rows", n, nrow(TABLES[[n]])))

@@ -9,12 +9,15 @@
 #      README commit), the Stage 29 bundle gates (manifest hash, FROZEN registry row), input_hashes and sha-list lookups;
 #   4. Group rule (CON > SUS > RES) and the label / CombZ attachment guards;
 #   5. standardized CI rescaling (CONT x SD_x, CAT / SD_y, L none) with the 1e-12 assert;
-#   6. COOKIE-CONT centroid line identity (hand-computed within-batch OLS slope; n-weighted batch intercepts) and the n assert;
+#   6. COOKIE-CONT centroid line identity (hand-computed within-batch OLS slope; n-weighted batch intercepts), the n assert,
+#      the 'sex-resolved centroid' derivation wording and the banned-display-word guard on it;
 #   7. descriptive summaries (quantile type 7, counts, registry QC row copied);
 #   8. estimate rows (keys, sensitivity copy, Movement-adjusted cross-check), rate-inactivity relationship rounding gate,
 #      display labels (typesetting, banned wording), screen-matrix layout keys;
 #   9. full-precision CSV writer (exact round trip);
-#  10. bundle writer: manifest completeness, provenance keys, read-only files, registry row, refusal to overwrite.
+#  10. bundle writer: manifest completeness (incl. H3_gate_results = the pre-write gates), provenance keys
+#      (pre_write_gates_passed counts the gate table), read-only files, post-write gates BEFORE the registry row (a
+#      post-write failure leaves no registry row), the complete gate log beside the registry, refusal to overwrite.
 #
 # Portable-suite idiom: plain Rscript, fail()/check()/ok(), no testthat. Run from the repo root:
 #   Rscript Testing/tests/test_stage30_figure_bundle.R
@@ -51,6 +54,8 @@ check(min(grep("s30fb_parse_mode\\(", rl)) < first_read, "the runner parses its 
 sl <- grep("^\\s*source\\(", readLines(SELF, warn = FALSE), value = TRUE)
 check(length(sl) == 1L && grepl("_pipeline_setup.R", sl), "this test sources only Analysis/_pipeline_setup.R")
 check(!grepl("S:/", paste(readLines(HELPER, warn = FALSE), collapse = "\n"), fixed = TRUE), "the helper holds no S: path")
+check(!any(grepl("\\bfwrite\\(", rl)) && !any(grepl("gates_passed\\s*=", rl) & !grepl("pre_write_gates_passed\\s*=", rl)),
+      "the runner writes no file itself (the helper writes bundle, registry and gate log) and has no bare gates_passed key")
 ok("static: no model call in helper / runner; mode parsed before any read; no Analysis runner sourced")
 
 # ---------------------------------------------------------------- 2. run mode, clean code, bundle id
@@ -180,6 +185,11 @@ for (sx in c("Female", "Male")) {
         l$x_min == min(d$dcookie60) && l$x_max == max(d$dcookie60), paste(sx, ": end points on the frozen-slope line"))
 }
 check(identical(L$derivation[1], S30FB_LINE_DERIVATION) && identical(L$n, c(16L, 11L)), "derivation text and n")
+check(grepl("sex-resolved centroid", S30FB_LINE_DERIVATION, fixed = TRUE) && !grepl(S30FB_FORBIDDEN_DISPLAY, S30FB_LINE_DERIVATION, ignore.case = TRUE),
+      "derivation says 'sex-resolved centroid' and passes the banned-display-word guard")
+check(!any(grepl("sex-specific", c(S30FB_LINE_DERIVATION, S30FB_DESCRIPTIVE_COMPUTATIONS), fixed = TRUE)), "no 'sex-specific' in the derivation or descriptive computations")
+check(grepl("banned display wording in derivation", errmsg(s30fb_cookie_lines(ck, mst, derivation = "line through the sex-specific centroid"))),
+      "a banned word in the S3d derivation stops")
 bad <- copy(mst); bad$n_animals[1] <- 17L; check(grepl("frozen model has n_animals = 17", errmsg(s30fb_cookie_lines(ck, bad))), "an n mismatch stops")
 bad <- copy(mst); bad$n_batches[2] <- 3L; check(grepl("batches", errmsg(s30fb_cookie_lines(ck, bad))), "a batch-count mismatch stops")
 bad <- copy(mst); bad$formula <- "CombZ ~ x"; check(grepl("registered", errmsg(s30fb_cookie_lines(ck, bad))), "a non-registered formula stops")
@@ -281,33 +291,66 @@ ok("full-precision CSV writer")
 
 # ---------------------------------------------------------------- 10. bundle writer: manifest completeness, provenance, immutability
 tabs <- setNames(lapply(S30FB_TABLES, function(n) data.table(k = n, value = c(1 / 7, 2))), S30FB_TABLES)
+GTS <- rbind(s30fb_gate_row("0-code", "synthetic pre-write gate 1", TRUE, "c,1"), s30fb_gate_row("6-tables", "synthetic pre-write gate 2", TRUE, ""),
+             s30fb_gate_row("0-code", "synthetic soft gate", FALSE, "not met", hard = FALSE))
 prov_fields <- setNames(as.list(paste0("v_", S30FB_PROVENANCE_KEYS)), S30FB_PROVENANCE_KEYS)
 prov_fields$descriptive_computations <- S30FB_DESCRIPTIVE_COMPUTATIONS
+prov_fields$pre_write_gates_passed <- s30fb_gate_count(GTS)
 H <- s30fb_provenance(prov_fields)
 check(grepl(" || ", H[key == "descriptive_computations", value], fixed = TRUE), "descriptive computations listed")
 check(grepl("lacks key", errmsg(s30fb_provenance(prov_fields[-1]))), "a missing provenance key stops")
+check(grepl("lacks key", errmsg(s30fb_provenance(prov_fields[names(prov_fields) != "pre_write_gates_passed"]))), "pre_write_gates_passed is a required provenance key")
+check(!"gates_passed" %in% S30FB_PROVENANCE_KEYS && identical(s30fb_gate_count(GTS), "2 of 3"), "the gate-count key is pre_write_gates_passed and counts passed rows")
 IN <- data.table(input = "x", bytes = 1, sha256 = "s", role = "r")
 OUT <- file.path(TMP, "out"); BID <- "s30b_v10_20260929_0123456"
-w <- s30fb_write_bundle(tabs, OUT, BID, H, IN, S30FB_STATUS_DRY, strrep("a", 40), cm, "2026-09-29T12:00:00+0200")
+wb <- function(id, out = OUT, gates = GTS, prov = H, tb = tabs, ...) s30fb_write_bundle(tb, out, id, prov, IN, gates, S30FB_STATUS_DRY, strrep("a", 40), cm, "t", ...)
+w <- s30fb_write_bundle(tabs, OUT, BID, H, IN, GTS, S30FB_STATUS_DRY, strrep("a", 40), cm, "2026-09-29T12:00:00+0200")
 man <- fread(file.path(w$dir, "00_manifest.csv"))
-check(setequal(man$file, c(paste0(S30FB_TABLES, ".csv"), "H_provenance.csv", "H2_inputs.csv")) && !"00_manifest.csv" %in% man$file &&
-      setequal(list.files(w$dir), c(man$file, "00_manifest.csv")), "00_manifest lists every other file and nothing else exists")
+check(setequal(man$file, c(paste0(S30FB_TABLES, ".csv"), "H_provenance.csv", "H2_inputs.csv", "H3_gate_results.csv")) && setequal(man$file, s30fb_bundle_files()) &&
+      !"00_manifest.csv" %in% man$file && setequal(list.files(w$dir), c(man$file, "00_manifest.csv")), "00_manifest lists every other file (incl. H3_gate_results) and nothing else exists")
 check(all(s30fb_manifest_check(w$dir, man)$ok) && all(man$schema_version == 1L), "manifest bytes / sha256 match; schema_version 1")
 hp <- fread(file.path(w$dir, "H_provenance.csv")); check(all(S30FB_PROVENANCE_KEYS %in% hp$key), "H_provenance carries every DESIGN key")
+check(identical(hp[key == "pre_write_gates_passed", value], "2 of 3") && !"gates_passed" %in% hp$key, "H_provenance pre_write_gates_passed")
+h3 <- fread(file.path(w$dir, "H3_gate_results.csv"), colClasses = "character")
+check(identical(names(h3), S30FB_GATE_COLS) && nrow(h3) == 3L && identical(h3$gate, GTS$gate) && identical(h3$passed, c("TRUE", "TRUE", "FALSE")) &&
+      !any(h3$stage %in% c("7-write", "8-register")), "H3_gate_results = the pre-write gate table only")
 check(all(file.access(list.files(w$dir, full.names = TRUE), 2L) != 0L), "bundle files are read-only")
 reg <- fread(file.path(OUT, "BUNDLE_REGISTRY.csv"), colClasses = "character")
 check(nrow(reg) == 1L && identical(names(reg), c("bundle_id", "status", "manifest_sha256", "stage30_run_commit", "mmm_git_commit", "created_at")) &&
       identical(reg$manifest_sha256, s30fb_sha(file.path(w$dir, "00_manifest.csv"))) && identical(reg$status, S30FB_STATUS_DRY), "BUNDLE_REGISTRY row beside the bundle")
-check(grepl("immutable", errmsg(s30fb_write_bundle(tabs, OUT, BID, H, IN, S30FB_STATUS_DRY, strrep("a", 40), cm, "t"))), "a second write of the same bundle is refused")
+lg <- fread(w$log, colClasses = "character")
+check(identical(w$log, file.path(OUT, "logs", paste0(BID, "_gate_results.csv"))) && file.access(w$log, 2L) != 0L && identical(w$log_sha256, s30fb_sha(w$log)),
+      "gate log logs/<bundle_id>_gate_results.csv beside the registry, read-only")
+check(identical(names(lg), S30FB_GATE_COLS) && nrow(lg) == 3L + 5L && identical(lg$gate[1:3], GTS$gate) && identical(lg$stage[4:8], c(rep("7-write", 4), "8-register")) &&
+      all(lg$passed[4:8] == "TRUE") && nrow(w$post_gates) == 5L, "gate log = pre-write + 4 post-write + registration gates")
+check(!file.exists(file.path(w$dir, basename(w$log))) && !identical(normalizePath(dirname(w$log)), normalizePath(w$dir)) && !"logs" %in% man$file,
+      "the log sits outside the bundle folder and is not in its manifest")
+check(grepl("immutable", errmsg(wb(BID))), "a second write of the same bundle is refused")
 check(nrow(fread(file.path(OUT, "BUNDLE_REGISTRY.csv"))) == 1L, "a refused write leaves the registry unchanged")
 dir.create(file.path(OUT, ".tmp_s30b_v10_20260930_0123456"))
-check(grepl("staging folder", errmsg(s30fb_write_bundle(tabs, OUT, "s30b_v10_20260930_0123456", H, IN, S30FB_STATUS_DRY, strrep("a", 40), cm, "t"))), "a leftover staging folder is refused")
+check(grepl("staging folder", errmsg(wb("s30b_v10_20260930_0123456"))), "a leftover staging folder is refused")
 check(grepl("already registered", errmsg({ unlink(file.path(OUT, ".tmp_s30b_v10_20260930_0123456"), recursive = TRUE)
   fwrite(data.table(bundle_id = "s30b_v10_20261001_0123456", status = "FROZEN", manifest_sha256 = "x", stage30_run_commit = "a", mmm_git_commit = "b", created_at = "c"),
          file.path(OUT, "BUNDLE_REGISTRY.csv"), append = TRUE)
-  s30fb_write_bundle(tabs, OUT, "s30b_v10_20261001_0123456", H, IN, S30FB_STATUS_DRY, strrep("a", 40), cm, "t") })), "a registered bundle id is refused")
-check(grepl("declared set", errmsg(s30fb_write_bundle(tabs[-1], file.path(TMP, "out2"), BID, H, IN, S30FB_STATUS_DRY, strrep("a", 40), cm, "t"))), "a missing table is refused")
-ok("bundle writer: manifest completeness, provenance keys, read-only, registry, refusal to overwrite")
+  wb("s30b_v10_20261001_0123456") })), "a registered bundle id is refused")
+writeLines("x", s30fb_log_path(OUT, "s30b_v10_20261002_0123456"))
+check(grepl("gate log for this bundle exists", errmsg(wb("s30b_v10_20261002_0123456"))) && !dir.exists(file.path(OUT, "s30b_v10_20261002_0123456")), "an existing gate log is refused before any write")
+check(grepl("declared set", errmsg(wb(BID, out = file.path(TMP, "out2"), tb = tabs[-1]))), "a missing table is refused")
+check(grepl("hard pre-write gate", errmsg(wb(BID, out = file.path(TMP, "out2"), gates = rbind(GTS, s30fb_gate_row("x", "failed hard gate", FALSE))))) &&
+      !dir.exists(file.path(TMP, "out2")), "a failed hard gate in the gate table is refused before any write")
+check(grepl("does not count", errmsg(wb(BID, out = file.path(TMP, "out2"), gates = GTS[1:2]))), "pre_write_gates_passed must count the gate table")
+# post-write failure: a file changed after the chmod -> post-write gates fail, NO registry row, the log records the failure
+OUT3 <- file.path(TMP, "out3"); BID3 <- "s30b_v10_20260929_0fedcba"
+tamper <- function(bd) { f <- file.path(bd, "S0_master_hypotheses.csv"); Sys.chmod(f, "0666"); cat("tampered\n", file = f, append = TRUE) }
+e <- errmsg(wb(BID3, out = OUT3, .before_verify = tamper))
+check(grepl("NOT registered", e) && dir.exists(file.path(OUT3, BID3)) && !file.exists(file.path(OUT3, "BUNDLE_REGISTRY.csv")), "a post-write failure stops before the registry row is appended")
+lg3 <- fread(s30fb_log_path(OUT3, BID3), colClasses = "character")
+check(nrow(lg3) == 3L + 4L && !"8-register" %in% lg3$stage && identical(lg3[stage == "7-write", passed], c("TRUE", "FALSE", "TRUE", "FALSE")),
+      "the gate log records the failed post-write gates (manifest mismatch, not read-only)")
+check(grepl("immutable", errmsg(wb(BID3, out = OUT3))), "a failed-then-left bundle folder is not overwritten")
+pw <- s30fb_post_write_gates(w$dir, man); check(nrow(pw) == 4L && all(pw$passed), "post-write gates pass on the intact bundle")
+check(!all(s30fb_post_write_gates(w$dir, man[-1])$passed), "post-write gates fail for an incomplete manifest")
+ok("bundle writer: H3 pre-write gates, post-write gates before registration, gate log, read-only, refusal to overwrite")
 
 Sys.chmod(list.files(TMP, recursive = TRUE, full.names = TRUE), "0666"); unlink(TMP, recursive = TRUE, force = TRUE)
 cat("test_stage30_figure_bundle.R: all checks passed\n")
