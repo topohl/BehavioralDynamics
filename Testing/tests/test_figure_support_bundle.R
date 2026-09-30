@@ -16,8 +16,10 @@
 #   6. F2b: directions, reasons, relationship text, banned-wording guard;
 #   7. F1 / F1b: hand-computed cage means, the mean-of-cage-means = B2 gate, cage count / size / batch gates, mixed-cage and
 #      composition checks, NA refusal;
-#   8. writer: manifest, provenance keys, read-only files, post-write gates before the registry row, gate log, refusal to
-#      overwrite.
+#   8. (v2) post hoc run 29b: run verification (manifest hash, files, extra file, read-only, README, run_manifest), the
+#      verbatim text copy (P1 / P1b / P1c) and its gates, refusal of a table that differs from its manifest hash;
+#   9. writer: manifest, provenance keys, read-only files, post-write gates (incl. the line-level verbatim gate of the
+#      copied post hoc tables) before the registry row, gate log, refusal to overwrite.
 #
 # Portable-suite idiom: plain Rscript, fail()/check()/ok(), no testthat. Run from the repo root:
 #   Rscript Testing/tests/test_figure_support_bundle.R
@@ -66,7 +68,7 @@ check(grepl("Both", errmsg(fsb_parse_mode(c("--dry-run", "--real")))), "both mod
 check(identical(fsb_parse_mode("--dry-run"), "DRY") && identical(fsb_parse_mode("--real"), "REAL"), "modes parse")
 cm <- "0123456789abcdef0123456789abcdef01234567"
 bid <- fsb_bundle_id(as.Date("2026-09-30"), cm)
-check(identical(bid, "fsb_v1_20260930_0123456") && grepl("^fsb_v[0-9]+_[0-9]{8}_[0-9a-f]{7}$", bid), "bundle id fsb_v1_<YYYYMMDD>_<commit7>")
+check(identical(bid, "fsb_v2_20260930_0123456") && grepl("^fsb_v[0-9]+_[0-9]{8}_[0-9a-f]{7}$", bid), "bundle id fsb_v2_<YYYYMMDD>_<commit7>")
 check(grepl("full git commit", errmsg(fsb_bundle_id(Sys.Date(), "abc1234"))), "a short commit is refused")
 ok("run mode and bundle id")
 
@@ -199,8 +201,55 @@ b1n <- copy(B1); b1n[1, crossing_rate := NA_real_]
 check(grepl("non-finite", errmsg(fsb_con_cage_means(b1n, LAB))), "an NA CON value stops the export")
 ok("F1 / F1b: hand-computed cage mean, mean-of-cage-means gate, cage / size / batch / composition checks")
 
-# ---------------------------------------------------------------- 8. writer
-tabs <- list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b)
+# ---------------------------------------------------------------- 8. post hoc run 29b (synthetic run folder)
+PHR <- file.path(TMP, "pipeline", FSB_POSTHOC$stage_dir, FSB_POSTHOC$run_name); dir.create(file.path(PHR, "tables"), recursive = TRUE); dir.create(file.path(PHR, "audit"))
+mn <- intToUtf8(0x2212L); est_ids <- c("CON_mean", "RES_mean", "SUS_mean", "RES_minus_CON", "SUS_minus_CON", "SUS_minus_RES")
+ph_rows <- function(model) { x <- CJ(measure = c("crossing_rate", "shared_zone_use"), Sex = c("Female", "Male"), estimand = est_ids, sorted = FALSE)
+  x[, `:=`(measure_label = ifelse(measure == "crossing_rate", "RFID position-change rate", "shared RFID-position occupancy"), unit = "u", model = model,
+           estimand_label = c(CON_mean = "CON", RES_mean = "RES", SUS_mean = "SUS", RES_minus_CON = paste("RES", mn, "CON"), SUS_minus_CON = paste("SUS", mn, "CON"),
+                              SUS_minus_RES = paste("SUS", mn, "RES"))[estimand], tested = grepl("minus", estimand), estimate = rnorm(.N) / 3, kr_messages = "",
+           failure_reason = NA_character_, status = "OK", registry_version = FSB_POSTHOC$registry_version, registry_sha256 = FSB_POSTHOC$registry_sha256, tier = FSB_POSTHOC$tier,
+           display_note = "Post hoc, cage-aware; CON = 3 cages/sex", caveats = "CON = 3 cages per sex, one per batch", registered_rs_note = "registered FU-CC1 remains authoritative")]
+  x[, p_holm := ifelse(tested, runif(.N), NA_real_)][, holm_m := ifelse(tested, 3L, NA_integer_)][] }
+s30fb_write_csv(ph_rows("primary_separate_cage_variances"), file.path(PHR, "tables", "estimates.csv"))
+s30fb_write_csv(ph_rows("sensitivity_common_cage_variance")[, same_sign := TRUE], file.path(PHR, "tables", "sensitivity_common_cage_variance.csv"))
+s30fb_write_csv(data.table(model_id = paste0("m", 1:8), singular = c(TRUE, rep(FALSE, 7)), vc_con_cage = c(0, runif(7)), error = NA_character_), file.path(PHR, "tables", "diagnostics.csv"))
+s30fb_write_csv(data.table(stage = "s", gate = "g", passed = TRUE), file.path(PHR, "audit", "gate_results.csv"))
+s30fb_write_csv(data.table(input = "x", sha256 = "y"), file.path(PHR, "audit", "input_hashes.csv"))
+s30fb_write_csv(data.table(mode = "REAL", git_commit = FSB_POSTHOC$run_commit, registry_sha256 = FSB_POSTHOC$registry_sha256, registry_version = "1.0",
+                           status_counts = FSB_POSTHOC$status_counts, n_failed = 0L), file.path(PHR, "audit", "run_manifest.csv"))
+writeLines(c("Stage 29b", paste("commit", FSB_POSTHOC$run_commit), paste("registry sha256", FSB_POSTHOC$registry_sha256)), file.path(PHR, "README.txt"))
+phf <- sort(setdiff(s30fb_files_on_disk(PHR), "audit/output_manifest.csv"))
+s30fb_write_csv(data.table(file = phf, bytes = as.numeric(file.size(file.path(PHR, phf))), sha256 = vapply(file.path(PHR, phf), s30fb_sha, "", USE.NAMES = FALSE)),
+                file.path(PHR, "audit", "output_manifest.csv"))
+EXPH <- FSB_POSTHOC; EXPH$output_manifest_sha256 <- s30fb_sha(file.path(PHR, "audit", "output_manifest.csv"))
+v0 <- fsb_verify_posthoc_run(PHR, EXPH)
+check(!all(v0$gates$passed) && identical(v0$gates[passed == FALSE, gate], "every run file is read-only"), "writable run files fail only the read-only gate")
+Sys.chmod(list.files(PHR, recursive = TRUE, full.names = TRUE), "0444")
+VP <- fsb_verify_posthoc_run(PHR, EXPH)
+check(all(VP$gates$passed) && nrow(VP$manifest) == 7L, "post hoc run verification passes for a frozen synthetic run")
+check(sum(!fsb_verify_posthoc_run(PHR)$gates$passed) == 1L, "the pinned manifest hash fails on another run folder")
+e2 <- EXPH; e2$run_commit <- strrep("1", 40); check(sum(!fsb_verify_posthoc_run(PHR, e2)$gates$passed) == 2L, "another run commit fails the README and run_manifest gates")
+e3 <- EXPH; e3$status_counts <- "primary OK=3; FAILED=1"; check(!all(fsb_verify_posthoc_run(PHR, e3)$gates$passed), "other status counts fail")
+PTS <- lapply(FSB_POSTHOC_TABLES, function(rel) fsb_posthoc_copy(PHR, rel, VP$check[file == rel, observed_sha256], "29b/v1.0_x"))
+check(all(vapply(PTS, function(x) all(vapply(x, is.character, TRUE)), TRUE)) && identical(names(PTS$P1_posthoc_con_contrasts)[1:3], c("measure", "Sex", "estimand")) &&
+      identical(tail(names(PTS$P1b_posthoc_sensitivity), 3), FSB_POSTHOC_ADDED) && all(PTS$P1c_posthoc_diagnostics$source_file == "tables/diagnostics.csv"),
+      "copies: every cell as text, source column order kept, provenance columns appended")
+src_e <- fread(file.path(PHR, "tables", "estimates.csv"))
+check(identical(as.numeric(PTS$P1_posthoc_con_contrasts$estimate), src_e$estimate) && identical(PTS$P1_posthoc_con_contrasts$kr_messages[1], "") &&
+      is.na(PTS$P1_posthoc_con_contrasts$failure_reason[1]) && is.na(PTS$P1_posthoc_con_contrasts$p_holm[1]), "the text copy reads back to the identical doubles; blank = NA, empty string kept")
+check(all(fsb_posthoc_gates(PTS, PHR, EXPH)$passed), "post hoc copy gates pass")
+bp <- PTS; bp$P1_posthoc_con_contrasts <- copy(bp$P1_posthoc_con_contrasts)[1, estimate := "0.1"]
+check(sum(!fsb_posthoc_gates(bp, PHR, EXPH)$passed) == 1L, "a changed cell fails the verbatim gate")
+bp <- PTS; bp$P1_posthoc_con_contrasts <- copy(bp$P1_posthoc_con_contrasts)[1, estimand_label := "acute CON"]
+check(grepl("banned display wording", errmsg(fsb_posthoc_gates(bp, PHR, EXPH))), "banned wording in the copied labels stops")
+check(grepl("differs from its output-manifest", errmsg(fsb_posthoc_copy(PHR, "tables/estimates.csv", strrep("0", 64), "x"))), "a table off its manifest hash is refused")
+ok("post hoc run 29b: verification, verbatim text copy, copy gates, refusals")
+
+# ---------------------------------------------------------------- 9. writer
+tabs <- c(list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b), PTS)
+VB <- setNames(file.path(PHR, FSB_POSTHOC_TABLES), names(FSB_POSTHOC_TABLES))
+
 GTS <- rbind(s30fb_gate_row("0-code", "synthetic pre-write gate", TRUE, "c"), s30fb_gate_row("0-code", "soft gate", FALSE, "not met", hard = FALSE))
 pf <- setNames(as.list(paste0("v_", FSB_PROVENANCE_KEYS)), FSB_PROVENANCE_KEYS)
 pf$descriptive_computations <- FSB_DESCRIPTIVE_COMPUTATIONS; pf$scientific_recomputation <- FSB_SCIENTIFIC_RECOMPUTATION; pf$pre_write_gates_passed <- fsb_gate_count(GTS)
@@ -209,8 +258,8 @@ check(grepl("lacks key", errmsg(fsb_provenance(pf[-1]))), "a missing provenance 
 check(startsWith(H[key == "scientific_recomputation", value], "none; descriptive cage means and the frozen CombZ standardisation reproduced exactly; no model"),
       "scientific_recomputation carries the OPTION3_SPEC wording")
 IN <- data.table(input = "x", bytes = 1, sha256 = "s", role = "r")
-OUT <- file.path(TMP, "out"); BID <- "fsb_v1_20260930_0123456"
-wb <- function(id, out = OUT, gates = GTS, tb = tabs, ...) fsb_write_bundle(tb, out, id, H, IN, gates, FSB_STATUS_DRY, "ebb_x", "czsha", cm, "t", ...)
+OUT <- file.path(TMP, "out"); BID <- "fsb_v2_20260930_0123456"
+wb <- function(id, out = OUT, gates = GTS, tb = tabs, ...) fsb_write_bundle(tb, out, id, H, IN, gates, FSB_STATUS_DRY, "ebb_x", "czsha", cm, "t", verbatim = VB, ...)
 w <- wb(BID)
 man <- fread(file.path(w$dir, "00_manifest.csv"))
 check(setequal(man$file, fsb_bundle_files()) && setequal(list.files(w$dir), c(man$file, "00_manifest.csv")) && all(s30fb_manifest_check(w$dir, man)$ok),
@@ -221,12 +270,19 @@ check(nrow(reg) == 1L && identical(names(reg), FSB_REGISTRY_COLS) && identical(r
 f2back <- fread(file.path(w$dir, "F2_combz_components.csv"))
 check(nrow(f2back) == nrow(F2) && isTRUE(all(f2back$signed_z == F2$signed_z, na.rm = TRUE)) && identical(is.na(f2back$signed_z), is.na(F2$signed_z)), "F2 written at full precision")
 lg <- fread(w$log, colClasses = "character")
-check(nrow(lg) == 2L + 5L && identical(lg$stage[3:7], c(rep("7-write", 4), "8-register")) && all(lg$passed[3:7] == "TRUE"), "gate log = pre-write + post-write + registration")
+check(nrow(lg) == 2L + 8L && identical(lg$stage[3:10], c(rep("7-write", 7), "8-register")) && all(lg$passed[3:10] == "TRUE") && sum(grepl("post hoc source line", lg$gate)) == 3L,
+      "gate log = pre-write + post-write (incl. 3 line-level verbatim gates) + registration")
+p1w <- readLines(file.path(w$dir, "P1_posthoc_con_contrasts.csv"), encoding = "UTF-8"); p1s <- readLines(VB[["P1_posthoc_con_contrasts"]], encoding = "UTF-8")
+check(length(p1w) == 25L && all(startsWith(p1w, paste0(p1s, ","))) && grepl(paste("SUS", mn, "RES"), p1w[7], fixed = TRUE), "written P1 lines = the source lines + provenance cells (UTF-8 labels kept)")
+OUT5 <- file.path(TMP, "o5"); tb5 <- tabs; tb5$P1b_posthoc_sensitivity <- copy(tb5$P1b_posthoc_sensitivity)[2, estimate := "9"]
+check(grepl("NOT registered", errmsg(wb("fsb_v2_20260930_5555555", out = OUT5, tb = tb5))) && !file.exists(file.path(OUT5, "BUNDLE_REGISTRY.csv")),
+      "a P table that is not a verbatim copy fails the post-write gate before the registry row")
+
 check(grepl("immutable", errmsg(wb(BID))), "a second write of the same bundle is refused")
-check(grepl("declared set", errmsg(wb("fsb_v1_20260930_1111111", out = file.path(TMP, "o2"), tb = tabs[-1]))), "a missing table is refused")
-check(grepl("hard pre-write gate", errmsg(wb("fsb_v1_20260930_1111111", out = file.path(TMP, "o2"), gates = rbind(GTS, s30fb_gate_row("x", "failed", FALSE))))) &&
+check(grepl("declared set", errmsg(wb("fsb_v2_20260930_1111111", out = file.path(TMP, "o2"), tb = tabs[-1]))), "a missing table is refused")
+check(grepl("hard pre-write gate", errmsg(wb("fsb_v2_20260930_1111111", out = file.path(TMP, "o2"), gates = rbind(GTS, s30fb_gate_row("x", "failed", FALSE))))) &&
       !dir.exists(file.path(TMP, "o2")), "a failed hard gate is refused before any write")
-OUT3 <- file.path(TMP, "o3"); BID3 <- "fsb_v1_20260930_0fedcba"
+OUT3 <- file.path(TMP, "o3"); BID3 <- "fsb_v2_20260930_0fedcba"
 tamper <- function(bd) { f <- file.path(bd, "F2_combz_components.csv"); Sys.chmod(f, "0666"); cat("x\n", file = f, append = TRUE) }
 check(grepl("NOT registered", errmsg(wb(BID3, out = OUT3, .before_verify = tamper))) && !file.exists(file.path(OUT3, "BUNDLE_REGISTRY.csv")),
       "a post-write failure stops before the registry row")

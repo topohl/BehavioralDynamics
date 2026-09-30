@@ -1,20 +1,23 @@
 # ================================================================
-# Stage 16c - figure-support bundle (descriptive source-data export for manuscript Figure 1, option 3)
+# Stage 16c - figure-support bundle v2 (source-data export for manuscript Figure 1, options 3 and 3b)
 # MMMSociability -- Analysis/16c_figure_support_bundle.R
 # ================================================================
-# The ONLY writer of the figure-support bundle that Exp9_manuscript imports (record: docs/FIGURE_SUPPORT_BUNDLE_v1.md).
-# It fits, tests and refits nothing and produces no p or q value. It exports:
+# The ONLY writer of the figure-support bundle that Exp9_manuscript imports (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md, _v2.md).
+# It fits, tests and refits nothing and computes no p or q value. It exports:
 #   F1  descriptive CON cage means (ebb_v101 B1; 3 CON cages per sex per CC, 4 animals each),
 #   F1b the CON descriptive mean copied from ebb_v101 B2,
 #   F2  the six stored CombZ component z-scores exactly as they enter CombZ, with the frozen direction,
 #   F2b the component definition (sources, standardisation as implemented, direction, relationship to CombZ).
+#   P1  / P1b / P1c (v2) verbatim copies of the post hoc run 29b (registry POSTHOC_CON_CONTRASTS v1.0, fitted there once):
+#       estimates (batch-balanced means, contrasts, Holm, labels), the common-cage-variance sensitivity, the diagnostics;
+#       hash-gated on the run's audit/output_manifest.csv (4c079ecf...), every file, README and run_manifest.
 # Every input is hash-gated first: ebb_v101 (00_manifest ec59aa33..., every file, FROZEN registry row), the canonical
 # CombZ table (1f6a2a69...), its component definition and thresholds, the sus / con lists, and the frozen CombZ
 # definition code Analysis/build_later_outcome_combz.R (git blob pinned). That producer is PARSED, never run: its
 # definition constants and composite-rule lines are evaluated in an empty environment (Functions/figure_support_bundle.R).
 #
 # Output (REAL): analysis_ready/canonical/figure_support_bundle/<bundle_id>/ with BUNDLE_REGISTRY.csv beside it;
-#   bundle_id = fsb_v1_<YYYYMMDD>_<commit7>; written once (refused if it, its staging folder, its registry row or its gate
+#   bundle_id = fsb_v2_<YYYYMMDD>_<commit7> (fsb_v1_20260930_f06552c stays FROZEN and untouched); written once (refused if it, its staging folder, its registry row or its gate
 #   log exists), files 0444; post-write gates before the registry row; complete gate log in logs/ beside the registry.
 # Modes (exactly one argument; with none the runner refuses before reading anything):
 #   --dry-run  writes <dry root>/<YYYYMMDD_HHMMSS>/<bundle_id>/ (status DRY_RUN_NOT_FOR_USE); never writes to S:.
@@ -98,6 +101,12 @@ for (f in USED29) { r <- V29$check[file == f]; gate("1-stage29", paste0("ebb_v10
   inp(file.path(B29, f), "stage29_bundle_file", r$observed_sha256, r$observed_bytes) }
 inp(file.path(B29, "00_manifest.csv"), "stage29_bundle_manifest", V29$manifest_sha256)
 inp(file.path(B29_ROOT, "BUNDLE_REGISTRY.csv"), "stage29_bundle_registry (read for the FROZEN row; appended by later bundles)")
+
+# ---------------------------------------------------------------- 1b. post hoc run 29b (v2; copied verbatim)
+PH_DIR <- file.path(AR, "pipeline", FSB_POSTHOC$stage_dir, FSB_POSTHOC$run_name)
+VPH <- fsb_verify_posthoc_run(PH_DIR); gate_rows(VPH$gates)
+for (f in VPH$manifest$file) inp(file.path(PH_DIR, f), paste0("posthoc_run_file ", f), VPH$check[file == f, observed_sha256])
+inp(file.path(PH_DIR, "audit", "output_manifest.csv"), "posthoc_run_output_manifest", VPH$manifest_sha256)
 
 # ---------------------------------------------------------------- 2. canonical CombZ tables and label lists (= pinned)
 SRC <- c(combz_table = mmm_path_get("behavior.later_outcome_combz", "animal_level", root = ROOT),
@@ -187,7 +196,10 @@ gate("6-F2", "classification reproduced: for SIS animals below_threshold <=> Gro
      F2[Group != "CON", all(below_threshold == (Group == "SUS"))], F2[Group != "CON" & below_threshold != (Group == "SUS"), paste(unique(AnimalNum), collapse = ",")])
 F2b <- fsb_combz_definition_table(DEF, COMPDEF, F2, normalizePath(SRC[["combz_table"]], winslash = "/", mustWork = FALSE), FSB_INPUT_SHA256[["combz_table"]])
 gate("6-F2", "F2b: 6 component rows; n_present = 117 - n_missing", nrow(F2b) == 6L && all(F2b$n_present + F2b$n_missing == FSB_N$combz_animals))
-TABLES <- list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b)
+PH_LABEL <- paste(FSB_POSTHOC$stage_dir, FSB_POSTHOC$run_name, sep = "/")
+PT <- lapply(FSB_POSTHOC_TABLES, function(rel) fsb_posthoc_copy(PH_DIR, rel, VPH$check[file == rel, observed_sha256], PH_LABEL))
+gate_rows(fsb_posthoc_gates(PT, PH_DIR))
+TABLES <- c(list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b), PT)
 gate("6-tables", "display text free of banned wording (labels, F2b text)", { fsb_check_display(F1, c("measure_label", "unit"), "F1")
   fsb_check_display(F1b, c("measure_label", "unit"), "F1b"); TRUE })
 
@@ -210,6 +222,10 @@ H <- fsb_provenance(list(
                                  length(FSB_COMBZ_RULE), " composite-rule lines are evaluated; never executed)"),
   combz_definition_code_git_blob = blob, combz_definition_id = CST$COMBZ_DEFINITION_ID, combz_reference_population_id = CST$COMBZ_REFERENCE_POP_ID,
   combz_upstream_correction_id = CST$COMBZ_CORRECTION_ID, combz_definition_doc = FSB_COMBZ_CODE$doc,
+  posthoc_run_dir = normalizePath(PH_DIR, winslash = "/", mustWork = FALSE), posthoc_run_commit = FSB_POSTHOC$run_commit,
+  posthoc_output_manifest_sha256 = VPH$manifest_sha256, posthoc_registry_sha256 = FSB_POSTHOC$registry_sha256,
+  posthoc_registry_version = FSB_POSTHOC$registry_version, posthoc_tier = paste(FSB_POSTHOC$tier, "(decision basis USER_REQUEST_AFTER_DESCRIPTIVE_INSPECTION, 2026-09-30)"),
+  posthoc_tables = paste(sprintf("%s = %s/%s", names(FSB_POSTHOC_TABLES), PH_LABEL, FSB_POSTHOC_TABLES), collapse = "; "),
   combz_recompose_max_abs_diff = s30fb_num_chr(attr(F2, "recompose_max_abs_diff")),
   con_mean_of_cage_means_max_abs_diff = s30fb_num_chr(max(CK$abs_diff)),
   group_rule = "Group = canonical CombZ-table outcome_group, gated = list rule (CON if con list, else SUS if sus list, else RES) and = ebb_v101 A4 / B1 Group",
@@ -223,7 +239,8 @@ H <- fsb_provenance(list(
   r_version = R.version.string,
   packages = paste(sprintf("%s %s", pk, vapply(pk, function(p) as.character(utils::packageVersion(p)), "")), collapse = "; ")))
 IN <- unique(rbindlist(INPUTS), by = c("input", "role"))
-W <- fsb_write_bundle(TABLES, OUT_ROOT, bundle_id, H, IN, GT, STATUS, FSB_STAGE29$bundle_id, FSB_INPUT_SHA256[["combz_table"]], commit, GEN_AT)
+W <- fsb_write_bundle(TABLES, OUT_ROOT, bundle_id, H, IN, GT, STATUS, FSB_STAGE29$bundle_id, FSB_INPUT_SHA256[["combz_table"]], commit, GEN_AT,
+                      verbatim = stats::setNames(file.path(PH_DIR, FSB_POSTHOC_TABLES), names(FSB_POSTHOC_TABLES)))
 gate_rows(W$post_gates)
 message("Stage 16c ", MODE, " complete: bundle ", bundle_id, " ", STATUS, " at ", W$dir, " (manifest sha256 ", W$manifest_sha256, ")")
 message("  gate log ", W$log, " (", fsb_gate_count(W$gates), " gates passed; sha256 ", W$log_sha256, ")")

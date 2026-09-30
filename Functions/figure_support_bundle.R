@@ -1,8 +1,8 @@
 # ================================================================
-# Figure-support bundle: helpers (descriptive source-data export for manuscript Figure 1, option 3)
+# Figure-support bundle v2: helpers (source-data export for manuscript Figure 1, options 3 and 3b)
 # MMMSociability -- Functions/figure_support_bundle.R
 # ================================================================
-# Pure constants and functions for Analysis/16c_figure_support_bundle.R (record: docs/FIGURE_SUPPORT_BUNDLE_v1.md).
+# Pure constants and functions for Analysis/16c_figure_support_bundle.R (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md, _v2.md).
 # Sourcing this file defines constants and functions only; it reads and writes nothing. It needs the generic hash-gate
 # and writer utilities of Functions/stage30_figure_bundle.R (s30fb_*), which the caller sources first.
 #
@@ -14,17 +14,34 @@
 #     parsing it: only the named constant assignments and the four composite lines are evaluated, never the file.
 #     The upstream raw -> z standardisation is NOT re-derived (docs/COMBZ_CANONICAL_DEFINITION.md section 4a):
 #     raw_value, reference_mean and reference_sd are therefore NA, and F2b says why.
+#   * P1 / P1b / P1c (v2): verbatim copies of the post hoc run 29b (registry POSTHOC_CON_CONTRASTS v1.0; the model was
+#     fitted there, once): estimates (batch-balanced means, contrasts, Holm, labels), the common-cage-variance sensitivity
+#     and the diagnostics. Every cell is carried as text; the written lines are checked to be the source lines plus the
+#     three provenance cells. The run is hash-gated on its audit/output_manifest.csv. Nothing is fitted or adjusted here.
 # Requires: data.table, digest, tibble (the producer's component table is a tibble::tribble).
 # ================================================================
 
-FSB_SCHEMA_VERSION <- "1"
-FSB_BUNDLE_PREFIX <- "fsb_v1"
+FSB_SCHEMA_VERSION <- "2"
+FSB_BUNDLE_PREFIX <- "fsb_v2"   # v1 (fsb_v1_20260930_f06552c, FROZEN) was written by commit f06552c and is never rewritten
 FSB_STATUS_REAL <- "FROZEN"
 FSB_STATUS_DRY <- "DRY_RUN_NOT_FOR_USE"
 FSB_TOL <- 1e-12
 
 FSB_STAGE29 <- list(bundle_id = "ebb_v101_20260929_b2ce507",
                     manifest_sha256 = "ec59aa337fc63511de4aa2bf3e1ee1f4b34b84d6d671565f74e0bb3939f7226c")
+# v2: the post hoc run 29b (Analysis/29b_posthoc_con_contrasts.R, registry POSTHOC_CON_CONTRASTS v1.0), REAL, run once
+FSB_POSTHOC <- list(stage_dir = "29b_posthoc_con_contrasts", run_name = "v1.0_7f1da1f",
+                    run_commit = "7f1da1f6cea098a97cd0b06e3a37140826dda2f1",
+                    output_manifest_sha256 = "4c079ecfb31db159ea7c28379fac48ac6fbb27e6e7af00762840f7fdf0367faa", output_manifest_n = 7L,
+                    registry_version = "1.0", registry_sha256 = "a6435d8d84b164671b59486f7a3eb9af2bff29bd251c58866cd4b777f9fa0604",
+                    status_counts = "primary_separate_cage_variances OK=4; sensitivity_common_cage_variance OK=4",
+                    tier = "POST HOC exploratory")
+# bundle table -> post hoc run file (copied verbatim) and its expected row count
+FSB_POSTHOC_TABLES <- c(P1_posthoc_con_contrasts = "tables/estimates.csv", P1b_posthoc_sensitivity = "tables/sensitivity_common_cage_variance.csv",
+                        P1c_posthoc_diagnostics = "tables/diagnostics.csv")
+FSB_POSTHOC_ROWS <- c(P1_posthoc_con_contrasts = 24L, P1b_posthoc_sensitivity = 24L, P1c_posthoc_diagnostics = 8L)
+FSB_POSTHOC_ADDED <- c("source_run", "source_file", "source_sha256")
+FSB_POSTHOC_DISPLAY_COLS <- c("measure_label", "unit", "estimand_label", "display_note", "caveats", "registered_rs_note")
 # canonical CombZ tables and label lists: the on-disk SHA-256 must equal these (the first three = Stage 30 input_hashes)
 FSB_INPUT_SHA256 <- c(
   combz_table = "1f6a2a69c6b0781b8de8da50ecdadf309b62bbc9c82106c0fa91d18119a7de54",
@@ -51,25 +68,30 @@ FSB_CCS <- paste0("CC", 1:4)
 FSB_SEX_BATCHES <- list(Female = c("B3", "B4", "B6"), Male = c("B1", "B2", "B5"))
 FSB_N <- list(con_cages = 3L, con_per_cage = 4L, con_per_sex = 12L, combz_animals = 117L, components = 6L,
               rfid_animals = 111L, con_rfid_animals = 24L)
-FSB_TABLES <- c("F1_con_cage_means", "F1b_con_reference_means", "F2_combz_components", "F2b_combz_definition")
+FSB_TABLES <- c("F1_con_cage_means", "F1b_con_reference_means", "F2_combz_components", "F2b_combz_definition",
+                "P1_posthoc_con_contrasts", "P1b_posthoc_sensitivity", "P1c_posthoc_diagnostics")
 FSB_GATE_FILE <- "H3_gate_results.csv"
 FSB_GATE_COLS <- c("stage", "gate", "passed", "hard", "detail")
 FSB_REGISTRY_COLS <- c("bundle_id", "status", "manifest_sha256", "stage29_bundle_id", "combz_table_sha256", "mmm_git_commit", "created_at")
 FSB_PROVENANCE_KEYS <- c("bundle_id", "status", "generated_at", "generator", "mmm_git_commit", "mmm_branch", "stage29_bundle_id",
                          "stage29_bundle_manifest_sha256", "combz_table_sha256", "combz_definition_code", "combz_definition_code_git_blob",
+                         "posthoc_run_dir", "posthoc_run_commit", "posthoc_output_manifest_sha256", "posthoc_registry_sha256",
                          "scientific_recomputation", "descriptive_computations", "pre_write_gates_passed", "gate_results")
 FSB_SCIENTIFIC_RECOMPUTATION <- paste(
   "none; descriptive cage means and the frozen CombZ standardisation reproduced exactly; no model.",
   "The standardised values are the stored canonical component z-scores exactly as they enter CombZ (the upstream",
   "within-sex CON standardisation is carried through verbatim, not re-derived from raw measures); CombZ is recomposed",
-  "from them by the frozen rule of Analysis/build_later_outcome_combz.R and equals the stored CombZ within 1e-12")
+  "from them by the frozen rule of Analysis/build_later_outcome_combz.R and equals the stored CombZ within 1e-12.",
+  "P1 / P1b / P1c are verbatim copies of the hash-gated post hoc run 29b (registry POSTHOC_CON_CONTRASTS v1.0), whose",
+  "model was fitted there once; nothing is fitted, tested or adjusted in this bundle")
 FSB_DESCRIPTIVE_COMPUTATIONS <- c(
   "F1 cage_mean: arithmetic mean of the measure over the CON animals of one cage epoch (Batch|System|CC) in ebb_v101 B1 (values as stored); n_animals = count of those animals",
   "F1b: n and mean copied from ebb_v101 B2_descriptive_summaries (Group CON); nothing computed",
   "gate only (not exported): mean of the 3 cage means per measure x Sex x CC = the F1b / B2 CON mean within 1e-12 (equal cage sizes)",
   "F2 z = direction x signed_z (sign flip, direction -1 where the frozen definition inverts the sign after standardisation); signed_z = the stored component",
   "F2 heatmap_order_within_sex: rank of CombZ within Sex (ascending; ties by AnimalNum), a layout key; below_threshold = CombZ < the stored within-sex susceptibility_threshold",
-  "gate only (not exported): CombZ recomposed from signed_z by the frozen producer rule (mean of the present components) = the stored CombZ within 1e-12")
+  "gate only (not exported): CombZ recomposed from signed_z by the frozen producer rule (mean of the present components) = the stored CombZ within 1e-12",
+  "P1 / P1b / P1c: verbatim text copies of the post hoc run tables estimates.csv / sensitivity_common_cage_variance.csv / diagnostics.csv (every cell as stored); source_run, source_file and source_sha256 appended; nothing computed")
 # words never allowed in display text (DESIGN section 0; OPTION3 section 0); identifiers such as crossing_rate are not labels
 FSB_FORBIDDEN_DISPLAY <- paste0("antenna|crossing|sleep|confirmatory|preregistered|approach|investigation|consumption|habituation|time near|",
                                 "female-specific|sex-specific|acute|sociability|social behaviou?r|social preference|huddling")
@@ -317,6 +339,91 @@ fsb_combz_definition_table <- function(defn, compdef, f2, combz_table_path, comb
   out[]
 }
 
+# ---------------------------------------------------------------- P1 / P1b / P1c: the post hoc run 29b (copied verbatim)
+#' Frozen post hoc run: folder name, audit/output_manifest.csv hash, its files (bytes, SHA-256; CR stripped), no extra file,
+#' every file read-only, README commit / registry lines, run_manifest (REAL, commit, registry, status counts). Never stops.
+fsb_verify_posthoc_run <- function(run_dir, expect = FSB_POSTHOC) {
+  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("1b-posthoc", name, passed, detail)
+  mf <- file.path(run_dir, "audit", "output_manifest.csv")
+  add("post hoc run folder = pinned run (29b_posthoc_con_contrasts/v1.0_<commit7>)",
+      identical(basename(run_dir), expect$run_name) && identical(basename(dirname(run_dir)), expect$stage_dir), run_dir)
+  if (!file.exists(mf)) { add("audit/output_manifest.csv exists", FALSE, mf); return(list(gates = data.table::rbindlist(g))) }
+  msha <- s30fb_sha(mf)
+  add("audit/output_manifest.csv SHA-256 = pinned", identical(msha, expect$output_manifest_sha256), msha)
+  man <- data.table::fread(mf, colClasses = "character")
+  for (k in names(man)) data.table::set(man, j = k, value = s30fb_strip_cr(man[[k]]))
+  chk <- s30fb_manifest_check(run_dir, man)
+  add(sprintf("output manifest lists %d files, among them the 3 tables copied", expect$output_manifest_n),
+      nrow(man) == expect$output_manifest_n && all(FSB_POSTHOC_TABLES %in% man$file), nrow(man))
+  add("every manifest file: bytes and SHA-256 match", nrow(chk) > 0L && all(chk$ok), paste(chk[ok == FALSE, file], collapse = ","))
+  extra <- setdiff(s30fb_files_on_disk(run_dir), c(chk$file, "audit/output_manifest.csv"))
+  add("no file in the run folder outside the manifest", !length(extra), paste(extra, collapse = ","))
+  fl <- list.files(run_dir, recursive = TRUE, full.names = TRUE, all.files = TRUE)
+  add("every run file is read-only", length(fl) > 0L && all(file.access(fl, 2L) != 0L), run_dir)
+  rd <- if (file.exists(file.path(run_dir, "README.txt"))) s30fb_strip_cr(readLines(file.path(run_dir, "README.txt"), warn = FALSE, encoding = "UTF-8")) else character()
+  add("README commit = post hoc run commit", any(rd == paste("commit", expect$run_commit)), grep("^commit ", rd, value = TRUE))
+  add("README registry sha256 = frozen post hoc registry", any(rd == paste("registry sha256", expect$registry_sha256)), grep("^registry sha256 ", rd, value = TRUE))
+  rp <- file.path(run_dir, "audit", "run_manifest.csv")
+  run <- if (file.exists(rp)) data.table::fread(rp, colClasses = "character") else data.table::data.table()
+  if (nrow(run)) for (k in names(run)) data.table::set(run, j = k, value = s30fb_strip_cr(run[[k]]))
+  add("run_manifest: REAL at the run commit with the frozen registry, fitted once",
+      nrow(run) == 1L && identical(run$mode, "REAL") && identical(run$git_commit, expect$run_commit) && identical(run$registry_sha256, expect$registry_sha256) &&
+        identical(run$registry_version, expect$registry_version), paste(run$mode, run$git_commit, run$registry_sha256))
+  add("run_manifest: status counts = pinned (no FAILED fit)", nrow(run) == 1L && identical(run$status_counts, expect$status_counts) && identical(run$n_failed, "0"),
+      paste(run$status_counts, run$n_failed))
+  list(gates = data.table::rbindlist(g), check = chk, manifest = man, manifest_sha256 = msha, run = run)
+}
+
+#' One post hoc table copied verbatim: every cell read as text (blank = NA, "" kept), then source_run / source_file /
+#' source_sha256 appended. Stops unless the file's SHA-256 equals `sha256` (its output-manifest entry) at the time of the read.
+fsb_posthoc_copy <- function(run_dir, rel, sha256, run_label) {
+  p <- file.path(run_dir, rel)
+  if (!identical(s30fb_sha(p), sha256)) stop("Post hoc table ", rel, " differs from its output-manifest SHA-256.", call. = FALSE)
+  x <- data.table::fread(p, colClasses = "character", na.strings = "", encoding = "UTF-8")
+  if (length(intersect(FSB_POSTHOC_ADDED, names(x)))) stop("Post hoc table ", rel, " already has a provenance column.", call. = FALSE)
+  x[, (FSB_POSTHOC_ADDED) := list(run_label, rel, sha256)]
+  x[]
+}
+
+#' Gate rows on the three copied tables: row counts, the registry identity and tier on every row, six estimands per
+#' measure x sex, Holm m = 3 on the tested rows, the display text free of banned wording, and the copy = an independent
+#' re-read of the source (every cell, as text).
+fsb_posthoc_gates <- function(P, run_dir, expect = FSB_POSTHOC) {
+  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("6-P", name, passed, detail)
+  add("P1 / P1b / P1c present with the declared row counts (24, 24, 8)", setequal(names(P), names(FSB_POSTHOC_TABLES)) &&
+        all(vapply(names(FSB_POSTHOC_ROWS), function(k) !is.null(P[[k]]) && nrow(P[[k]]) == FSB_POSTHOC_ROWS[[k]], TRUE)),
+      paste(vapply(P, nrow, 1L), collapse = ","))
+  for (k in names(P)) {
+    src <- data.table::fread(file.path(run_dir, FSB_POSTHOC_TABLES[[k]]), colClasses = "character", na.strings = "", encoding = "UTF-8")
+    cp <- P[[k]][, setdiff(names(P[[k]]), FSB_POSTHOC_ADDED), with = FALSE]
+    add(paste0(k, ": every source cell carried verbatim (text) in source column order"), identical(names(cp), names(src)) && identical(as.list(cp), as.list(src)))
+  }
+  p1 <- P$P1_posthoc_con_contrasts; p1b <- P$P1b_posthoc_sensitivity
+  add("P1 / P1b: registry sha256, version and tier on every row = the frozen post hoc registry",
+      all(c(p1$registry_sha256, p1b$registry_sha256) == expect$registry_sha256) && all(c(p1$registry_version, p1b$registry_version) == expect$registry_version) &&
+        all(c(p1$tier, p1b$tier) == expect$tier))
+  add("P1: six estimands (3 means, 3 contrasts) per measure x sex; Holm m = 3 on the tested rows",
+      nrow(unique(p1[, .(measure, Sex)])) == 4L && all(p1[, .N, by = .(measure, Sex)]$N == 6L) &&
+        all(p1[tested == "TRUE", .N, by = .(measure, Sex)]$N == 3L) && all(p1[tested == "TRUE", holm_m] == "3") && all(is.na(p1[tested == "FALSE", p_holm])))
+  add("P1: primary model rows only; P1b: sensitivity rows only",
+      all(p1$model == "primary_separate_cage_variances") && all(p1b$model == "sensitivity_common_cage_variance"))
+  add("P1 / P1b display text free of banned wording", {
+    fsb_check_display(p1, FSB_POSTHOC_DISPLAY_COLS, "P1"); fsb_check_display(p1b, FSB_POSTHOC_DISPLAY_COLS, "P1b"); TRUE })
+  data.table::rbindlist(g)
+}
+
+#' Post-write gate: every line of a written P table = the source line + "," + the appended provenance cells (byte-level
+#' verbatim copy of every source cell). `verbatim` = named character (bundle table -> source file path).
+fsb_verbatim_gates <- function(bd, verbatim) {
+  if (!length(verbatim)) return(data.table::data.table(stage = character(), gate = character(), passed = logical(), hard = logical(), detail = character()))
+  data.table::rbindlist(lapply(names(verbatim), function(k) {
+    a <- readLines(file.path(bd, paste0(k, ".csv")), warn = FALSE, encoding = "UTF-8"); b <- readLines(verbatim[[k]], warn = FALSE, encoding = "UTF-8")
+    ok <- length(a) == length(b) && length(a) > 1L && all(startsWith(a, paste0(b, ",")))
+    s30fb_gate_row("7-write", paste0(k, ".csv: every line = the post hoc source line + the appended provenance cells"), ok,
+                   paste(length(a), "lines vs", length(b)))
+  }))
+}
+
 # ---------------------------------------------------------------- provenance and writer
 fsb_provenance <- function(fields) {
   v <- vapply(fields, function(z) paste(as.character(z), collapse = " || "), "")
@@ -329,7 +436,7 @@ fsb_provenance <- function(fields) {
 fsb_bundle_files <- function() c(paste0(FSB_TABLES, ".csv"), "H_provenance.csv", "H2_inputs.csv", FSB_GATE_FILE)
 
 #' Post-write gates on the renamed folder, run BEFORE the registry row is appended. Never stops.
-fsb_post_write_gates <- function(bd, manifest, expected_files = fsb_bundle_files()) {
+fsb_post_write_gates <- function(bd, manifest, expected_files = fsb_bundle_files(), verbatim = NULL) {
   g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("7-write", name, passed, detail)
   m <- data.table::as.data.table(manifest); mf <- file.path(bd, "00_manifest.csv")
   back <- if (file.exists(mf)) data.table::fread(mf, colClasses = "character") else data.table::data.table()
@@ -344,16 +451,17 @@ fsb_post_write_gates <- function(bd, manifest, expected_files = fsb_bundle_files
       setequal(m$file, expected_files) && !anyDuplicated(m$file), paste(c(setdiff(expected_files, m$file), setdiff(m$file, expected_files)), collapse = ","))
   fl <- list.files(bd, full.names = TRUE, all.files = TRUE, no.. = TRUE)
   add("written files are read-only", length(fl) > 0L && all(file.access(fl, 2L) != 0L), bd)
-  data.table::rbindlist(g)
+  rbind(data.table::rbindlist(g), fsb_verbatim_gates(bd, verbatim))
 }
 
 #' Write the bundle once (the Stage 30b write protocol). Refuses if the version folder, its staging folder, its registry
 #' row or its gate log exists, if a hard pre-write gate failed, or if H_provenance pre_write_gates_passed does not count
 #' the gate table. Tables, H_provenance, H2_inputs, H3_gate_results and 00_manifest go to a staging folder, which is
 #' renamed and made read-only; the post-write gates run before the BUNDLE_REGISTRY.csv row is appended; the complete gate
-#' table goes to logs/<bundle_id>_gate_results.csv beside the registry (0444). `.before_verify` is a test hook only.
+#' table goes to logs/<bundle_id>_gate_results.csv beside the registry (0444). `verbatim` (bundle table -> source path) adds the
+#' line-level verbatim post-write gate for the copied post hoc tables. `.before_verify` is a test hook only.
 fsb_write_bundle <- function(tables, out_root, bundle_id, provenance, inputs, gates, status, stage29_bundle_id, combz_table_sha256,
-                             mmm_git_commit, created_at, .before_verify = NULL) {
+                             mmm_git_commit, created_at, verbatim = NULL, .before_verify = NULL) {
   bd <- file.path(out_root, bundle_id); stg <- file.path(out_root, paste0(".tmp_", bundle_id)); reg <- file.path(out_root, "BUNDLE_REGISTRY.csv")
   log <- s30fb_log_path(out_root, bundle_id)
   registered <- function() file.exists(reg) && bundle_id %in% data.table::fread(reg, colClasses = "character")$bundle_id
@@ -383,7 +491,7 @@ fsb_write_bundle <- function(tables, out_root, bundle_id, provenance, inputs, ga
   if (!file.rename(stg, bd)) stop("Could not rename ", stg, " to ", bd, call. = FALSE)
   Sys.chmod(list.files(bd, full.names = TRUE), mode = "0444")
   if (is.function(.before_verify)) .before_verify(bd)
-  post <- fsb_post_write_gates(bd, man)
+  post <- fsb_post_write_gates(bd, man, verbatim = verbatim)
   if (!all(post$passed)) {
     s30fb_write_gate_log(rbind(gates, post), log)
     stop("Post-write gate failed; the bundle is NOT registered (folder ", bd, " left for inspection; gate log ", log, "): ",
