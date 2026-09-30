@@ -3,13 +3,18 @@
 # MMMSociability -- Functions/stage32_run.R
 # ================================================================
 # Pure constants and functions for Analysis/32_behavior_exposure_adaptation.R (registry sections 8 and 10 of the FROZEN
-# docs/STAGE32_REGISTRY_v1.0.md). Sourcing this file reads and writes nothing; it holds no S: path (the runner builds paths
-# from mmm_project_root()).
+# docs/STAGE32_REGISTRY_v1.0.md, and the FROZEN addendum docs/STAGE32_REGISTRY_v1.0_ADDENDUM_A1.md). Sourcing this file
+# reads and writes nothing; it holds no S: path (the runner builds paths from mmm_project_root()).
+# Addendum A1 (writer correction): the first REAL execution (commit 4f9c016) aborted inside the writer and left the staging
+# folder .tmp_v1.0_4f9c016 (kept, read-only, as evidence; it keeps every v1.0 run name blocked). The corrected execution
+# writes v1.1_<commit7> once: every file is written and round-trip-checked in a LOCAL staging folder, the 12 tables must be
+# byte-identical to the aborted staging tables (determinism gate), and only then is the folder copied to S:.
 # Requires: data.table, digest; Functions/stage30_figure_bundle.R (s30fb_sha, s30fb_write_csv, s30fb_gate_row,
 # s30fb_manifest_check, s30fb_files_on_disk) sourced first; ggplot2 for the QC plots.
 # ================================================================
 
-S32_VERSION <- "1.0"
+S32_VERSION <- "1.0"          # registry version (analysis registry v1.0, unchanged)
+S32_RUN_VERSION <- "1.1"      # run-folder version (addendum A1: the corrected execution)
 S32_REGISTRY <- list(
   version = "1.0", file = "STAGE32_REGISTRY_v1.0.md", csv = "STAGE32_HYPOTHESES_v1.0.csv",
   repo_path = "docs/STAGE32_REGISTRY_v1.0.md", repo_csv = "docs/STAGE32_HYPOTHESES_v1.0.csv",
@@ -19,7 +24,35 @@ S32_REGISTRY <- list(
   freeze_commit = "0970d320e4f594f7836cd1ca3598e948992cc630", frozen_at = "2026-09-30T22:41:10+0200")
 S32_STAGE_DIR <- "32_behavior_exposure_adaptation"
 S32_OPTIN_ENV <- "MMM_STAGE32_REAL_RUN"
-S32_REAL_OUT_PATTERN <- "^(\\.tmp_)?v1\\.0_"
+S32_LOCAL_STAGING_ENV <- "MMM_STAGE32_LOCAL_STAGING"   # optional local staging root (default: the R session tempdir())
+S32_REAL_OUT_PATTERN <- "^(\\.tmp_)?v1\\.1_"
+# registry addendum A1 (FROZEN before the v1.1 execution; committed alone, S: copy read-only next to the registry)
+S32_ADDENDUM <- list(
+  id = "A1", file = "STAGE32_REGISTRY_v1.0_ADDENDUM_A1.md", repo_path = "docs/STAGE32_REGISTRY_v1.0_ADDENDUM_A1.md",
+  sha_file = "ADDENDUM_A1_SHA256.txt",
+  sha256 = "0893b5de811ecd57fca25127174fb88e63308588a05e442c6c17d4532cd98acc",
+  freeze_commit = "3ae8198c2779c115bb0e56e236f4859171aefe93", frozen_at = "2026-10-01T00:12:25+0200")
+# the aborted first execution (addendum A1 section A): its staging folder and the 14 files it holds (sha256 as left on S:)
+S32_ABORTED <- list(
+  name = ".tmp_v1.0_4f9c016", commit = "4f9c0169b975d9d1efce49791ff9815b2c6d93a7",
+  table_sha256 = c(
+    coverage_manifest = "e5352ac5add6a7dc02521952e77c4ce9ed921dbc537026c592bbd363d955e493",
+    window_metrics_long = "7f2bfdcc25a9331dc68bc93eddfc03599908208723b94b16c8e753d03c5b2f93",
+    descriptives = "cdb27f2ddc40e987ecac9d8bdb42044275c0146bfaf85e6a65d46a1fa92c1dbc",
+    models = "b2b1f608cf5bc7bd2dace7e020e7c23c3732d9474fda76f57f2958e5a2adee67",
+    estimates = "76f262ffad6b8f7a184fccc0cbe4852f3bfe59549cf2ad8745a0691ea6dcfc40",
+    joint_tests = "5fd5d9460b66e945189d1e3dc008398bc463be72c5b4499774941056f3fa2411",
+    multiplicity = "3544bcd052e66cef7535eff3ed21d3f7e37e35fe94fd3168bda7c322e0e9b81b",
+    sensitivities = "c013bf899336666a615ba0a7e7fba7f024d21440eae0ebbeea4ec920fdfcd636",
+    diagnostics = "d39ef652675a86d4094ee2593635e059fa0acf8ae1ecd533abff7b98166e8fe4",
+    prediction_performance = "c8d627a0bd1fb5688f1ee865f91bfbde6290d4eb871aa7111248fd8d8ffc2846",
+    prediction_permutations = "5c4e36d66b942f812f90adc353b38ada9d0ef79f6cd9e6c66176e04fb9fec8be",
+    prediction_heldout = "c384ca1188f0412bd2780b09dce8e85df5f32155170c42f026066aad0e5fb664"),
+  audit_sha256 = c(
+    input_hashes = "46ae956610216aa17e28730790c7df85a2ce0781d59bdc643969e285ee58301d",
+    gate_results = "86dd53bf3cdfb44b42a0057fb91ebec2e98eb723f745b42471bd2e1bbc5419dd"))
+# numeric Stage 32 code: unchanged since the aborted execution (git blobs compared by the runner)
+S32_NUMERIC_CODE <- c("Functions/stage32_windows.R", "Functions/stage32_inference.R", "Functions/stage32_prediction.R")
 S32_TIER <- "POST HOC relative to the original experiment and the earlier analysis plans; registered before its own fitting"
 S32_DECISION_BASIS <- "POST_HOC_CONTEXT"
 S32_RUN_MODE <- "REAL_POST_HOC_CONTEXT"
@@ -32,7 +65,8 @@ S32_INPUT_SHA256 <- c(
   con_list = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
   stage09_input = "da78f80e4b7867cbabe7847a7da2667459a690a1b25f8ff97ef919cc8d2426dd",
   stage29_exposure_estimates = "33d91929453ae9eec694b173208a6588021893604aa98fa379227adfc7611a70",
-  stage29_stage09_cv_sensitivities = "6cc3027e0a6f3af6797b1436e26e49b320212bf267657e29e91cdcb5de0e3028")
+  stage29_stage09_cv_sensitivities = "6cc3027e0a6f3af6797b1436e26e49b320212bf267657e29e91cdcb5de0e3028",
+  stage29_continuous_estimates = "cc549c248778a735f1e79ba2b33e59443778ef200e480ad7479b4150f2b15200")   # addendum A1: H13 comparator only
 S32_EBB <- list(bundle_id = "ebb_v101_20260929_b2ce507", manifest_sha256 = S32_INPUT_SHA256[["ebb_v101_manifest"]],
                 b1_file = "B1_animal_longitudinal.csv", b1_sha256 = "2a710a8ad90f98a4bf2f9f1460bf47c8d59e1bbfdc707533a4e68e864b679860")
 S32_S29_RELEASE <- "v101_dv2_b2ce507"
@@ -81,7 +115,8 @@ S32_POP <- list(n_animals = 111L, n_sis = 87L, by_sex_group = list(Female = c(CO
 S32_FORBIDDEN_WORDS <- c("acute", "immediate response", "sleep", "settled state", "confirmatory", "preregistered", "significant", "stars", "\\brest\\b")
 S32_TABLES <- c("coverage_manifest", "window_metrics_long", "descriptives", "models", "estimates", "joint_tests", "multiplicity", "sensitivities",
                 "diagnostics", "prediction_performance", "prediction_permutations", "prediction_heldout")
-S32_AUDIT <- c("input_hashes", "gate_results", "run_manifest", "reproduction_gate", "reference_a1_gate", "coverage_counts")
+S32_AUDIT <- c("input_hashes", "gate_results", "run_manifest", "reproduction_gate", "reference_a1_gate", "coverage_counts",
+               "aborted_run_evidence", "determinism_gate", "reporting_flags")        # the last three: addendum A1
 S32_MANIFEST_FILE <- "audit/output_manifest.csv"
 S32_README <- "README.txt"
 S32_CONVENTIONS <- c(
@@ -97,15 +132,22 @@ S32_CONVENTIONS <- c(
   "C10 D and phase profile: batch-balanced (1/6 per batch dummy) and CC1-CC3-averaged L-vectors; plateau contrast = A4 - A2; linear trend of the categorical profile = weights (-0.3, -0.1, 0.1, 0.3) over A1..A4",
   "C11 Module F repeated grouped 5-fold: CC1 cages shuffled (seed 521) and assigned round-robin to 5 folds, the same folds for A, B and C; any test batch absent from its training fold gets the mean of the training batch effects (the LOBO rule)",
   "C12 permutations: one set of 1000 within-Batch index vectors (seed 20260811; Mersenne-Twister / Inversion / Rejection) shared by both behaviour sets; the unrestricted null re-seeded with 20260811; a null draw within 1e-12 of the observed value counts as >=",
-  "C13 CombZ_wb = CombZ minus its batch mean over the 87 SIS animals (the centring set does not change any slope when Batch is in the model)",
+  paste("C13 CombZ_wb = CombZ minus its batch mean over the 87 SIS animals (animal level); every C-cz, D-cz and E-cz model uses all 87 animals, the",
+        "centring set (A-cz overlap uses 85). A batch-specific shift of CombZ_wb is absorbed by Batch when the only CombZ_wb terms are CombZ_wb and",
+        "CombZ_wb:sex_c, but it would create Batch x phase or Batch x CC terms that the C-cz, D-cz and E-cz models do not contain, so CombZ_wb:phase",
+        "and CombZ_wb:CC depend on the centring set (wording corrected by addendum A1; the v1.0 wording said no slope changes)"),
   "C14 estimation-only rows carry no statistic and no p (registry section 6)",
   "C15 sensitivities are compared with the primary-model row of the same estimand (shift in primary SEs; Stage 29 robustness label); categorical-phase rows through the linear-trend contrast only",
-  "C16 nothing estimated is printed before the outputs are written; a failure before the write leaves nothing on S:")
+  paste("C16 nothing estimated is printed before the outputs are written; every output file is written and round-trip-checked in a local staging",
+        "folder before anything is copied to S: (addendum A1), so a failure before the S: copy leaves nothing on S:; a failure during the copy leaves",
+        ".tmp_v1.1_<commit7>, which blocks any further run"),
+  paste("C17 estimand shared_phase_slope (C-exp phase coefficient) is the CON/SIS-average phase slope: under +-1/2 g_SIS coding it is the unweighted",
+        "average of the CON and SIS phase slopes, not a slope shared by CON and SIS (addendum A1; the table label is kept)"))
 
 # ---------------------------------------------------------------- identity utilities
 s32r_run_name <- function(commit) {
   if (!grepl("^[0-9a-f]{40}$", commit)) stop("Not a full git commit hash: ", commit, call. = FALSE)
-  paste0("v", S32_VERSION, "_", substr(commit, 1, 7))
+  paste0("v", S32_RUN_VERSION, "_", substr(commit, 1, 7))
 }
 #' The only mode is --real (registry section 8: one REAL run; the synthetic tests are the only rehearsal).
 s32r_parse_mode <- function(args) {
@@ -150,6 +192,47 @@ s32r_blocking_entries <- function(out_root) {
   e <- list.files(out_root, all.files = TRUE, no.. = TRUE); e[grepl(S32_REAL_OUT_PATTERN, e)]
 }
 
+#' Addendum A1 gates: S: copy (bytes) and repository copy (LF form) = the frozen sha256; the addendum sha list names it;
+#' S: files read-only; status line FROZEN.
+s32r_addendum_gates <- function(canon_dir, repo_md, expect = S32_ADDENDUM) {
+  s_md <- file.path(canon_dir, expect$file); s_sha <- file.path(canon_dir, expect$sha_file)
+  sh <- if (file.exists(s_md)) s30fb_sha(s_md) else NA_character_
+  lf <- if (file.exists(repo_md)) s32r_sha_lf(repo_md) else NA_character_
+  lines <- if (file.exists(s_sha)) readLines(s_sha, warn = FALSE) else character()
+  st <- if (file.exists(s_md)) grep("^\\*\\*Status\\.\\*\\*", readLines(s_md, warn = FALSE, encoding = "UTF-8"), value = TRUE) else character()
+  ro <- c(s_md, s_sha); ro <- ro[file.exists(ro)]
+  rbind(s32r_gate("0-addendum", "addendum A1 S: copy SHA-256 = frozen", identical(sh, expect$sha256), paste(s_md, sh)),
+        s32r_gate("0-addendum", "addendum A1 repository copy (LF form) SHA-256 = frozen", identical(lf, expect$sha256), paste(repo_md, lf)),
+        s32r_gate("0-addendum", "ADDENDUM_A1_SHA256.txt lists the frozen SHA-256", identical(s32r_sha_list_lookup(lines, expect$file), expect$sha256), s_sha),
+        s32r_gate("0-addendum", "addendum A1 status line: FROZEN", length(st) == 1L && grepl("FROZEN", st, fixed = TRUE), st),
+        s32r_gate("0-addendum", "addendum A1 S: files read-only", length(ro) == 2L && all(file.access(ro, 2L) != 0L), paste(ro, collapse = "; ")))
+}
+
+#' Addendum A1 section B2: the Stage 32 folder holds only the aborted v1.0 staging folder, whose files are exactly the 14 pinned
+#' files (sha256), all read-only. Returns list(gates, evidence) (evidence = audit/aborted_run_evidence.csv).
+s32r_aborted_check <- function(out_root, expect = S32_ABORTED) {
+  entries <- if (dir.exists(out_root)) list.files(out_root, all.files = TRUE, no.. = TRUE) else character()
+  ad <- file.path(out_root, expect$name)
+  pinned <- c(stats::setNames(expect$table_sha256, paste0("tables/", names(expect$table_sha256), ".csv")),
+              stats::setNames(expect$audit_sha256, paste0("audit/", names(expect$audit_sha256), ".csv")))
+  on_disk <- if (dir.exists(ad)) s30fb_files_on_disk(ad) else character()
+  on_disk_files <- on_disk[!dir.exists(file.path(ad, on_disk))]
+  rel <- sort(union(names(pinned), on_disk_files))
+  p <- file.path(ad, rel); ex <- file.exists(p)
+  obs <- rep(NA_character_, length(p)); obs[ex] <- vapply(p[ex], s30fb_sha, "", USE.NAMES = FALSE)
+  ev <- data.table::data.table(folder = expect$name, file = rel, bytes = ifelse(ex, as.numeric(file.size(p)), NA_real_), sha256 = obs,
+                               sha256_pinned = unname(pinned[rel]), read_only = ex & file.access(p, 2L) != 0L)
+  ev[, status := ifelse(is.na(sha256_pinned), "UNEXPECTED FILE", ifelse(is.na(sha256), "MISSING", ifelse(sha256 == sha256_pinned, "as left by the aborted v1.0 execution", "CHANGED")))]
+  ev[, role := ifelse(grepl("^tables/", file), "determinism reference (addendum A1 B3)", "evidence only")]
+  gates <- rbind(
+    s32r_gate("1-output", paste0("the Stage 32 folder holds only the aborted v1.0 staging folder ", expect$name, " (no v1.0_* run folder, no other entry)"),
+              identical(entries, expect$name), paste(entries, collapse = ",")),
+    s32r_gate("1-output", "aborted staging folder = the 14 pinned files (sha256), nothing else", nrow(ev) == length(pinned) && all(ev$status == "as left by the aborted v1.0 execution"),
+              paste(ev[status != "as left by the aborted v1.0 execution", paste(file, status)], collapse = "; ")),
+    s32r_gate("1-output", "aborted staging folder: every file read-only", nrow(ev) > 0L && all(ev$read_only), paste(ev[read_only == FALSE, file], collapse = ",")))
+  list(gates = gates, evidence = ev[])
+}
+
 #' The frozen hypothesis table (registry section 6) as read from its S: copy; checked against the implemented map.
 s32r_hypotheses <- function(path) {
   h <- data.table::fread(path, encoding = "UTF-8", colClasses = "character")
@@ -181,53 +264,91 @@ s32r_forbidden <- function(tables, readme) {
 }
 
 # ---------------------------------------------------------------- writer (once, read-only)
-#' CSV-ready copy: POSIXct -> ISO-8601 UTC text (ms), factors -> text, double quotes -> single quotes.
+#' CSV-ready copy: POSIXct -> ISO-8601 UTC text (ms), factors -> text, double quotes -> single quotes, and (addendum A1)
+#' leading / trailing whitespace trimmed from character cells: data.table::fread strips it on read, so the frozen round-trip
+#' check of s30fb_write_csv would otherwise refuse the file (the v1.0 abort).
 s32r_prepare <- function(x) {
   x <- data.table::copy(data.table::as.data.table(x))
   for (k in names(x)) {
     v <- x[[k]]
     if (inherits(v, "POSIXct")) data.table::set(x, j = k, value = format(v, "%Y-%m-%dT%H:%M:%OS3Z", tz = "UTC"))
     else if (is.factor(v)) data.table::set(x, j = k, value = as.character(v))
-    if (is.character(x[[k]])) data.table::set(x, j = k, value = gsub("\"", "'", x[[k]], fixed = TRUE))
+    if (is.character(x[[k]])) data.table::set(x, j = k, value = trimws(gsub("\"", "'", x[[k]], fixed = TRUE)))
   }
   x[]
 }
 
-#' Write the run once: refuses if the stage folder holds any v1.0_* or .tmp_v1.0_* entry. Tables, audit CSVs, README and the
-#' QC PNGs (rendered beforehand into `png_dir`) go to .tmp_<run>; audit/output_manifest.csv lists every other file; the folder
-#' is renamed, every file set 0444, and the manifest re-verified.
-s32r_write_run <- function(out_root, run_name, tables, audit, readme, png_dir) {
-  blk <- s32r_blocking_entries(out_root)
-  if (length(blk)) stop("Refusing to write: an earlier REAL run or staging folder exists: ", paste(file.path(out_root, blk), collapse = ", "), call. = FALSE)
-  if (!setequal(names(tables), S32_TABLES) || !setequal(names(audit), S32_AUDIT)) stop("Table / audit set differs from the declared set.", call. = FALSE)
+#' Local staging root (addendum A1): MMM_STAGE32_LOCAL_STAGING if set, else the R session tempdir().
+s32r_local_root <- function() { r <- Sys.getenv(S32_LOCAL_STAGING_ENV, ""); normalizePath(if (nzchar(r)) r else tempdir(), winslash = "/", mustWork = FALSE) }
+
+#' Step 1 of the write (local disk only): the 12 tables, each written and round-trip-checked by the frozen s30fb_write_csv,
+#' into <local_root>/<run_name>/tables/. Returns the local run folder.
+s32r_stage_tables <- function(local_root, run_name, tables) {
+  if (!setequal(names(tables), S32_TABLES)) stop("Table set differs from the declared set.", call. = FALSE)
+  sd <- file.path(local_root, run_name)
+  if (file.exists(sd)) stop("Local staging folder already exists: ", sd, call. = FALSE)
+  dir.create(file.path(sd, "tables"), recursive = TRUE)
+  for (k in S32_TABLES) s30fb_write_csv(s32r_prepare(tables[[k]]), file.path(sd, "tables", paste0(k, ".csv")))
+  sd
+}
+
+#' Addendum A1 section B3: sha256 of each locally staged table against the aborted v1.0 staging table.
+s32r_determinism <- function(stage_dir, expect = S32_ABORTED$table_sha256) {
+  f <- paste0("tables/", names(expect), ".csv"); p <- file.path(stage_dir, f)
+  obs <- vapply(p, function(z) if (file.exists(z)) s30fb_sha(z) else NA_character_, "", USE.NAMES = FALSE)
+  data.table::data.table(file = f, bytes_this_run = ifelse(file.exists(p), as.numeric(file.size(p)), NA_real_), sha256_this_run = obs,
+                         sha256_aborted_v1_0 = unname(expect), identical = !is.na(obs) & obs == unname(expect))
+}
+
+#' Step 2 of the write. Completes the local staging folder (audit CSVs, README, QC PNGs rendered beforehand into `png_dir`,
+#' audit/output_manifest.csv listing every other file) and verifies it; only then refuses if the S: stage folder holds any
+#' v1.1_* / .tmp_v1.1_* entry, copies the folder to .tmp_<run> on S:, verifies every byte there, renames it to <run>, sets
+#' every file 0444 and re-verifies. A failure before the S: copy leaves nothing on S:.
+s32r_write_run <- function(out_root, run_name, stage_dir, audit, readme, png_dir) {
+  if (!setequal(names(audit), S32_AUDIT)) stop("Audit set differs from the declared set.", call. = FALSE)
+  if (!identical(basename(stage_dir), run_name)) stop("Local staging folder ", stage_dir, " is not for ", run_name, call. = FALSE)
+  tabs <- paste0("tables/", S32_TABLES, ".csv")
+  if (!all(file.exists(file.path(stage_dir, tabs))) || file.exists(file.path(stage_dir, "audit"))) stop("Local staging folder is not a fresh table stage: ", stage_dir, call. = FALSE)
   pngs <- sort(list.files(png_dir, pattern = "[.]png$", full.names = TRUE))
   if (!length(pngs)) stop("No QC plot was rendered.", call. = FALSE)
+  # local: complete and verify
+  dir.create(file.path(stage_dir, "audit")); dir.create(file.path(stage_dir, "qc_plots"))
+  for (k in S32_AUDIT) s30fb_write_csv(s32r_prepare(audit[[k]]), file.path(stage_dir, "audit", paste0(k, ".csv")))
+  for (p in pngs) if (!file.copy(p, file.path(stage_dir, "qc_plots", basename(p)))) stop("Could not copy ", p, call. = FALSE)
+  con <- file(file.path(stage_dir, S32_README), open = "wb"); writeLines(enc2utf8(readme), con, useBytes = TRUE); close(con)
+  rel <- sort(c(tabs, paste0("audit/", S32_AUDIT, ".csv"), paste0("qc_plots/", basename(pngs)), S32_README))
+  man <- data.table::data.table(file = rel, bytes = as.numeric(file.size(file.path(stage_dir, rel))), sha256 = vapply(file.path(stage_dir, rel), s30fb_sha, "", USE.NAMES = FALSE))
+  s30fb_write_csv(man, file.path(stage_dir, S32_MANIFEST_FILE))
+  loc <- s32r_verify_written(stage_dir, man, require_read_only = FALSE)
+  if (!all(loc$passed)) stop("Local staging verification failed (nothing copied to S:): ", paste(loc$gate[!loc$passed], collapse = "; "), call. = FALSE)
+  # S:: copy, verify, rename, protect, re-verify
+  blk <- s32r_blocking_entries(out_root)
+  if (length(blk)) stop("Refusing to write: an earlier REAL run or staging folder exists: ", paste(file.path(out_root, blk), collapse = ", "), call. = FALSE)
   bd <- file.path(out_root, run_name); stg <- file.path(out_root, paste0(".tmp_", run_name))
   if (!dir.exists(out_root)) dir.create(out_root, recursive = TRUE)
-  dir.create(file.path(stg, "tables"), recursive = TRUE); dir.create(file.path(stg, "audit")); dir.create(file.path(stg, "qc_plots"))
-  for (k in S32_TABLES) s30fb_write_csv(s32r_prepare(tables[[k]]), file.path(stg, "tables", paste0(k, ".csv")))
-  for (k in S32_AUDIT) s30fb_write_csv(s32r_prepare(audit[[k]]), file.path(stg, "audit", paste0(k, ".csv")))
-  for (p in pngs) if (!file.copy(p, file.path(stg, "qc_plots", basename(p)))) stop("Could not copy ", p, call. = FALSE)
-  con <- file(file.path(stg, S32_README), open = "wb"); writeLines(enc2utf8(readme), con, useBytes = TRUE); close(con)
-  rel <- sort(c(paste0("tables/", S32_TABLES, ".csv"), paste0("audit/", S32_AUDIT, ".csv"), paste0("qc_plots/", basename(pngs)), S32_README))
-  man <- data.table::data.table(file = rel, bytes = as.numeric(file.size(file.path(stg, rel))), sha256 = vapply(file.path(stg, rel), s30fb_sha, "", USE.NAMES = FALSE))
-  s30fb_write_csv(man, file.path(stg, S32_MANIFEST_FILE))
+  all_rel <- c(rel, S32_MANIFEST_FILE)
+  for (d in unique(dirname(all_rel))) dir.create(if (d == ".") stg else file.path(stg, d), recursive = TRUE, showWarnings = FALSE)
+  okc <- file.copy(file.path(stage_dir, all_rel), file.path(stg, all_rel), overwrite = FALSE)
+  if (!all(okc)) stop("Could not copy to S: (staging folder left, it blocks further runs): ", paste(all_rel[!okc], collapse = ","), call. = FALSE)
+  cp <- s32r_verify_written(stg, man, require_read_only = FALSE)
+  if (!all(cp$passed)) stop("S: copy differs from the local staging folder (staging folder left for inspection): ", paste(cp$gate[!cp$passed], collapse = "; "), call. = FALSE)
   if (dir.exists(bd)) stop("Run folder appeared during the write: ", bd, call. = FALSE)
   if (!file.rename(stg, bd)) stop("Could not rename ", stg, " to ", bd, call. = FALSE)
   Sys.chmod(list.files(bd, recursive = TRUE, full.names = TRUE), mode = "0444")
   post <- s32r_verify_written(bd, man)
   if (!all(post$passed)) stop("Post-write verification failed (folder left for inspection): ", paste(post$gate[!post$passed], collapse = "; "), call. = FALSE)
-  list(dir = bd, manifest = man, manifest_sha256 = s30fb_sha(file.path(bd, S32_MANIFEST_FILE)), post_gates = post)
+  list(dir = bd, local_dir = stage_dir, manifest = man, manifest_sha256 = s30fb_sha(file.path(bd, S32_MANIFEST_FILE)), post_gates = post)
 }
-s32r_verify_written <- function(bd, manifest) {
+s32r_verify_written <- function(bd, manifest, require_read_only = TRUE) {
   m <- data.table::as.data.table(manifest); mf <- file.path(bd, S32_MANIFEST_FILE)
   back <- if (file.exists(mf)) data.table::fread(mf, colClasses = "character") else data.table::data.table(file = character(), sha256 = character())
   chk <- s30fb_manifest_check(bd, m); extra <- setdiff(s30fb_files_on_disk(bd), c(m$file, S32_MANIFEST_FILE))
   fl <- list.files(bd, recursive = TRUE, full.names = TRUE, all.files = TRUE)
-  rbind(s32r_gate("7-write", "output_manifest read back = the manifest written", identical(back$file, m$file) && identical(back$sha256, m$sha256), mf),
-        s32r_gate("7-write", "every file = output_manifest (bytes, SHA-256); nothing else in the folder", nrow(chk) > 0L && all(chk$ok) && !length(extra),
-                  paste(c(chk$file[!chk$ok], extra), collapse = ",")),
-        s32r_gate("7-write", "every written file is read-only", length(fl) > 0L && all(file.access(fl, 2L) != 0L), bd))
+  g <- rbind(s32r_gate("7-write", "output_manifest read back = the manifest written", identical(back$file, m$file) && identical(back$sha256, m$sha256), mf),
+             s32r_gate("7-write", "every file = output_manifest (bytes, SHA-256); nothing else in the folder", nrow(chk) > 0L && all(chk$ok) && !length(extra),
+                       paste(c(chk$file[!chk$ok], extra), collapse = ",")))
+  if (isTRUE(require_read_only)) g <- rbind(g, s32r_gate("7-write", "every written file is read-only", length(fl) > 0L && all(file.access(fl, 2L) != 0L), bd))
+  g
 }
 
 # ---------------------------------------------------------------- QC plots (lightweight; descriptive)
@@ -243,9 +364,13 @@ s32r_plot_phase <- function(desc, which_metric, which_type, ylab, title) {
   g <- desc[metric == which_metric & phase_type == which_type & level == "group" & Group %in% names(S32_COL) & n > 0]
   g <- g[, .(mean = sum(n * mean) / sum(n)), by = .(Group, CC, phase)]
   cm <- desc[metric == which_metric & phase_type == which_type & level == "CON_cage_mean" & n > 0]
+  # lines only where a series has more than one phase (e.g. the CC4 light panel holds L1 only: points, no line)
+  cm_l <- cm[cm[, .I[data.table::uniqueN(phase) > 1L], by = .(CageEpisodeID, CC)]$V1]
+  g_l <- g[g[, .I[data.table::uniqueN(phase) > 1L], by = .(Group, CC)]$V1]
   ggplot2::ggplot() +
-    ggplot2::geom_line(data = cm, ggplot2::aes(phase, mean, group = CageEpisodeID), colour = S32_COL[["CON"]], alpha = 0.35, linewidth = 0.4) +
-    ggplot2::geom_line(data = g, ggplot2::aes(phase, mean, colour = Group, group = Group), linewidth = 0.9) +
+    ggplot2::geom_line(data = cm_l, ggplot2::aes(phase, mean, group = CageEpisodeID), colour = S32_COL[["CON"]], alpha = 0.35, linewidth = 0.4) +
+    ggplot2::geom_point(data = cm, ggplot2::aes(phase, mean), colour = S32_COL[["CON"]], alpha = 0.35, size = 0.8) +
+    ggplot2::geom_line(data = g_l, ggplot2::aes(phase, mean, colour = Group, group = Group), linewidth = 0.9) +
     ggplot2::geom_point(data = g, ggplot2::aes(phase, mean, colour = Group), size = 2.2) +
     ggplot2::facet_wrap(~ CC, nrow = 1, scales = "free_x") + ggplot2::scale_colour_manual(values = S32_COL, name = NULL) +
     ggplot2::labs(x = NULL, y = ylab, title = title,
