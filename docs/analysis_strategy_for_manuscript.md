@@ -291,7 +291,8 @@ Stage 01 canonical behavior metrics
   -> mean(z(state_occupancy_entropy), z(social_state_fraction))
        - z(inactive_state_fraction)
   -> animal-level mean Hedges g for heatmap color
-  -> Group * Sex repeated-measures model contrasts for p/q symbols
+  -> Group * Sex repeated-measures model contrasts (in systems_sis_domain_effect_summary.csv;
+     not used for heatmap markers since the 2026-10 display redesign)
 ```
 
 The HMM resolution is prespecified in code and provenance, never selected from
@@ -323,8 +324,8 @@ social-state occupancy evidence. The historical formula is retained for
 provenance; any future construct change requires a separate scientific plan.
 
 For the broad active/inactive domain heatmap, color is Hedges g calculated from
-one mean per biological animal across the included cage changes. Inferential
-p-values come from, for each Domain x Phase:
+one mean per biological animal across the included cage changes. The p-values in
+`systems_sis_domain_effect_summary.csv` (not used for the heatmap's markers since the 2026-10 redesign) come from, for each Domain x Phase:
 
 ```text
 DomainScore ~ Group * Sex + factor(CageChangeIndex) + (1 | AnimalNum)
@@ -333,9 +334,89 @@ DomainScore ~ Group * Sex + factor(CageChangeIndex) + (1 | AnimalNum)
 with `lmerTest` and `emmeans` Group contrasts within Sex. No pooled
 animal-by-cage-change Welch test is permitted as a fallback. The formal
 Group-by-Sex interaction is exported separately. BH correction is performed
-over all estimable displayed Domain x three-contrast tests within each Sex x
-Phase x HMM-resolution family; the family identifier and size are exported with
-every tile.
+over all estimable inference-family Domain x three-contrast tests within each
+Sex x Phase x HMM-resolution family (the seven domains of `sis_heatmap_domains`,
+m = 18 per family); the family identifier and size are exported with every row of `systems_sis_domain_effect_summary.csv`; the heatmap tiles use their own post hoc tests (below).
+
+**Domain heatmaps (2026-10).** The figures no longer show the inference family above one-to-one. That family is unchanged, so every p and q in `systems_sis_domain_effect_summary.csv` is unchanged.
+
+**Heatmaps.** There are three:
+- H1: CC1 first dark phase (A1, 18:30-06:30 after the first regrouping);
+- H2: CC1 first light phase (L1, the 12 h after A1);
+- H3: every clean phase block of CC1-CC4 (CC1-CC3: 4 dark / 3 light; CC4: first 2 dark / first light), split by sex and phase.
+
+**Resolution variants.** Each heatmap comes in three:
+- `all5min`;
+- `all10min`;
+- `picked`: Movement and Entropy terms at 10 min, Proximity terms at 5 min, switching at 10 min, HMM at 10 min.
+
+The picked set is a measurement-based post hoc judgement, recorded in `MMM_DHM_RESOLUTION_MANIFEST` and `systems_sis_dashboard_resolution_manifest.csv`. Group results at 5 and 10 min had been seen before it was declared.
+
+**Rows.** Seven, in four display tiers and three statistical families:
+- primary: position-change rate, shared RFID-position occupancy;
+- secondary: occupancy dispersion, temporal flexibility, temporal volatility;
+- exploratory: HMM state architecture, and rest-like >= 40-s positional inactivity.
+
+**Row sources.**
+- **Bin-free rows** (rate, shared occupancy, dispersion, rest-like) are the canonical per-block values on data version 2, the same in every variant:
+  - Stage 32's block windows and coverage rule;
+  - the canonical window metrics;
+  - Stage 30's `s30sc_inactivity`.
+- **Gates.** These values are recomputed in Stage 14 and gated at 1e-9 against ebb_v101, the Stage 29 release table, s30b S2 and the Stage 30 run features.
+- **Bin-based rows** use Stage 01 bins (data version 1 cage labels).
+- **HMM row.** Not shown for a single 12-h window (KNOWN_LIMITATIONS 2).
+- **Light-phase lag rows** have no adequate bin width and largely restate the light-phase rate.
+- **Light-phase rest-like row.** It is saturated and not separable from read loss (KNOWN_LIMITATIONS 3).
+
+**Colour.** The animal-level Hedges g: comparison minus reference within sex, from one mean per animal, not batch-adjusted.
+
+**Tests.** Post hoc and labelled as such; they are not registered. Within sex:
+
+| Contrast | Animals | Fixed effects | Random effects | df |
+|---|---|---|---|---|
+| RES-SUS | SIS animals | Batch (+ CC dummies when CCs are pooled) | cage episode (+ animal) | Kenward-Roger |
+| RES-CON, SUS-CON | all animals | Batch (+ CC dummies when CCs are pooled) | animal, SIS cage episode, and the CON group (`(0 + isCON | Batch)`: one intact group per batch, 3 per sex) | Kenward-Roger, about 2 |
+
+- A singular CON-group variance switches the CON contrasts to a batch-level t on the within-batch differences of animal means (df 2).
+- The models run through the registered engine (`mmm_ci_fit`, `mmm_ci_contrast`, with `phc_kr_guard`), unmodified.
+
+**Consumed registered results.** Where a registered result is exactly compatible, it is consumed with its own adjustment instead of the post hoc test:
+- H1 RES-SUS for rate, shared occupancy and dispersion: Stage 29 FU-CC1, Holm over the sexes;
+- H1 and H2 RES-SUS rest-like: Stage 30 SLEEP-CAT-IA40A / IA40L, local BH;
+- the H2 rate RES-SUS is registered as estimation only and is not tested.
+- **Identity gate.** The refit of every consumed cell must reproduce the registered p (1e-6).
+- **Stage 29b is not consumed**, because its registry restricts it to Figure 1c.
+
+**Multiplicity.**
+- BH within heatmap x variant x tier family x phase, over post hoc cells; a failed test enters with p = 1.
+- A tier-only family pooling the phases is exported as a sensitivity column.
+- There is no global correction.
+
+**Markers.**
+
+| Marker | Condition |
+|---|---|
+| filled dot | post hoc q < 0.05 |
+| open circle | registered adjusted p < 0.05 |
+| cross | evidence whose within-batch estimate has the opposite sign to the colour (never a marker) |
+
+The dot and the circle are drawn only where the estimate has the colour's sign.
+
+**Source tables.**
+- `systems_sis_domain_heatmap_source_data.csv`: one row per cell.
+- `systems_sis_domain_heatmap_fits.csv`: one row per fit.
+- `systems_sis_domain_heatmap_animal_scores.csv`: one row per animal x epoch x row.
+
+**Dashboards.** `Fig_integrated_systems_dashboard` (picked) and `_all5min` / `_all10min`. Layout: H1 | H2 / H3 / HMM state time budget.
+
+**Panels.**
+- **Panel F, the HMM time budget.** States with the same label are summed, which fixes the averaging bug. The fallback label "mixed" is shown as "few position changes".
+- **Panel A.** Early movement with its between- and within-cohort structure, descriptive.
+- **Panels B, D, E.** Now standalone panels with corrected labels: their inputs are centred within each cage change.
+
+**Tests of the code.** `Testing/tests/test_domain_heatmap_display.R` is a portable synthetic test of the helpers; its model section needs lme4, lmerTest and pbkrtest and is skipped without them.
+
+A separate source table is still needed because `systems_sis_domain_effect_summary.csv` must stay byte-identical for its consumers (Stage 27 asserts the SUS-RES orientation; `Testing/tests/test_hmm_stage14_contract.R` checks its columns).
 
 HMM, manifold, recurrence, attractor, energy-landscape, and advanced nonlinear analyses should currently be treated as:
 

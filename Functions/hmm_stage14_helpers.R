@@ -640,3 +640,636 @@ analyze_repeated_measures_heatmap <- function(dat, displayed_domains, resolution
 
   list(contrasts = contrasts, interactions = interactions)
 }
+
+# ----------------------------------------------------------------
+# Domain-heatmap display layer
+# ----------------------------------------------------------------
+# Appended so that every line above keeps its number: audit reports cite
+# this file by line (docs/REPOSITORY_FILE_CLASSIFICATION.csv).
+#
+# The two helpers below reproduce the model-data slice and the effect-size
+# block of fit_repeated_measures_domain_contrasts() for rows that are shown
+# without a test. They are kept separate from the engine on purpose, and
+# Testing/tests/test_domain_heatmap_display.R asserts that they return the
+# engine's own effect sizes.
+
+# One domain x phase slice in the shape the heatmap model and effect sizes use.
+domain_phase_model_data <- function(dat, domain, phase, group_levels = c("CON", "RES", "SUS"), sex_levels = c("Female", "Male")) {
+  dat %>%
+    filter(.data$Domain == domain, .data$PhaseClass == phase, is.finite(.data$DomainScore)) %>%
+    transmute(
+      AnimalNum = factor(as.character(.data$AnimalNum)),
+      Group = factor(as.character(.data$Group), levels = group_levels),
+      Sex = factor(as.character(.data$Sex), levels = sex_levels),
+      CageChangeIndex = factor(.data$CageChangeIndex),
+      DomainScore = as.numeric(.data$DomainScore)
+    ) %>%
+    filter(!is.na(Group), !is.na(Sex), !is.na(CageChangeIndex))
+}
+
+# Animal-level Hedges g within Sex, from one mean per animal across the
+# included cage changes. Contrast names are "<comp>-<ref>"; g is comp - ref.
+animal_level_contrast_effects <- function(model_dat, contrasts, sex_levels = c("Female", "Male")) {
+  animal_means <- model_dat %>%
+    group_by(AnimalNum, Group, Sex) %>%
+    summarise(DomainScore = mean(DomainScore), .groups = "drop")
+  tidyr::crossing(
+    Sex = sex_levels,
+    contrast = contrasts
+  ) %>%
+    pmap_dfr(function(Sex, contrast) {
+      ref <- sub("^.*-", "", contrast)
+      comp <- sub("-.*$", "", contrast)
+      ref_values <- animal_means$DomainScore[
+        as.character(animal_means$Sex) == Sex & as.character(animal_means$Group) == ref
+      ]
+      comp_values <- animal_means$DomainScore[
+        as.character(animal_means$Sex) == Sex & as.character(animal_means$Group) == comp
+      ]
+      tibble(
+        Sex = Sex,
+        contrast = contrast,
+        n_ref_animals = sum(is.finite(ref_values)),
+        n_comp_animals = sum(is.finite(comp_values)),
+        mean_ref = if (any(is.finite(ref_values))) mean(ref_values, na.rm = TRUE) else NA_real_,
+        mean_comp = if (any(is.finite(comp_values))) mean(comp_values, na.rm = TRUE) else NA_real_,
+        animal_level_hedges_g = hmm_hedges_g(ref_values, comp_values)
+      )
+    })
+}
+
+MMM_DOMAIN_HEATMAP_CONTRASTS <- c("RES-CON", "SUS-CON", "RES-SUS")
+
+# ----------------------------------------------------------------
+# Domain heatmaps, version 2: windows, resolution variants and tier tests
+# ----------------------------------------------------------------
+# Three heatmaps (CC1 first dark phase A1, CC1 first light phase L1, and all
+# clean phase blocks of CC1-CC4) in three resolution variants. The functions
+# below only call frozen helpers (Functions/stage30_movement.R,
+# rfid_event_stream.R, rfid_binfree_metrics.R, stage32_windows.R,
+# stage30_screen.R, rfid_canonical_inference.R, posthoc_con_contrasts.R) and
+# check their outputs; nothing of the canonical measurement or of the
+# registered model engine is re-implemented here.
+
+MMM_DHM_VARIANTS <- c("picked", "all5min", "all10min")
+MMM_DHM_ALPHA <- 0.05
+# A CON-group random-effect SD (relative to the residual SD) below this value
+# counts as singular and triggers the pre-specified batch-level fallback.
+MMM_DHM_CON_SINGULAR_TOL <- 1e-4
+MMM_DHM_MODELS <- list(
+  single = list(
+    rs = list(formula = "y ~ Batch + g_RS + (1 | CageEpisodeID)", rank = 4L),
+    con = list(formula = "y ~ Batch + group + (0 + sisCage | CageEpisodeID) + (0 + isCON | Batch)", rank = 5L)
+  ),
+  pooled = list(
+    rs = list(formula = "y ~ Batch + g_RS + c2 + c3 + c4 + (1 | AnimalNum) + (1 | CageEpisodeID)", rank = 7L),
+    con = list(formula = "y ~ Batch + group + c2 + c3 + c4 + (1 | AnimalNum) + (0 + sisCage | CageEpisodeID) + (0 + isCON | Batch)", rank = 8L)
+  )
+)
+MMM_DHM_CONTRAST_WEIGHTS <- list(`RES-SUS` = list(g_RS = 1), `RES-CON` = list(groupRES = 1), `SUS-CON` = list(groupSUS = 1))
+
+# Which bin width each bin-based component uses in each variant. Declared
+# before any of these heatmap results were computed, on measurement grounds
+# only; group results at 5 and 10 min had been seen before (config v1.0.1,
+# lag_block disclosure), so the declaration is a post hoc judgement, not a
+# prespecification. Bin-free rows use the canonical per-block estimators in
+# every variant.
+MMM_DHM_RESOLUTION_MANIFEST <- tibble::tribble(
+  ~variant, ~component, ~bin_level, ~basis,
+  "picked", "movement_entropy_terms", "10min_based",
+  "frozen config lag block: Movement RMSSD/ACF1 primary at 10 min; Stage 09 registers Entropy_acf1 at 10 min; dark-phase Movement switching share 0.24 at 10 min vs 0.44 at 5 min (group-blind)",
+  "picked", "proximity_terms", "5min_based",
+  "frozen config lag block: Proximity RMSSD/ACF1 primary at 5 min; dark-phase proximity autocorrelation half-decays in about 5 min (group-blind)",
+  "picked", "switching_term", "10min_based",
+  "Stage 12 declares and writes the active/inactive switching rate at 10 min only",
+  "picked", "hmm", "10min_based",
+  "Stage 08 prespecified the 10-min HMM as primary; the 5-min fit is a near-deterministic any-change / no-change partition",
+  "all5min", "movement_entropy_terms", "5min_based", "all bin-based terms at 5 min",
+  "all5min", "proximity_terms", "5min_based", "all bin-based terms at 5 min",
+  "all5min", "switching_term", "10min_based", "the Stage 12 switching rate exists only at 10 min (disclosed in the caption)",
+  "all5min", "hmm", "5min_based", "5-min Stage 08 fit (different construct: any change vs no change, split by proximity)",
+  "all10min", "movement_entropy_terms", "10min_based", "all bin-based terms at 10 min",
+  "all10min", "proximity_terms", "10min_based", "all bin-based terms at 10 min",
+  "all10min", "switching_term", "10min_based", "all bin-based terms at 10 min",
+  "all10min", "hmm", "10min_based", "all bin-based terms at 10 min"
+) %>%
+  mutate(declaration = "POST_HOC_JUDGEMENT: measurement-based, declared before these heatmap results; earlier 5- and 10-min group results had been seen")
+
+dhm_resolution <- function(variant, component) {
+  x <- MMM_DHM_RESOLUTION_MANIFEST$bin_level[
+    MMM_DHM_RESOLUTION_MANIFEST$variant == variant & MMM_DHM_RESOLUTION_MANIFEST$component == component]
+  if (length(x) != 1L) stop("No unique resolution for ", variant, " / ", component, call. = FALSE)
+  x
+}
+
+# ---------------------------------------------------------------- canonical bin-free metrics
+# Per animal x phase block on data version 2: Stage 32's block windows and
+# raw-record coverage rule, the canonical window metrics (full = TRUE,
+# na_if_file_ends_early = FALSE, i.e. exactly s32w_window_metrics), and Stage
+# 30's >= 40-s / >= 60-s positional inactivity on the window-clipped runs,
+# once per phase label (s30sc_inactivity groups by animal x CC only). Every
+# input is hash-gated and the A1 / L1 values are gated against the frozen
+# registered tables (1e-9). Returns list(blocks, gates, inputs); stops if any
+# gate fails.
+MMM_DHM_INPUT_SHA256 <- c(
+  sus_animals = "dea3804b71b479f84900f946e5494b204ed0e8801498da459a6fc781beb9f391",
+  con_animals = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
+  later_outcome_combz = "1f6a2a69c6b0781b8de8da50ecdadf309b62bbc9c82106c0fa91d18119a7de54",
+  ebb_v101_manifest = "ec59aa337fc63511de4aa2bf3e1ee1f4b34b84d6d671565f74e0bb3939f7226c",
+  stage29_canonical_window_metrics = "fc053468f2a1d1a07e981b6a76c71caa6cfd89b19da7318ee2c2f82f49050dd1",
+  stage30_features_full_precision = "5d196b218ea6e441bc346a2f3d494fa5419742199e2d367b664ec8e7e599bb83"
+)
+
+dhm_canonical_paths <- function(project_root) {
+  ar <- file.path(project_root, "analysis_ready")
+  dv2 <- file.path(project_root, "MMMSociability", "data_versions", "v2_cage_label_correction_2026-09-28")
+  list(
+    dv2_manifest = file.path(dv2, "MANIFEST_SHA256.csv"),
+    dv2_dir = file.path(dv2, "preprocessed_data"),
+    raw_dir = file.path(project_root, "MMMSociability", "raw_data"),
+    sus_animals = file.path(dirname(dirname(project_root)), "sus_animals.csv"),
+    con_animals = file.path(dirname(dirname(project_root)), "con_animals.csv"),
+    later_outcome_combz = file.path(ar, "canonical", "later_outcome_combz", "tables", "later_outcome_combz_animal_level.csv"),
+    ebb_v101_dir = file.path(ar, "canonical", "behavior_bundle", "ebb_v101_20260929_b2ce507"),
+    stage29_canonical_window_metrics = file.path(ar, "pipeline", "29_canonical_behavior_releases", "v101_dv2_b2ce507",
+                                                 "tables", "canonical_window_metrics.csv"),
+    stage30_features_full_precision = file.path(ar, "pipeline", "30_exploratory_screen", "v1.0_be71e2f", "tables",
+                                                "features_cc1_cc4_windows_full_precision.rds")
+  )
+}
+
+# File of a frozen bundle, checked against the bundle's own manifest (whose
+# hash is pinned).
+dhm_bundle_file <- function(bundle_dir, file, manifest_sha256) {
+  man_path <- file.path(bundle_dir, "00_manifest.csv")
+  if (!file.exists(man_path) || !identical(s30sc_sha(man_path), manifest_sha256)) {
+    stop("Frozen bundle manifest missing or changed: ", man_path, call. = FALSE)
+  }
+  man <- data.table::fread(man_path, colClasses = "character")
+  want <- man$sha256[man$file == file]
+  path <- file.path(bundle_dir, file)
+  if (length(want) != 1L || !file.exists(path) || !identical(s30sc_sha(path), want)) {
+    stop("Frozen bundle file missing or not equal to its manifest: ", path, call. = FALSE)
+  }
+  path
+}
+
+dhm_canonical_block_metrics <- function(project_root, stage14_roster, s30b_dir, s30b_manifest_sha256) {
+  if (!requireNamespace("data.table", quietly = TRUE)) stop("data.table is required.", call. = FALSE)
+  pth <- dhm_canonical_paths(project_root)
+  crit <- MMM_BEHAVIOR_CONFIG$metrics$fragmentation$bout_criterion_s
+  gates <- list(); inputs <- list()
+  gate <- function(name, passed, detail = "") {
+    gates[[length(gates) + 1L]] <<- data.frame(gate = name, passed = isTRUE(passed),
+                                                detail = paste(as.character(detail), collapse = "; "))
+    invisible(isTRUE(passed))
+  }
+  inp <- function(path, role) {
+    inputs[[length(inputs) + 1L]] <<- data.frame(role = role, path = normalizePath(path, winslash = "/", mustWork = FALSE),
+                                                  sha256 = s30sc_sha(path))
+  }
+  stop_if_failed <- function(stage) {
+    g <- do.call(rbind, gates)
+    if (!all(g$passed)) {
+      stop("Canonical window metrics: ", stage, " gate(s) failed: ",
+           paste(g$gate[!g$passed], collapse = "; "), call. = FALSE)
+    }
+  }
+
+  gate("bout criterion = frozen config value", identical(crit, S30SC_ANALYTIC_CONSTANTS$bout_criterion_s), crit)
+  gate("data version 2 manifest sha = pinned", identical(s30sc_sha(pth$dv2_manifest), S30SC_V2_MANIFEST_SHA256))
+  inp(pth$dv2_manifest, "data_version_v2_manifest")
+  mv2 <- data.table::fread(pth$dv2_manifest, colClasses = "character")
+  on_disk <- list.files(pth$dv2_dir, pattern = "_CC[0-9]_AnimalPos_preprocessed[.]csv$")
+  gate("24 data-version-2 files = manifest", nrow(mv2) == S30SC_V2_N_FILES && setequal(on_disk, mv2$file), length(on_disk))
+  pre_files <- file.path(pth$dv2_dir, mv2$file)
+  gate("every data-version-2 file sha = manifest", all(vapply(pre_files, s30sc_sha, "") == mv2$sha256_v2))
+  raw_files <- file.path(pth$raw_dir, names(S30SC_RAW_SEED_SHA256))
+  raw_sha <- vapply(raw_files, function(p) if (file.exists(p)) s30sc_sha(p) else NA_character_, "")
+  gate("24 raw seed files sha = pinned", !anyNA(raw_sha) && all(raw_sha == S30SC_RAW_SEED_SHA256))
+  for (k in c("sus_animals", "con_animals", "later_outcome_combz", "stage29_canonical_window_metrics",
+              "stage30_features_full_precision")) {
+    gate(paste(k, "sha = pinned"), file.exists(pth[[k]]) && identical(s30sc_sha(pth[[k]]), MMM_DHM_INPUT_SHA256[[k]]))
+    inp(pth[[k]], k)
+  }
+  stop_if_failed("input")
+
+  pre <- s30mv_read_preprocessed(pre_files)
+  st <- s30mv_build_stream(pre, pth$raw_dir)
+  gate("seeds read only from hash-gated raw files",
+       all(s30sc_norm_path(unique(st$seeds$raw_file)) %in% s30sc_norm_path(raw_files)))
+  fw <- mmm_evs_windows(pre)
+  pw <- s32w_phase_windows(fw)
+  gate("24 files x 8 phase labels", nrow(pw) == 192L, nrow(pw))
+  kept <- s32w_read_blocks(pre_files)
+  an_sys <- unique(merge(st$pos[st$pos$is_seed == FALSE, list(SourceFile, AnimalNum, System)],
+                         st$file_span[, list(SourceFile, Batch, CC)], by = "SourceFile"))
+  gate("111 animals, one System per file, 4 files each",
+       data.table::uniqueN(an_sys$AnimalNum) == 111L && !anyDuplicated(an_sys[, list(SourceFile, AnimalNum)]) &&
+         all(an_sys[, .N, by = AnimalNum]$N == 4L))
+  src_raw <- fw[, list(SourceFile, raw = file.path(pth$raw_dir, Batch, sub("_preprocessed[.]csv$", ".csv", SourceFile)))]
+  gate("board records read only from hash-gated raw files", all(s30sc_norm_path(src_raw$raw) %in% s30sc_norm_path(raw_files)))
+  rr <- data.table::rbindlist(lapply(seq_len(nrow(src_raw)), function(i) s32w_read_raw_records(src_raw$raw[i], src_raw$SourceFile[i])))
+  boards <- s32w_board_intervals(rr, an_sys)
+  rm(rr)
+  gate("120 boards", nrow(boards) == 120L, nrow(boards))
+  cov <- s32w_coverage(an_sys, pw, kept, boards)
+  clean_counts <- s32w_coverage_counts(cov)[in_clean_set == TRUE]
+  gate("all 111 animals complete in the 24 clean CC x phase blocks",
+       nrow(clean_counts) == 24L && all(clean_counts$n_complete_primary == 111L))
+  stop_if_failed("coverage")
+
+  long <- s32w_long(s32w_window_metrics(st, pw, crit), cov)
+  gate("3552 animal-blocks; 2664 complete with a finite rate",
+       nrow(long) == 3552L && long[complete_primary == TRUE, .N] == 2664L &&
+         long[complete_primary == TRUE, all(is.finite(crossing_rate))])
+  ia <- data.table::rbindlist(lapply(unique(pw$phase), function(p) {
+    w <- pw[phase == p, list(SourceFile, window_id = phase, start, end)]
+    ws <- s30mv_window_streams(st, w)[[p]]
+    out <- s30sc_inactivity(ws$runs)
+    out[, phase := p][]
+  }))
+  data.table::setnames(ia, c("frac40", "frac60"), c("posinact40", "posinact60"))
+  blocks <- merge(long, ia, by = c("AnimalNum", "CC", "phase"), all.x = TRUE)
+  blocks[complete_primary == FALSE, `:=`(posinact40 = NA_real_, posinact60 = NA_real_, T_obs = NA_real_)]
+  ok <- blocks[complete_primary == TRUE]
+  gate("inactivity defined for all 2664 complete blocks", sum(is.finite(ok$posinact40)) == 2664L)
+  gate("inactivity denominator = observed seconds (1e-9)", max(abs(ok$T_obs - ok$obs_s)) <= S30SC_TOL, max(abs(ok$T_obs - ok$obs_s)))
+  gate("0 <= posinact60 <= posinact40 <= 1; zero-event blocks = 1",
+       all(ok$posinact40 >= 0 & ok$posinact40 <= 1 & ok$posinact60 <= ok$posinact40) && all(ok[n_events == 0L, posinact40] == 1))
+  stop_if_failed("measure")
+
+  con <- canonical_animal_id(readLines(pth$con_animals, warn = FALSE)); con <- unique(con[!is.na(con) & nzchar(con)])
+  sus <- canonical_animal_id(readLines(pth$sus_animals, warn = FALSE)); sus <- unique(sus[!is.na(sus) & nzchar(sus)])
+  blocks <- s30sc_labels_from_lists(blocks, sus, con)
+  cz <- data.table::fread(pth$later_outcome_combz, select = c("AnimalNum", "Sex", "Batch", "outcome_group"),
+                          colClasses = c(AnimalNum = "character"))
+  cz[, `:=`(AnimalNum = canonical_animal_id(AnimalNum), Batch_cz = paste0("B", Batch))]
+  blocks <- merge(blocks, cz[, list(AnimalNum, Sex, Batch_cz, outcome_group)], by = "AnimalNum", all.x = TRUE)
+  gate("Group from the canonical lists = CombZ outcome_group; Batch = CombZ Batch",
+       !anyNA(blocks$Sex) && all(blocks$Group == blocks$outcome_group) && all(blocks$Batch == blocks$Batch_cz))
+  r14 <- data.table::as.data.table(stage14_roster)[, list(AnimalNum = as.character(AnimalNum),
+                                                           Group14 = as.character(Group), Sex14 = as.character(Sex))]
+  chk <- merge(unique(blocks[, list(AnimalNum, Group, Sex)]), unique(r14), by = "AnimalNum", all = TRUE)
+  gate("Group and Sex = Stage 14 roster for all 111 animals",
+       nrow(chk) == 111L && !anyNA(chk) && all(chk$Group == chk$Group14) && all(chk$Sex == chk$Sex14))
+  con_cage <- unique(blocks[Group == "CON" & phase == "A1", list(Batch, CC, CageEpisodeID, AnimalNum)])
+  gate("CON: one intact 4-animal cage per batch at every CC, same animals across CCs",
+       all(con_cage[, .N, by = list(Batch, CC)]$N == 4L) &&
+         all(con_cage[, data.table::uniqueN(CageEpisodeID), by = list(Batch, CC)]$V1 == 1L) &&
+         all(con_cage[, list(s = paste(sort(AnimalNum), collapse = ";")), by = list(Batch, CC)][, data.table::uniqueN(s), by = Batch]$V1 == 1L))
+  gate("no cage episode mixes CON and SIS animals", all(blocks[, data.table::uniqueN(Group == "CON"), by = CageEpisodeID]$V1 == 1L))
+  stop_if_failed("design")
+
+  # Reference gates on the A1 / L1 blocks (1e-9).
+  cmp <- function(rec, ref, key, cols, label) {
+    ref <- data.table::as.data.table(ref)
+    sub <- merge(unique(ref[, key, with = FALSE]), data.table::as.data.table(rec), by = key)
+    r <- s32w_compare(sub, ref, key, cols, tol = S30SC_TOL)
+    gate(paste0(label, " (", nrow(ref), " reference rows)"), all(r$passed) && nrow(sub) == nrow(ref) && !anyDuplicated(ref[, key, with = FALSE]),
+         paste(r[, sprintf("%s %.2g", column, max_abs_diff)], collapse = ", "))
+  }
+  rec_a1 <- merge(blocks[phase == "A1"], blocks[phase == "L1", list(AnimalNum, CC, light_phase_crossing_rate = crossing_rate)],
+                  by = c("AnimalNum", "CC"))
+  b1_path <- dhm_bundle_file(pth$ebb_v101_dir, "B1_animal_longitudinal.csv", MMM_DHM_INPUT_SHA256[["ebb_v101_manifest"]])
+  inp(b1_path, "ebb_v101_B1_animal_longitudinal")
+  b1 <- data.table::fread(b1_path, colClasses = list(character = c("AnimalNum", "CageEpisodeID")))
+  b1[, AnimalNum := canonical_animal_id(AnimalNum)]
+  cmp(rec_a1, b1, c("AnimalNum", "CC"),
+      c("CageEpisodeID", "n_in_cage", "n_tracked_mates", "obs_s", "n_events", "n_bouts", "crossing_rate", "shared_zone_use",
+        "occupancy_dispersion", "fragmentation", "light_phase_crossing_rate", "Sex", "Batch", "Group"),
+      "ebb_v101 B1 = recomputed first dark phase of CC1-CC4")
+  s29 <- data.table::fread(pth$stage29_canonical_window_metrics, colClasses = list(character = "AnimalNum"))
+  s29[, AnimalNum := canonical_animal_id(AnimalNum)]
+  cmp(rec_a1, s29, c("AnimalNum", "CC"),
+      c("obs_s", "occupancy_dispersion", "n_events", "fragmentation", "crossing_rate", "shared_zone_use", "dyadic_obs_s",
+        "System", "Batch", "CageEpisodeID", "light_phase_crossing_rate", "Sex", "Group"),
+      "Stage 29 v1.0.1 canonical_window_metrics = recomputed first dark phase")
+  s2_path <- dhm_bundle_file(s30b_dir, "S2_rate_inactivity_windows.csv", s30b_manifest_sha256)
+  inp(s2_path, "s30b_S2_rate_inactivity_windows")
+  s2 <- data.table::fread(s2_path, colClasses = list(character = "AnimalNum"))
+  s2[, `:=`(AnimalNum = canonical_animal_id(AnimalNum), phase = "L1")]
+  data.table::setnames(s2, "frac", "posinact40")
+  cmp(blocks, s2, c("AnimalNum", "CC", "phase"), c("crossing_rate", "posinact40", "Batch"),
+      "s30b S2 = recomputed first light phase, all animals")
+  fr <- data.table::as.data.table(readRDS(pth$stage30_features_full_precision))
+  fr[, AnimalNum := canonical_animal_id(AnimalNum)]
+  cmp(blocks, fr[, list(AnimalNum, CC, phase = "A1", posinact40 = posinact40_active, posinact60 = posinact60_active, crossing_rate,
+                        occupancy_dispersion, fragmentation, shared_zone_use, CageEpisodeID)],
+      c("AnimalNum", "CC", "phase"), c("posinact40", "posinact60", "crossing_rate", "occupancy_dispersion", "fragmentation",
+                                       "shared_zone_use", "CageEpisodeID"),
+      "Stage 30 features = recomputed first dark phase, SIS animals")
+  cmp(blocks, fr[, list(AnimalNum, CC, phase = "L1", posinact40 = posinact40_light, posinact60 = posinact60_light,
+                        crossing_rate = light_phase_crossing_rate)],
+      c("AnimalNum", "CC", "phase"), c("posinact40", "posinact60", "crossing_rate"),
+      "Stage 30 features = recomputed first light phase, SIS animals")
+  stop_if_failed("reference")
+
+  blocks[, `:=`(Batch_cz = NULL, outcome_group = NULL)]
+  list(blocks = blocks[], gates = do.call(rbind, gates), inputs = do.call(rbind, inputs))
+}
+
+# Per-animal values for one heatmap window from the canonical blocks:
+# cc1_A1 / cc1_L1 = that single block; clean_all = equal-weight mean of each
+# epoch's clean blocks (CC1-CC3: 4 dark / 3 light; CC4: 2 dark / 1 light).
+dhm_canonical_window_values <- function(blocks, window_set = c("cc1_A1", "cc1_L1", "clean_all")) {
+  window_set <- match.arg(window_set)
+  b <- data.table::as.data.table(blocks)[complete_primary == TRUE & in_clean_set == TRUE]
+  b[, PhaseClass := ifelse(substr(phase, 1, 1) == "A", "Active", ifelse(substr(phase, 1, 1) == "L", "Inactive", NA_character_))]
+  if (anyNA(b$PhaseClass)) stop("Unexpected phase labels in the canonical blocks.", call. = FALSE)
+  if (window_set == "cc1_A1") b <- b[CC == "CC1" & phase == "A1"]
+  if (window_set == "cc1_L1") b <- b[CC == "CC1" & phase == "L1"]
+  fmean <- function(x) if (any(is.finite(x))) mean(x[is.finite(x)]) else NA_real_
+  out <- b[, list(
+    n_blocks = .N,
+    crossing_rate = mean(crossing_rate),
+    shared_zone_use = fmean(shared_zone_use),
+    occupancy_dispersion = mean(occupancy_dispersion),
+    posinact40 = mean(posinact40),
+    posinact60 = mean(posinact60),
+    n_tracked_mates = n_tracked_mates[1],
+    obs_s = sum(obs_s)
+  ), by = list(AnimalNum, Group, Sex, Batch, CC, PhaseClass, CageEpisodeID)]
+  if (anyDuplicated(out[, list(AnimalNum, CC, PhaseClass)])) {
+    stop("A canonical epoch has more than one cage episode.", call. = FALSE)
+  }
+  expected_blocks <- if (window_set == "clean_all") {
+    ifelse(out$CC == "CC4", ifelse(out$PhaseClass == "Active", 2L, 1L), ifelse(out$PhaseClass == "Active", 4L, 3L))
+  } else 1L
+  if (!all(out$n_blocks == expected_blocks)) stop("Canonical epochs do not hold the expected clean blocks.", call. = FALSE)
+  tibble::as_tibble(out) %>%
+    mutate(window_set = window_set, CageChange = CC, CageChangeIndex = as.integer(sub("^CC", "", CC)))
+}
+
+# ---------------------------------------------------------------- tier tests (post hoc)
+# One fit with the registered engine. A stop() (rank, expected rank, dropped
+# columns) becomes an explicit FAILED stub, as in phc_fit(); unlike phc_fit()
+# the engine's own failure rule applies (failed = error, or non-converged
+# with disagreeing optimizers).
+dhm_fit <- function(d, formula, model_id, expected_rank) {
+  m <- tryCatch(mmm_ci_fit(formula, d, model_id, expected_rank = expected_rank), error = function(e) e)
+  if (inherits(m, "error")) {
+    info <- data.table::data.table(model_id = model_id, engine = "lmer", formula = formula, dispformula = NA_character_,
+      n_obs = nrow(d), n_animals = data.table::uniqueN(d$AnimalNum), n_cage_episodes = data.table::uniqueN(d$CageEpisodeID),
+      n_batches = data.table::uniqueN(d$Batch), n_fixed_cols = NA_integer_, rank = NA_integer_, expected_rank = expected_rank,
+      singular = NA, converged = FALSE, messages = "", optimizer_check_agree = NA, failed = TRUE,
+      optimizer_check_messages = NA_character_, error = conditionMessage(m))
+    return(list(fit = NULL, info = info, data = d))
+  }
+  m
+}
+
+dhm_theta <- function(m, name) {
+  if (is.null(m$fit)) return(NA_real_)
+  th <- lme4::getME(m$fit, "theta")
+  if (!name %in% names(th)) return(NA_real_)
+  unname(th[[name]])
+}
+
+# Pre-specified fallback for a singular CON-group variance: a batch-level t on
+# the within-batch differences D_b = mean(comparison animal means in b) -
+# mean(CON animal means in b), over all batches of the sex (df = n_batches -
+# 1). Animal means average the animal's rows (its CC epochs, or its single
+# window value). Never an animal-level p.
+dhm_batch_level_t <- function(d, comp, n_batches_required = 3L) {
+  x <- data.table::as.data.table(d)[Group %in% c(comp, "CON") & is.finite(y)]
+  a <- x[, list(a = mean(y)), by = list(AnimalNum, Group, Batch)]
+  by_batch <- a[, list(n_comp = sum(Group == comp), n_con = sum(Group == "CON"),
+                       d = if (any(Group == comp) && any(Group == "CON")) mean(a[Group == comp]) - mean(a[Group == "CON"]) else NA_real_),
+                by = Batch]
+  ok <- nrow(by_batch) == n_batches_required && all(is.finite(by_batch$d))
+  if (!ok) {
+    return(data.table::data.table(estimate = NA_real_, se = NA_real_, df = NA_real_, statistic = NA_real_, ci_low = NA_real_,
+                                  ci_high = NA_real_, p_raw = NA_real_, n_batches = nrow(by_batch),
+                                  status = "NOT_ESTIMABLE", test = "batch-level t"))
+  }
+  n <- nrow(by_batch); est <- mean(by_batch$d); se <- stats::sd(by_batch$d) / sqrt(n); df <- n - 1
+  tval <- est / se
+  data.table::data.table(estimate = est, se = se, df = df, statistic = tval,
+                         ci_low = est - stats::qt(0.975, df) * se, ci_high = est + stats::qt(0.975, df) * se,
+                         p_raw = 2 * stats::pt(-abs(tval), df), n_batches = n, status = if (is.finite(tval)) "OK" else "NOT_ESTIMABLE",
+                         test = "batch-level t")
+}
+
+# The two approved models for one row x phase x sex slice. d must be coded by
+# mmm_ci_code_design() on ALL animals of the window before it is sliced, and
+# carry y. Returns list(contrasts = 3 rows, fits = 2 rows).
+dhm_tier_tests <- function(d, kind = c("single", "pooled"), label) {
+  kind <- match.arg(kind)
+  spec <- MMM_DHM_MODELS[[kind]]
+  d <- data.table::as.data.table(d)[is.finite(y)]
+  d[, group := factor(Group, levels = c("CON", "RES", "SUS"))]
+  rs_dat <- d[Group != "CON"]
+  m_rs <- dhm_fit(rs_dat, spec$rs$formula, paste(label, "RES-SUS (SIS animals)", sep = " | "), spec$rs$rank)
+  m_con <- dhm_fit(d, spec$con$formula, paste(label, "CON contrasts (all animals)", sep = " | "), spec$con$rank)
+  theta_con <- dhm_theta(m_con, "Batch.isCON")
+  con_singular <- !is.null(m_con$fit) && !isTRUE(m_con$info$failed) && is.finite(theta_con) && theta_con < MMM_DHM_CON_SINGULAR_TOL
+  one <- function(m, contrast) {
+    r <- phc_kr_guard(mmm_ci_contrast(m, MMM_DHM_CONTRAST_WEIGHTS[[contrast]], contrast))
+    r[, contrast := contrast][]
+  }
+  rows <- data.table::rbindlist(list(one(m_rs, "RES-SUS"), one(m_con, "RES-CON"), one(m_con, "SUS-CON")), fill = TRUE)
+  rows[, `:=`(kr_df = df, test_used = "KR t", fallback_used = FALSE, fallback_n_batches = NA_integer_,
+              theta_con_group = ifelse(contrast == "RES-SUS", NA_real_, theta_con))]
+  if (con_singular) {
+    for (cn in c("RES-CON", "SUS-CON")) {
+      fb <- dhm_batch_level_t(d, sub("-CON$", "", cn))
+      i <- which(rows$contrast == cn)
+      data.table::set(rows, i, c("estimate", "se", "df", "statistic", "ci_low", "ci_high", "p_raw"),
+                      fb[, list(estimate, se, df, statistic, ci_low, ci_high, p_raw)])
+      data.table::set(rows, i, "status", fb$status)
+      data.table::set(rows, i, "test_used", "batch-level t (CON-group variance singular)")
+      data.table::set(rows, i, "fallback_used", TRUE)
+      data.table::set(rows, i, "fallback_n_batches", as.integer(fb$n_batches))
+    }
+  }
+  fits <- data.table::rbindlist(list(m_rs$info[, model := "RES-SUS (SIS animals)"], m_con$info[, model := "CON contrasts (all animals)"]),
+                                fill = TRUE)
+  fits[, `:=`(theta_con_group = c(NA_real_, theta_con), con_group_singular = c(NA, con_singular))]
+  list(contrasts = rows[], fits = fits[])
+}
+
+# ---------------------------------------------------------------- families and markers
+# BH within heatmap x variant x tier family x phase over the post hoc cells
+# (a FAILED or not-estimable test enters with p = 1, the Stage 30 convention);
+# consumed registered cells, registered estimation-only cells and undefined
+# cells are not members. A tier-only family pooling both phases is added as a
+# sensitivity column (never used for markers). No global correction.
+dhm_add_families <- function(cells, alpha = MMM_DHM_ALPHA) {
+  cells %>%
+    mutate(
+      posthoc_member = .data$test_source == "posthoc",
+      p_for_bh = if_else(.data$posthoc_member & .data$test_status == "OK" & is.finite(.data$p_raw), .data$p_raw, 1),
+      family_id = if_else(.data$posthoc_member,
+                          paste(.data$heatmap_id, .data$variant, .data$stat_family, .data$PhaseClass, sep = "|"), NA_character_),
+      family_id_phase_pooled = if_else(.data$posthoc_member,
+                                       paste(.data$heatmap_id, .data$variant, .data$stat_family, "both_phases", sep = "|"), NA_character_)
+    ) %>%
+    group_by(.data$family_id) %>%
+    mutate(
+      family_m = if_else(.data$posthoc_member, sum(.data$posthoc_member), NA_integer_),
+      q_bh = if_else(.data$posthoc_member, stats::p.adjust(.data$p_for_bh, method = "BH"), NA_real_)
+    ) %>%
+    group_by(.data$family_id_phase_pooled) %>%
+    mutate(
+      family_m_phase_pooled = if_else(.data$posthoc_member, sum(.data$posthoc_member), NA_integer_),
+      q_bh_phase_pooled = if_else(.data$posthoc_member, stats::p.adjust(.data$p_for_bh, method = "BH"), NA_real_)
+    ) %>%
+    ungroup() %>%
+    mutate(
+      adjusted_p = case_when(
+        .data$test_source == "posthoc" ~ .data$q_bh,
+        .data$test_source == "registered" ~ .data$registered_p_adjusted,
+        TRUE ~ NA_real_
+      ),
+      evidence = is.finite(.data$adjusted_p) & .data$adjusted_p < alpha,
+      sign_agrees = is.finite(.data$estimate) & is.finite(.data$hedges_g) & .data$estimate != 0 & .data$hedges_g != 0 &
+        sign(.data$estimate) == sign(.data$hedges_g),
+      marker_class = case_when(
+        .data$evidence & .data$sign_agrees & .data$test_source == "posthoc" ~ "posthoc",
+        .data$evidence & .data$sign_agrees & .data$test_source == "registered" ~ "registered",
+        .data$evidence & !.data$sign_agrees ~ "sign_conflict",
+        TRUE ~ NA_character_
+      ),
+      marker = .data$marker_class %in% c("posthoc", "registered"),
+      global_correction_used = FALSE
+    )
+}
+
+# Display classes of the marker layer (fixed limits so legends merge across
+# heatmaps even when a heatmap has no marker).
+MMM_DHM_MARKER_LEVELS <- c(posthoc = "post hoc, BH q < 0.05",
+                           registered = "registered, adj. p < 0.05",
+                           sign_conflict = "adj. p < 0.05, opposite sign")
+
+# ---------------------------------------------------------------- single-window bin features
+# Per-animal bin features of one 12-h window (rows selected by
+# mmm_select_first_night_window or mmm_select_acute_phase_window, which add
+# target_slot). RMSSD and ACF1 use adjacent slots only (the first-night
+# estimators); a complete window has no gap, so these equal Stage 14's epoch
+# estimators. The switching rate follows Stage 12 (Analysis/12): a bin is
+# inactive-like when Movement <= the animal's 20th percentile over all its bins
+# at that resolution, and the rate is the share of adjacent bin pairs that
+# switch.
+dhm_window_bin_features <- function(sel, movement_q20) {
+  need <- c("AnimalNum", "Group", "Sex", "target_slot", "Movement", "Entropy", "ProximityFraction")
+  miss <- setdiff(need, names(sel))
+  if (length(miss)) stop("Window rows lack: ", paste(miss, collapse = ", "), call. = FALSE)
+  sel %>%
+    mutate(AnimalNum = as.character(.data$AnimalNum)) %>%
+    left_join(movement_q20, by = "AnimalNum") %>%
+    group_by(AnimalNum, Group, Sex) %>%
+    arrange(.data$target_slot, .by_group = TRUE) %>%
+    summarise(
+      n_slots = n(),
+      Movement_mean = mean(Movement, na.rm = TRUE),
+      Movement_rmssd = mmm_rmssd_adjacent(Movement, target_slot),
+      Movement_acf1 = mmm_acf1_adjacent(Movement, target_slot),
+      Entropy_mean = mean(Entropy, na.rm = TRUE),
+      Entropy_rmssd = mmm_rmssd_adjacent(Entropy, target_slot),
+      Entropy_acf1 = mmm_acf1_adjacent(Entropy, target_slot),
+      Proximity_mean = if (any(is.finite(ProximityFraction))) mean(ProximityFraction, na.rm = TRUE) else NA_real_,
+      Proximity_rmssd = mmm_rmssd_adjacent(ProximityFraction, target_slot),
+      Proximity_acf1 = mmm_acf1_adjacent(ProximityFraction, target_slot),
+      switch_rate = {
+        p <- mmm_adjacent_pairs(as.numeric(Movement <= movement_q20[1]), target_slot)
+        if (p$n_pairs >= 2L) mean(p$x != p$y) else NA_real_
+      },
+      .groups = "drop"
+    )
+}
+
+# ---------------------------------------------------------------- HMM display (panel F)
+# "No position change" = the vendor reported no RFID relocation (>= 200 grid
+# units) for the animal in the bin; it is not immobility and not sleep.
+MMM_HMM_DISPLAY_STATE_LEVELS <- c(
+  "Many position changes", "Few position changes", "Position changes",
+  "No position change, co-located", "No position change, apart", "No position change"
+)
+
+# Display names derived from the state means only, never from state numbers:
+# no-change states are the composite's inactive states; apart / co-located is
+# the sign of the state's mean Proximity_z; changing states are ranked by mean
+# Movement_z. Fails closed for fits with "social" or "exploratory" states.
+hmm_state_display_labels <- function(state_labels, split_no_change_by_proximity = TRUE) {
+  need <- c("State", "Movement_z", "Entropy_z", "Proximity_z", "SemanticState")
+  missing_cols <- setdiff(need, names(state_labels))
+  if (length(missing_cols) > 0L) stop("HMM state labels are missing: ", paste(missing_cols, collapse = ", "), call. = FALSE)
+  unsupported <- setdiff(unique(state_labels$SemanticState), c("inactive/low-exploration", "burst/high-movement", "mixed"))
+  if (length(unsupported) > 0L) {
+    stop("HMM display labels are defined for inactive, burst and mixed states only; this fit also has: ",
+         paste(unsupported, collapse = ", "), ". Re-derive the display rule before plotting.", call. = FALSE)
+  }
+  no_change <- state_labels$SemanticState == "inactive/low-exploration"
+  if (!any(no_change) || all(no_change)) stop("HMM display labels need at least one no-change and one changing state.", call. = FALSE)
+  if (max(state_labels$Movement_z[no_change]) >= min(state_labels$Movement_z[!no_change])) {
+    stop("HMM no-change states must have the lowest mean Movement_z.", call. = FALSE)
+  }
+  n_changing <- sum(!no_change)
+  changing_rank <- rank(-replace(state_labels$Movement_z, no_change, -Inf), ties.method = "first")
+  state_labels %>%
+    mutate(
+      State = as.character(.data$State),
+      DisplayState = case_when(
+        no_change & !split_no_change_by_proximity ~ "No position change",
+        no_change & .data$Proximity_z < 0 ~ "No position change, apart",
+        no_change ~ "No position change, co-located",
+        n_changing == 1L ~ "Position changes",
+        changing_rank == 1L ~ "Many position changes",
+        TRUE ~ "Few position changes"
+      ),
+      display_rule = paste(
+        "no position change = SemanticState inactive/low-exploration;",
+        if (split_no_change_by_proximity) "apart/co-located = sign of mean Proximity_z;" else "no-change states merged;",
+        "changing states ranked by mean Movement_z"
+      )
+    )
+}
+
+# Per-animal time budget by display state: frac_time summed within the display
+# state per Animal x CC x Phase epoch (absent states count 0; Stage 08 omits
+# zero-count states), then averaged over the animal's cage changes. Every
+# Animal x PhaseClass budget sums to 1 (asserted).
+hmm_display_time_budget <- function(occupancy, display_labels) {
+  need <- c("AnimalNum", "Group", "Sex", "Phase", "CageChange", "State", "frac_time")
+  missing_cols <- setdiff(need, names(occupancy))
+  if (length(missing_cols) > 0L) stop("HMM occupancy is missing: ", paste(missing_cols, collapse = ", "), call. = FALSE)
+  lab <- display_labels %>% transmute(State = as.character(.data$State), DisplayState = as.character(.data$DisplayState))
+  dat <- occupancy %>%
+    mutate(
+      AnimalNum = as.character(.data$AnimalNum), Group = as.character(.data$Group), Sex = as.character(.data$Sex),
+      PhaseClass = mmm_phase_class(.data$Phase), CageChange = as.character(.data$CageChange),
+      State = as.character(.data$State), frac_time = suppressWarnings(as.numeric(.data$frac_time))
+    ) %>%
+    left_join(lab, by = "State")
+  if (anyNA(dat$DisplayState)) {
+    stop("HMM occupancy has states without a display label: ", paste(unique(dat$State[is.na(dat$DisplayState)]), collapse = ", "),
+         call. = FALSE)
+  }
+  out <- dat %>%
+    group_by(AnimalNum, Group, Sex, PhaseClass, CageChange, DisplayState) %>%
+    summarise(share = sum(frac_time), .groups = "drop") %>%
+    tidyr::complete(tidyr::nesting(AnimalNum, Group, Sex, PhaseClass, CageChange), DisplayState = unique(lab$DisplayState),
+                    fill = list(share = 0)) %>%
+    group_by(AnimalNum, Group, Sex, PhaseClass, DisplayState) %>%
+    summarise(share = mean(share), n_cage_changes = n_distinct(CageChange), .groups = "drop")
+  totals <- out %>% group_by(AnimalNum, PhaseClass) %>% summarise(total = sum(share), .groups = "drop")
+  if (any(abs(totals$total - 1) > 1e-9)) stop("HMM time budget does not sum to 1 for every animal and phase.", call. = FALSE)
+  out
+}
+
+# Wrap text to a printed width: about width_mm / (em x size_pt) characters per
+# line (em = 0.5 is a safe upper bound of Arial's average glyph width).
+dhm_wrap_text <- function(x, width_mm, size_pt, em = 0.5) {
+  n <- max(20L, floor(width_mm / (em * size_pt * 25.4 / 72)))
+  vapply(x, function(s) paste(unlist(lapply(strsplit(s, "\n", fixed = TRUE)[[1]], strwrap, width = n)), collapse = "\n"), "",
+         USE.NAMES = FALSE)
+}
+
+# Fixed-decimal labels with a true minus sign; values that round to 0 print as
+# 0 (never "-0.00").
+dhm_minus <- function(x, digits = 2) {
+  r <- round(x, digits)
+  r[!is.na(r) & r == 0] <- 0
+  sub("^-", "−", formatC(r, format = "f", digits = digits))
+}
