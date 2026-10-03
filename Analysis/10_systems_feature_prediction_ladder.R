@@ -1548,7 +1548,7 @@ write_tbl(sex_specific_incremental_summary, file.path(output_dir, "tables/models
 # PLOTS
 # ------------------------------------------------
 
-theme_pub <- make_nature_theme(base_size = 7) +
+theme_pub <- make_figure_theme(base_size = 7) +
   theme(
     legend.position = "top",
     panel.grid.major.y = element_blank(),

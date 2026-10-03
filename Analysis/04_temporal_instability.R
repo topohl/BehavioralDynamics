@@ -297,7 +297,7 @@ summarise_mean_ci <- function(dat, value_col, group_cols) {
 }
 
 make_publication_theme <- function(base_size = 7) {
-  make_nature_theme(base_size = base_size) +
+  make_figure_theme(base_size = base_size) +
     theme(
       legend.position = "top",
       legend.key.width = unit(8, "mm"),
@@ -734,7 +734,7 @@ for (metric_name in plot_metrics) {
       x = NULL
     ) +
     scale_fill_manual(values = group_colors, drop = FALSE) +
-    make_nature_theme()
+    make_figure_theme()
 
   save_plot_svg_pdf(
     p_primary,
@@ -755,7 +755,7 @@ for (metric_name in plot_metrics) {
       x = NULL
     ) +
     scale_fill_manual(values = group_colors, drop = FALSE) +
-    make_nature_theme()
+    make_figure_theme()
 
   save_plot_svg_pdf(
     p_all,
@@ -804,7 +804,7 @@ p_roll_primary <- movement_rolling_tbl %>%
   ) +
   scale_colour_manual(values = group_colors, drop = FALSE) +
   scale_fill_manual(values = group_colors, drop = FALSE) +
-  make_nature_theme()
+  make_figure_theme()
 
 save_plot_svg_pdf(
   p_roll_primary,
@@ -832,7 +832,7 @@ p_roll_all <- rolling_tbl %>%
   ) +
   scale_colour_manual(values = group_colors, drop = FALSE) +
   scale_fill_manual(values = group_colors, drop = FALSE) +
-  make_nature_theme()
+  make_figure_theme()
 
 save_plot_svg_pdf(
   p_roll_all,
@@ -868,7 +868,7 @@ for (metric_name in first_active_plot_metrics) {
       x = NULL
     ) +
     scale_fill_manual(values = group_colors, drop = FALSE) +
-    make_nature_theme()
+    make_figure_theme()
 
   p_first_active <- add_pairwise_brackets(p_first_active, stat_brackets)
 
@@ -912,7 +912,7 @@ p_first_active_roll <- first_active_rolling_tbl %>%
   ) +
   scale_colour_manual(values = group_colors, drop = FALSE) +
   scale_fill_manual(values = group_colors, drop = FALSE) +
-  make_nature_theme()
+  make_figure_theme()
 
 save_plot_svg_pdf(
   p_first_active_roll,
@@ -973,7 +973,7 @@ p_cage_rmssd <- movement_group_summary %>%
   ) +
   scale_colour_manual(values = group_colors, drop = FALSE) +
   scale_fill_manual(values = group_colors, drop = FALSE) +
-  make_nature_theme()
+  make_figure_theme()
 
 save_plot_svg_pdf(
   p_cage_rmssd,
@@ -1003,7 +1003,7 @@ p_movement_rmssd_pairwise <- movement_instability_tbl %>%
     x = NULL
   ) +
   scale_fill_manual(values = group_colors, drop = FALSE) +
-  make_nature_theme()
+  make_figure_theme()
 
 p_movement_rmssd_pairwise <- add_pairwise_brackets(p_movement_rmssd_pairwise, movement_rmssd_stat_brackets, text_size = 1.7)
 
@@ -1036,7 +1036,7 @@ p_delta_rmssd <- movement_cage_change_delta_tbl %>%
     x = NULL
   ) +
   scale_fill_manual(values = group_colors, drop = FALSE) +
-  make_nature_theme()
+  make_figure_theme()
 
 p_delta_rmssd <- add_pairwise_brackets(p_delta_rmssd, delta_stat_brackets, text_size = 1.8)
 
@@ -1589,7 +1589,7 @@ p_pub_heat <- ggplot(pub_heat_tbl, aes(CagePhase, Outcome, fill = cohen_d)) +
     y = NULL,
     fill = "Cohen's d"
   ) +
-  scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
+  scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
   make_publication_theme(base_size = 6) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
@@ -1680,7 +1680,7 @@ p_pub_delta_heat <- ggplot(pub_delta_heat_tbl, aes(CagePhase, Outcome, fill = co
     y = NULL,
     fill = "Cohen's d"
   ) +
-  scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
+  scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
   make_publication_theme(base_size = 6) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),

@@ -47,7 +47,7 @@ bmf_write_legend_draft <- function(path, facts) {
     "",
     "## Full legend (draft)",
     "",
-    # LENGTH IS A CONSTRAINT, NOT AN AFTERTHOUGHT. A Nature-style legend runs
+    # LENGTH IS A CONSTRAINT, NOT AN AFTERTHOUGHT. A journal figure legend runs
     # to a few hundred words. The earlier draft ran past 800 because it also
     # carried provenance machinery (parity residuals, thresholds, coverage
     # tallies, the repeated-CV companion, the rank-model rationale). All of

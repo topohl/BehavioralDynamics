@@ -709,7 +709,7 @@ fig_ok <- tryCatch({
                           "Lower facet = TEMPORAL persistence/flexibility.\n",
                           "RFID proximity is a social-spatial co-location proxy, never sociability. ",
                           "RES/SUS are LATER phenotype labels; associations are descriptive, not prospective.")) +
-    make_nature_theme(base_size = 7) +
+    make_figure_theme(base_size = 7) +
     theme(legend.position = "top", plot.caption = ggplot2::element_text(size = 4.6))
   ggsave(file.path(OUT, "Fig_first_night_hmm_components.svg"), p, width = 180, height = 108, units = "mm")
   ggsave(file.path(OUT, "Fig_first_night_hmm_components.pdf"), p, width = 180, height = 108, units = "mm",

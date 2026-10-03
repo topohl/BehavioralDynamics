@@ -80,7 +80,7 @@ source(shared_helper_candidates[file.exists(shared_helper_candidates)][1])
 legacy_group_colors <- c("con" = mmm_group_colors[["CON"]], "res" = mmm_group_colors[["RES"]], "sus" = mmm_group_colors[["SUS"]])
 legacy_system_colors <- c("#2F4858", "#4D908E", "#7E9F35", "#F2A65A", "#B23A48", "#6D597A")
 legacy_publication_theme <- function(base_size = 9) {
-  make_nature_theme(base_size = base_size) +
+  make_figure_theme(base_size = base_size) +
     theme(
       panel.grid.major = element_blank(),
       panel.grid.minor = element_blank(),

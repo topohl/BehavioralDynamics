@@ -114,7 +114,7 @@ format_p_label <- function(p) {
 }
 
 make_publication_theme <- function(base_size = 7) {
-  make_nature_theme(base_size = base_size) +
+  make_figure_theme(base_size = base_size) +
     theme(
       legend.position = "top",
       legend.key.width = unit(8, "mm"),

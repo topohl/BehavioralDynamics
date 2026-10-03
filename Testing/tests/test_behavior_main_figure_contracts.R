@@ -1151,7 +1151,7 @@ if (have_outputs) {
   n_words <- n_words - sum(body == "")
   check(n_words <= 450L,
         paste0("the legend body is ", n_words,
-               " words; a Nature-style legend must stay at or under 450"))
+               " words; a figure legend must stay at or under 450"))
   check(n_words >= 250L,
         paste0("the legend body is only ", n_words,
                " words; it has probably lost required content"))

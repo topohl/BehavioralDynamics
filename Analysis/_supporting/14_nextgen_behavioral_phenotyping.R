@@ -75,9 +75,9 @@ if (!exists("ensure_dir")) ensure_dir <- function(path) { if (!dir.exists(path))
 if (!exists("write_table")) write_table <- function(x, path) { ensure_dir(dirname(path)); readr::write_csv(x, path); invisible(path) }
 if (!exists("save_plot_svg_pdf")) save_plot_svg_pdf <- function(plot, filename_base, width = 85, height = 65, units = "mm") { ensure_dir(dirname(filename_base)); ggsave(paste0(filename_base, ".svg"), plot, width = width, height = height, units = units); ggsave(paste0(filename_base, ".pdf"), plot, width = width, height = height, units = units); invisible(filename_base) }
 if (!exists("first_existing_col")) first_existing_col <- function(dat, candidates, required = TRUE, label = "column") { hit <- candidates[candidates %in% names(dat)][1]; if (is.na(hit) && required) stop("Missing ", label, call. = FALSE); hit }
-if (!exists("make_nature_theme")) make_nature_theme <- function(base_size = 7) theme_classic(base_size = base_size) + theme(axis.line = element_line(linewidth = 0.25), axis.ticks = element_line(linewidth = 0.2), strip.background = element_blank(), strip.text = element_text(face = "bold"), legend.title = element_blank(), legend.position = "top", plot.title = element_text(face = "bold", hjust = 0), plot.subtitle = element_text(hjust = 0, colour = "grey35"))
+if (!exists("make_figure_theme")) make_figure_theme <- function(base_size = 7) theme_classic(base_size = base_size) + theme(axis.line = element_line(linewidth = 0.25), axis.ticks = element_line(linewidth = 0.2), strip.background = element_blank(), strip.text = element_text(face = "bold"), legend.title = element_blank(), legend.position = "top", plot.title = element_text(face = "bold", hjust = 0), plot.subtitle = element_text(hjust = 0, colour = "grey35"))
 
-panel_theme <- function(base_size = 7) make_nature_theme(base_size) + theme(panel.grid = element_blank(), legend.position = "right")
+panel_theme <- function(base_size = 7) make_figure_theme(base_size) + theme(panel.grid = element_blank(), legend.position = "right")
 safe_num <- function(x) suppressWarnings(as.numeric(x))
 safe_scale <- function(x) { s <- sd(x, na.rm = TRUE); m <- mean(x, na.rm = TRUE); if (!is.finite(s) || s == 0) return(rep(0, length(x))); (x - m) / s }
 first_finite <- function(x) { x <- x[is.finite(x)]; if (length(x) == 0) NA_real_ else x[1] }
@@ -668,7 +668,7 @@ p_phase_effect <- phase_effect_heatmap %>%
   geom_tile(colour = "white", linewidth = 0.35) +
   geom_text(aes(label = label), size = 1.9, lineheight = 0.86) +
   facet_grid(Metric + contrast ~ Sex) +
-  scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey92") +
+  scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
   labs(
     title = "Where group differences emerge over time",
     subtitle = "Tiles show Cohen's d for pairwise contrasts; text shows d and BH-adjusted significance",

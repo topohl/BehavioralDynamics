@@ -246,7 +246,7 @@ format_p <- function(p) {
 }
 
 make_publication_theme <- function(base_size = 7) {
-  make_nature_theme(base_size = base_size) +
+  make_figure_theme(base_size = base_size) +
     theme(
       legend.position = "top",
       panel.grid.major.y = element_line(linewidth = 0.15, colour = "grey92"),

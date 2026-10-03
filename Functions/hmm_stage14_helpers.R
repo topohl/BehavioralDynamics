@@ -1312,17 +1312,16 @@ dhm_minus <- function(x, digits = 2) {
 # ---------------------------------------------------------------- manuscript figure format (palette v1)
 # A pinned copy of Exp9_manuscript config/manuscript_palette.yml, so the Stage
 # 14 figures match the manuscript's own figure renderers without reading
-# another repository at run time. Source: branch
-# behaviour-v101-stage30-candidates, commit a16f55a (2026-10-02, "Update the
-# diverging palette"), file sha256 below. Its palette_version label is shared
-# with the older master copy (af2e6b3), whose diverging scale differs
-# (#2C6E9B / #F7F7F5 / #C0442C), so the label alone does not identify it.
+# another repository at run time. Source: master commit dae6676 (2026-10-03),
+# identical to branch behaviour-v101-stage30-candidates commit a16f55a; file
+# sha256 below. The diverging scale also equals mmm_diverging_colors, the
+# shared MMMSociability scale.
 # Text and line sizes are final-size points on a canvas of at most 183 x 170
 # mm; line widths use the manuscript renderers' pt -> linewidth convention
 # (x 0.75); explanatory text belongs in the figure legend, not in the artwork.
 MMM_DHM_PALETTE <- list(
   version = "manuscript_palette_v1",
-  source = "Exp9_manuscript config/manuscript_palette.yml @ a16f55a (branch behaviour-v101-stage30-candidates)",
+  source = "Exp9_manuscript config/manuscript_palette.yml @ master dae6676 (= branch behaviour-v101-stage30-candidates a16f55a)",
   source_sha256 = "4abeafdd2cbbd3b605db8fb8cc93acc2f6d3a36106d5726781a12d6f02def6a3",
   group = c(CON = "#8A8A8A", RES = "#2E7D91", SUS = "#D1543A"),
   diverging = c(low = "#4C566A", mid = "#D8D2C7", high = "#D98B3A"),

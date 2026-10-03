@@ -10,7 +10,7 @@
 # Design:
 #   - Self-contained and tolerant to common column-name variants.
 #   - Does not modify existing pipeline objects.
-#   - Writes analysis-ready tables and Nature-style ggplot figures.
+#   - Writes analysis-ready tables and publication-style ggplot figures.
 # ================================================================
 
 suppressPackageStartupMessages({
@@ -159,7 +159,10 @@ mmm_group_levels <- c("CON", "RES", "SUS")
 mmm_group_colors <- c("CON" = "#3d3b6e", "RES" = "#C6C3BB", "SUS" = "#e63947", "All" = "grey55")
 mmm_pair_colors <- c("RES-CON" = "#3d3b6e", "SUS-CON" = "#e63947", "SUS-RES" = "#8A817C")
 mmm_state_colors <- c("#2F4858", "#4D908E", "#7E9F35", "#F2A65A", "#B23A48", "#6D597A")
-mmm_diverging_colors <- c(low = "#3d3b6e", mid = "white", high = "#e63947")
+# Shared diverging scale for signed effects (e.g. Hedges g): the manuscript
+# palette (Exp9_manuscript config/manuscript_palette.yml, master dae6676 =
+# branch a16f55a): blue-grey = lower, orange = higher, warm grey at zero.
+mmm_diverging_colors <- c(low = "#4C566A", mid = "#D8D2C7", high = "#D98B3A")
 
 safe_name <- function(x) {
   x %>%
@@ -805,7 +808,7 @@ calc_dfa_alpha <- function(x,
   tibble(dfa_alpha = unname(coef(fit)[2]), dfa_n_scales = nrow(fluct))
 }
 
-make_nature_theme <- function(base_size = 7, base_family = "Arial") {
+make_figure_theme <- function(base_size = 7, base_family = "Arial") {
   theme_classic(base_size = base_size, base_family = base_family) +
     theme(
       axis.line = element_line(linewidth = 0.28, colour = "black"),
@@ -827,7 +830,7 @@ make_nature_theme <- function(base_size = 7, base_family = "Arial") {
 }
 
 make_publication_theme <- function(base_size = 7) {
-  make_nature_theme(base_size = base_size) +
+  make_figure_theme(base_size = base_size) +
     theme(
       panel.grid.major.y = element_line(linewidth = 0.13, colour = "grey92"),
       panel.grid.major.x = element_blank(),

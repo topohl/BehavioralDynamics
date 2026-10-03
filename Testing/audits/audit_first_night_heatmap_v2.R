@@ -842,7 +842,7 @@ p_hm <- ggplot(hm, aes(x = contrast, y = row_label, fill = Hedges_g)) +
                         "two HMM rows lose the 2 Stage 08 exclusions): Female ",
                         n_by_sex$txt[n_by_sex$Sex == "Female"], "; Male ",
                         n_by_sex$txt[n_by_sex$Sex == "Male"], "."), 150)) +
-  make_nature_theme(base_size = 6.4) +
+  make_figure_theme(base_size = 6.4) +
   theme(legend.position = "top", legend.title = element_text(size = rel(0.95)),
         axis.line = element_blank(), axis.ticks = element_blank(),
         panel.spacing = unit(1.6, "mm"),
@@ -901,7 +901,7 @@ p_comp <- ggplot(cf, aes(x = contrast, y = row_label, fill = hedges_g)) +
                         "RES/SUS are LATER phenotype labels from subsequent CombZ: descriptive association ",
                         "with later phenotype, never prospective. n = ", max(cf$n_animals_in_model),
                         " animals (109/111; 2 Stage 08 epoch data-quality exclusions)."), 150)) +
-  make_nature_theme(base_size = 6.4) +
+  make_figure_theme(base_size = 6.4) +
   theme(legend.position = "top", legend.title = element_text(size = rel(0.95)),
         axis.line = element_blank(), axis.ticks = element_blank(),
         panel.spacing = unit(1.6, "mm"), strip.placement = "outside",

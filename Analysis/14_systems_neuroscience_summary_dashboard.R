@@ -230,7 +230,7 @@ if (!exists("safe_name")) {
 }
 
 if (TRUE) {
-  make_nature_theme <- function(base_size = 7) {
+  make_figure_theme <- function(base_size = 7) {
     theme_classic(base_size = base_size, base_family = "Arial") +
       theme(
         axis.line = element_line(linewidth = 0.28, colour = "black"),
@@ -1068,7 +1068,7 @@ if (nrow(qc_chip_loss_flags) > 0) {
       y = "Animal",
       fill = "QC class"
     ) +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "right")
   save_plot_svg_pdf(p_chip_timeline, file.path(output_dir, "figures/qc/Fig_chip_loss_dropout_timeline"), width = 175, height = 120)
 
@@ -1083,7 +1083,7 @@ if (nrow(qc_chip_loss_flags) > 0) {
       exclude_after_dropout = "#b2182b", insufficient_data = "#777777"
     ), drop = FALSE) +
     labs(title = "Movement/proximity diagnostics after suspected dropout", x = "Movement after dropout", y = "Proximity after dropout", colour = "QC class") +
-    make_nature_theme(base_size = 6)
+    make_figure_theme(base_size = 6)
   save_plot_svg_pdf(p_chip_diag, file.path(output_dir, "figures/qc/Fig_chip_loss_movement_proximity_diagnostics"), width = 145, height = 95)
 }
 
@@ -1200,7 +1200,7 @@ if (nrow(first_active) > 0) {
     scale_colour_manual(values = group_colors, drop = FALSE) +
     scale_fill_manual(values = group_colors, drop = FALSE) +
     labs(title = "First active-phase movement trajectory", subtitle = paste0("Raw binned movement during first 12 h after ", first_cage_change), x = "Hours from active-phase onset", y = "Movement") +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(legend.position = "none")
   save_plot_svg_pdf(p_first_active_movement, file.path(output_dir, "figures/publication_panels/Fig_first_active_movement_trajectory_by_group_sex"), width = 175, height = 115)
 
@@ -1219,7 +1219,7 @@ if (nrow(first_active) > 0) {
     scale_colour_manual(values = group_colors, drop = FALSE) +
     scale_fill_manual(values = group_colors, drop = FALSE) +
     labs(title = "First active-phase entropy trajectory", subtitle = "Raw entropy trajectory; entropy ACF1/RMSSD summaries are used for primary claims", x = "Hours from active-phase onset", y = "Entropy") +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(legend.position = "none")
   save_plot_svg_pdf(p_first_active_entropy, file.path(output_dir, "figures/publication_panels/Fig_first_active_entropy_acf1_or_instability"), width = 175, height = 115)
 }
@@ -2457,7 +2457,7 @@ if (nrow(group_balance_by_batch_system) > 0) {
     facet_grid(Sex + Batch ~ System, scales = "free_y") +
     scale_fill_manual(values = group_colors, drop = FALSE) +
     labs(title = "Group balance by batch and system", x = NULL, y = "Animals") +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none")
   save_plot_svg_pdf(p_group_balance, file.path(output_dir, "figures/qc/Fig_group_balance_by_batch_system"), width = 170, height = 125)
 }
@@ -2521,7 +2521,7 @@ if (nrow(batch_system_cage_audit) > 0) {
     geom_vline(xintercept = c(-30, 30), linewidth = 0.2, linetype = "dashed", colour = "grey45") +
     geom_col(width = 0.65, colour = "white", linewidth = 0.15) +
     labs(title = "Batch/system sensitivity of primary feature group effects", x = "% change in group effect after covariates", y = NULL, fill = "Flag") +
-    make_nature_theme(base_size = 6)
+    make_figure_theme(base_size = 6)
   save_plot_svg_pdf(p_batch_bias, file.path(output_dir, "figures/qc/Fig_batch_system_feature_bias"), width = 150, height = 95)
 }
 
@@ -2604,7 +2604,7 @@ if (nrow(interaction_models) > 0) {
     geom_vline(xintercept = 0, linewidth = 0.2, colour = "grey55") +
     geom_col(width = 0.65, colour = "white", linewidth = 0.15) +
     labs(title = "Group x sex interaction screen", subtitle = "Sex-specific claims require supported interaction or descriptive labeling", x = "Interaction coefficient", y = NULL, fill = "FDR < 0.10") +
-    make_nature_theme(base_size = 6)
+    make_figure_theme(base_size = 6)
   save_plot_svg_pdf(p_interaction, file.path(output_dir, "figures/publication_panels/Fig_group_sex_interaction_effects"), width = 145, height = 95)
 }
 
@@ -2747,7 +2747,7 @@ if (nrow(named_biological_scores_long) > 0) {
       x = NULL,
       y = "Composite score"
     ) +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none")
 
   save_plot_svg_pdf(p_named_scores, file.path(output_dir, "figures/publication_panels/Fig_systems_named_biological_scores"), width = 220, height = 125)
@@ -2819,7 +2819,7 @@ if (nrow(sleep_score_features) > 0) {
       x = NULL,
       y = "Composite z-score"
     ) +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none")
   save_plot_svg_pdf(p_sleep_like, file.path(output_dir, "figures/publication_panels/Fig_sleep_like_inactivity_by_group_sex"), width = 170, height = 125)
 }
@@ -2838,7 +2838,7 @@ p_module_scorecard <- module_scorecards_base %>%
     y = NULL,
     fill = "Robust\nfeatures"
   ) +
-  make_nature_theme(base_size = 6) +
+  make_figure_theme(base_size = 6) +
   theme(plot.margin = margin(5.5, 18, 5.5, 5.5), legend.position = "right")
 
 save_plot_svg_pdf(p_module_scorecard, file.path(output_dir, "figures/publication_panels/Fig_systems_module_scorecard"), width = 150, height = 88)
@@ -2894,7 +2894,7 @@ p_pca <- pca_plot_tbl %>%
     y = "Systems PC2",
     caption = paste0("PC1 ", round(100 * var_exp[1], 1), "%; PC2 ", round(100 * var_exp[2], 1), "% variance")
   ) +
-  make_nature_theme(base_size = 7)
+  make_figure_theme(base_size = 7)
 
 save_plot_svg_pdf(p_pca, file.path(output_dir, "figures/publication_panels/Fig_systems_state_space_PCA"), width = 135, height = 75)
 
@@ -2924,7 +2924,7 @@ if (requireNamespace("uwot", quietly = TRUE) && nrow(x_scaled) >= 8) {
       x = "UMAP1",
       y = "UMAP2"
     ) +
-    make_nature_theme(base_size = 7)
+    make_figure_theme(base_size = 7)
 
   save_plot_svg_pdf(p_umap, file.path(output_dir, "figures/publication_panels/Fig_systems_state_space_UMAP"), width = 135, height = 75)
 }
@@ -3125,7 +3125,7 @@ if (nrow(latent_epoch_features) >= 20 && length(latent_feature_cols) >= 2) {
       y = "Temporal latent PC2",
       caption = "Numbers mark cage-change order; arrows show progression through the social-instability paradigm."
     ) +
-    make_nature_theme(base_size = 6)
+    make_figure_theme(base_size = 6)
 
   save_plot_svg_pdf(p_latent_traj, file.path(output_dir, "figures/publication_panels/Fig_systems_temporal_latent_trajectories"), width = 170, height = 115)
 
@@ -3145,7 +3145,7 @@ if (nrow(latent_epoch_features) >= 20 && length(latent_feature_cols) >= 2) {
         y = "Temporal UMAP2",
         caption = "Numbers mark cage-change order; use as a nonlinear companion to the PCA trajectory."
       ) +
-      make_nature_theme(base_size = 6)
+      make_figure_theme(base_size = 6)
 
     save_plot_svg_pdf(p_umap_traj, file.path(output_dir, "figures/publication_panels/Fig_systems_temporal_umap_trajectories"), width = 170, height = 115)
   }
@@ -3166,7 +3166,7 @@ if (nrow(latent_epoch_features) >= 20 && length(latent_feature_cols) >= 2) {
         y = "Temporal PHATE2",
         caption = "Numbers mark cage-change order; PHATE emphasizes gradual dynamical progression and attractor-like structure."
       ) +
-      make_nature_theme(base_size = 6)
+      make_figure_theme(base_size = 6)
 
     save_plot_svg_pdf(p_phate_traj, file.path(output_dir, "figures/publication_panels/Fig_systems_temporal_phate_trajectories"), width = 170, height = 115)
   }
@@ -3186,7 +3186,7 @@ if (nrow(latent_epoch_features) >= 20 && length(latent_feature_cols) >= 2) {
       x = NULL,
       y = "log10(normalized roughness + 1)"
     ) +
-    make_nature_theme(base_size = 6)
+    make_figure_theme(base_size = 6)
 
   save_plot_svg_pdf(p_instability, file.path(output_dir, "figures/publication_panels/Fig_systems_latent_trajectory_instability"), width = 135, height = 95)
 }
@@ -3231,7 +3231,7 @@ p_heat <- heat_tbl %>%
   geom_tile(colour = "white", linewidth = 0.20) +
   geom_text(aes(label = sig), size = 2.1) +
   facet_grid(Sex ~ Domain, scales = "free_y", space = "free_y") +
-  scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
+  scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
   labs(
     title = "Systems-level group-difference map",
     subtitle = "Hedges g; symbols denote BH FDR within prespecified feature families",
@@ -3240,7 +3240,7 @@ p_heat <- heat_tbl %>%
     fill = "Hedges g",
     caption = "Symbols: * q<0.05, ** q<0.01, *** q<0.001; exact statistics in systems_group_contrasts.csv. RES/SUS labels are derived from post-paradigm CombZ."
   ) +
-  make_nature_theme(base_size = 6) +
+  make_figure_theme(base_size = 6) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
     legend.position = "right",
@@ -3297,7 +3297,7 @@ if (nrow(network_long) > 0) {
     ggplot(aes(rho, Pair, fill = rho)) +
     geom_col(width = 0.72) +
     facet_grid(Sex ~ ., scales = "free_y", space = "free_y") +
-    scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0) +
+    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0) +
     labs(
       title = "Sex-specific systems coupling",
       subtitle = "Top feature-feature Spearman correlations among strongest group-discriminating features",
@@ -3305,7 +3305,7 @@ if (nrow(network_long) > 0) {
       y = NULL,
       fill = "rho"
     ) +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(legend.position = "right")
 
   save_plot_svg_pdf(p_net, file.path(output_dir, "figures/publication_panels/Fig_systems_feature_coupling_network_summary"), width = 150, height = 120)
@@ -3455,7 +3455,7 @@ if (!is.null(hmm_transition_prob) && nrow(hmm_transition_prob) > 0) {
       ggplot(aes(ToLabel, FromLabel, fill = DeltaProbability)) +
       geom_tile(colour = "white", linewidth = 0.22) +
       facet_grid(Sex ~ Contrast) +
-      scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
+      scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
       labs(
         title = "HMM transition architecture differences",
         subtitle = "Group differences in animal-level transition probabilities; positive values indicate higher probability in the first group",
@@ -3463,7 +3463,7 @@ if (!is.null(hmm_transition_prob) && nrow(hmm_transition_prob) > 0) {
         y = "From state",
         fill = "Delta P"
       ) +
-      make_nature_theme(base_size = 6) +
+      make_figure_theme(base_size = 6) +
       theme(axis.text.x = element_text(angle = 40, hjust = 1), legend.position = "right")
 
     save_plot_svg_pdf(p_hmm_diff, file.path(output_dir, "figures/publication_panels/Fig_systems_hmm_transition_difference"), width = 175, height = 110)
@@ -3490,7 +3490,7 @@ if (!is.null(hmm_transition_prob) && nrow(hmm_transition_prob) > 0) {
         x = NULL,
         y = "Mean transition probability"
       ) +
-      make_nature_theme(base_size = 6) +
+      make_figure_theme(base_size = 6) +
       theme(legend.position = "none", axis.text.y = element_blank(), axis.ticks.y = element_blank())
 
     save_plot_svg_pdf(p_hmm_flow, file.path(output_dir, "figures/publication_panels/Fig_systems_hmm_state_flow_alluvial"), width = 180, height = 125)
@@ -3518,7 +3518,7 @@ if (!is.null(hmm_dwell) && nrow(hmm_dwell) > 0) {
         x = "Mean dwell time (hours)",
         y = NULL
       ) +
-      make_nature_theme(base_size = 6)
+      make_figure_theme(base_size = 6)
 
     save_plot_svg_pdf(p_dwell, file.path(output_dir, "figures/publication_panels/Fig_systems_hmm_dwell_time_ridges"), width = 170, height = 115)
   }
@@ -3548,7 +3548,7 @@ if (nrow(social_score_tbl) > 0 && all(c("social_withdrawal_score", "social_fragm
       y = "Social fragmentation score",
       size = "|Flexibility|"
     ) +
-    make_nature_theme(base_size = 7) +
+    make_figure_theme(base_size = 7) +
     theme(legend.position = "right")
 
   save_plot_svg_pdf(p_social_map, file.path(output_dir, "figures/publication_panels/Fig_systems_social_phenotype_map"), width = 140, height = 78)
@@ -3578,7 +3578,7 @@ if (nrow(trajectory_score_tbl) > 0 && all(c("trajectory_recovery_score", "behavi
       y = "Trajectory recovery score",
       size = "Adaptation\nindex"
     ) +
-    make_nature_theme(base_size = 7) +
+    make_figure_theme(base_size = 7) +
     theme(legend.position = "right")
 
   save_plot_svg_pdf(p_adaptation, file.path(output_dir, "figures/publication_panels/Fig_systems_trajectory_adaptation_phase_portrait"), width = 140, height = 78)
@@ -4114,7 +4114,7 @@ plot_domain_summary <- function(domain_filter, title, subtitle, filename, width 
       facet_grid(Sex ~ Domain, scales = "free_y") +
       scale_colour_manual(values = group_colors, drop = FALSE) +
       labs(title = title, subtitle = subtitle, x = NULL, y = "Sex-standardized domain score") +
-      make_nature_theme(base_size = 6) +
+      make_figure_theme(base_size = 6) +
       theme(legend.position = "none", axis.text.x = element_text(angle = 30, hjust = 1))
   } else {
     ggplot() + annotate("text", x = 0, y = 0, label = paste(title, "unavailable"), size = 3) + theme_void()
@@ -4184,7 +4184,7 @@ p_linear_vs_nonlinear_model_ladder <- if (nrow(sis_incremental_ladder$performanc
       x = NULL,
       y = "LOOCV R2"
     ) +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 30, hjust = 1))
 } else {
   ggplot() + annotate("text", x = 0, y = 0, label = "Prediction ladder unavailable", size = 3) + theme_void()
@@ -4238,7 +4238,7 @@ if (nrow(module_coupling_tbl) > 0) {
     ggplot(aes(spearman_rho, Pair, fill = spearman_rho)) +
     geom_col(width = 0.68) +
     facet_grid(Sex ~ ., scales = "free_y", space = "free_y") +
-    scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0) +
+    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0) +
     labs(
       title = "Module-level coupling map",
       subtitle = "Spearman correlations among biologically interpretable module scores",
@@ -4246,7 +4246,7 @@ if (nrow(module_coupling_tbl) > 0) {
       y = NULL,
       fill = "rho"
     ) +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(legend.position = "right")
 
   save_plot_svg_pdf(p_module_coupling, file.path(output_dir, "figures/publication_panels/Fig_systems_module_coupling_network"), width = 150, height = 108)
@@ -4397,7 +4397,7 @@ if (length(available_outcomes) > 0) {
     ggplot(aes(spearman_rho, DisplayFeature, fill = spearman_rho)) +
     geom_col(width = 0.72) +
     geom_text(aes(x = LabelX, label = StatLabel, hjust = LabelHJust), size = 1.75, lineheight = 0.86) +
-    scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0) +
+    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0) +
     labs(
       title = paste0("Full-experiment systems features linked to ", outcome_to_plot),
       subtitle = paste0("Exploratory associations; labels show Spearman rho and BH q"),
@@ -4407,7 +4407,7 @@ if (length(available_outcomes) > 0) {
       caption = paste0("For ", primary_outcome, ", positive rho means less-worse/resilient-like endpoint; exact statistics in systems_outcome_associations.csv.")
     ) +
     coord_cartesian(xlim = c(-1, 1), clip = "off") +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(legend.position = "right", plot.margin = margin(5.5, 18, 5.5, 5.5))
 
   save_plot_svg_pdf(p_out_heat, file.path(output_dir, "figures/publication_panels/Fig_systems_outcome_association_rank"), width = 135, height = 115)
@@ -4429,7 +4429,7 @@ if (length(available_outcomes) > 0) {
       ggplot(aes(spearman_rho, DisplayFeature, fill = spearman_rho)) +
       geom_col(width = 0.72) +
       geom_text(aes(x = LabelX, label = StatLabel, hjust = LabelHJust), size = 1.75, lineheight = 0.86) +
-      scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0) +
+      scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0) +
       labs(
         title = paste0("Prospective early behavior linked to ", outcome_to_plot),
         subtitle = paste0("First active 12 h after ", first_cage_change, "; labels show Spearman rho and BH q"),
@@ -4439,7 +4439,7 @@ if (length(available_outcomes) > 0) {
         caption = paste0("For ", primary_outcome, ", negative rho means higher early feature values predict worse later endpoint.")
       ) +
       coord_cartesian(xlim = c(-1, 1), clip = "off") +
-      make_nature_theme(base_size = 6) +
+      make_figure_theme(base_size = 6) +
       theme(legend.position = "right", plot.margin = margin(5.5, 18, 5.5, 5.5))
 
     save_plot_svg_pdf(p_prosp_heat, file.path(output_dir, "figures/publication_panels/Fig_systems_prospective_outcome_association_rank"), width = 135, height = 115)
@@ -4506,7 +4506,7 @@ if (length(available_outcomes) > 0) {
         y = paste0(outcome_to_plot, " (lower = worse)"),
         caption = "Lines show ordinary least-squares trend for visualization; panel statistics use Spearman correlation with BH FDR within sex across displayed features."
       ) +
-      make_nature_theme(base_size = 6)
+      make_figure_theme(base_size = 6)
 
     save_plot_svg_pdf(p_prosp_scatter, file.path(output_dir, "figures/publication_panels/Fig_systems_prospective_feature_scatter"), width = 190, height = 118)
   }
@@ -4633,7 +4633,7 @@ if (length(available_outcomes) > 0) {
     geom_hline(yintercept = 0, linewidth = 0.25, colour = "grey55") +
     geom_col(width = 0.68, colour = "white", linewidth = 0.18) +
     geom_text(aes(label = formatC(delta_cv_r2_vs_previous, format = "f", digits = 2), vjust = DeltaLabelVJust), size = 1.9) +
-    scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey85") +
+    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
     labs(
       title = "Incremental predictive value by systems module",
       subtitle = paste0("Leave-one-animal-out prediction of ", outcome_to_plot, "; bars show delta CV-R2 versus previous ladder step"),
@@ -4641,7 +4641,7 @@ if (length(available_outcomes) > 0) {
       y = "Delta CV-R2",
       fill = "Delta"
     ) +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right")
 
   save_plot_svg_pdf(p_delta, file.path(output_dir, "figures/publication_panels/Fig_systems_prediction_delta_waterfall"), width = 160, height = 86)
@@ -4660,7 +4660,7 @@ if (length(available_outcomes) > 0) {
       fill = "Analysis set"
     ) +
     scale_fill_manual(values = c(full = "#3d3b6e", excluding_short_duration = "#e63947"), drop = FALSE) +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "top")
 
   save_plot_svg_pdf(p_duration_sensitivity, file.path(output_dir, "figures/publication_panels/Fig_systems_prediction_duration_sensitivity"), width = 150, height = 82)
@@ -4725,7 +4725,7 @@ if (length(available_outcomes) > 0) {
     geom_hline(yintercept = 0, linewidth = 0.25, colour = "grey55") +
     geom_col(width = 0.68, colour = "white", linewidth = 0.18) +
     geom_text(aes(label = paste0("r=", formatC(pearson_r, format = "f", digits = 2), "\nΔR2=", formatC(delta_cv_r2_vs_movement, format = "f", digits = 2))), size = 1.8, vjust = -0.15) +
-    scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey85") +
+    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
     labs(
       title = paste0("Cross-validated prediction ladder for ", outcome_to_plot),
       subtitle = "Module scores test incremental value beyond early movement magnitude",
@@ -4734,7 +4734,7 @@ if (length(available_outcomes) > 0) {
       fill = "ΔR2 vs movement",
       caption = "Permutation p-values and bootstrap CIs are exported in systems_prediction_ladder_performance.csv."
     ) +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right")
   save_plot_svg_pdf(p_ladder, file.path(output_dir, "figures/publication_panels/Fig_systems_prediction_ladder"), width = 165, height = 92)
 
@@ -4762,7 +4762,7 @@ if (length(available_outcomes) > 0) {
       x = paste0("Observed ", outcome_to_plot, " (lower = worse)"),
       y = paste0("Predicted ", outcome_to_plot)
     ) +
-    make_nature_theme(base_size = 7)
+    make_figure_theme(base_size = 7)
   save_plot_svg_pdf(p_pred, file.path(output_dir, "figures/publication_panels/Fig_systems_prospective_crossvalidated_prediction"), width = 135, height = 75)
 
 }
@@ -4934,9 +4934,9 @@ if (nrow(systems_behavior_proteomics_bridge) > 0 && any(is.finite(systems_behavi
     ggplot(aes(proteomics_module, BehaviorLabel, fill = spearman_rho)) +
     geom_tile(colour = "white", linewidth = 0.22) +
     geom_text(aes(label = sig_label(spearman_fdr)), size = 1.8) +
-    scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
+    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
     labs(title = "Behavior-proteomics bridge", subtitle = "Associative molecular correlates of primary behavioral axes", x = NULL, y = NULL, fill = "rho") +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 40, hjust = 1), legend.position = "right")
   save_plot_svg_pdf(p_prot_bridge, file.path(output_dir, "figures/publication_panels/Fig_behavior_proteomics_bridge"), width = 160, height = 105)
 }
@@ -5034,7 +5034,7 @@ if (nrow(primary_robustness_plot_tbl) > 0) {
     ggplot(aes(RobustnessAxis, PrimaryFeatureLabel, fill = robustness_class)) +
     geom_tile(colour = "white", linewidth = 0.22) +
     labs(title = "Primary feature robustness summary", x = NULL, y = NULL, fill = "Classification") +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right")
   save_plot_svg_pdf(p_primary_robust, file.path(output_dir, "figures/qc/Fig_primary_feature_robustness"), width = 160, height = 105)
 }
@@ -5081,14 +5081,14 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
     ggplot(aes(PC1, DisplayFeature, fill = PC1)) +
     geom_vline(xintercept = 0, linewidth = 0.20, colour = "grey55") +
     geom_col(width = 0.72) +
-    scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0) +
+    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0) +
     labs(
       title = "B. Dominant systems axis",
       subtitle = paste0("Top signed PC1 loadings; PC1 explains ", round(100 * var_exp[1], 1), "%"),
       x = "PC1 loading",
       y = NULL
     ) +
-    make_nature_theme(base_size = 6) +
+    make_figure_theme(base_size = 6) +
     theme(legend.position = "none")
 
   pca_outcome_tbl <- if (exists("outcome_to_plot") && outcome_to_plot %in% names(pca_scores)) {
@@ -5144,7 +5144,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
         x = "Systems PC1",
         y = paste0(outcome_to_plot, " (lower = worse)")
       ) +
-      make_nature_theme(base_size = 6)
+      make_figure_theme(base_size = 6)
   } else {
     ggplot() +
       annotate("text", x = 0, y = 0, label = "Endpoint association unavailable", size = 3) +
@@ -5181,7 +5181,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
         x = paste0("Observed ", outcome_to_plot),
         y = paste0("Predicted ", outcome_to_plot)
       ) +
-      make_nature_theme(base_size = 6)
+      make_figure_theme(base_size = 6)
   } else {
     ggplot() +
       annotate("text", x = 0, y = 0, label = "Prospective prediction unavailable", size = 3) +
@@ -5222,7 +5222,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
     geom_tile(colour = "white", linewidth = 0.25) +
     geom_text(aes(label = sig), size = 1.8) +
     facet_grid(Sex ~ ., scales = "free_y", space = "free_y") +
-    scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
+    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
     labs(
       title = "F. Multiscale phenotype modules",
       subtitle = "Median Hedges g across feature modules; detailed map exported separately",
@@ -5230,7 +5230,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
       y = NULL,
       fill = "g"
     ) +
-    make_nature_theme(base_size = 5.5) +
+    make_figure_theme(base_size = 5.5) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "right")
 
   p_latent_dash <- if (inherits(p_latent_traj, "ggplot")) {
@@ -5300,9 +5300,9 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
       geom_tile(colour = "white", linewidth = 0.22) +
       geom_text(aes(label = sig_label(p_fdr)), size = 1.75) +
       facet_grid(Sex ~ ., scales = "free_y", space = "free_y") +
-      scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
+      scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
       labs(title = "B. Primary feature effects", subtitle = "Hedges g; symbols denote BH FDR", x = NULL, y = NULL, fill = "g") +
-      make_nature_theme(base_size = 5.5) +
+      make_figure_theme(base_size = 5.5) +
       theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right")
   } else {
     p_heat_small + labs(title = "B. Module effects", subtitle = "Primary-feature heatmap unavailable")
@@ -6808,7 +6808,7 @@ p_hmm_resolution_sensitivity <- hmm_resolution_sensitivity %>%
     y = "Mixed-model group contrast",
     colour = "Contrast"
   ) +
-  make_nature_theme(base_size = 5.5) +
+  make_figure_theme(base_size = 5.5) +
   theme(legend.position = "top")
 save_plot_svg_pdf(
   p_hmm_resolution_sensitivity,
@@ -7116,7 +7116,7 @@ plot_first_night_heatmap <- function(res, panel_role) {
         "later phenotype, not prospective prediction; Stage 09 owns the predictive question."
       ) %>% dhm_wrap_text(138, 5)
     ) +
-    make_nature_theme(base_size = 5.5) +
+    make_figure_theme(base_size = 5.5) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right",
           axis.line = element_blank(), axis.ticks = element_blank(), legend.title = element_text(size = rel(0.9)),
           plot.caption = element_text(size = 5), plot.caption.position = "plot")

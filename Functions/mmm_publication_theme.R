@@ -1,5 +1,5 @@
 # ================================================================
-# Restrained publication figure theme (Nature-like)
+# Restrained publication figure theme
 # MMMSociability
 # ================================================================
 # One theme and one palette for every manuscript-facing GAMM figure, so the
@@ -17,6 +17,9 @@ suppressPackageStartupMessages({
 
 # FIXED manuscript identity colours. Do not substitute, lighten or darken.
 MMM_GROUP_COLOURS <- c(CON = "#3E3C6F", RES = "#C6C3BB", SUS = "#E63A48")
+# Diverging scale for signed effects, the manuscript palette (= mmm_diverging_colors in
+# behavioral_dynamics_helpers.R): blue-grey = lower, orange = higher, warm grey at zero.
+MMM_DIVERGING_COLOURS <- c(low = "#4C566A", mid = "#D8D2C7", high = "#D98B3A")
 MMM_GROUP_LEVELS <- c("CON", "RES", "SUS")
 
 # RES (#C6C3BB) is deliberately light, so colour must never be the ONLY group
@@ -38,11 +41,11 @@ MMM_CONTRAST_COLOUR <- "#2B2B2B"
 # scale below cannot drift apart again.
 MMM_CONTRAST_LEVELS <- c("RES-CON", "SUS-CON", "SUS-RES")
 
-# Nature body text is 5-7 pt at final size; 7 pt base keeps axis text at 6.5 pt.
+# Body text is 5-7 pt at final size; 7 pt base keeps axis text at 6.5 pt.
 MMM_BASE_PT <- 7
 MMM_PANEL_LABEL_PT <- 8
 
-# Nature column widths in mm.
+# Single, medium and double column widths in mm.
 MMM_WIDTH_SINGLE_MM <- 89
 MMM_WIDTH_MEDIUM_MM <- 120
 MMM_WIDTH_DOUBLE_MM <- 183
@@ -161,8 +164,8 @@ mmm_scale_fill_effect <- function(limits = c(-1.2, 1.2),
                                   ...) {
   limits <- c(-max(abs(limits)), max(abs(limits)))
   scale_fill_gradient2(
-    low = MMM_GROUP_COLOURS[["CON"]], mid = "white",
-    high = MMM_GROUP_COLOURS[["SUS"]], midpoint = 0,
+    low = MMM_DIVERGING_COLOURS[["low"]], mid = MMM_DIVERGING_COLOURS[["mid"]],
+    high = MMM_DIVERGING_COLOURS[["high"]], midpoint = 0,
     limits = limits, oob = scales::squish, name = name, ...
   )
 }

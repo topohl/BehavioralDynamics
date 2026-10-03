@@ -1,5 +1,5 @@
 # ================================================================
-# Publication assembly helpers (Nature-compatible) for the GAMM outputs
+# Publication assembly helpers for the GAMM outputs
 # MMMSociability
 # ================================================================
 # Composition/export utilities used ONLY by the manuscript assembly stage.

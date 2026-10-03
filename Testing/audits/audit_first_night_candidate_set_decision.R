@@ -476,7 +476,7 @@ make_fig <- function(hm, title, subtitle, caption, base_size = 6.4) {
                                                  barwidth = unit(34, "mm"))) +
     scale_x_discrete(expand = c(0, 0)) + scale_y_discrete(expand = c(0, 0)) +
     labs(title = title, subtitle = subtitle, x = NULL, y = NULL, caption = caption) +
-    make_nature_theme(base_size = base_size) +
+    make_figure_theme(base_size = base_size) +
     theme(legend.position = "top", legend.title = element_text(size = rel(0.95)),
           axis.line = element_blank(), axis.ticks = element_blank(),
           panel.spacing = unit(1.6, "mm"),

@@ -625,7 +625,7 @@ run_hmm_resolution <- function(bin_level) {
       y = "Fraction of time",
       x = NULL
     ) +
-    make_nature_theme()
+    make_figure_theme()
   save_plot_svg_pdf(p_occ, file.path(output_dir, "figures", "hmm_state_occupancy"), width = 180, height = 120)
 
   if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_dir)

@@ -146,7 +146,7 @@ write_stats_package <- function(dat, analysis_name, value_cols, by_cols, summary
 }
 
 make_publication_theme <- function(base_size = 7) {
-  make_nature_theme(base_size = base_size) +
+  make_figure_theme(base_size = base_size) +
     theme(
       legend.position = "top",
       legend.key.width = unit(8, "mm"),
@@ -662,7 +662,7 @@ if (nrow(animal_effect_tbl) > 0) {
       y = NULL,
       fill = "Cohen's d"
     ) +
-    scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
+    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
     make_publication_theme(base_size = 6) +
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
@@ -1159,7 +1159,7 @@ if (!is.null(dyad_file) && file.exists(dyad_file)) {
             y = NULL,
             fill = "Cohen's d"
           ) +
-          scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
+          scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
           make_publication_theme(base_size = 6) +
           theme(
             axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
@@ -1182,7 +1182,7 @@ if (!is.null(dyad_file) && file.exists(dyad_file)) {
             y = NULL,
             fill = "Cohen's d"
           ) +
-          scale_fill_gradient2(low = "#3d3b6e", mid = "white", high = "#e63947", midpoint = 0, na.value = "grey90") +
+          scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
           make_publication_theme(base_size = 6) +
           theme(
             axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),

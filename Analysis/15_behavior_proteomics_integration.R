@@ -1210,9 +1210,9 @@ run_crossmodal_analysis <- function(
       geom_tile(color = "white", linewidth = 0.35) +
       geom_text(aes(label = EvidenceLabel), size = 2.4, color = "black") +
       scale_fill_gradient2(
-        low = "#457B9D",
-        mid = "white",
-        high = "#E63946",
+        low = mmm_diverging_colors[["low"]],
+        mid = mmm_diverging_colors[["mid"]],
+        high = mmm_diverging_colors[["high"]],
         midpoint = 0,
         limits = c(-1, 1),
         name = "Spearman\nrho"
@@ -1375,9 +1375,9 @@ run_crossmodal_analysis <- function(
       ggplot(aes(ProteomicsFeature, BehaviorFeature, fill = SpearmanRho)) +
       geom_tile(color = "white", linewidth = 0.25) +
       scale_fill_gradient2(
-        low = "#457B9D",
-        mid = "white",
-        high = "#E63946",
+        low = mmm_diverging_colors[["low"]],
+        mid = mmm_diverging_colors[["mid"]],
+        high = mmm_diverging_colors[["high"]],
         midpoint = 0,
         limits = c(-1, 1),
         name = "Spearman\nrho"

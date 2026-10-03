@@ -87,8 +87,19 @@ check(toupper(dhm_fill_hex(0, 1.75)) == "#D8D2C7" && toupper(dhm_fill_hex(-9, 1.
       "B: tile fills follow the diverging scale (midpoint 0, squished at the limits)")
 check(identical(dhm_text_on(c("#4C566A", "#D8D2C7", "#D98B3A", "#FFFFFF", "#000000")), c("white", "black", "black", "black", "white")),
       "B: tile text takes the colour with the higher contrast")
-check(grepl("a16f55a", MMM_DHM_PALETTE$source, fixed = TRUE) && grepl("^[0-9a-f]{64}$", MMM_DHM_PALETTE$source_sha256),
-      "B: the palette pin records its source commit and file hash")
+check(grepl("dae6676", MMM_DHM_PALETTE$source, fixed = TRUE) && grepl("a16f55a", MMM_DHM_PALETTE$source, fixed = TRUE) &&
+        grepl("^[0-9a-f]{64}$", MMM_DHM_PALETTE$source_sha256),
+      "B: the palette pin records its source commits and file hash")
+if (exists("mmm_diverging_colors")) {
+  check(identical(unname(mmm_diverging_colors[c("low", "mid", "high")]), unname(MMM_DHM_PALETTE$diverging[c("low", "mid", "high")])),
+        "B: the shared MMMSociability diverging scale equals the pinned manuscript scale")
+  pub_env <- new.env()
+  sys.source(file.path("Functions", "mmm_publication_theme.R"), envir = pub_env)
+  check(identical(unname(pub_env$MMM_DIVERGING_COLOURS[c("low", "mid", "high")]), unname(mmm_diverging_colors[c("low", "mid", "high")])),
+        "B: the publication-theme diverging scale equals the shared scale")
+} else {
+  message("B (shared diverging scale) skipped: behavioral_dynamics_helpers.R not loaded")
+}
 check(identical(unname(MMM_DHM_MARKER_LEVELS[["sign_conflict"]]), "adj. p < 0.05, opposite sign"),
       "B: the cross is labelled with its adjusted-p condition")
 
