@@ -4,6 +4,36 @@ This folder is organized as a staged, reviewer-safe pipeline. The scripts remain
 
 ## Run Order
 
+**CC4 grid-associated period:** the manually invoked
+`31_cc4_grid_exposure.R` retains the full CC4 recording, audits phase/animal
+coverage, and compares complete I2-I5 inactive phases with I2 as reference,
+using fixed complete cage rosters and sex-specific, equally weighted batch/cage
+summaries with paired cage-bootstrap intervals. It also produces clock profiles
+and unverified two-hour activity-window candidates. Actual grid times were not
+recorded; it does not fit exposure effects or use candidate windows for inference.
+It is outside the default runner and writes new runs to
+`analysis_ready/analyses/cc4_grid_exposure/<run-id>/`.
+See [`docs/CC4_GRID_EXPOSURE.md`](../docs/CC4_GRID_EXPOSURE.md) for the retention,
+timing, identity, circularity and execution contracts.
+
+`31b_cc4_phase_groups.R` extends a verified Stage 31 run with canonical
+CON/RES/SUS labels, complete A1-A5 active phases and within-batch group contrasts.
+It uses a common nine-phase cage roster, I2/A2 references and descriptive
+intervals across three batches per sex. It exports a frozen table bundle for
+candidate rendering in Exp9_manuscript; no publication figures are rendered here.
+
+`31c_cc4_phase_statistics.R` adds the explicitly invoked whole-phase count-model
+analysis of a verified Stage31b bundle. It uses cage-level CON/SIS comparisons,
+parametric bootstrap uncertainty and strict diagnostic gates; secondary
+CON/RES/SUS inference is withheld when the covariance structure is unsupported.
+See [`docs/CC4_PHASE_STATISTICS.md`](../docs/CC4_PHASE_STATISTICS.md).
+
+`31d_cc4_phenotype_statistics.R` implements the revised CON/RES/SUS module:
+four group-by-period bootstrap tests, twelve planned pairwise change contrasts,
+and explicit numerical assessment of boundary variance estimates. It preserves
+the complete animal/cage structure and prior Stage31c condition outputs.
+See [`docs/CC4_PHENOTYPE_STATISTICS.md`](../docs/CC4_PHENOTYPE_STATISTICS.md).
+
 | Stage | Script | Role | Inputs | Main outputs |
 |---:|---|---|---|---|
 | 00 (manual diagnostic) | `00_qc_tracking_integrity.R` | Provisional RFID/tracking integrity QC; requires an explicit single resolution and new run ID | Stage 01 10-second metrics | QC tables, Excel report, QC figures; no exclusion decision |

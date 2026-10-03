@@ -57,6 +57,7 @@ jobs:
             any::tibble
             any::ggplot2
             any::jsonlite
+            any::digest
 
       - name: Parse every active R script
         shell: bash
