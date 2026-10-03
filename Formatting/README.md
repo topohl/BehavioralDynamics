@@ -19,6 +19,12 @@ runner because:
 The boundary is therefore: **Formatting produces `preprocessed_data/`; Stage 01
 consumes it.**
 
+The default producer retains its legacy phase selection for compatibility.
+For the separate CC4 grid-associated analysis, Stage 31 calls the same helper
+with `phase_policy = "full_recording", write_output = FALSE` and writes only
+inside its new run bundle. It retains partial edge phases and complete A5;
+window selection is downstream. See [the Stage 31 contract](../docs/CC4_GRID_EXPOSURE.md).
+
 ---
 
 ## Active entry points

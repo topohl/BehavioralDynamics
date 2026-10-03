@@ -715,8 +715,11 @@ dyadic_intervals <- all_pos %>%
 # from the surviving timestamps would renumber the survivors.
 #
 # Pieces landing in a phase block with no observations at all are dropped. Those
-# blocks were deliberately removed by remove_phases() (the first Inactive phase,
-# and any phase beyond the fourth), so they lie outside the analysis window.
+# blocks can have been removed by the legacy remove_phases() policy (I1 and
+# each animal's maximum inactive/active index when greater than four). This is
+# not a universal four-phase cap: CC4 retains I5 when the raw session reaches I6.
+# The separate crop_after_second_cc4_phase() below defines the legacy CC4 metric
+# window. Stage 31 consumes full recordings for the later grid-associated period.
 # Before this refactor such spans were removed only as a side effect of the
 # > 1 h LongGap exclusion; the exclusion is gone, so the epoch boundary is now
 # enforced on its own terms and reported below rather than inferred from a

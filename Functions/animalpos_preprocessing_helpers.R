@@ -198,12 +198,20 @@ animalpos_half_hours_elapsed <- function(datetime) {
 #'   * compute_phase_transitions / compute_day_transitions /
 #'     add_half_hour_transitions are NOT called -- no copied PositionID rows;
 #'   * explicit provenance columns are emitted.
-#' remove_phases() and count_half_hours_elapsed() are reused unchanged so epoch
-#' inclusion semantics are preserved.
+#' The default legacy policy preserves existing analysis inputs. Full recording
+#' mode retains every eligible genuine read, including incomplete edge phases;
+#' window selection then belongs to the consuming analysis (e.g. Stage 31).
+#' Full recording mode is in-memory only here: the dedicated driver owns its
+#' separate, non-overwriting output bundle.
 preprocess_animalpos_file <- function(batch, change, excl_animals,
                                       raw_dir, output_dir,
                                       remove_phases_fn = remove_phases,
-                                      write_output = TRUE) {
+                                      write_output = TRUE,
+                                      phase_policy = c("legacy", "full_recording")) {
+  phase_policy <- match.arg(phase_policy)
+  if (phase_policy == "full_recording" && isTRUE(write_output)) {
+    stop("Full recording mode requires write_output = FALSE; use the Stage 31 driver for separate outputs.", call. = FALSE)
+  }
   filename <- paste0("E9_SIS_", batch, "_", change, "_AnimalPos")
   csv_path <- file.path(raw_dir, batch, paste0(filename, ".csv"))
   if (!file.exists(csv_path)) {
@@ -213,6 +221,15 @@ preprocess_animalpos_file <- function(batch, change, excl_animals,
 
   data <- suppressWarnings(readr::read_delim(csv_path, delim = ";", show_col_types = FALSE, progress = FALSE))
   n_raw_rows <- nrow(data)
+
+  if (phase_policy == "full_recording") {
+    required <- c("DateTime", "Animal", "xPos", "yPos")
+    if (length(setdiff(required, names(data)))) stop("Missing raw AnimalPos columns.", call. = FALSE)
+    if (anyNA(parse_animalpos_datetime(data$DateTime))) stop("Invalid raw DateTime in ", csv_path, call. = FALSE)
+    if (anyNA(data$Animal) || any(!grepl("^.+[-_]sys[.][0-9]+$", data$Animal)))
+      stop("Invalid animal/system label in ", csv_path, call. = FALSE)
+    if (anyNA(animalpos_position_id(data$xPos, data$yPos))) stop("Invalid position in ", csv_path, call. = FALSE)
+  }
 
   data <- data %>%
     dplyr::mutate(DateTime = parse_animalpos_datetime(DateTime)) %>%
@@ -238,7 +255,7 @@ preprocess_animalpos_file <- function(batch, change, excl_animals,
                   ConsecInactive = as.numeric(counters$ConsecInactive))
 
   n_before_remove_phases <- nrow(data)
-  data <- remove_phases_fn(data)
+  if (phase_policy == "legacy") data <- remove_phases_fn(data)
   n_after_remove_phases <- nrow(data)
 
   data <- data %>%
