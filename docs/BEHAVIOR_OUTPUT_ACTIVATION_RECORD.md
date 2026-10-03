@@ -1061,3 +1061,73 @@ metadata files, and two per first-night folder). The 6 added files match the
 record, and no copy root holds an unplanned file. Stage 16's recorded
 hashes, Stage 27 and the release bundle predate this rerun and were not
 regenerated.
+
+## 2026-10-02 Stage 14 domain heatmaps promoted
+
+Commit `d2b4704` (Stage 14 domain heatmaps for the CC1 first dark phase, the
+CC1 first light phase and all phase blocks) ran in a guarded sandbox
+(`stage_sandbox_20261002_dhmfinal`, a clean checkout of the commit, with the
+wrapper and launcher of the 2026-09-26 rerun). Compared with the live outputs:
+- 88 files changed as the redesign intended (47 added, 41 rewritten);
+- 66 dashboard files changed through upstream drift since 2026-09-26. The
+  Stage 09 5-min tables were rerun on 2026-09-27, and commits `bac46bf` and
+  `1999d07` changed two provenance rows;
+- nothing else changed: the engine effect summary and the Stage 27 inputs are
+  identical.
+
+**Promotion (approved).** Script `promote_stage14_rerun_20261002.ps1` in the
+workspace `e9_domain_heatmap_redesign_2026-10-01`:
+1. All 326 live files were backed up to
+   `_migration_control/stage14_before_rerun_20261002/` and hash-verified.
+2. The files were staged with the sandbox root rewritten to the live root in
+   `manifest/input_output_manifest.csv`, `tables/systems_robustness_audit.csv`
+   and `tables/systems_computation_integration_audit.csv`.
+3. The staged files were copied into place, and every one of the 373 live
+   files was verified against its staged hash.
+
+**Record.** The rerun is recorded in
+`docs/behavior_output_producer_reruns/stage14_20261002.csv` (SHA-256
+`4D137131...`; 373 rows: 47 added, 141 rewritten, 185 unchanged; byte-level,
+so files whose only change is a PDF date, a timestamp or unseeded jitter count
+as rewritten).
+- Its prior hashes are those of the 2026-09-26 record. A read-only check before
+  the promotion had found the live Stage 14 files byte-identical to that record.
+- Its hashes are the live files as they stood before the next promotion.
+- It was written on 2026-10-03, together with the next record.
+
+## 2026-10-03 Stage 14 domain heatmaps v3.1 promoted
+
+**What ran.** Commits `d112d48` (CON contrasts with the animals as units, the
+manuscript figure format, review fixes) and `b56b3a1` (a neutral figure-theme
+name, and the manuscript's blue/orange scale for every diverging scale) ran in
+a guarded sandbox (`stage_sandbox_20261003_rc2patch`: `d112d48` plus the
+`b56b3a1` change set as a patch).
+
+**Comparisons.**
+- `d112d48` against the live outputs: 82 expected changes and none
+  unexpected. The engine effect summary and the Stage 27 inputs are
+  identical, and an independent validator passes 32 of 32 checks.
+- `b56b3a1` on top of it: only 10 figures change colour (30 files and the
+  figure inventory); every table is identical.
+- The diverging scale (#4C566A / #D8D2C7 / #D98B3A) is the manuscript
+  palette, now on the Exp9_manuscript master as `dae6676`.
+
+**Promotion.** Script `promote_stage14_rerun_20261003.ps1`, same steps:
+1. All 373 live files were backed up to
+   `_migration_control/stage14_before_rerun_20261003/`.
+2. 374 files were promoted; the one added file is
+   `tables/systems_sis_zero_event_light_blocks.csv`.
+3. Every live file was verified against its staged hash.
+
+**Record.** `docs/behavior_output_producer_reruns/stage14_20261003.csv`
+(SHA-256 `1C601438...`; 374 rows: 1 added, 143 rewritten, 230 unchanged).
+
+**Checks after the promotion.** All three read-only checks pass: the Stage 14
+residual inventory, the foundation inventory, and the copy-parity check.
+- 2,181 originals match their plans.
+- 1,997 copies match the plan, and 184 match a recorded rerun.
+- The 54 files added by recorded reruns match their records.
+- No copy root holds an unplanned file.
+
+Stage 16's recorded hashes, Stage 27 and the release bundle were not
+regenerated.
