@@ -3,14 +3,16 @@
 # animal_level_contrast_effects, dhm_* and the HMM display helpers).
 # Portable: synthetic data only, no S: access, no stage or runner is sourced.
 #
-# Locks: the display effect sizes equal the engine's; the batch-level fallback
-# reproduces a known answer; BH families are heatmap x variant x tier x phase
+# Locks: the display effect sizes equal the engine's; the CON contrasts treat
+# the CON animals as units (no CON-group term) and every contrast is a KR t;
+# the figure palette is the pinned manuscript palette and tile text takes the
+# higher-contrast colour; BH families are heatmap x variant x tier x phase
 # over post hoc cells only (consumed registered cells keep their own
 # adjustment; a failed test enters with p = 1); a marker needs evidence and the
-# colour's sign; the approved models fit on a synthetic cage design and the
-# fallback replaces only the CON contrasts; HMM display labels follow the
-# state means and time budgets sum to 1; canonical window values average the
-# clean blocks; the resolution manifest is complete.
+# colour's sign; the models fit on a synthetic cage design; HMM display labels
+# follow the state means and time budgets sum to 1; canonical window values
+# average the clean blocks and zero-event light blocks are found; the
+# resolution manifest is complete.
 
 suppressPackageStartupMessages({ library(dplyr); library(tibble); library(purrr); library(tidyr); library(stringr) })
 
@@ -61,33 +63,68 @@ if (requireNamespace("lmerTest", quietly = TRUE) && requireNamespace("emmeans", 
   ext_eff <- animal_level_contrast_effects(md, c("RES-CON", "SUS-CON", "SUS-RES")) %>% arrange(Sex, contrast)
   check(isTRUE(all.equal(as.data.frame(fit_eff), as.data.frame(ext_eff))),
         "A: the display helpers must return the engine's own effect sizes")
+} else {
+  message("A (engine equivalence) skipped: lmerTest / emmeans not installed")
 }
 
-# ------------------------------------ B. batch-level fallback (known answer)
-if (requireNamespace("data.table", quietly = TRUE)) {
-  fb_dat <- data.table::data.table(
-    AnimalNum = sprintf("F%02d", 1:18),
-    Group = rep(c("CON", "CON", "RES", "RES", "SUS", "SUS"), 3),
-    Batch = rep(c("B3", "B4", "B6"), each = 6)
-  )
-  d_target <- c(B3 = 1, B4 = 2, B6 = 3)
-  fb_dat[, y := ifelse(Group == "RES", d_target[Batch], 0) + ifelse(Group == "SUS", 5, 0)]
-  fb <- dhm_batch_level_t(fb_dat, "RES")
-  check(isTRUE(all.equal(fb$statistic, 3.464102, tolerance = 1e-6)) && fb$df == 2 &&
-          isTRUE(all.equal(fb$p_raw, 2 * stats::pt(-sqrt(12), 2), tolerance = 1e-12)) && fb$status == "OK",
-        "B: d = (1, 2, 3) must give t = sqrt(12) on 2 df, p = 0.07418")
-  check(isTRUE(all.equal(fb$estimate, 2)) && isTRUE(all.equal(fb$se, 1 / sqrt(3))), "B: estimate = mean(D_b), SE = sd(D_b)/sqrt(3)")
-  fb2 <- dhm_batch_level_t(fb_dat[Batch != "B6"], "RES")
-  check(fb2$status == "NOT_ESTIMABLE" && is.na(fb2$p_raw), "B: fewer than 3 batches is not estimable")
-  fb3 <- dhm_batch_level_t(fb_dat[!(Batch == "B4" & Group == "CON")], "RES")
-  check(fb3$status == "NOT_ESTIMABLE", "B: a batch without CON animals is not estimable")
+# ------------------------- B. CON unit, pinned palette and tile text contrast
+for (k in c("single", "pooled")) {
+  f_con <- MMM_DHM_MODELS[[k]]$con$formula
+  check(!grepl("isCON", f_con, fixed = TRUE) && grepl("(0 + sisCage | CageEpisodeID)", f_con, fixed = TRUE),
+        paste0("B: the ", k, " CON model treats the CON animals as units (no CON-group term; SIS cage episodes kept)"))
 }
+check(grepl("animals as units", MMM_DHM_CON_UNIT_NOTE, fixed = TRUE), "B: the CON unit is stated")
+check(!exists("dhm_batch_level_t") && !exists("MMM_DHM_CON_SINGULAR_TOL"), "B: no singular-variance switching remains")
+check(identical(MMM_DHM_PALETTE$version, "manuscript_palette_v1") &&
+        identical(unname(MMM_DHM_PALETTE$group), c("#8A8A8A", "#2E7D91", "#D1543A")) &&
+        identical(names(MMM_DHM_PALETTE$group), c("CON", "RES", "SUS")) &&
+        identical(unname(MMM_DHM_PALETTE$diverging), c("#4C566A", "#D8D2C7", "#D98B3A")),
+      "B: the figure palette is the pinned manuscript palette v1")
+check(MMM_DHM_PALETTE$typography$minimum_pt >= 5 && MMM_DHM_PALETTE$typography$annotation_pt >= MMM_DHM_PALETTE$typography$minimum_pt,
+      "B: no text below the 5-pt minimum")
+check(toupper(dhm_fill_hex(0, 1.75)) == "#D8D2C7" && toupper(dhm_fill_hex(-9, 1.75)) == "#4C566A" &&
+        toupper(dhm_fill_hex(9, 1.75)) == "#D98B3A" && is.na(dhm_fill_hex(NA_real_, 1.75)),
+      "B: tile fills follow the diverging scale (midpoint 0, squished at the limits)")
+check(identical(dhm_text_on(c("#4C566A", "#D8D2C7", "#D98B3A", "#FFFFFF", "#000000")), c("white", "black", "black", "black", "white")),
+      "B: tile text takes the colour with the higher contrast")
+check(grepl("a16f55a", MMM_DHM_PALETTE$source, fixed = TRUE) && grepl("^[0-9a-f]{64}$", MMM_DHM_PALETTE$source_sha256),
+      "B: the palette pin records its source commit and file hash")
+check(identical(unname(MMM_DHM_MARKER_LEVELS[["sign_conflict"]]), "adj. p < 0.05, opposite sign"),
+      "B: the cross is labelled with its adjusted-p condition")
+
+# ------------------------- B2. leave-one-CON-cage-out g and marker robustness
+# One low CON cage (B4) carries the SUS-CON difference: the other CON animals
+# sit close to the SUS animals (g 0.76 overall, 0.17 without B4).
+am_cage <- tibble(Group = c(rep("CON", 6), rep("SUS", 4)), Batch = c("B3", "B3", "B4", "B4", "B6", "B6", "B3", "B4", "B6", "B6"),
+                  m = c(0.1, 0.6, -1.6, -1.9, 0.3, -0.2, 0.3, 0.1, 0.4, 0.2))
+loo <- dhm_con_cage_loo(am_cage, "SUS")
+check(identical(loo$con_cage, c("B3", "B4", "B6")) &&
+        isTRUE(all.equal(loo$g_without[2], hmm_hedges_g(c(0.1, 0.6, 0.3, -0.2), c(0.3, 0.1, 0.4, 0.2)))),
+      "B2: leaving out a CON cage leaves out that batch's CON animals only")
+g_all <- hmm_hedges_g(am_cage$m[am_cage$Group == "CON"], am_cage$m[am_cage$Group == "SUS"])
+other <- tibble(variant = c("all5min", "all10min"), hedges_g = c(0.9, 1.0), q_bh = c(0.01, 0.02), marker = c(TRUE, TRUE))
+r_con <- dhm_marker_robustness("SUS-CON", g_all, single_phase = FALSE, bin_free = FALSE, q_pooled = 0.01, other_variants = other,
+                               g_without_cage = setNames(loo$g_without, loo$con_cage))
+check(startsWith(r_con, "NOT robust (fails: one CON cage (without B4))"),
+      "B2: a CON marker carried by one CON cage is not robust, and the cage is named")
+r_ok <- dhm_marker_robustness("SUS-CON", 1, single_phase = FALSE, bin_free = FALSE, q_pooled = 0.01, other_variants = other,
+                              g_without_cage = c(B3 = 0.9, B4 = 0.7, B6 = 1.2))
+check(startsWith(r_ok, "robust: "), "B2: a marker passing every applicable check is robust")
+r_vac <- dhm_marker_robustness("RES-SUS", 0.8, single_phase = TRUE, bin_free = TRUE, q_pooled = 0.01, other_variants = other[0, ],
+                               q_rs_only = 0.2)
+check(startsWith(r_vac, "NOT robust (fails: RES-SUS-only family)") && grepl("not assessable (single-phase window)", r_vac, fixed = TRUE) &&
+        grepl("not assessable (bin-free row", r_vac, fixed = TRUE),
+      "B2: vacuous checks are marked not assessable and never count as passed")
+r_var <- dhm_marker_robustness("RES-SUS", 0.8, single_phase = FALSE, bin_free = FALSE, q_pooled = 0.01,
+                               other_variants = mutate(other, marker = c(FALSE, TRUE)), q_rs_only = 0.01, q_rs_only_pooled = 0.02)
+check(startsWith(r_var, "NOT robust (fails: bin width (all5min))"), "B2: a marker lost at another bin width is not robust")
 
 # --------------------------------------------------- C. families and markers
 cells <- tidyr::crossing(heatmap_id = c("h1", "h3"), variant = "picked", stat_family = c("primary", "secondary"),
                          PhaseClass = c("Active", "Inactive"), cell = 1:4) %>%
   mutate(
     test_source = if_else(cell == 4, "registered", "posthoc"),
+    contrast = c("RES-SUS", "SUS-CON", "RES-CON", "RES-SUS")[cell],
     test_status = if_else(cell == 3 & stat_family == "secondary", "FAILED", "OK"),
     p_raw = c(0.001, 0.02, 0.04, 0.03)[cell],
     registered_p_adjusted = if_else(test_source == "registered", 0.01, NA_real_),
@@ -95,6 +132,16 @@ cells <- tidyr::crossing(heatmap_id = c("h1", "h3"), variant = "picked", stat_fa
     hedges_g = c(0.5, 0.5, 0.5, 0.5)[cell]
   )
 fam <- dhm_add_families(cells)
+check(all(fam$q_bh_res_sus_only[fam$cell == 1] == 0.001) && all(is.na(fam$q_bh_res_sus_only[fam$cell != 1])),
+      "C: the RES-SUS-only family holds only the post hoc RES-SUS cells")
+check(all(fam$q_bh_res_sus_only_phase_pooled[fam$cell == 1] == stats::p.adjust(c(0.001, 0.001), "BH")[1]),
+      "C: the phase-pooled RES-SUS-only family pools both phases")
+fam_nr <- dhm_add_families(cells %>% mutate(reportable = cell != 1))
+check(all(is.na(fam_nr$marker_class[fam_nr$cell == 1])) && all(fam_nr$evidence[fam_nr$cell == 1]) && !any(fam_nr$marker[fam_nr$cell == 1]),
+      "C: a non-reportable cell keeps its test and evidence but never gets a marker")
+fam_na <- dhm_add_families(cells %>% mutate(estimate = if_else(cell == 2, NA_real_, estimate)))
+check(all(is.na(fam_na$sign_agrees[fam_na$cell == 2])) && all(is.na(fam_na$marker_class[fam_na$cell == 2])),
+      "C: without an estimate, sign agreement is unknown (NA), never FALSE")
 one <- fam %>% filter(heatmap_id == "h1", stat_family == "primary", PhaseClass == "Active")
 check(all(one$family_m[one$test_source == "posthoc"] == 3L), "C: a family holds only its post hoc cells")
 check(isTRUE(all.equal(one$q_bh[one$test_source == "posthoc"], stats::p.adjust(c(0.001, 0.02, 0.04), "BH"))),
@@ -142,16 +189,11 @@ if (model_stack) {
   rs <- tt$contrasts[tt$contrasts$contrast == "RES-SUS", ]
   check(rs$status == "OK" && rs$estimate > 0 && rs$df > 20, "D: RES-SUS recovers the simulated RES > SUS shift with many df")
   con_rows <- tt$contrasts[tt$contrasts$contrast != "RES-SUS", ]
-  check(all(con_rows$fallback_used | con_rows$df < 6), "D: a CON contrast has few df (about the 3 CON groups) or uses the fallback")
-  old_tol <- MMM_DHM_CON_SINGULAR_TOL
-  MMM_DHM_CON_SINGULAR_TOL <- Inf
-  tt_fb <- suppressWarnings(dhm_tier_tests(coded, "pooled", "synthetic, forced fallback"))
-  MMM_DHM_CON_SINGULAR_TOL <- old_tol
-  fb_rows <- tt_fb$contrasts[tt_fb$contrasts$contrast != "RES-SUS", ]
-  check(all(fb_rows$fallback_used) && all(fb_rows$df == 2) && all(grepl("batch-level t", fb_rows$test_used)),
-        "D: a singular CON-group variance switches only the CON contrasts to the batch-level t")
-  check(identical(tt_fb$contrasts$estimate[tt_fb$contrasts$contrast == "RES-SUS"], rs$estimate),
-        "D: the fallback leaves RES-SUS unchanged")
+  check(all(con_rows$status == "OK") && all(con_rows$df > 6), "D: the CON contrasts use the animals as units (animal-level df)")
+  check(all(tt$contrasts$test_used == "KR t") && all(nzchar(tt$contrasts$unit_of_analysis)) &&
+          all(grepl("animals as units", con_rows$unit_of_analysis, fixed = TRUE)),
+        "D: every contrast is a KR t and states its unit of analysis")
+  check(!any(c("fallback_used", "theta_con_group") %in% names(tt$contrasts)), "D: no fallback columns remain")
 } else {
   message("D skipped: lme4 / lmerTest / pbkrtest not installed")
 }
@@ -191,6 +233,21 @@ if (requireNamespace("data.table", quietly = TRUE)) {
   check(nrow(w1) == 2 && all(w1$PhaseClass == "Inactive") && all(w1$n_blocks == 1L), "F: the CC1 light window is the single L1 block")
   expect_error_matching(dhm_canonical_window_values(blk[!(AnimalNum == "A1" & CC == "CC2" & phase == "L3")], "clean_all"),
                         "expected clean blocks", "F: a missing clean block fails closed")
+  # Zero-event light blocks: only clean light blocks without any position update.
+  blk[, n_events := 5L]
+  blk[AnimalNum == "A1" & CC == "CC1" & phase == "L1", n_events := 0L]   # clean light, zero: found
+  blk[AnimalNum == "A2" & CC == "CC2" & phase == "L2", n_events := 0L]   # clean light, zero: found in clean_all only
+  blk[AnimalNum == "A2" & CC == "CC1" & phase == "A1", n_events := 0L]   # dark block: never listed
+  blk[AnimalNum == "A1" & CC == "CC4" & phase == "L3", n_events := 0L]   # not in the clean set: never listed
+  z_all <- dhm_zero_event_blocks(blk, "clean_all")
+  check(nrow(z_all) == 2L && setequal(paste(z_all$AnimalNum, z_all$CC, z_all$phase), c("A1 CC1 L1", "A2 CC2 L2")),
+        "F: all-block windows list the clean light blocks without any position update")
+  z_l1 <- dhm_zero_event_blocks(blk, "cc1_L1")
+  check(nrow(z_l1) == 1L && z_l1$AnimalNum == "A1", "F: the CC1 light window lists only its own L1 block")
+  check(nrow(dhm_zero_event_blocks(blk, "cc1_A1")) == 0L, "F: the dark window lists none")
+  expect_error_matching(dhm_zero_event_blocks(blk[, !"n_events"], "clean_all"), "lack n_events", "F: missing event counts fail closed")
+} else {
+  message("F (canonical window aggregation, zero-event blocks) skipped: data.table not installed")
 }
 
 # ------------------------------------------- G. resolution manifest, text

@@ -713,47 +713,57 @@ MMM_DOMAIN_HEATMAP_CONTRASTS <- c("RES-CON", "SUS-CON", "RES-SUS")
 
 MMM_DHM_VARIANTS <- c("picked", "all5min", "all10min")
 MMM_DHM_ALPHA <- 0.05
-# A CON-group random-effect SD (relative to the residual SD) below this value
-# counts as singular and triggers the pre-specified batch-level fallback.
-MMM_DHM_CON_SINGULAR_TOL <- 1e-4
+# CON contrasts treat the animals as the units (decision of 2026-10-03): the
+# 12 CON animals per sex live in one stable cage per batch (3 per sex), and
+# that cage clustering is not modelled, as is common in behavioural analyses.
+# SIS animals keep their cage-episode random effect. The registered post hoc
+# CON tests of Figure 1c (Stage 29b) do model the CON cages and are the more
+# conservative reference for the CC1 contrasts.
 MMM_DHM_MODELS <- list(
   single = list(
     rs = list(formula = "y ~ Batch + g_RS + (1 | CageEpisodeID)", rank = 4L),
-    con = list(formula = "y ~ Batch + group + (0 + sisCage | CageEpisodeID) + (0 + isCON | Batch)", rank = 5L)
+    con = list(formula = "y ~ Batch + group + (0 + sisCage | CageEpisodeID)", rank = 5L)
   ),
   pooled = list(
     rs = list(formula = "y ~ Batch + g_RS + c2 + c3 + c4 + (1 | AnimalNum) + (1 | CageEpisodeID)", rank = 7L),
-    con = list(formula = "y ~ Batch + group + c2 + c3 + c4 + (1 | AnimalNum) + (0 + sisCage | CageEpisodeID) + (0 + isCON | Batch)", rank = 8L)
+    con = list(formula = "y ~ Batch + group + c2 + c3 + c4 + (1 | AnimalNum) + (0 + sisCage | CageEpisodeID)", rank = 8L)
   )
 )
+MMM_DHM_CON_UNIT_NOTE <- "animals as units (12 CON animals per sex in 3 stable cages; CON cage clustering not modelled)"
 MMM_DHM_CONTRAST_WEIGHTS <- list(`RES-SUS` = list(g_RS = 1), `RES-CON` = list(groupRES = 1), `SUS-CON` = list(groupSUS = 1))
 
 # Which bin width each bin-based component uses in each variant. Declared
-# before any of these heatmap results were computed, on measurement grounds
-# only; group results at 5 and 10 min had been seen before (config v1.0.1,
+# before any of these heatmap results were computed, for continuity with the
+# frozen config and Stage 09 and on measurement grounds where a width is
+# adequate; group results at 5 and 10 min had been seen before (config v1.0.1,
 # lag_block disclosure), so the declaration is a post hoc judgement, not a
 # prespecification. Bin-free rows use the canonical per-block estimators in
 # every variant.
 MMM_DHM_RESOLUTION_MANIFEST <- tibble::tribble(
   ~variant, ~component, ~bin_level, ~basis,
   "picked", "movement_entropy_terms", "10min_based",
-  "frozen config lag block: Movement RMSSD/ACF1 primary at 10 min; Stage 09 registers Entropy_acf1 at 10 min; dark-phase Movement switching share 0.24 at 10 min vs 0.44 at 5 min (group-blind)",
+  paste("continuity with the frozen config lag block (Movement RMSSD/ACF1 primary at 10 min) and Stage 09 (Entropy_acf1 registered at 10 min);",
+        "for Movement, 10 min nearly halves the zero/non-zero switching share (dark phase 0.24 vs 0.44 at 5 min, group-blind);",
+        "no width is adequate for the Entropy terms (switching share >= 0.41 at 1-30 min; 5- vs 10-min flexibility rho 0.39), so they follow Movement"),
   "picked", "proximity_terms", "5min_based",
   "frozen config lag block: Proximity RMSSD/ACF1 primary at 5 min; dark-phase proximity autocorrelation half-decays in about 5 min (group-blind)",
   "picked", "switching_term", "10min_based",
-  "Stage 12 declares and writes the active/inactive switching rate at 10 min only",
+  "Stage 12 writes the active/inactive switching rate (H3 epochs) at 10 min only; H1/H2 compute the same rule on their window at 10 min for comparability",
   "picked", "hmm", "10min_based",
   "Stage 08 prespecified the 10-min HMM as primary; the 5-min fit is a near-deterministic any-change / no-change partition",
   "all5min", "movement_entropy_terms", "5min_based", "all bin-based terms at 5 min",
   "all5min", "proximity_terms", "5min_based", "all bin-based terms at 5 min",
-  "all5min", "switching_term", "10min_based", "the Stage 12 switching rate exists only at 10 min (disclosed in the caption)",
+  "all5min", "switching_term", "10min_based",
+  "kept at 10 min in every variant for comparability: Stage 12 writes the H3 epoch rate at 10 min only (the 5-min H1/H2 window value is exported but not used)",
   "all5min", "hmm", "5min_based", "5-min Stage 08 fit (different construct: any change vs no change, split by proximity)",
   "all10min", "movement_entropy_terms", "10min_based", "all bin-based terms at 10 min",
   "all10min", "proximity_terms", "10min_based", "all bin-based terms at 10 min",
   "all10min", "switching_term", "10min_based", "all bin-based terms at 10 min",
   "all10min", "hmm", "10min_based", "all bin-based terms at 10 min"
 ) %>%
-  mutate(declaration = "POST_HOC_JUDGEMENT: measurement-based, declared before these heatmap results; earlier 5- and 10-min group results had been seen")
+  mutate(declaration = paste("POST_HOC_JUDGEMENT: continuity with the frozen config and Stage 09, and measurement grounds for Movement and Proximity;",
+                             "the bin widths were declared before the first (v2) heatmap results, after earlier 5- and 10-min group results had",
+                             "been seen; the rationale text was revised on 2026-10-03 after review, with no bin width changed"))
 
 dhm_resolution <- function(variant, component) {
   x <- MMM_DHM_RESOLUTION_MANIFEST$bin_level[
@@ -1019,41 +1029,10 @@ dhm_fit <- function(d, formula, model_id, expected_rank) {
   m
 }
 
-dhm_theta <- function(m, name) {
-  if (is.null(m$fit)) return(NA_real_)
-  th <- lme4::getME(m$fit, "theta")
-  if (!name %in% names(th)) return(NA_real_)
-  unname(th[[name]])
-}
-
-# Pre-specified fallback for a singular CON-group variance: a batch-level t on
-# the within-batch differences D_b = mean(comparison animal means in b) -
-# mean(CON animal means in b), over all batches of the sex (df = n_batches -
-# 1). Animal means average the animal's rows (its CC epochs, or its single
-# window value). Never an animal-level p.
-dhm_batch_level_t <- function(d, comp, n_batches_required = 3L) {
-  x <- data.table::as.data.table(d)[Group %in% c(comp, "CON") & is.finite(y)]
-  a <- x[, list(a = mean(y)), by = list(AnimalNum, Group, Batch)]
-  by_batch <- a[, list(n_comp = sum(Group == comp), n_con = sum(Group == "CON"),
-                       d = if (any(Group == comp) && any(Group == "CON")) mean(a[Group == comp]) - mean(a[Group == "CON"]) else NA_real_),
-                by = Batch]
-  ok <- nrow(by_batch) == n_batches_required && all(is.finite(by_batch$d))
-  if (!ok) {
-    return(data.table::data.table(estimate = NA_real_, se = NA_real_, df = NA_real_, statistic = NA_real_, ci_low = NA_real_,
-                                  ci_high = NA_real_, p_raw = NA_real_, n_batches = nrow(by_batch),
-                                  status = "NOT_ESTIMABLE", test = "batch-level t"))
-  }
-  n <- nrow(by_batch); est <- mean(by_batch$d); se <- stats::sd(by_batch$d) / sqrt(n); df <- n - 1
-  tval <- est / se
-  data.table::data.table(estimate = est, se = se, df = df, statistic = tval,
-                         ci_low = est - stats::qt(0.975, df) * se, ci_high = est + stats::qt(0.975, df) * se,
-                         p_raw = 2 * stats::pt(-abs(tval), df), n_batches = n, status = if (is.finite(tval)) "OK" else "NOT_ESTIMABLE",
-                         test = "batch-level t")
-}
-
-# The two approved models for one row x phase x sex slice. d must be coded by
+# The two models for one row x phase x sex slice. d must be coded by
 # mmm_ci_code_design() on ALL animals of the window before it is sliced, and
-# carry y. Returns list(contrasts = 3 rows, fits = 2 rows).
+# carry y. Every contrast is a Kenward-Roger t of its model (one rule, no
+# switching). Returns list(contrasts = 3 rows, fits = 2 rows).
 dhm_tier_tests <- function(d, kind = c("single", "pooled"), label) {
   kind <- match.arg(kind)
   spec <- MMM_DHM_MODELS[[kind]]
@@ -1062,30 +1041,16 @@ dhm_tier_tests <- function(d, kind = c("single", "pooled"), label) {
   rs_dat <- d[Group != "CON"]
   m_rs <- dhm_fit(rs_dat, spec$rs$formula, paste(label, "RES-SUS (SIS animals)", sep = " | "), spec$rs$rank)
   m_con <- dhm_fit(d, spec$con$formula, paste(label, "CON contrasts (all animals)", sep = " | "), spec$con$rank)
-  theta_con <- dhm_theta(m_con, "Batch.isCON")
-  con_singular <- !is.null(m_con$fit) && !isTRUE(m_con$info$failed) && is.finite(theta_con) && theta_con < MMM_DHM_CON_SINGULAR_TOL
   one <- function(m, contrast) {
     r <- phc_kr_guard(mmm_ci_contrast(m, MMM_DHM_CONTRAST_WEIGHTS[[contrast]], contrast))
     r[, contrast := contrast][]
   }
   rows <- data.table::rbindlist(list(one(m_rs, "RES-SUS"), one(m_con, "RES-CON"), one(m_con, "SUS-CON")), fill = TRUE)
-  rows[, `:=`(kr_df = df, test_used = "KR t", fallback_used = FALSE, fallback_n_batches = NA_integer_,
-              theta_con_group = ifelse(contrast == "RES-SUS", NA_real_, theta_con))]
-  if (con_singular) {
-    for (cn in c("RES-CON", "SUS-CON")) {
-      fb <- dhm_batch_level_t(d, sub("-CON$", "", cn))
-      i <- which(rows$contrast == cn)
-      data.table::set(rows, i, c("estimate", "se", "df", "statistic", "ci_low", "ci_high", "p_raw"),
-                      fb[, list(estimate, se, df, statistic, ci_low, ci_high, p_raw)])
-      data.table::set(rows, i, "status", fb$status)
-      data.table::set(rows, i, "test_used", "batch-level t (CON-group variance singular)")
-      data.table::set(rows, i, "fallback_used", TRUE)
-      data.table::set(rows, i, "fallback_n_batches", as.integer(fb$n_batches))
-    }
-  }
+  rows[, `:=`(kr_df = df, test_used = "KR t",
+              unit_of_analysis = ifelse(contrast == "RES-SUS", "SIS animals; cage episode as random effect",
+                                        paste("SIS cage episode as random effect; CON", MMM_DHM_CON_UNIT_NOTE)))]
   fits <- data.table::rbindlist(list(m_rs$info[, model := "RES-SUS (SIS animals)"], m_con$info[, model := "CON contrasts (all animals)"]),
                                 fill = TRUE)
-  fits[, `:=`(theta_con_group = c(NA_real_, theta_con), con_group_singular = c(NA, con_singular))]
   list(contrasts = rows[], fits = fits[])
 }
 
@@ -1093,13 +1058,19 @@ dhm_tier_tests <- function(d, kind = c("single", "pooled"), label) {
 # BH within heatmap x variant x tier family x phase over the post hoc cells
 # (a FAILED or not-estimable test enters with p = 1, the Stage 30 convention);
 # consumed registered cells, registered estimation-only cells and undefined
-# cells are not members. A tier-only family pooling both phases is added as a
-# sensitivity column (never used for markers). No global correction.
+# cells are not members. Sensitivity columns (never used for markers): a family
+# pooling both phases, and RES-SUS-only families (the CON contrasts, whose
+# animals are the units, share the main families with RES-SUS and lower its q).
+# A cell with reportable = FALSE (e.g. the HMM row, KNOWN_LIMITATIONS 1) keeps
+# its test but never gets a marker. sign_agrees is NA where no estimate exists.
+# No global correction.
 dhm_add_families <- function(cells, alpha = MMM_DHM_ALPHA) {
+  if (!"reportable" %in% names(cells)) cells$reportable <- TRUE
   cells %>%
     mutate(
       posthoc_member = .data$test_source == "posthoc",
-      p_for_bh = if_else(.data$posthoc_member & .data$test_status == "OK" & is.finite(.data$p_raw), .data$p_raw, 1),
+      res_sus_member = .data$posthoc_member & .data$contrast == "RES-SUS",
+      p_for_bh = if_else(.data$posthoc_member & .data$test_status %in% "OK" & is.finite(.data$p_raw), .data$p_raw, 1),
       family_id = if_else(.data$posthoc_member,
                           paste(.data$heatmap_id, .data$variant, .data$stat_family, .data$PhaseClass, sep = "|"), NA_character_),
       family_id_phase_pooled = if_else(.data$posthoc_member,
@@ -1115,6 +1086,10 @@ dhm_add_families <- function(cells, alpha = MMM_DHM_ALPHA) {
       family_m_phase_pooled = if_else(.data$posthoc_member, sum(.data$posthoc_member), NA_integer_),
       q_bh_phase_pooled = if_else(.data$posthoc_member, stats::p.adjust(.data$p_for_bh, method = "BH"), NA_real_)
     ) %>%
+    group_by(.data$family_id, .data$res_sus_member) %>%
+    mutate(q_bh_res_sus_only = if_else(.data$res_sus_member, stats::p.adjust(.data$p_for_bh, method = "BH"), NA_real_)) %>%
+    group_by(.data$family_id_phase_pooled, .data$res_sus_member) %>%
+    mutate(q_bh_res_sus_only_phase_pooled = if_else(.data$res_sus_member, stats::p.adjust(.data$p_for_bh, method = "BH"), NA_real_)) %>%
     ungroup() %>%
     mutate(
       adjusted_p = case_when(
@@ -1123,24 +1098,84 @@ dhm_add_families <- function(cells, alpha = MMM_DHM_ALPHA) {
         TRUE ~ NA_real_
       ),
       evidence = is.finite(.data$adjusted_p) & .data$adjusted_p < alpha,
-      sign_agrees = is.finite(.data$estimate) & is.finite(.data$hedges_g) & .data$estimate != 0 & .data$hedges_g != 0 &
-        sign(.data$estimate) == sign(.data$hedges_g),
+      sign_agrees = if_else(is.finite(.data$estimate) & is.finite(.data$hedges_g) & .data$estimate != 0 & .data$hedges_g != 0,
+                            sign(.data$estimate) == sign(.data$hedges_g), NA),
       marker_class = case_when(
-        .data$evidence & .data$sign_agrees & .data$test_source == "posthoc" ~ "posthoc",
-        .data$evidence & .data$sign_agrees & .data$test_source == "registered" ~ "registered",
-        .data$evidence & !.data$sign_agrees ~ "sign_conflict",
+        !.data$reportable ~ NA_character_,
+        .data$evidence & .data$sign_agrees %in% TRUE & .data$test_source == "posthoc" ~ "posthoc",
+        .data$evidence & .data$sign_agrees %in% TRUE & .data$test_source == "registered" ~ "registered",
+        .data$evidence & .data$sign_agrees %in% FALSE ~ "sign_conflict",
         TRUE ~ NA_character_
       ),
       marker = .data$marker_class %in% c("posthoc", "registered"),
       global_correction_used = FALSE
-    )
+    ) %>%
+    select(-"res_sus_member")
 }
 
 # Display classes of the marker layer (fixed limits so legends merge across
 # heatmaps even when a heatmap has no marker).
-MMM_DHM_MARKER_LEVELS <- c(posthoc = "post hoc, BH q < 0.05",
-                           registered = "registered, adj. p < 0.05",
+MMM_DHM_MARKER_LEVELS <- c(posthoc = "post hoc q < 0.05",
+                           registered = "registered adj. p < 0.05",
                            sign_conflict = "adj. p < 0.05, opposite sign")
+
+# Leave-one-CON-cage-out Hedges g of one CON contrast in one slice. The CON
+# animals of a sex live in one stable cage per batch, so leaving out one
+# batch's CON animals leaves out one CON cage. animal_means: one row per animal
+# with Group, Batch and m (the animal's mean row score). Descriptive: the
+# scores are not re-standardised.
+dhm_con_cage_loo <- function(animal_means, comp) {
+  am <- animal_means[is.finite(animal_means$m), , drop = FALSE]
+  con <- am[am$Group == "CON", , drop = FALSE]
+  comp_values <- am$m[am$Group == comp]
+  cages <- sort(unique(as.character(con$Batch)))
+  tibble::tibble(con_cage = cages,
+                 g_without = vapply(cages, function(cb) hmm_hedges_g(con$m[con$Batch != cb], comp_values), numeric(1), USE.NAMES = FALSE))
+}
+
+# Robustness of one post hoc marker. A check counts only where it can fail:
+# the phase-pooled family (not for a single-phase window), the other
+# resolution variants (not for a bin-free row, identical in every variant),
+# for a CON contrast every leave-one-CON-cage-out g (same sign and at least
+# half the size), and for RES-SUS the RES-SUS-only families. Returns
+# "robust: <checks>" or "NOT robust (fails: <failed checks>): <checks>".
+dhm_marker_robustness <- function(contrast, g, single_phase, bin_free, q_pooled, other_variants, g_without_cage = NULL,
+                                  q_rs_only = NA_real_, q_rs_only_pooled = NA_real_, alpha = MMM_DHM_ALPHA) {
+  fmt_g <- function(x) dhm_minus(x)
+  checks <- character(); failed <- character()
+  if (single_phase) {
+    checks <- c(checks, "phase-pooled family not assessable (single-phase window)")
+  } else {
+    checks <- c(checks, sprintf("phase-pooled family q = %.3f", q_pooled))
+    if (!(is.finite(q_pooled) && q_pooled < alpha)) failed <- c(failed, "phase-pooled family")
+  }
+  if (bin_free) {
+    checks <- c(checks, "resolution variants not assessable (bin-free row, identical in every variant)")
+  } else {
+    checks <- c(checks, sprintf("%s: g = %s, q = %.3f%s", other_variants$variant, fmt_g(other_variants$hedges_g), other_variants$q_bh,
+                                ifelse(other_variants$marker %in% TRUE, "", " (no marker)")))
+    if (!all(other_variants$marker %in% TRUE)) {
+      failed <- c(failed, paste0("bin width (", paste(other_variants$variant[!other_variants$marker %in% TRUE], collapse = ", "), ")"))
+    }
+  }
+  if (contrast == "RES-SUS") {
+    checks <- c(checks, if (single_phase) sprintf("RES-SUS-only family q = %.3f", q_rs_only) else
+      sprintf("RES-SUS-only family q = %.3f (phase-pooled %.3f)", q_rs_only, q_rs_only_pooled))
+    if (!(is.finite(q_rs_only) && q_rs_only < alpha && (single_phase || (is.finite(q_rs_only_pooled) && q_rs_only_pooled < alpha)))) {
+      failed <- c(failed, "RES-SUS-only family")
+    }
+  } else {
+    gw <- g_without_cage
+    pass_c <- length(gw) > 0 && all(is.finite(gw)) && all(sign(gw) == sign(g)) && all(abs(gw) >= 0.5 * abs(g))
+    checks <- c(checks, paste0("without each CON cage: ", paste(sprintf("%s g = %s", names(gw), fmt_g(gw)), collapse = ", ")))
+    if (!pass_c) {
+      worst <- names(gw)[which.min(ifelse(is.finite(gw), sign(g) * gw, -Inf))]
+      failed <- c(failed, paste0("one CON cage (without ", worst, ")"))
+    }
+  }
+  if (length(failed) == 0L) paste0("robust: ", paste(checks, collapse = "; ")) else
+    paste0("NOT robust (fails: ", paste(failed, collapse = ", "), "): ", paste(checks, collapse = "; "))
+}
 
 # ---------------------------------------------------------------- single-window bin features
 # Per-animal bin features of one 12-h window (rows selected by
@@ -1272,4 +1307,106 @@ dhm_minus <- function(x, digits = 2) {
   r <- round(x, digits)
   r[!is.na(r) & r == 0] <- 0
   sub("^-", "−", formatC(r, format = "f", digits = digits))
+}
+
+# ---------------------------------------------------------------- manuscript figure format (palette v1)
+# A pinned copy of Exp9_manuscript config/manuscript_palette.yml, so the Stage
+# 14 figures match the manuscript's own figure renderers without reading
+# another repository at run time. Source: branch
+# behaviour-v101-stage30-candidates, commit a16f55a (2026-10-02, "Update the
+# diverging palette"), file sha256 below. Its palette_version label is shared
+# with the older master copy (af2e6b3), whose diverging scale differs
+# (#2C6E9B / #F7F7F5 / #C0442C), so the label alone does not identify it.
+# Text and line sizes are final-size points on a canvas of at most 183 x 170
+# mm; line widths use the manuscript renderers' pt -> linewidth convention
+# (x 0.75); explanatory text belongs in the figure legend, not in the artwork.
+MMM_DHM_PALETTE <- list(
+  version = "manuscript_palette_v1",
+  source = "Exp9_manuscript config/manuscript_palette.yml @ a16f55a (branch behaviour-v101-stage30-candidates)",
+  source_sha256 = "4abeafdd2cbbd3b605db8fb8cc93acc2f6d3a36106d5726781a12d6f02def6a3",
+  group = c(CON = "#8A8A8A", RES = "#2E7D91", SUS = "#D1543A"),
+  diverging = c(low = "#4C566A", mid = "#D8D2C7", high = "#D98B3A"),
+  evidence = c(supported = "#1F3D52", descriptive = "#B9B9B4", not_evaluable = "#D8D6D0", not_audited = "#E6E4DF",
+               qc_context = "#B08968"),
+  claimability = c(claimable = "#1F3D52", claimable_with_caveat = "#5B7C93", not_claimable = "#D1543A"),
+  typography = list(family = "Arial", panel_label_pt = 8, axis_text_pt = 5.2, axis_title_pt = 6, legend_text_pt = 5.2,
+                    legend_title_pt = 5.6, annotation_pt = 5, minimum_pt = 5),
+  line = list(axis_pt = 0.3, tile_border_pt = 0.15, reference_pt = 0.25, data_pt = 0.5),
+  canvas = list(width_mm = 183, max_height_mm = 170)
+)
+# Batch identity (not a measured value), used only in the early-movement
+# panel: the palette defines no batch colours, so three of its dark neutral
+# tones (from the evidence/claimability sets) are borrowed for identity only;
+# they differ from the group colours. The two sexes are separate panels, so
+# female and male batches reuse the tones (B1 = B3, B5 = B4, B2 = B6).
+MMM_DHM_BATCH_COLOURS <- c(B1 = "#1F3D52", B2 = "#B08968", B5 = "#5B7C93", B3 = "#1F3D52", B4 = "#5B7C93", B6 = "#B08968")
+dhm_pt <- function(key) MMM_DHM_PALETTE$typography[[key]]
+dhm_size <- function(pt) pt * 0.3527777          # text size: pt -> ggplot mm
+dhm_lw <- function(pt) pt * 0.75                 # line width: pt -> ggplot linewidth (manuscript convention)
+
+dhm_theme <- function(base = dhm_pt("axis_text_pt")) {
+  ggplot2::theme_bw(base_size = base, base_family = MMM_DHM_PALETTE$typography$family) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_blank(), plot.subtitle = ggplot2::element_blank(), plot.caption = ggplot2::element_blank(),
+      plot.margin = ggplot2::margin(1, 1, 1, 1, "mm"),
+      panel.border = ggplot2::element_blank(),
+      panel.background = ggplot2::element_rect(fill = "white", colour = NA),
+      plot.background = ggplot2::element_rect(fill = "white", colour = NA),
+      axis.line = ggplot2::element_line(linewidth = dhm_lw(MMM_DHM_PALETTE$line$axis_pt), colour = "black"),
+      axis.ticks = ggplot2::element_line(linewidth = dhm_lw(MMM_DHM_PALETTE$line$axis_pt), colour = "black"),
+      axis.ticks.length = ggplot2::unit(0.6, "mm"),
+      axis.text = ggplot2::element_text(size = dhm_pt("axis_text_pt"), colour = "black"),
+      axis.title = ggplot2::element_text(size = dhm_pt("axis_title_pt"), colour = "black"),
+      legend.title = ggplot2::element_text(size = dhm_pt("legend_title_pt")),
+      legend.text = ggplot2::element_text(size = dhm_pt("legend_text_pt")),
+      legend.key.size = ggplot2::unit(2.4, "mm"),
+      legend.margin = ggplot2::margin(0, 0, 0, 0),
+      legend.box.spacing = ggplot2::unit(1, "mm"),
+      legend.background = ggplot2::element_blank(),
+      strip.background = ggplot2::element_blank(),
+      strip.text = ggplot2::element_text(size = dhm_pt("axis_text_pt"), colour = "black", margin = ggplot2::margin(0.4, 0, 0.4, 0, "mm")),
+      panel.grid = ggplot2::element_blank(),
+      panel.spacing = ggplot2::unit(0.8, "mm")
+    )
+}
+dhm_theme_tile <- function() dhm_theme() + ggplot2::theme(axis.line = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
+
+# Fill of a g value on the manuscript diverging scale (as scale_fill_gradient2
+# draws it: Lab interpolation, symmetric limits, squished), and the text colour
+# with the higher WCAG contrast on that fill.
+dhm_fill_hex <- function(g, limit) {
+  pal <- scales::div_gradient_pal(MMM_DHM_PALETTE$diverging[["low"]], MMM_DHM_PALETTE$diverging[["mid"]],
+                                  MMM_DHM_PALETTE$diverging[["high"]], "Lab")
+  out <- rep(NA_character_, length(g))
+  ok <- is.finite(g)
+  out[ok] <- pal(pmin(1, pmax(0, (g[ok] + limit) / (2 * limit))))
+  out
+}
+dhm_text_on <- function(fill_hex) {
+  lum <- function(hex) {
+    v <- grDevices::col2rgb(hex) / 255
+    v <- ifelse(v <= 0.03928, v / 12.92, ((v + 0.055) / 1.055)^2.4)
+    as.numeric(0.2126 * v[1, ] + 0.7152 * v[2, ] + 0.0722 * v[3, ])
+  }
+  out <- rep("black", length(fill_hex))
+  ok <- !is.na(fill_hex)
+  if (any(ok)) {
+    l <- lum(fill_hex[ok])
+    out[ok] <- ifelse((1.05) / (l + 0.05) > (l + 0.05) / (0.0 + 0.05), "white", "black")
+  }
+  out
+}
+
+# Light-phase blocks of a heatmap window without any position update (n_events
+# = 0). Each may be consolidated rest in one position (alone or with
+# cage-mates) or an undetected tag; the vendor position stream cannot tell the
+# two apart (KNOWN_LIMITATIONS 3). Same block selection as
+# dhm_canonical_window_values().
+dhm_zero_event_blocks <- function(blocks, window_set = c("cc1_A1", "cc1_L1", "clean_all")) {
+  window_set <- match.arg(window_set)
+  b <- data.table::as.data.table(blocks)[complete_primary == TRUE & in_clean_set == TRUE & substr(phase, 1, 1) == "L"]
+  if (!"n_events" %in% names(b)) stop("The canonical blocks lack n_events.", call. = FALSE)
+  if (window_set == "cc1_A1") b <- b[0]
+  if (window_set == "cc1_L1") b <- b[CC == "CC1" & phase == "L1"]
+  b[n_events == 0, list(AnimalNum = as.character(AnimalNum), Group, Sex, Batch, CC, phase, CageEpisodeID)]
 }

@@ -358,6 +358,7 @@ write_output_manifest(
     "tables/systems_sis_canonical_window_gates.csv",
     "tables/systems_sis_dashboard_resolution_manifest.csv",
     "tables/systems_hmm_state_time_budget_by_animal.csv",
+    "tables/systems_sis_zero_event_light_blocks.csv",
     "stats_tables/systems_sis_early_movement_cohort_structure.csv",
     "stats_tables/systems_sis_hmm_resolution_sensitivity.csv",
     "tables/systems_stage14_hmm_coverage_audit.csv",
@@ -5456,7 +5457,7 @@ sis_domain_interpretation <- tibble(
     "Early proximity-based social co-location during the first active phase after regrouping.",
     "Early high movement with low proximity, interpreted as active social distancing or withdrawal.",
     "Active-phase exploration, psychomotor engagement, social investigation and novelty adaptation.",
-    "Habituation, sensitization or recovery across repeated post-regrouping active phases.",
+    "Relative group position on the composite active-phase score at each repeated post-regrouping cage change (inputs centred within cage change, so not habituation or sensitization).",
     "Inactive-phase recovery, rest-like consolidation and circadian-context stability.",
     "Spatial diversity and predictability; high entropy can mean flexible exploration or disorganization depending on context.",
     "Social proximity and stability of spatial co-organization; not direct sociability.",
@@ -5470,7 +5471,7 @@ sis_domain_interpretation <- tibble(
     "Proximity mean and proximity RMSSD during first 12 h active phase after first regrouping.",
     "Movement mean minus proximity mean during first 12 h active phase after first regrouping.",
     "Active-phase movement, entropy, proximity and low persistence during post-regrouping windows.",
-    "Cage-change trajectories, early-window slopes, volatility decay and distance-to-control summaries.",
+    "Mean of the active-phase adaptation/exploration, flexibility and social composites minus volatility, z within sex x phase x cage change.",
     "Inactive-phase inactivity fraction, bout duration, fragmentation, movement stability and active/inactive contrasts.",
     "Entropy mean, entropy RMSSD and entropy ACF1 in phase-specific epochs.",
     "Mean proximity, proximity RMSSD/ACF1 and social-network features when available.",
@@ -5478,18 +5479,18 @@ sis_domain_interpretation <- tibble(
     "RMSSD, burstiness, inactivity fragmentation and state-switching metrics.",
     "Movement mean and movement trajectory summaries."
   ),
-  Directness = c("indirect/prospective association", "direct RFID behavioral summary", "indirect social-spatial proxy", "indirect social-spatial proxy", "direct RFID behavioral summary", "direct longitudinal behavioral summary", "indirect rest-like RFID summary", "indirect spatial-organization summary", "indirect social-spatial proxy", "model-derived latent construct", "direct temporal-structure summary", "direct locomotor summary"),
+  Directness = c("indirect/prospective association", "direct RFID behavioral summary", "indirect social-spatial proxy", "indirect social-spatial proxy", "direct RFID behavioral summary", "cross-sectional relative position per cage change", "indirect rest-like RFID summary", "indirect spatial-organization summary", "indirect social-spatial proxy", "model-derived latent construct", "direct temporal-structure summary", "direct locomotor summary"),
   Caveat = c(
     "Associative unless externally validated; RES/SUS labels are CombZ-derived.",
     "High entropy may reflect adaptive exploration or disorganized scanning depending on context.",
     "Proximity is not direct sociability and can reflect cage geometry, crowding or displacement.",
     "Withdrawal score can be locomotion-driven and should be read alongside psychomotor activation.",
     "Active phase should not be pooled with inactive phase without biological justification.",
-    "Trajectory differences do not prove recovery mechanisms.",
-    "Sleep-like/rest-like inactivity is not EEG-confirmed sleep.",
+    "Centred within each cage change: shows relative group positions, not habituation, sensitisation or recovery.",
+    "Sleep-like/rest-like inactivity is not EEG-confirmed sleep; inactive-phase read density cannot be separated from rest (KNOWN_LIMITATIONS 3), so it is not interpretable as rest biology.",
     "Entropy direction is context-dependent.",
     "Proximity is not equivalent to sociability or preference.",
-    "HMM states are data-derived and require semantic caution.",
+    "HMM states are data-derived and require semantic caution; one pooled fit with several optima, so a latent-state contrast needs reviewed cross-optimum evidence (KNOWN_LIMITATIONS 1). The Stage 14 composite is 0.5 z(state-occupancy entropy) - z(no-position-change state share).",
     "Volatility can reflect adaptive exploration or maladaptive fragmentation.",
     "Avoid reducing SIS biology to hypoactivity or hyperactivity."
   )
@@ -6045,8 +6046,8 @@ write_table(
 # Colour is the animal-level Hedges g (unadjusted, one mean per animal).
 # Statistics are new and post hoc: within sex, RES-SUS from SIS animals with
 # Batch and a cage-episode random effect, RES-CON and SUS-CON from all animals
-# with the CON group (one intact group per batch) as a random effect, KR t;
-# a singular CON-group variance switches to a batch-level t (df 2). Where an
+# with the CON animals as units (their 3 cages per sex are not modelled), KR t
+# throughout. Where an
 # exactly compatible registered Stage 29 or Stage 30 result exists (CC1
 # windows only) it is consumed with its own adjustment instead. BH runs
 # within heatmap x variant x tier family x phase; nothing is corrected
@@ -6203,9 +6204,9 @@ write_table(
             dhm_canonical$inputs %>% transmute(kind = "input", gate = role, passed = TRUE, detail = paste(path, sha256))),
   file.path(output_dir, "tables/systems_sis_canonical_window_gates.csv")
 )
-# Design keys of every animal x CC from the canonical stream: Batch, data
-# version 2 cage episode (Batch|System|CC) and the CON group (= Batch for the
-# (0 + isCON | Batch) term).
+# Design keys of every animal x CC from the canonical stream: Batch and the
+# data version 2 cage episode (Batch|System|CC). A CON animal's batch also
+# identifies its stable CON cage (one per batch).
 dhm_design_keys <- tibble::as_tibble(dhm_canonical$blocks) %>%
   filter(in_clean_set, complete_primary) %>%
   distinct(AnimalNum, CageChange = CC, Batch, CageEpisodeID)
@@ -6217,21 +6218,21 @@ if (anyDuplicated(dhm_design_keys[c("AnimalNum", "CageChange")])) {
 # Rows, display tiers and statistical families. construct_source names the
 # exact data behind each row; dhm_row_flags carries the per-phase caveats.
 dhm_display_rows <- tribble(
-  ~row_key, ~row_label, ~display_tier, ~stat_family, ~binning, ~construct_source,
-  "psychomotor_rate", "Psychomotor activation\n(RFID position-change rate)", "Primary\ndirect", "primary", "bin_free",
+  ~row_key, ~row_label, ~row_description, ~display_tier, ~stat_family, ~binning, ~construct_source,
+  "psychomotor_rate", "Position-change rate", "Psychomotor activation (RFID position-change rate)", "Primary", "primary", "bin_free",
   "canonical crossing_rate: vendor position updates per observed hour in the phase block (data version 2; not antenna crossings or distance)",
-  "shared_occupancy", "Social-spatial overlap\n(shared RFID-position occupancy)", "Primary\ndirect", "primary", "bin_free",
+  "shared_occupancy", "Shared occupancy", "Social-spatial overlap (shared RFID-position occupancy)", "Primary", "primary", "bin_free",
   "canonical shared_zone_use: time-weighted share of dyadic time at the same RFID position as a tracked cage-mate (data version 2 cage labels; co-location, not contact)",
-  "occupancy_dispersion", "Spatial organisation\n(occupancy dispersion)", "Secondary\norganisation", "secondary", "bin_free",
+  "occupancy_dispersion", "Occupancy dispersion", "Spatial organisation (occupancy dispersion)", "Secondary", "secondary", "bin_free",
   "canonical occupancy_dispersion: log2 entropy of position occupancy over the whole phase block (data version 2); higher = more evenly spread",
-  "temporal_flexibility", "Temporal flexibility / predictability\n(entropy level + RMSSD − ACF1)", "Secondary\norganisation", "secondary", "bin_based",
+  "temporal_flexibility", "Temporal flexibility", "Temporal flexibility / predictability (entropy level + RMSSD − ACF1)", "Secondary", "secondary", "bin_based",
   "0.5 z Entropy_mean + 0.5 z Entropy_rmssd - z Entropy_acf1 of Stage 01 bins (data version 1); higher = more flexible, less predictable",
-  "temporal_volatility", "Temporal volatility / fragmentation\n(RMSSD + 10-min switching)", "Secondary\norganisation", "secondary", "bin_based",
+  "temporal_volatility", "Temporal volatility", "Temporal volatility / fragmentation (RMSSD + 10-min switching)", "Secondary", "secondary", "bin_based",
   "mean of z RMSSD of Movement, Entropy and Proximity (Stage 01 bins, data version 1) and z 10-min active/inactive switching rate (Stage 12 rule, entered twice)",
-  "hmm_state_architecture", "Behavioral state\narchitecture [HMM]", "Integrative\nexploratory", "exploratory", "bin_based",
+  "hmm_state_architecture", "HMM state architecture", "Behavioral state architecture [HMM]", "Exploratory", "exploratory", "bin_based",
   "Stage 08 HMM (one pooled 4-state Gaussian fit, all animals, CC1-CC4, both phases): 0.5 z(state-occupancy entropy) - z(no-position-change state share); not frozen or registered",
-  "rest_like_posinact40", "RFID-defined sustained positional\ninactivity ≥40 s", "Rest-like\nexploratory", "exploratory", "bin_free",
-  "Stage 30 measure (s30sc_inactivity, canonical runs): share of observed time in runs without a position update lasting >= 40 s, for exactly the window shown; not sleep"
+  "rest_like_posinact40", "Rest-like (≥40 s)", "RFID-defined sustained positional inactivity ≥40 s", "Exploratory", "exploratory", "bin_free",
+  "Stage 30 measure (s30sc_inactivity, canonical runs): share of observed time in runs without a position update lasting >= 40 s, computed for exactly the window shown; not sleep"
 ) %>%
   mutate(row_order = row_number())
 
@@ -6430,11 +6431,15 @@ dhm_test_results <- pmap(dhm_heatmaps, function(heatmap_id, window_set, phases, 
     slice <- coded[coded$Sex == sex_value, ]
     label <- paste(heatmap_id, variant, row_key, PhaseClass, Sex, sep = " | ")
     out <- dhm_test_slice(slice, kind, label)
+    # A cached fit carries the label of the slice that first filled the cache;
+    # relabel it with this slice (the fit itself is identical: same data).
     list(
       contrasts = data.table::copy(out$contrasts)[, `:=`(heatmap_id = heatmap_id, variant = variant, row_key = row_key,
-                                       PhaseClass = PhaseClass, Sex = Sex, fit_key = out$fit_key)],
+                                       PhaseClass = PhaseClass, Sex = Sex, fit_key = out$fit_key,
+                                       model_id = paste(label, ifelse(contrast == "RES-SUS", "RES-SUS (SIS animals)",
+                                                                      "CON contrasts (all animals)"), sep = " | "))],
       fits = data.table::copy(out$fits)[, `:=`(heatmap_id = heatmap_id, variant = variant, row_key = row_key,
-                             PhaseClass = PhaseClass, Sex = Sex, fit_key = out$fit_key)]
+                             PhaseClass = PhaseClass, Sex = Sex, fit_key = out$fit_key, model_id = paste(label, model, sep = " | "))]
     )
   })
   list(contrasts = data.table::rbindlist(map(res, "contrasts"), fill = TRUE),
@@ -6448,9 +6453,13 @@ dhm_fits <- tibble::as_tibble(data.table::rbindlist(map(dhm_test_results, "fits"
 # and sex all equal). Their own adjustment is kept: Stage 29 FU-CC1 is Holm
 # over the two sexes, Stage 30 SLEEP-CAT is the local BH (m = 6). The CC1
 # light-phase rate RES-SUS is registered as estimation only, so it carries
-# its registered estimate and no test. Stage 29b (CON contrasts at CC1) is NOT
-# consumed: its registry limits its results to Figure 1c; those cells get the
-# post hoc test above, which is the same model at CC1.
+# its registered estimate and no test. Stage 29b (CON contrasts) is NOT
+# consumed: its registry limits its results to Figure 1c, and it covers only
+# the position-change rate and shared occupancy of the CC1 first dark phase.
+# Those H1 cells get the post hoc test above, which treats the CON animals as
+# units; 29b models the CON cages and is the more conservative reference for
+# them (its p is usually, not always, larger). No cage-aware CON test exists
+# for the other rows or windows.
 dhm_ebb_dir <- file.path(project_root, "analysis_ready", "canonical", "behavior_bundle", "ebb_v101_20260929_b2ce507")
 dhm_c2 <- as.data.frame(data.table::fread(dhm_bundle_file(dhm_ebb_dir, "C2_estimates.csv", MMM_DHM_INPUT_SHA256[["ebb_v101_manifest"]])))
 dhm_em <- as.data.frame(data.table::fread(dhm_bundle_file(dhm_ebb_dir, "E_multiplicity.csv", MMM_DHM_INPUT_SHA256[["ebb_v101_manifest"]])))
@@ -6506,8 +6515,8 @@ dhm_cells <- dhm_expected %>%
   left_join(dhm_not_shown %>% rename(not_shown_reason = reason), by = c("heatmap_id", "row_key")) %>%
   left_join(dhm_effects, by = c("heatmap_id", "variant", "row_key", "PhaseClass", "Sex", "contrast")) %>%
   left_join(dhm_tests %>% select(heatmap_id, variant, row_key, PhaseClass, Sex, contrast, estimate, se, df, statistic,
-                                 ci_low, ci_high, p_raw, test_status = status, test_used, kr_df, fallback_used,
-                                 fallback_n_batches, theta_con_group, kr_messages, failure_reason, fit_key, model_id),
+                                 ci_low, ci_high, p_raw, test_status = status, test_used, kr_df, unit_of_analysis,
+                                 kr_messages, failure_reason, fit_key, model_id),
             by = c("heatmap_id", "variant", "row_key", "PhaseClass", "Sex", "contrast")) %>%
   left_join(dhm_registered, by = c("heatmap_id", "row_key", "Sex", "contrast")) %>%
   mutate(
@@ -6538,10 +6547,20 @@ if (nrow(dhm_identity) == 0L || any(!is.finite(dhm_identity$p_raw)) ||
 }
 dhm_cells <- dhm_cells %>%
   mutate(
-    # Estimation-only registered cells: no test of any kind.
-    across(c(p_raw, statistic), ~ if_else(test_source == "registered_estimation_only", NA_real_, .x)),
+    # Estimation-only registered cells: no test of any kind (the registered
+    # estimate and CI are reported in the registered_* columns).
+    across(c(estimate, se, df, kr_df, statistic, ci_low, ci_high, p_raw),
+           ~ if_else(test_source == "registered_estimation_only", NA_real_, .x)),
+    test_used = if_else(test_source == "registered_estimation_only", "none (registered estimation only)", test_used),
+    test_status = if_else(test_source == "registered_estimation_only", NA_character_, test_status),
+    unit_of_analysis = if_else(test_source == "registered_estimation_only", NA_character_, unit_of_analysis),
     estimate_on_g_scale = if_else(is.finite(estimate) & is.finite(hedges_g) & is.finite(mean_comp - mean_ref) & (mean_comp - mean_ref) != 0,
-                                  estimate * hedges_g / (mean_comp - mean_ref), NA_real_)
+                                  estimate * hedges_g / (mean_comp - mean_ref), NA_real_),
+    # KNOWN_LIMITATIONS 1: a latent-state contrast may be reported only with
+    # reviewed cross-optimum evidence. The cross-optimum audit of 2026-09-24
+    # covers the HMM component metrics (sexes pooled), not this composite by
+    # sex, so the HMM row keeps its colour and its test but never a marker.
+    reportable = row_key != "hmm_state_architecture"
   ) %>%
   dhm_add_families() %>%
   mutate(
@@ -6550,6 +6569,8 @@ dhm_cells <- dhm_cells %>%
       cell_status == "not_estimable" ~ "effect size not estimable",
       marker ~ NA_character_,
       test_source == "registered_estimation_only" ~ "registered estimation-only estimand: no test",
+      !reportable ~ paste0("not reportable (KNOWN_LIMITATIONS 1: the HMM composite has no reviewed cross-optimum audit); test kept",
+                           if_else(evidence, ", adjusted p < 0.05", "")),
       marker_class == "sign_conflict" ~ "adjusted p < 0.05, but the within-batch estimate has the opposite sign to the colour",
       test_status != "OK" ~ paste("test not available:", coalesce(failure_reason, test_status)),
       TRUE ~ paste0(if_else(test_source == "registered", "registered adjusted p", "BH q"), " >= ", MMM_DHM_ALPHA)
@@ -6565,24 +6586,75 @@ dhm_rest_like_saturation <- dhm_scores %>%
       filter(PhaseClass == "Inactive") %>%
       summarise(heatmap_id = heatmap_id, median_posinact40 = stats::median(posinact40), share_ge_099 = mean(posinact40 >= 0.99))
   })
-dhm_flags <- function(heatmap_id, row_key, PhaseClass, variant) {
+# Light-phase blocks without any position update, per heatmap window: listed
+# and flagged (disclosure; the blocks are not excluded).
+dhm_zero_event <- dhm_heatmaps %>%
+  select(heatmap_id, window_set) %>%
+  pmap_dfr(function(heatmap_id, window_set) {
+    tibble::as_tibble(dhm_zero_event_blocks(dhm_canonical$blocks, window_set)) %>% mutate(heatmap_id = heatmap_id)
+  })
+write_table(dhm_zero_event, file.path(output_dir, "tables/systems_sis_zero_event_light_blocks.csv"))
+dhm_zero_event_text <- dhm_zero_event %>%
+  group_by(heatmap_id, Sex) %>%
+  summarise(zero_event_note = sprintf(paste("%d light block(s) without any position update (CON %d, RES %d, SUS %d; animals %s):",
+                                            "consolidated rest in one position or an undetected tag (KNOWN_LIMITATIONS 3)"),
+                                      n(), sum(Group == "CON"), sum(Group == "RES"), sum(Group == "SUS"),
+                                      paste(sort(unique(AnimalNum)), collapse = ", ")), .groups = "drop")
+
+# Leave-one-CON-cage-out g of every CON contrast (the CON animals of a sex live
+# in one stable cage per batch; the tests count the animals, so a cage-level
+# pattern in one CON cage can carry a contrast). Descriptive; z not re-standardised.
+dhm_animal_batch <- dhm_design_keys %>% distinct(AnimalNum = as.character(AnimalNum), Batch)
+if (anyDuplicated(dhm_animal_batch$AnimalNum)) stop("An animal has more than one batch in the design keys.", call. = FALSE)
+dhm_con_cage_out <- dhm_scores %>%
+  filter(is.finite(DomainScore)) %>%
+  mutate(AnimalNum = as.character(AnimalNum)) %>%
+  group_by(heatmap_id, variant, row_key, PhaseClass, Sex, AnimalNum, Group) %>%
+  summarise(m = mean(DomainScore), .groups = "drop") %>%
+  left_join(dhm_animal_batch, by = "AnimalNum") %>%
+  group_by(heatmap_id, variant, row_key, PhaseClass, Sex) %>%
+  group_modify(function(d, k) {
+    bind_rows(lapply(c("RES", "SUS"), function(comp) dhm_con_cage_loo(d, comp) %>% mutate(contrast = paste0(comp, "-CON"))))
+  }) %>%
+  ungroup()
+dhm_con_cage_text <- dhm_con_cage_out %>%
+  group_by(heatmap_id, variant, row_key, PhaseClass, Sex, contrast) %>%
+  summarise(hedges_g_without_each_con_cage = paste(sprintf("%s: %s", con_cage, dhm_minus(g_without)), collapse = "; "),
+            .groups = "drop")
+
+dhm_flags <- function(heatmap_id, row_key, PhaseClass, variant, Sex, rate_r, zero_event_note) {
   f <- character()
-  if (PhaseClass == "Inactive" && row_key %in% c("temporal_flexibility", "temporal_volatility")) {
-    f <- c(f, "light phase: no adequate bin width (bin-to-bin terms dominated by count noise; the row restates the light-phase rate)")
+  if (row_key != "psychomotor_rate" && is.finite(rate_r) && abs(rate_r) >= 0.8) {
+    f <- c(f, sprintf("tracks the position-change rate (animal r = %s)", dhm_minus(rate_r)))
   }
-  if (PhaseClass == "Inactive" && row_key %in% c("rest_like_posinact40", "hmm_state_architecture")) {
-    f <- c(f, "KNOWN_LIMITATIONS 3: inactive-phase read density is not separable from rest; not interpretable as rest biology")
+  if (PhaseClass == "Inactive" && row_key %in% c("temporal_flexibility", "temporal_volatility")) {
+    f <- c(f, "light phase: no adequate bin width (bin-to-bin terms dominated by count noise)")
+  }
+  if (PhaseClass == "Inactive") {
+    f <- c(f, paste("KNOWN_LIMITATIONS 3: in the light phase, few position updates cannot be attributed to rest rather than to",
+                    "detection; not interpretable as rest biology"))
+  }
+  if (row_key == "hmm_state_architecture") {
+    f <- c(f, paste("KNOWN_LIMITATIONS 1: one pooled exploratory HMM fit with several optima over seeds; a latent-state contrast may be",
+                    "reported only with reviewed cross-optimum evidence, which this composite lacks, so the row carries no marker"))
   }
   if (PhaseClass == "Inactive" && row_key == "rest_like_posinact40") {
     s <- dhm_rest_like_saturation[dhm_rest_like_saturation$heatmap_id == heatmap_id, ]
-    if (nrow(s) == 1L) f <- c(f, sprintf("saturated: median %.3f, %.0f%% of animals >= 0.99", s$median_posinact40, 100 * s$share_ge_099))
+    if (nrow(s) == 1L) f <- c(f, sprintf("saturated: median %.3f, %.0f%% of %s >= 0.99", s$median_posinact40, 100 * s$share_ge_099,
+                                         if (heatmap_id == "all_blocks") "animal-epochs" else "animals"))
+  }
+  if (row_key == "rest_like_posinact40" && heatmap_id == "all_blocks") {
+    f <- c(f, paste("Stage 30 defines this measure for the first dark and first light window of each cage change (SLEEP-CAT: RES-SUS",
+                    "at CC1; SLEEP-L: CombZ trajectory over CC1-CC4); these group contrasts over all clean blocks, including A2-A4",
+                    "and L2-L3, are a post hoc extension"))
   }
   if (row_key == "hmm_state_architecture" && variant == "all5min") {
     f <- c(f, "5-min HMM: near-deterministic any-change / no-change partition, a different construct from the 10-min fit")
   }
-  if (row_key == "shared_occupancy" && heatmap_id != "all_blocks") {
+  if (row_key == "shared_occupancy" && heatmap_id != "all_blocks" && Sex == "Male") {
     f <- c(f, "OQ770 and OQ771 (male SUS) have no tracked cage-mate at CC1 and are not in this row")
   }
+  if (PhaseClass == "Inactive" && !is.na(zero_event_note)) f <- c(f, zero_event_note)
   paste(f, collapse = "; ")
 }
 dhm_row_resolution <- function(row_key, variant) {
@@ -6608,46 +6680,67 @@ dhm_rate_r <- dhm_animal_means %>%
 
 dhm_cells <- dhm_cells %>%
   left_join(dhm_rate_r, by = c("heatmap_id", "variant", "row_key", "PhaseClass")) %>%
+  left_join(dhm_zero_event_text, by = c("heatmap_id", "Sex")) %>%
+  left_join(dhm_con_cage_text, by = c("heatmap_id", "variant", "row_key", "PhaseClass", "Sex", "contrast")) %>%
   mutate(
-    flags = pmap_chr(list(heatmap_id, row_key, PhaseClass, variant), dhm_flags),
+    flags = pmap_chr(list(heatmap_id, row_key, PhaseClass, variant, Sex, animal_r_with_position_change_rate, zero_event_note), dhm_flags),
     resolution_used = map2_chr(row_key, variant, dhm_row_resolution),
     model_used = case_when(
       test_source == "registered" ~ paste(registered_source, "/", registered_family),
       test_source == "registered_estimation_only" ~ paste(registered_source, "/ estimation only"),
       test_source != "posthoc" ~ NA_character_,
-      fallback_used ~ "batch-level t on within-batch differences of animal means (CON-group variance singular), df = n batches - 1",
       heatmap_id == "all_blocks" & contrast == "RES-SUS" ~ MMM_DHM_MODELS$pooled$rs$formula,
       heatmap_id == "all_blocks" ~ MMM_DHM_MODELS$pooled$con$formula,
       contrast == "RES-SUS" ~ MMM_DHM_MODELS$single$rs$formula,
       TRUE ~ MMM_DHM_MODELS$single$con$formula
     )
   )
+# Robustness of every post hoc marker (dhm_marker_robustness): only checks that
+# can fail count (phase-pooled family; other resolutions; for CON contrasts
+# leaving out each CON cage; for RES-SUS the RES-SUS-only families).
+dhm_robust_ref <- dhm_cells %>% select(heatmap_id, variant, row_key, PhaseClass, Sex, contrast, hedges_g, q_bh, marker)
+dhm_bin_free_rows <- dhm_display_rows$row_key[dhm_display_rows$binning == "bin_free"]
+dhm_cells <- dhm_cells %>%
+  mutate(marker_robustness = pmap_chr(
+    list(heatmap_id, variant, row_key, PhaseClass, Sex, contrast, hedges_g, marker, test_source, q_bh_phase_pooled,
+         q_bh_res_sus_only, q_bh_res_sus_only_phase_pooled),
+    function(hm, var, rk, ph, sx, cn, g, is_marked, src, q_pooled, q_rs, q_rs_pooled) {
+      if (!isTRUE(is_marked) || src != "posthoc") return(NA_character_)
+      others <- dhm_robust_ref[dhm_robust_ref$heatmap_id == hm & dhm_robust_ref$row_key == rk & dhm_robust_ref$PhaseClass == ph &
+                                 dhm_robust_ref$Sex == sx & dhm_robust_ref$contrast == cn & dhm_robust_ref$variant != var, ]
+      gw <- dhm_con_cage_out[dhm_con_cage_out$heatmap_id == hm & dhm_con_cage_out$variant == var & dhm_con_cage_out$row_key == rk &
+                               dhm_con_cage_out$PhaseClass == ph & dhm_con_cage_out$Sex == sx & dhm_con_cage_out$contrast == cn, ]
+      dhm_marker_robustness(cn, g, single_phase = hm != "all_blocks", bin_free = rk %in% dhm_bin_free_rows, q_pooled = q_pooled,
+                            other_variants = others, g_without_cage = setNames(gw$g_without, gw$con_cage),
+                            q_rs_only = q_rs, q_rs_only_pooled = q_rs_pooled)
+    }))
 
 write_table(
   dhm_cells %>%
     arrange(match(heatmap_id, dhm_heatmaps$heatmap_id), match(variant, MMM_DHM_VARIANTS), row_order, PhaseClass, Sex,
             match(contrast, MMM_DOMAIN_HEATMAP_CONTRASTS)) %>%
     transmute(
-      heatmap_id, window_label, variant, row_order, row_key, row_label = str_replace_all(row_label, "\n", " "),
+      heatmap_id, window_label, variant, row_order, row_key, row_label = str_replace_all(row_label, "\n", " "), row_description,
       display_tier = str_replace_all(display_tier, "\n", " "), stat_family, binning, resolution_used, construct_source,
       PhaseClass, Sex, contrast, group_comp = sub("-.*$", "", contrast), group_ref = sub("^.*-", "", contrast),
       cell_status, n_comp_animals, n_ref_animals, mean_comp, mean_ref, hedges_g,
       effect_size_method = "Hedges g (small-sample corrected), comparison minus reference within sex, from one mean per animal of the row score (z within sex x phase x cage change); not batch-adjusted",
       animal_r_with_position_change_rate,
-      test_source, model_used, test_used, estimate, se, df, statistic, ci_low, ci_high, p_raw, test_status, failure_reason,
-      kr_df, fallback_used, fallback_n_batches, theta_con_group,
+      test_source, model_used, test_used, unit_of_analysis, estimate, se, df, statistic, ci_low, ci_high, p_raw, test_status,
+      failure_reason, kr_df,
       family_id, family_m, q_bh, family_id_phase_pooled, family_m_phase_pooled, q_bh_phase_pooled,
+      q_bh_res_sus_only, q_bh_res_sus_only_phase_pooled,
       registered_source, registered_id, registered_family, registered_estimate, registered_ci_low, registered_ci_high,
       registered_p_raw, registered_p_adjusted, registered_adjustment, registered_note,
-      adjusted_p, evidence, estimate_on_g_scale, sign_agrees, marker_class, marker, not_marked_reason, flags,
-      global_correction_used
+      adjusted_p, evidence, estimate_on_g_scale, sign_agrees, reportable, marker_class, marker, marker_robustness, not_marked_reason,
+      flags, hedges_g_without_each_con_cage, global_correction_used
     ),
   file.path(output_dir, "stats_tables/systems_sis_domain_heatmap_source_data.csv")
 )
 write_table(
   dhm_fits %>%
     select(heatmap_id, variant, row_key, PhaseClass, Sex, model, model_id, formula, n_obs, n_animals, n_cage_episodes, n_batches,
-           rank, expected_rank, singular, theta_con_group, con_group_singular, converged, optimizer_check_agree, failed, error,
+           rank, expected_rank, singular, converged, optimizer_check_agree, failed, error,
            messages, fit_key) %>%
     mutate(across(where(is.character), ~ str_replace_all(.x, "[\r\n]+", " "))),
   file.path(output_dir, "stats_tables/systems_sis_domain_heatmap_fits.csv")
@@ -6768,16 +6861,20 @@ write_table(
   file.path(output_dir, "stats_tables/systems_sis_female_active_state_architecture_before_after.csv")
 )
 
-# ---- M. Trajectory panels B, D, E (standalone; labels corrected) ----------------
+# ---- M. Trajectory panels B, D, E (standalone) ------------------------------------
 # Every input is z-scored within sex x phase x cage change, so each cage
 # change is centred at 0: the lines show relative group positions, not
-# habituation or sensitisation.
-plot_domain_trajectory <- function(domain_name, phase = "Active", title, subtitle, y_lab = "Domain score") {
+# habituation or sensitisation. No title or caption in the artwork (legend
+# text: systems_sis_dashboard_figure_legend_draft.csv).
+dhm_sex_facet_labels <- c(Female = "Females", Male = "Males")
+plot_domain_trajectory <- function(domain_name, phase = "Active", y_lab = "Domain score") {
   plot_tbl <- sis_domain_scores %>%
     filter(Domain == domain_name, PhaseClass == phase) %>%
     group_by(AnimalNum, Group, Sex, CageChangeIndex) %>%
     summarise(DomainScore = mean(DomainScore, na.rm = TRUE), .groups = "drop")
-  if (nrow(plot_tbl) == 0) return(ggplot() + annotate("text", x = 0, y = 0, label = paste(title, "unavailable"), size = 3) + theme_void())
+  if (nrow(plot_tbl) == 0) {
+    return(ggplot() + annotate("text", x = 0, y = 0, label = paste(domain_name, "unavailable"), size = dhm_size(5)) + theme_void())
+  }
   summary_tbl <- plot_tbl %>%
     group_by(Group, Sex, CageChangeIndex) %>%
     summarise(mean = mean(DomainScore, na.rm = TRUE), ci_low = unname(mean_ci(DomainScore)["low"]),
@@ -6787,18 +6884,20 @@ plot_domain_trajectory <- function(domain_name, phase = "Active", title, subtitl
     filter(is.finite(CageChangeIndex)) %>%
     arrange(Sex, Group, CageChangeIndex)
   ggplot(plot_tbl, aes(CageChangeIndex, DomainScore, group = AnimalNum, colour = Group)) +
-    geom_hline(yintercept = 0, linewidth = 0.2, colour = "grey70") +
-    geom_line(alpha = 0.16, linewidth = 0.18) +
-    geom_ribbon(data = summary_tbl, aes(x = CageChangeIndex, ymin = ci_low, ymax = ci_high, fill = Group), inherit.aes = FALSE, alpha = 0.16, colour = NA) +
-    geom_line(data = summary_tbl, aes(x = CageChangeIndex, y = mean, colour = Group, group = Group), inherit.aes = FALSE, linewidth = 0.58) +
-    geom_point(data = summary_tbl, aes(x = CageChangeIndex, y = mean, colour = Group, group = Group), inherit.aes = FALSE, size = 1.1) +
-    facet_wrap(~ Sex, nrow = 1, axes = "all_y", axis.labels = "margins") +
-    scale_colour_manual(values = group_colors, drop = FALSE) +
-    scale_fill_manual(values = group_colors, drop = FALSE) +
-    labs(title = title, subtitle = dhm_wrap_text(subtitle, 130, 6.2),
-         x = "Cage change (SIS regrouped at each; CON keep their cage-mates)", y = y_lab) +
-    make_nature_theme(base_size = 6) +
-    theme(legend.position = "top")
+    geom_hline(yintercept = 0, linewidth = dhm_lw(MMM_DHM_PALETTE$line$reference_pt), colour = "grey75") +
+    geom_line(alpha = 0.2, linewidth = dhm_lw(0.25)) +
+    geom_ribbon(data = summary_tbl, aes(x = CageChangeIndex, ymin = ci_low, ymax = ci_high, fill = Group), inherit.aes = FALSE,
+                alpha = 0.18, colour = NA) +
+    geom_line(data = summary_tbl, aes(x = CageChangeIndex, y = mean, colour = Group, group = Group), inherit.aes = FALSE,
+              linewidth = dhm_lw(0.7)) +
+    geom_point(data = summary_tbl, aes(x = CageChangeIndex, y = mean, colour = Group, group = Group), inherit.aes = FALSE, size = 0.9) +
+    facet_wrap(~ Sex, nrow = 1, axes = "all_y", axis.labels = "margins", labeller = as_labeller(dhm_sex_facet_labels)) +
+    scale_colour_manual(values = MMM_DHM_PALETTE$group, drop = FALSE) +
+    scale_fill_manual(values = MMM_DHM_PALETTE$group, drop = FALSE) +
+    scale_x_continuous(breaks = 1:4, labels = paste0("CC", 1:4)) +
+    labs(x = "Cage change", y = y_lab, colour = NULL, fill = NULL) +
+    dhm_theme() +
+    theme(legend.position = "top", strip.text = element_text(face = "bold"))
 }
 # ---- L. Panel A: early movement, between and within cohorts ----------------------
 # Fixed, declared domain (the Stage 09 primary feature): position changes per
@@ -6818,9 +6917,10 @@ if (nrow(dhm_early) != 111L || anyNA(dhm_early$CombZ) || anyNA(dhm_early$Batch))
 }
 dhm_early_sis <- dhm_early %>% filter(SIS) %>% group_by(Batch) %>%
   mutate(x_w = rate_per_h - mean(rate_per_h), y_w = CombZ - mean(CombZ)) %>% ungroup()
+# Batch means with t-based 95% intervals (10-16 SIS animals per batch).
 dhm_early_batches <- dhm_early_sis %>% group_by(Sex, Batch) %>%
   summarise(n = n(), x = mean(rate_per_h), y = mean(CombZ), x_se = stats::sd(rate_per_h) / sqrt(n), y_se = stats::sd(CombZ) / sqrt(n),
-            x0 = min(rate_per_h), x1 = max(rate_per_h), .groups = "drop")
+            t_975 = stats::qt(0.975, n - 1), x0 = min(rate_per_h), x1 = max(rate_per_h), .groups = "drop")
 dhm_early_within <- dhm_early_sis %>% group_by(Sex) %>%
   summarise(n_sis = n(), r_within = safe_cor(x_w, y_w, "pearson"),
             slope_within = unname(stats::coef(stats::lm(CombZ ~ Batch + rate_per_h))[["rate_per_h"]]), .groups = "drop")
@@ -6832,133 +6932,106 @@ write_table(
                                                                       y_unit = "CombZ", population = "SIS animals; descriptive, no test"),
   file.path(output_dir, "stats_tables/systems_sis_early_movement_cohort_structure.csv")
 )
-dhm_batch_cols <- c(B1 = "#4D908E", B2 = "#F2A65A", B5 = "#6D597A", B3 = "#4D908E", B4 = "#6D597A", B6 = "#F2A65A")
+dhm_batch_cols <- MMM_DHM_BATCH_COLOURS
 dhm_early_segments <- dhm_early_batches %>% left_join(dhm_early_within %>% select(Sex, slope_within), by = "Sex") %>%
   mutate(y0 = y + slope_within * (x0 - x), y1 = y + slope_within * (x1 - x))
 dhm_early_labels <- dhm_early_within %>%
   mutate(label = paste0("within cohorts: r = ", dhm_minus(r_within), " (n = ", n_sis, " SIS)"))
+# Batch key in each facet's corner (two batch means can nearly coincide, so
+# labels at the means would be ambiguous).
+dhm_early_key <- dhm_early_batches %>% group_by(Sex) %>% arrange(Batch, .by_group = TRUE) %>% mutate(k = row_number()) %>% ungroup()
 p_sis_early_prediction <- ggplot() +
-  geom_point(data = dhm_early %>% filter(!SIS), aes(rate_per_h, CombZ), shape = 2, size = 1.1, colour = "grey55", stroke = 0.3) +
-  geom_point(data = dhm_early_sis, aes(rate_per_h, CombZ, colour = Batch, shape = Group), size = 1.2, alpha = 0.75, stroke = 0.35) +
-  geom_segment(data = dhm_early_segments, aes(x = x0, y = y0, xend = x1, yend = y1, colour = Batch), linewidth = 0.45) +
-  geom_line(data = dhm_early_batches %>% arrange(Sex, x), aes(x, y, group = Sex), linetype = "22", linewidth = 0.35, colour = "grey20") +
-  geom_errorbar(data = dhm_early_batches, aes(x = x, ymin = y - 1.96 * y_se, ymax = y + 1.96 * y_se, colour = Batch), width = 0, linewidth = 0.45) +
-  geom_errorbar(data = dhm_early_batches, aes(y = y, xmin = x - 1.96 * x_se, xmax = x + 1.96 * x_se, colour = Batch),
-                orientation = "y", width = 0, linewidth = 0.45) +
-  geom_point(data = dhm_early_batches, aes(x, y, fill = Batch), shape = 21, size = 2.6, colour = "black", stroke = 0.35) +
-  geom_text(data = dhm_early_batches %>% group_by(Sex) %>% mutate(ly = y + if_else(rank(x) %% 2 == 1, 0.17, -0.17)) %>% ungroup(),
-            aes(x, ly, label = Batch), size = 1.7, fontface = "bold") +
-  geom_text(data = dhm_early_labels, aes(x = -Inf, y = -Inf, label = label), hjust = -0.04, vjust = -0.6, size = 1.8, colour = "grey15") +
-  facet_wrap(~ Sex, nrow = 1, axes = "all_y", axis.labels = "margins") +
+  geom_point(data = dhm_early %>% filter(!SIS), aes(rate_per_h, CombZ, shape = Group), size = 0.9, stroke = 0.3,
+             colour = MMM_DHM_PALETTE$group[["CON"]]) +
+  geom_point(data = dhm_early_sis, aes(rate_per_h, CombZ, colour = Batch, shape = Group), size = 0.9, alpha = 0.8, stroke = 0.35) +
+  geom_segment(data = dhm_early_segments, aes(x = x0, y = y0, xend = x1, yend = y1, colour = Batch), linewidth = dhm_lw(0.5)) +
+  geom_line(data = dhm_early_batches %>% arrange(Sex, x), aes(x, y, group = Sex), linetype = "22", linewidth = dhm_lw(0.4), colour = "grey30") +
+  geom_errorbar(data = dhm_early_batches, aes(x = x, ymin = y - t_975 * y_se, ymax = y + t_975 * y_se, colour = Batch),
+                width = 0, linewidth = dhm_lw(0.5)) +
+  geom_errorbar(data = dhm_early_batches, aes(y = y, xmin = x - t_975 * x_se, xmax = x + t_975 * x_se, colour = Batch),
+                orientation = "y", width = 0, linewidth = dhm_lw(0.5)) +
+  geom_point(data = dhm_early_batches, aes(x, y, fill = Batch), shape = 21, size = 1.9, colour = "black", stroke = 0.3) +
+  geom_text(data = dhm_early_key, aes(x = Inf, y = Inf, label = Batch, colour = Batch, vjust = 1.4 + 1.25 * (k - 1)),
+            hjust = 1.3, size = dhm_size(5.2), fontface = "bold") +
+  geom_label(data = dhm_early_labels, aes(x = -Inf, y = -Inf, label = label), hjust = -0.03, vjust = -0.4,
+             size = dhm_size(dhm_pt("annotation_pt")), colour = "grey15", fill = "white", linewidth = 0,
+             label.padding = unit(0.6, "mm")) +
+  facet_wrap(~ Sex, nrow = 1, axes = "all_y", axis.labels = "margins", labeller = as_labeller(dhm_sex_facet_labels)) +
   scale_colour_manual(values = dhm_batch_cols, guide = "none") +
   scale_fill_manual(values = dhm_batch_cols, guide = "none") +
-  scale_shape_manual(values = c(RES = 1, SUS = 16), name = NULL, drop = TRUE) +
-  labs(
-    title = "A. Early movement and later CombZ: between and within cohorts",
-    subtitle = dhm_wrap_text(paste0(
-      "CC1 first dark phase (18:30–06:30), position changes per hour (canonical, data version 2): a fixed, declared domain (the Stage 09 ",
-      "primary feature), not selected by p. Large symbols: batch means of SIS animals (± 95% CI); short lines: the pooled within-batch ",
-      "slope of that sex through each batch mean; dashed: batch means joined; △ CON (not in the fits)."), 140, 6.2),
-    x = "Position changes per hour, CC1 first dark phase", y = "CombZ (lower = worse)",
-    caption = dhm_wrap_text(sprintf(paste0(
-      "Between cohorts (%d SIS batch means, sexes pooled): r = %s. Each batch is one regrouping network (SIS animals are regrouped only within ",
-      "their batch), and sex is nested in batch. Descriptive: Stage 09 owns the prospective test and Stage 32 the cohort-transfer analysis."),
-      dhm_early_between$n_batches, dhm_minus(dhm_early_between$r_between_batch_means)), 140, 4.7)
-  ) +
-  make_nature_theme(base_size = 6) +
-  theme(legend.position = "top", plot.caption.position = "plot")
+  scale_shape_manual(values = c(CON = 2, RES = 1, SUS = 16), name = NULL, drop = TRUE) +
+  labs(x = "Position changes per hour, CC1 first dark phase", y = "CombZ (lower = worse)") +
+  dhm_theme() +
+  theme(legend.position = "top", strip.text = element_text(face = "bold"))
 save_plot_svg_pdf(p_sis_early_prediction, file.path(output_dir, "figures/publication_panels/Fig_sis_early_prediction_first_active_12h"),
-                  width = 150, height = 95)
+                  width = 120, height = 62)
 
-p_sis_repeated_adaptation <- plot_domain_trajectory(
-  "Repeated adaptation / recovery dynamics", "Active",
-  "B. Composite active-phase score across cage changes",
-  paste("All dark phases of each cage change (CC1–CC3: 4, CC4: 2); mean of the adaptation/exploration, flexibility and social",
-        "composites minus volatility; z within sex × phase × cage change, so each cage change is centred at 0 and the lines show",
-        "relative group positions, not habituation or sensitisation."),
-  "Composite score (z, centred within cage change)"
-)
-save_plot_svg_pdf(p_sis_repeated_adaptation, file.path(output_dir, "figures/publication_panels/Fig_sis_repeated_active_phase_adaptation"), width = 140, height = 86)
+p_sis_repeated_adaptation <- plot_domain_trajectory("Repeated adaptation / recovery dynamics", "Active", "Composite score (z)")
+save_plot_svg_pdf(p_sis_repeated_adaptation, file.path(output_dir, "figures/publication_panels/Fig_sis_repeated_active_phase_adaptation"),
+                  width = 89, height = 56)
 
-# ---- J. Heatmap figures ---------------------------------------------------------
+# ---- J. Heatmap figures (manuscript figure format and palette v1) --------------------
+# The artwork carries no title, subtitle or caption: the legend text for every
+# figure is in tables/systems_sis_dashboard_figure_legend_draft.csv. One colour
+# scale for every heatmap and variant, so the dashboards collect one colourbar.
 dhm_contrast_labels <- c("RES-CON" = "RES−CON", "SUS-CON" = "SUS−CON", "RES-SUS" = "RES−SUS")
-# One colour scale for every heatmap and variant, so the dashboards collect a
-# single colourbar.
 dhm_g_limit <- max(0.5, ceiling(max(abs(dhm_cells$hedges_g[dhm_cells$cell_status == "estimated"]), na.rm = TRUE) / 0.25) * 0.25)
-dhm_variant_text <- c(
-  picked = "Resolution: picked (bin-free rows from phase blocks; Movement and Entropy terms 10 min; Proximity terms 5 min; switching 10 min; HMM 10 min).",
-  all5min = "Resolution: all 5 min (bin-free rows from phase blocks; bin terms 5 min; switching 10 min, the only width Stage 12 produces; HMM 5 min).",
-  all10min = "Resolution: all 10 min (bin-free rows from phase blocks; bin terms 10 min; HMM 10 min)."
-)
-dhm_marker_caption <- paste(
-  "Markers: ● post hoc test, BH q < 0.05 within tier family and phase;",
-  "○ registered result (Stage 29 FU-CC1: Holm over the sexes; Stage 30 SLEEP-CAT: local BH), adjusted p < 0.05;",
-  "× adjusted p < 0.05, but the within-batch estimate has the opposite sign to the colour. No global correction."
-)
-dhm_test_caption <- paste(
-  "Tests are post hoc, not registered. RES−SUS: SIS animals, Batch fixed, cage-episode random effect, Kenward–Roger t.",
-  "RES−CON / SUS−CON: all animals, with the CON group (one intact group per batch, 3 per sex, never regrouped) as a random",
-  "effect, about 2 df; a singular CON-group variance switches to a batch-level t (df 2). A pale CON cell is not evidence of no difference."
-)
 dhm_title_text <- c(cc1_a1 = "CC1, first dark phase (A1)", cc1_l1 = "CC1, first light phase (L1)",
-                    all_blocks = "All phase blocks, CC1–CC4 pooled, by sex and phase")
-dhm_caption <- function(hm, var, width_mm) {
-  sat <- dhm_rest_like_saturation[dhm_rest_like_saturation$heatmap_id == hm, ]
-  sat_text <- sprintf("rest-like is saturated (median %.3f; %.0f%% of %s >= 0.99) and not separable from read loss (KNOWN_LIMITATIONS 3)",
-                      sat$median_posinact40, 100 * sat$share_ge_099, if (hm == "all_blocks") "animal-epochs" else "animals")
-  window_line <- switch(hm,
-    cc1_a1 = "Window: CC1 first dark phase (18:30–06:30), one value per animal; z within sex. HMM row not shown (KNOWN_LIMITATIONS 2: no first-night latent-state finding).",
-    cc1_l1 = paste0("Window: CC1 first light phase (06:30–18:30 after A1), one value per animal; z within sex. HMM row not shown. ",
-                    "Light-phase lag rows have no adequate bin width and restate the rate; ", sat_text,
-                    ". Rate RES−SUS: registered estimation only, not tested."),
-    all_blocks = paste0("Window: every clean phase block (CC1–CC3: 4 dark / 3 light; CC4: 2 dark / 1 light), block values averaged per cage ",
-                        "change; z within sex × phase × cage change; one mean per animal across CC1–CC4. Light phase: lag rows restate the rate; ",
-                        sat_text, ".", if (var == "all5min") " The 5-min HMM is a different construct (any change vs no change)." else "")
-  )
-  dhm_wrap_text(c(paste("Colour: animal-level Hedges g, comparison − reference within sex, not batch-adjusted.", dhm_variant_text[[var]]),
-                  window_line, dhm_test_caption, dhm_marker_caption), width_mm = width_mm, size_pt = 4.7)
-}
+                    all_blocks = "All phase blocks, CC1–CC4 pooled")
+dhm_phase_labels <- c(Active = "Dark phase", Inactive = "Light phase")
+dhm_sex_labels <- c(Female = "Females", Male = "Males")
+# Final sizes (mm): the single-window heatmaps fit one column (89 mm); the
+# pooled heatmap (12 contrast columns) and the dashboards use the full 183-mm
+# canvas, so the contrast labels never overlap.
+dhm_heatmap_mm <- list(cc1_a1 = c(w = 89, h = 56), cc1_l1 = c(w = 89, h = 56), all_blocks = c(w = 183, h = 60))
 
-plot_dhm_heatmap <- function(hm, var, title, show_rows = TRUE) {
+plot_dhm_heatmap <- function(hm, var, show_rows = TRUE, show_legend = TRUE) {
   tbl <- dhm_cells %>%
     filter(heatmap_id == hm, variant == var) %>%
     mutate(
       display_tier = factor(display_tier, levels = unique(dhm_display_rows$display_tier)),
       row_label = factor(row_label, levels = rev(dhm_display_rows$row_label)),
       contrast = factor(dhm_contrast_labels[contrast], levels = dhm_contrast_labels),
-      panel = if (hm == "all_blocks") {
-        factor(paste(PhaseClass, Sex, sep = " · "), levels = c("Active · Female", "Active · Male", "Inactive · Female", "Inactive · Male"))
-      } else factor(Sex, levels = dhm_sex_levels),
+      Sex = factor(dhm_sex_labels[Sex], levels = dhm_sex_labels),
+      PhaseClass = factor(dhm_phase_labels[PhaseClass], levels = dhm_phase_labels),
       fill_g = if_else(cell_status == "estimated", hedges_g, NA_real_),
       g_text = case_when(cell_status == "not_shown" ~ "–", is.finite(fill_g) ~ dhm_minus(fill_g), TRUE ~ ""),
-      g_text_light = is.finite(fill_g) & abs(fill_g) >= 0.6 * dhm_g_limit
+      text_col = if_else(is.finite(fill_g), dhm_text_on(dhm_fill_hex(fill_g, dhm_g_limit)), "grey45")
     )
   marks <- tbl %>% filter(!is.na(marker_class)) %>% mutate(marker_class = factor(marker_class, levels = names(MMM_DHM_MARKER_LEVELS)))
+  facets <- if (hm == "all_blocks") {
+    facet_grid(display_tier ~ PhaseClass + Sex, scales = "free_y", space = "free_y", switch = "y")
+  } else {
+    facet_grid(display_tier ~ Sex, scales = "free_y", space = "free_y", switch = "y")
+  }
   p <- ggplot(tbl, aes(contrast, row_label)) +
-    geom_tile(aes(fill = fill_g), colour = "white", linewidth = 0.35) +
-    geom_text(data = ~ filter(.x, !g_text_light), aes(label = g_text), size = 1.4, colour = "grey15") +
-    geom_text(data = ~ filter(.x, g_text_light), aes(label = g_text), size = 1.4, colour = "white") +
-    geom_point(data = marks, aes(shape = marker_class), size = 0.75, stroke = 0.35, colour = "black",
-               position = position_nudge(x = 0.34, y = 0.27), show.legend = TRUE) +
-    facet_grid(display_tier ~ panel, scales = "free_y", space = "free_y", switch = "y") +
+    geom_tile(aes(fill = fill_g), colour = "white", linewidth = dhm_lw(2 * MMM_DHM_PALETTE$line$tile_border_pt)) +
+    geom_tile(data = ~ filter(.x, cell_status == "not_shown"), fill = NA, colour = "grey80",
+              linewidth = dhm_lw(MMM_DHM_PALETTE$line$tile_border_pt), width = 0.9, height = 0.85) +
+    geom_text(aes(label = g_text, colour = text_col), size = dhm_size(dhm_pt("annotation_pt")),
+              family = MMM_DHM_PALETTE$typography$family) +
+    scale_colour_identity() +
+    geom_point(data = marks, aes(shape = marker_class), size = 0.85, stroke = 0.35, colour = "black",
+               position = position_nudge(x = 0.36, y = 0.27), show.legend = TRUE) +
+    facets +
     scale_fill_gradient2(
-      name = "Hedges g", low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]],
-      high = mmm_diverging_colors[["high"]], midpoint = 0, limits = c(-dhm_g_limit, dhm_g_limit), oob = scales::squish,
-      na.value = "grey92", labels = scales::label_number(accuracy = 0.1, style_negative = "minus")
+      name = "Hedges g", low = MMM_DHM_PALETTE$diverging[["low"]], mid = MMM_DHM_PALETTE$diverging[["mid"]],
+      high = MMM_DHM_PALETTE$diverging[["high"]], midpoint = 0, limits = c(-dhm_g_limit, dhm_g_limit), oob = scales::squish,
+      na.value = "white", labels = scales::label_number(accuracy = 0.5, style_negative = "minus")
     ) +
     scale_shape_manual(name = NULL, values = c(posthoc = 16, registered = 1, sign_conflict = 4),
                        labels = MMM_DHM_MARKER_LEVELS, limits = names(MMM_DHM_MARKER_LEVELS), drop = FALSE) +
-    guides(fill = guide_colourbar(barheight = unit(16, "mm"), barwidth = unit(2.2, "mm"), order = 1),
-           shape = guide_legend(order = 2, ncol = 1)) +
-    labs(title = title, x = NULL, y = NULL) +
-    make_nature_theme(base_size = 5.5) +
+    guides(fill = guide_colourbar(barwidth = unit(22, "mm"), barheight = unit(1.6, "mm"), order = 1, title.vjust = 0.9),
+           shape = guide_legend(order = 2, nrow = 1, override.aes = list(size = 1.1))) +
+    labs(x = NULL, y = NULL) +
+    dhm_theme_tile() +
     theme(
-      legend.position = "right", legend.title = element_text(size = rel(0.9)), legend.text = element_text(size = rel(0.85)),
-      legend.key.width = unit(3, "mm"),
-      axis.line = element_blank(), axis.ticks = element_blank(), axis.text.x = element_text(angle = 35, hjust = 1),
-      strip.placement = "outside", strip.text.y.left = element_text(angle = 0, hjust = 1, face = "bold"),
-      panel.spacing.x = unit(0.5, "lines"), panel.spacing.y = unit(0.6, "lines"),
-      plot.title.position = "plot", plot.caption.position = "plot"
+      legend.position = if (show_legend) "bottom" else "none", legend.box = "vertical", legend.box.just = "left",
+      legend.key.width = unit(2.4, "mm"), legend.spacing.x = unit(1, "mm"), legend.spacing.y = unit(0.6, "mm"),
+      axis.text.x = element_text(angle = 0, hjust = 0.5),
+      strip.placement = "outside", strip.text.y.left = element_text(angle = 90, face = "bold", margin = margin(0, 1.2, 0, 0, "mm")),
+      strip.text.x = element_text(face = "bold"),
+      panel.spacing.x = unit(1, "mm"), panel.spacing.y = unit(0.8, "mm")
     )
   if (!show_rows) p <- p + theme(axis.text.y = element_blank(), strip.text.y.left = element_blank())
   p
@@ -6970,44 +7043,39 @@ dhm_file_base <- function(hm, var) {
 }
 dhm_plots <- list()
 for (dhm_var in MMM_DHM_VARIANTS) for (dhm_hm in dhm_heatmaps$heatmap_id) {
-  dhm_w <- if (dhm_hm == "all_blocks") 175 else 135
-  dhm_p <- plot_dhm_heatmap(dhm_hm, dhm_var, paste0("Behavioural architecture: ", dhm_title_text[[dhm_hm]])) +
-    labs(caption = paste(dhm_caption(dhm_hm, dhm_var, dhm_w - 12), collapse = "\n"))
+  dhm_p <- plot_dhm_heatmap(dhm_hm, dhm_var)
   dhm_plots[[dhm_var]][[dhm_hm]] <- dhm_p
   save_plot_svg_pdf(dhm_p, file.path(output_dir, "figures/publication_panels", dhm_file_base(dhm_hm, dhm_var)),
-                    width = dhm_w, height = if (dhm_hm == "all_blocks") 132 else 128)
+                    width = dhm_heatmap_mm[[dhm_hm]][["w"]], height = dhm_heatmap_mm[[dhm_hm]][["h"]])
 }
-rm(dhm_var, dhm_hm, dhm_p, dhm_w)
+rm(dhm_var, dhm_hm, dhm_p)
 p_sis_phase_heatmap <- dhm_plots[["picked"]][["all_blocks"]]
 
 # ---- N. Raw g versus the within-batch estimate (QC, for the explanation) ---------
+# Contrast colours are neutral palette tones (not the group colours, which mean
+# CON / RES / SUS elsewhere).
 dhm_qc_tbl <- dhm_cells %>%
   filter(variant == "picked", test_source %in% c("posthoc", "registered"), is.finite(estimate_on_g_scale), is.finite(hedges_g)) %>%
   mutate(heatmap = factor(dhm_title_text[heatmap_id], levels = dhm_title_text),
          contrast = factor(dhm_contrast_labels[contrast], levels = dhm_contrast_labels),
-         agreement = if_else(sign_agrees, "same sign", "opposite sign"))
+         agreement = if_else(sign_agrees, "same sign", "opposite sign (any p)"))
 p_sis_g_vs_within_batch <- ggplot(dhm_qc_tbl, aes(hedges_g, estimate_on_g_scale)) +
-  geom_hline(yintercept = 0, linewidth = 0.2, colour = "grey70") +
-  geom_vline(xintercept = 0, linewidth = 0.2, colour = "grey70") +
-  geom_abline(slope = 1, intercept = 0, linetype = "22", linewidth = 0.3, colour = "grey40") +
-  geom_point(aes(colour = contrast, shape = agreement), size = 1.3, stroke = 0.4, alpha = 0.85) +
+  geom_hline(yintercept = 0, linewidth = dhm_lw(MMM_DHM_PALETTE$line$reference_pt), colour = "grey75") +
+  geom_vline(xintercept = 0, linewidth = dhm_lw(MMM_DHM_PALETTE$line$reference_pt), colour = "grey75") +
+  geom_abline(slope = 1, intercept = 0, linetype = "22", linewidth = dhm_lw(MMM_DHM_PALETTE$line$reference_pt), colour = "grey40") +
+  geom_point(aes(colour = contrast, shape = agreement), size = 1, stroke = 0.35, alpha = 0.9) +
   facet_wrap(~ heatmap, nrow = 1, axes = "all_y", axis.labels = "margins") +
-  scale_colour_manual(values = c("RES−CON" = "#7A7A7A", "SUS−CON" = group_colors[["SUS"]], "RES−SUS" = group_colors[["CON"]]), name = NULL) +
-  scale_shape_manual(values = c("same sign" = 16, "opposite sign" = 4), name = NULL) +
+  scale_colour_manual(values = c("RES−CON" = MMM_DHM_PALETTE$claimability[["claimable_with_caveat"]],
+                                 "SUS−CON" = MMM_DHM_PALETTE$evidence[["qc_context"]],
+                                 "RES−SUS" = MMM_DHM_PALETTE$evidence[["supported"]]), name = NULL) +
+  scale_shape_manual(values = c("same sign" = 16, "opposite sign (any p)" = 4), name = NULL) +
   # Untitled legends get a session-dependent hash in ggplot2 4.0, so pin their order.
   guides(colour = guide_legend(order = 1), shape = guide_legend(order = 2)) +
   coord_equal() +
-  labs(
-    title = "Colour (raw g) versus the tested within-batch estimate, picked variant",
-    subtitle = dhm_wrap_text(paste(
-      "x: animal-level Hedges g as drawn (between and within batches together); y: the tested estimate on the same scale (estimate × g /",
-      "raw mean difference), which compares animals within batch (and cage episode). Points far from the dashed identity line are cells",
-      "where batch composition (the RES:SUS mix differs by batch) moves the raw difference."), 195, 6.2),
-    x = "Raw Hedges g (colour)", y = "Within-batch estimate (g scale)"
-  ) +
-  make_nature_theme(base_size = 6) +
-  theme(legend.position = "top")
-save_plot_svg_pdf(p_sis_g_vs_within_batch, file.path(output_dir, "figures/qc/Fig_sis_heatmap_g_vs_within_batch"), width = 210, height = 95)
+  labs(x = "Raw Hedges g (tile colour)", y = "Within-batch estimate (g scale)") +
+  dhm_theme() +
+  theme(legend.position = "bottom", strip.text = element_text(face = "bold"))
+save_plot_svg_pdf(p_sis_g_vs_within_batch, file.path(output_dir, "figures/qc/Fig_sis_heatmap_g_vs_within_batch"), width = 183, height = 74)
 
 first_night_sig_label <- function(q) {
   dplyr::case_when(!is.finite(q) ~ "", q < 0.001 ~ "***", q < 0.01 ~ "**", q < 0.05 ~ "*", TRUE ~ "")
@@ -7041,16 +7109,17 @@ plot_first_night_heatmap <- function(res, panel_role) {
       ),
       x = NULL, y = NULL, fill = "Hedges g",
       caption = paste0(
-        "Stars: * q<0.05, ** q<0.01, *** q<0.001 (BH within Sex across ", n_tests,
+        "Superseded by Fig_sis_heatmap_cc1_a1_* (RES−SUS orientation, one colour scale, within-batch tests); kept for the ",
+        "first-night contract. Stars: * q<0.05, ** q<0.01, *** q<0.001 (BH within Sex across ", n_tests,
         " domain × contrast tests). Tile values are Hedges g, oriented comparison minus reference. ",
         "RES/SUS are later CombZ-derived phenotype labels, so these are descriptive associations with ",
         "later phenotype, not prospective prediction; Stage 09 owns the predictive question."
-      ) %>% dhm_wrap_text(138, 4.7)
+      ) %>% dhm_wrap_text(138, 5)
     ) +
     make_nature_theme(base_size = 5.5) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right",
           axis.line = element_blank(), axis.ticks = element_blank(), legend.title = element_text(size = rel(0.9)),
-          plot.caption.position = "plot")
+          plot.caption = element_text(size = 5), plot.caption.position = "plot")
 }
 
 # Primary panel keeps the historical figure filename so manuscript candidate
@@ -7068,22 +7137,12 @@ save_plot_svg_pdf(p_first_night_sensitivity,
                   file.path(output_dir, "figures/publication_panels/Fig_sis_first_night_domain_heatmap_5min_sensitivity"),
                   width = 150, height = 92)
 
-p_sis_flexibility <- plot_domain_trajectory(
-  "Behavioral flexibility / predictability", "Active",
-  "D. Entropy-based flexibility composite across cage changes",
-  paste("All dark phases; 0.5 z(entropy level) + 0.5 z(entropy RMSSD) − z(entropy ACF1) of 5-min position entropy; centred within each",
-        "cage change. The entropy level tracks the position-change rate (r ≈ 0.94); the composite does so only weakly."),
-  "Flexibility composite (z, centred within cage change)"
-)
-save_plot_svg_pdf(p_sis_flexibility, file.path(output_dir, "figures/publication_panels/Fig_sis_behavioral_flexibility_trajectory"), width = 140, height = 86)
-p_sis_social <- plot_domain_trajectory(
-  "Social spatial organization", "Active",
-  "E. Shared-position occupancy composite across cage changes",
-  paste("All dark phases; 0.5 z(mean) + 0.5 z(ACF1) − z(RMSSD) of the shared RFID-position fraction (same antenna position as a cage-mate;",
-        "not distance or contact); centred within each cage change; data version 1 cage labels. The heatmaps use the mean alone."),
-  "Shared-occupancy composite (z, centred within cage change)"
-)
-save_plot_svg_pdf(p_sis_social, file.path(output_dir, "figures/publication_panels/Fig_sis_social_spatial_organization"), width = 140, height = 86)
+p_sis_flexibility <- plot_domain_trajectory("Behavioral flexibility / predictability", "Active", "Flexibility composite (z)")
+save_plot_svg_pdf(p_sis_flexibility, file.path(output_dir, "figures/publication_panels/Fig_sis_behavioral_flexibility_trajectory"),
+                  width = 89, height = 56)
+p_sis_social <- plot_domain_trajectory("Social spatial organization", "Active", "Shared-occupancy composite (z)")
+save_plot_svg_pdf(p_sis_social, file.path(output_dir, "figures/publication_panels/Fig_sis_social_spatial_organization"),
+                  width = 89, height = 56)
 
 
 # ---- K. Panel F: HMM state time budget ------------------------------------------
@@ -7096,7 +7155,7 @@ dhm_hmm_display <- imap(set_names(hmm_analysis_bin_levels), function(res, nm) {
 })
 write_table(map_dfr(dhm_hmm_display, "labels"), file.path(output_dir, "tables/systems_hmm_state_display_labels.csv"))
 write_table(map_dfr(dhm_hmm_display, "budget"), file.path(output_dir, "tables/systems_hmm_state_time_budget_by_animal.csv"))
-plot_hmm_time_budget <- function(res, title = "F. HMM state time budget") {
+plot_hmm_time_budget <- function(res) {
   budget <- dhm_hmm_display[[res]]$budget
   lv <- intersect(MMM_HMM_DISPLAY_STATE_LEVELS, unique(budget$DisplayState))
   summ <- budget %>%
@@ -7104,33 +7163,26 @@ plot_hmm_time_budget <- function(res, title = "F. HMM state time budget") {
     summarise(mean_share = mean(share), se_share = stats::sd(share) / sqrt(n()), n_animals = n_distinct(AnimalNum), .groups = "drop") %>%
     mutate(Group = factor(Group, levels = dhm_group_levels), Sex = factor(Sex, levels = dhm_sex_levels),
            PhaseClass = factor(PhaseClass, levels = c("Active", "Inactive")), DisplayState = factor(DisplayState, levels = lv))
-  ggplot(summ, aes(Group, mean_share, fill = Group)) +
-    geom_col(width = 0.68, alpha = 0.8, colour = "white", linewidth = 0.18) +
-    geom_errorbar(aes(ymin = mean_share - se_share, ymax = mean_share + se_share), width = 0.25, linewidth = 0.25, colour = "grey20") +
-    facet_grid(PhaseClass + Sex ~ DisplayState, labeller = labeller(DisplayState = label_wrap_gen(16)),
+  dodge <- position_dodge(width = 0.78)
+  ggplot(summ, aes(DisplayState, mean_share, fill = Group)) +
+    geom_col(position = dodge, width = 0.72, colour = "white", linewidth = dhm_lw(MMM_DHM_PALETTE$line$tile_border_pt)) +
+    geom_errorbar(aes(ymin = mean_share - se_share, ymax = mean_share + se_share, group = Group), position = dodge,
+                  width = 0.25, linewidth = dhm_lw(0.3), colour = "grey20") +
+    facet_grid(PhaseClass ~ Sex, labeller = labeller(PhaseClass = c(Active = "Dark phase", Inactive = "Light phase"),
+                                                     Sex = dhm_sex_facet_labels),
                axes = "all", axis.labels = "margins") +
-    scale_fill_manual(values = group_colors, drop = FALSE) +
+    scale_fill_manual(values = MMM_DHM_PALETTE$group, drop = FALSE) +
+    scale_x_discrete(labels = function(x) stringr::str_wrap(x, 13)) +
     scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 1), expand = expansion(mult = c(0, 0.02))) +
-    labs(
-      title = title,
-      subtitle = paste0("Share of ", sub("min_based$", "-min", res), " bins per decoded HMM state (states with the same label summed); ",
-                        "mean of animal means ± SE over CC1–CC4"),
-      caption = dhm_wrap_text(paste(
-        "No position change = no vendor RFID relocation (>= 200 grid units) in the bin; not immobility and not sleep.",
-        "Co-located / apart = the state's mean shared-position fraction above / below the overall mean.",
-        if (res == "5min_based") "At 5 min the fit separates any change from no change only." else
-          "Many / few position changes = the two moving states, ranked by mean movement.",
-        "Descriptive; the HMM is exploratory (one pooled fit, not frozen)."), width_mm = 155, size_pt = 4.7),
-      x = NULL, y = "Share of bins"
-    ) +
-    make_nature_theme(base_size = 5.5) +
-    theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", plot.caption.position = "plot")
+    labs(x = NULL, y = "Share of bins", fill = NULL) +
+    dhm_theme() +
+    theme(legend.position = "top", strip.text = element_text(face = "bold"))
 }
 p_sis_state_by_res <- map(set_names(hmm_analysis_bin_levels), plot_hmm_time_budget)
 p_sis_state <- p_sis_state_by_res[[hmm_primary_bin_level]]
-save_plot_svg_pdf(p_sis_state, file.path(output_dir, "figures/publication_panels/Fig_sis_rest_or_state_architecture"), width = 170, height = 110)
+save_plot_svg_pdf(p_sis_state, file.path(output_dir, "figures/publication_panels/Fig_sis_rest_or_state_architecture"), width = 136, height = 72)
 save_plot_svg_pdf(p_sis_state_by_res[["5min_based"]],
-                  file.path(output_dir, "figures/publication_panels/Fig_sis_rest_or_state_architecture_all5min"), width = 170, height = 110)
+                  file.path(output_dir, "figures/publication_panels/Fig_sis_rest_or_state_architecture_all5min"), width = 136, height = 72)
 
 
 sis_domain_pca_features <- sis_domain_scores %>%
@@ -7155,40 +7207,208 @@ if (length(sis_domain_pca_cols) >= 2 && nrow(sis_domain_pca_features) >= 4) {
   write_table(sis_domain_pca_loadings, file.path(output_dir, "tables/systems_sis_domain_pca_loadings.csv"))
 }
 
-sis_figure_legend_draft <- tibble(
-  Figure = c(rep("Fig_integrated_systems_dashboard", 4), "Fig_sis_early_prediction_first_active_12h",
-             "Fig_sis_repeated_active_phase_adaptation", "Fig_sis_behavioral_flexibility_trajectory",
-             "Fig_sis_social_spatial_organization", "Fig_sis_rest_or_state_architecture", "Fig_sis_heatmap_g_vs_within_batch"),
-  Panel = c("A", "B", "C", "D", "standalone", "standalone", "standalone", "standalone", "standalone", "QC"),
-  Variant = c(rep("picked (also Fig_integrated_systems_dashboard_all5min / _all10min)", 4), "not resolution-dependent",
-              "5-min backbone", "5-min backbone", "5-min backbone", "10-min HMM (5-min: _all5min)", "picked"),
-  DraftLegend = c(
-    "CC1 first dark phase (A1, 18:30-06:30 after the first regrouping). Tiles: animal-level Hedges g for RES-CON, SUS-CON and RES-SUS within sex, one value per animal, for seven constructs in four tiers (primary: position-change rate, shared RFID-position occupancy; secondary: occupancy dispersion, temporal flexibility, temporal volatility; integrative HMM; rest-like >= 40-s positional inactivity).",
-    "CC1 first light phase (L1, the 12 h after A1), as in A.",
-    "All clean phase blocks of CC1-CC4 (CC1-CC3: 4 dark / 3 light; CC4: first 2 dark / first light) by sex and phase; block values averaged per cage change, z within sex x phase x cage change, one mean per animal across CC1-CC4.",
-    "HMM state time budget: share of bins per decoded state (states sharing a label summed), mean of animal means +/- SE over CC1-CC4; 10-min HMM (5-min in the all-5-min dashboard).",
-    "Early movement (position changes per hour, CC1 first dark phase) against CombZ: SIS animals coloured by batch, batch means with 95% CI, the pooled within-batch slope of each sex through each batch mean; CON shown but not fitted.",
-    "Composite active-phase score (adaptation/exploration, flexibility and social composites minus volatility) across cage changes; thin lines animals, thick lines and ribbons group means and 95% CI.",
-    "Entropy-based flexibility composite across cage changes.",
-    "Shared-position occupancy composite (mean, ACF1, RMSSD) across cage changes.",
-    "HMM state time budget at 10 min, as dashboard panel D.",
-    "Raw Hedges g (the heatmap colour) against the tested within-batch estimate on the g scale, for every tested heatmap cell of the picked variant."
-  ),
-  Caveat = c(
-    paste("Markers: filled dot = post hoc test, BH q < 0.05 within heatmap x tier family x phase; open circle = registered result",
-          "(Stage 29 FU-CC1, Holm over the sexes; Stage 30 SLEEP-CAT, local BH), adjusted p < 0.05; cross = adjusted p < 0.05 with the",
-          "opposite sign to the colour. Post hoc tests: RES-SUS in SIS animals with Batch and a cage-episode random effect; RES-CON and",
-          "SUS-CON in all animals with the CON group as a random effect (about 2 df), a singular CON-group variance switching to a batch-level",
-          "t (df 2). No global correction. The HMM row is not shown for a single window (KNOWN_LIMITATIONS 2)."),
-    "Light phase: lag rows have no adequate bin width and restate the light-phase rate; the rest-like row is saturated and not separable from read loss (KNOWN_LIMITATIONS 3). The CC1 light-phase rate RES-SUS is registered as estimation only and is not tested.",
-    "Colour is not batch-adjusted; the RES:SUS mix differs by batch, so a raw g and the tested within-batch estimate can differ in sign (crosses; Fig_sis_heatmap_g_vs_within_batch).",
-    "Inactive = no RFID position change in the bin, not immobility or sleep. Descriptive; the HMM is exploratory (one pooled fit, not frozen).",
-    "Descriptive, no test: Stage 09 owns the prospective question and Stage 32 the cohort-transfer analysis. Each batch is one regrouping network; sex is nested in batch.",
-    "z within sex x phase x cage change: each cage change is centred at 0, so lines show relative group positions, not habituation or sensitisation.",
-    "Entropy level tracks the position-change rate (r about 0.94); centred within each cage change.",
-    "Co-location at the same antenna position, not contact or sociability; data version 1 cage labels; centred within each cage change.",
-    "See panel D.",
-    "Diagnostic for the explanation of colour versus markers; not a result."
+# Figure legends. The artwork carries no explanatory text, so everything a
+# reader needs is here, built from the run's own numbers.
+dhm_row_names <- function(keys) paste(dhm_display_rows$row_label[match(keys, dhm_display_rows$row_key)], collapse = ", ")
+dhm_fmt_range <- function(x) { r <- range(x[is.finite(x)]); if (abs(r[2] - r[1]) < 0.005) dhm_minus(r[1]) else paste(dhm_minus(r), collapse = "–") }
+dhm_legend_rows <- paste(
+  "Rows (statistical families): primary, position-change rate and shared occupancy; secondary, occupancy dispersion, temporal",
+  "flexibility and temporal volatility; exploratory, HMM state architecture and rest-like (≥40-s positional inactivity).",
+  "Definitions: construct_source in stats_tables/systems_sis_domain_heatmap_source_data.csv."
+)
+dhm_legend_colour <- "Tiles: animal-level Hedges g, comparison minus reference within sex, one mean per animal; not batch-adjusted."
+dhm_legend_window <- c(
+  cc1_a1 = paste("CC1, first dark phase after the first regrouping (A1, 18:30–06:30); one value per animal; z within sex.",
+                 "The HMM row is not shown for a single window (KNOWN_LIMITATIONS 2)."),
+  cc1_l1 = paste("CC1, first light phase after A1 (L1, 06:30–18:30); one value per animal; z within sex.",
+                 "The HMM row is not shown for a single window (KNOWN_LIMITATIONS 2)."),
+  all_blocks = paste("Every clean phase block of CC1–CC4 (CC1–CC3: 4 dark and 3 light; CC4: first 2 dark and first light), by sex and phase.",
+                     "Bin-free rows: equal-weight block means per cage change; bin-based rows: statistics over the cage change's bins of",
+                     "that phase. z within sex × phase × cage change; one mean per animal across CC1–CC4.")
+)
+dhm_legend_tests <- c(
+  cc1_a1 = paste("RES−SUS: registered results where they exist (Stage 29 FU-CC1 for position-change rate, shared occupancy and occupancy",
+                 "dispersion, Holm over the sexes; Stage 30 SLEEP-CAT-IA40A for rest-like, local BH); temporal flexibility and volatility",
+                 "post hoc (SIS animals, Batch fixed, cage episode as random effect, Kenward–Roger t)."),
+  cc1_l1 = paste("RES−SUS: rest-like registered (Stage 30 SLEEP-CAT-IA40L, local BH); position-change rate registered as estimation only",
+                 "and not tested; the other rows post hoc (SIS animals, Batch fixed, cage episode as random effect, Kenward–Roger t)."),
+  all_blocks = paste("RES−SUS: post hoc (SIS animals; Batch and cage change fixed; animal and cage episode as random effects; Kenward–Roger t).",
+                     "Rest-like: Stage 30 defines the measure for the first dark and first light window of each cage change (SLEEP-CAT:",
+                     "RES−SUS at CC1; SLEEP-L: CombZ trajectory over CC1–CC4); these group contrasts over all clean blocks, including",
+                     "A2–A4 and L2–L3, are a post hoc extension.")
+)
+dhm_legend_con <- function(hm) paste(
+  "RES−CON and SUS−CON: post hoc, all animals, Kenward–Roger t, with the CON animals as units: 12 per sex, housed in 3 stable cages",
+  "(one per batch), whose clustering is not modelled, so these p-values are more liberal than cage-level tests.",
+  switch(hm,
+    cc1_a1 = paste("For the position-change rate and shared occupancy of this window, the registered post hoc CON tests of Figure 1c",
+                   "(Stage 29b) model the CON cages and are the more conservative reference; no cage-aware CON test exists for the other rows."),
+    paste("No cage-aware CON test exists for this window (Stage 29b covers only the position-change rate and shared occupancy of the",
+          "CC1 first dark phase).")),
+  "CON differ from SIS animals in regrouping itself (CON keep their cage-mates) and in platform history, and sex is nested in batch;",
+  "where RES−CON and SUS−CON are similar, read the difference as shared by both regrouped groups, not as phenotype-specific."
+)
+dhm_legend_markers <- paste(
+  "Markers: filled dot, post hoc BH q < 0.05 within heatmap × statistical family × phase; open circle, registered adjusted p < 0.05;",
+  "cross, adjusted p < 0.05 with a within-batch estimate of the opposite sign to the tile (not counted as evidence). A dot or circle",
+  "needs the tile's sign. The CON and RES−SUS tests share these families, so the animal-unit CON p-values also lower the RES−SUS q",
+  "(q_bh_res_sus_only in the source data gives RES−SUS-only families). No global correction."
+)
+dhm_legend_kl4 <- "RES and SUS are derived from the later CombZ endpoint: the contrasts characterise the phenotypes and do not validate the endpoint."
+dhm_legend_resolution <- function(var) {
+  m <- MMM_DHM_RESOLUTION_MANIFEST[MMM_DHM_RESOLUTION_MANIFEST$variant == var, ]
+  w <- setNames(sub("min_based$", " min", m$bin_level), m$component)
+  sprintf(paste("Bin widths (%s): movement and entropy terms %s, proximity terms %s, switching %s, HMM %s; a post hoc choice",
+                "(tables/systems_sis_dashboard_resolution_manifest.csv). Bin-free rows are identical in every variant."),
+          var, w[["movement_entropy_terms"]], w[["proximity_terms"]], w[["switching_term"]], w[["hmm"]])
+}
+# Median position-change rate of each CON cage in the window shown (CON
+# animals' epoch values), to describe a cage that carries a contrast.
+dhm_con_cage_activity <- dhm_heatmaps %>%
+  select(heatmap_id, window_set) %>%
+  pmap_dfr(function(heatmap_id, window_set) {
+    dhm_canonical_window_values(dhm_canonical$blocks, window_set) %>%
+      filter(Group == "CON") %>%
+      group_by(Sex, Batch, PhaseClass) %>%
+      summarise(median_rate = stats::median(crossing_rate), n_animals = n_distinct(AnimalNum), .groups = "drop") %>%
+      mutate(heatmap_id = heatmap_id)
+  })
+dhm_legend_caveats <- function(hm, var) {
+  cl <- dhm_cells %>% filter(heatmap_id == hm, variant == var)
+  tested <- cl %>% filter(test_source %in% c("posthoc", "registered"), is.finite(estimate_on_g_scale), is.finite(hedges_g))
+  n_reg_dis <- sum(tested$test_source == "registered" & tested$sign_agrees %in% FALSE)
+  out <- sprintf("Tile and within-batch test disagree in sign in %d of %d tested cells%s (Fig_sis_heatmap_g_vs_within_batch%s).",
+                 sum(tested$sign_agrees %in% FALSE), nrow(tested),
+                 if (n_reg_dis > 0) sprintf(", %d of them registered estimates", n_reg_dis) else "",
+                 if (var == "picked") "" else ", which shows the picked variant")
+  track <- cl %>%
+    filter(row_key != "psychomotor_rate", cell_status == "estimated", is.finite(animal_r_with_position_change_rate),
+           abs(animal_r_with_position_change_rate) >= 0.8) %>%
+    distinct(PhaseClass, row_key, animal_r_with_position_change_rate)
+  if (nrow(track)) {
+    track <- track %>% arrange(match(PhaseClass, c("Active", "Inactive")), match(row_key, dhm_display_rows$row_key))
+    per_phase <- vapply(split(track, factor(track$PhaseClass, levels = unique(track$PhaseClass))), function(t)
+      sprintf("%s: %s", dhm_phase_labels[[t$PhaseClass[1]]],
+              paste(sprintf("%s (r = %s)", dhm_display_rows$row_label[match(t$row_key, dhm_display_rows$row_key)],
+                            dhm_minus(t$animal_r_with_position_change_rate)), collapse = ", ")), character(1))
+    out <- c(out, paste0("Rows tracking the position-change rate (|animal r| ≥ 0.8): ", paste(per_phase, collapse = "; "), "."))
+  }
+  if (any(cl$PhaseClass == "Inactive")) {
+    sat <- dhm_rest_like_saturation[dhm_rest_like_saturation$heatmap_id == hm, ]
+    ze <- dhm_zero_event %>% filter(heatmap_id == hm)
+    out <- c(out, paste0(
+      "Light phase (KNOWN_LIMITATIONS 3): few position updates cannot be attributed to rest rather than to detection. ",
+      "Lag rows have no adequate bin width. ",
+      if (nrow(sat) == 1L) sprintf("Rest-like is saturated (median %.3f; %.0f%% of %s ≥ 0.99). ", sat$median_posinact40,
+                                   100 * sat$share_ge_099, if (hm == "all_blocks") "animal-epochs" else "animals") else "",
+      if (nrow(ze)) sprintf(paste("%d light blocks have no position update at all (CON %d, RES %d, SUS %d;",
+                                  "tables/systems_sis_zero_event_light_blocks.csv): consolidated rest in one position or an undetected tag."),
+                            nrow(ze), sum(ze$Group == "CON"), sum(ze$Group == "RES"), sum(ze$Group == "SUS")) else ""))
+  }
+  if (hm == "all_blocks") {
+    out <- c(out, paste0("HMM row: one pooled exploratory fit with several optima; under KNOWN_LIMITATIONS 1 a latent-state contrast may be ",
+                         "reported only with reviewed cross-optimum evidence, which this composite lacks, so the row carries no marker",
+                         if (var == "all5min") "; the 5-min fit separates any change from no change only, a different construct." else "."))
+  }
+  # CON markers carried by one CON cage, with that cage's activity in the window.
+  mk <- cl %>% filter(marker_class == "posthoc", contrast != "RES-SUS", !is.na(marker_robustness),
+                      grepl("one CON cage (without ", marker_robustness, fixed = TRUE)) %>%
+    mutate(cage = sub("^.*one CON cage \\(without ([^)]*)\\).*$", "\\1", marker_robustness))
+  if (nrow(mk)) {
+    loo <- dhm_con_cage_out %>% filter(heatmap_id == hm, variant == var)
+    sent <- mk %>%
+      left_join(loo %>% select(row_key, PhaseClass, Sex, contrast, cage = con_cage, g_without),
+                by = c("row_key", "PhaseClass", "Sex", "contrast", "cage")) %>%
+      group_by(Sex, PhaseClass, contrast, cage) %>%
+      summarise(rows = dhm_row_names(row_key), g_from = dhm_fmt_range(hedges_g), g_to = dhm_fmt_range(g_without), .groups = "drop")
+    act <- dhm_con_cage_activity %>% filter(heatmap_id == hm)
+    out <- c(out, paste(pmap_chr(sent, function(Sex, PhaseClass, contrast, cage, rows, g_from, g_to) {
+      a <- act %>% filter(Sex == .env$Sex, PhaseClass == .env$PhaseClass) %>% arrange(Batch)
+      sprintf(paste("%s, %s, %s markers (%s) are carried by one CON cage: without the %s CON cage g falls to %s (from %s).",
+                    "Median position changes per hour of each CON cage in this %s: %s."),
+              dhm_sex_labels[[Sex]], tolower(dhm_phase_labels[[PhaseClass]]), dhm_contrast_labels[[contrast]], rows, cage,
+              g_to, g_from, tolower(dhm_phase_labels[[PhaseClass]]),
+              paste(sprintf("%s %s", a$Batch, formatC(a$median_rate, format = "f", digits = 2)), collapse = ", "))
+    }), collapse = " "))
+  }
+  rob <- cl %>% filter(!is.na(marker_robustness), startsWith(marker_robustness, "NOT robust"))
+  if (nrow(rob)) {
+    out <- c(out, paste0("Markers that are not robust: ",
+                         paste(sprintf("%s, %s, %s, %s (fails: %s)", dhm_display_rows$row_label[match(rob$row_key, dhm_display_rows$row_key)],
+                                       tolower(dhm_phase_labels[rob$PhaseClass]), dhm_sex_labels[rob$Sex], dhm_contrast_labels[rob$contrast],
+                                       sub("^NOT robust \\(fails: (.*?)\\):.*$", "\\1", rob$marker_robustness, perl = TRUE)),
+                               collapse = "; "),
+                         ". Robustness checks: marker_robustness in the source data."))
+  }
+  paste(out, collapse = " ")
+}
+dhm_legend_budget <- function(res) paste(
+  sprintf("HMM state time budget: share of %s bins per decoded state (states with the same display label summed), mean of animal means ± SE over CC1–CC4.",
+          sub("min_based$", "-min", res)),
+  "No position change = no vendor RFID relocation (≥200 grid units) in the bin, not immobility or sleep; co-located / apart = the state's",
+  "mean shared-position fraction above / below the overall mean;",
+  if (res == "5min_based") "the 5-min fit separates any change from no change only." else
+    "many / few position changes = the two moving states, ranked by mean movement.",
+  "Descriptive; the HMM is exploratory (one pooled fit with several optima, KNOWN_LIMITATIONS 1)."
+)
+dhm_heatmap_legend <- function(hm, var) list(
+  DraftLegend = paste(paste0(dhm_title_text[[hm]], "."), dhm_legend_colour, dhm_legend_window[[hm]], dhm_legend_rows, dhm_legend_resolution(var)),
+  Caveat = paste(dhm_legend_tests[[hm]], dhm_legend_con(hm), dhm_legend_markers, dhm_legend_caveats(hm, var), dhm_legend_kl4)
+)
+dhm_legend_heatmap_rows <- tidyr::crossing(variant = MMM_DHM_VARIANTS, heatmap_id = dhm_heatmaps$heatmap_id) %>%
+  pmap_dfr(function(variant, heatmap_id) {
+    l <- dhm_heatmap_legend(heatmap_id, variant)
+    tibble(Figure = dhm_file_base(heatmap_id, variant), Panel = "standalone", Variant = variant, DraftLegend = l$DraftLegend, Caveat = l$Caveat)
+  })
+dhm_legend_dashboard_rows <- map_dfr(MMM_DHM_VARIANTS, function(var) {
+  fig <- if (var == "picked") "Fig_integrated_systems_dashboard" else paste0("Fig_integrated_systems_dashboard_", var)
+  hl <- map(set_names(dhm_heatmaps$heatmap_id), ~ dhm_heatmap_legend(.x, var))
+  tibble(Figure = fig, Panel = c("a", "b", "c", "d"), Variant = var,
+         DraftLegend = c(hl$cc1_a1$DraftLegend, hl$cc1_l1$DraftLegend, hl$all_blocks$DraftLegend, dhm_legend_budget(dhm_resolution(var, "hmm"))),
+         Caveat = c(hl$cc1_a1$Caveat, hl$cc1_l1$Caveat, hl$all_blocks$Caveat, paste("Descriptive; no test.", dhm_legend_kl4)))
+})
+sis_figure_legend_draft <- bind_rows(
+  dhm_legend_dashboard_rows,
+  dhm_legend_heatmap_rows,
+  tibble(
+    Figure = c("Fig_sis_early_prediction_first_active_12h", "Fig_sis_repeated_active_phase_adaptation",
+               "Fig_sis_behavioral_flexibility_trajectory", "Fig_sis_social_spatial_organization",
+               "Fig_sis_rest_or_state_architecture", "Fig_sis_rest_or_state_architecture_all5min", "Fig_sis_heatmap_g_vs_within_batch"),
+    Panel = c("standalone", "standalone", "standalone", "standalone", "standalone", "standalone", "QC"),
+    Variant = c("not resolution-dependent", "5-min backbone", "5-min backbone", "5-min backbone", "10-min HMM", "5-min HMM", "picked"),
+    DraftLegend = c(
+      paste("Early movement (position changes per hour, CC1 first dark phase, canonical) against CombZ: SIS animals coloured by batch",
+            "(open circles RES, filled circles SUS), batch means with t-based 95% intervals, the pooled within-batch slope of each sex",
+            "drawn through each batch mean (short solid lines), and the batch means of each sex joined (dashed line); CON (triangles)",
+            "shown but not fitted. The declared Stage 09 primary feature, not selected by p."),
+      paste("Composite active-phase score (mean of the adaptation/exploration, flexibility and social composites minus volatility) over",
+            "all dark phases of each cage change; thin lines animals, thick lines and ribbons group means with 95% intervals."),
+      paste("Entropy-based flexibility composite, 0.5 z(entropy level) + 0.5 z(entropy RMSSD) − z(entropy ACF1) of 5-min position",
+            "entropy, over all dark phases of each cage change; lines as in the composite panel."),
+      paste("Shared-occupancy composite, 0.5 z(mean) + 0.5 z(ACF1) − z(RMSSD) of the 5-min shared RFID-position fraction (same vendor",
+            "position as a cage-mate), over all dark phases of each cage change; lines as in the composite panel."),
+      dhm_legend_budget("10min_based"),
+      dhm_legend_budget("5min_based"),
+      paste("Raw Hedges g (the tile colour) against the tested within-batch estimate on the g scale (estimate × g / raw mean difference),",
+            "for every tested cell of the picked variant; dashed line, identity; crosses, the two disagree in sign (any p).")
+    ),
+    Caveat = c(
+      paste(sprintf("Within cohorts r per sex in the panel; between cohorts (%d SIS batch means) r = %s.", dhm_early_between$n_batches,
+                    dhm_minus(dhm_early_between$r_between_batch_means)),
+            "Descriptive, no test: Stage 09 owns the prospective question and Stage 32 the cohort-transfer analysis. Each batch is one",
+            "regrouping network; sex is nested in batch. RES and SUS are defined from CombZ, the y axis, so the symbols separate",
+            "vertically by construction; only the association with movement is informative."),
+      paste("z within sex × phase × cage change: each cage change is centred at 0, so the lines show relative group positions, not",
+            "habituation or sensitisation.", dhm_legend_kl4),
+      paste("The entropy level tracks the position-change rate (r about 0.94); the composite does so only weakly. Centred within each",
+            "cage change.", dhm_legend_kl4),
+      paste("Co-location at the same vendor RFID position, not contact or sociability; data version 1 cage labels; centred within each",
+            "cage change. The heatmaps' shared-occupancy row is the canonical time-weighted shared occupancy on data version 2, not this",
+            "composite.", dhm_legend_kl4),
+      paste("Do not claim EEG sleep or fixed ethological HMM states.", dhm_legend_kl4),
+      paste("Do not claim EEG sleep or fixed ethological HMM states.", dhm_legend_kl4),
+      "Diagnostic for the explanation of colour versus markers; not a result."
+    )
   )
 )
 write_table(sis_figure_legend_draft, file.path(output_dir, "tables/systems_sis_dashboard_figure_legend_draft.csv"))
@@ -7210,7 +7430,8 @@ sis_dashboard_visualization_rows <- tibble(
     "Fig_sis_CC1_first_active_domain_heatmap"
   ),
   PrimaryQuestion = c(
-    "How is behavioural architecture organised in the first night, the first day and across all phases of social instability, by phenotype and sex?",
+    paste("How is behavioural architecture organised during adolescent social instability (the first night and day after the first",
+          "regrouping, and all phases of CC1-CC4), by phenotype and sex?"),
     "As the dashboard, with every bin-based component at 5 min.",
     "As the dashboard, with every bin-based component at 10 min.",
     "Does behaviour in the first dark phase after the first regrouping differ between later phenotypes?",
@@ -7235,24 +7456,30 @@ sis_dashboard_visualization_rows <- tibble(
     "Standalone / Extended Data (descriptive)",
     "Standalone / Extended Data (descriptive)",
     "Standalone / Extended Data (descriptive)",
-    "Dashboard panel D; standalone (10 min; _all5min at 5 min)",
-    "QC: explanation of sign conflicts",
+    "Dashboard panel d; standalone (10 min; _all5min at 5 min)",
+    "QC: explanation of sign disagreements",
     "Superseded by Fig_sis_heatmap_cc1_a1_*; still produced for the first-night contract"
   ),
   Caution = c(
-    "Post hoc tests, labelled as such; registered results stay authoritative. CON contrasts have about 2 df, so a pale CON cell is not evidence of no difference.",
-    "The 5-min HMM is a different construct (any change vs no change); switching stays at 10 min.",
+    paste("Post hoc tests, labelled as such; registered results stay authoritative. CON contrasts use the CON animals as units",
+          "(12 per sex in 3 stable cages; cage clustering not modelled); a cage-aware CON test exists only for the CC1 first-dark-phase",
+          "rate and shared occupancy (Stage 29b, Figure 1c). Read RES−CON ≈ SUS−CON as an effect shared by both regrouped groups;",
+          "CON markers carried by one CON cage are named in the legend. The HMM row carries no marker (KNOWN_LIMITATIONS 1)."),
+    "The 5-min HMM is a different construct (any change vs no change); switching stays at 10 min for comparability.",
     "Bin-free rows are identical in every variant.",
-    "HMM row not shown (KNOWN_LIMITATIONS 2). Registered FU-CC1 and Stage 30 results are consumed where exactly compatible.",
-    "Light-phase lag and rest-like rows restate the rate and are not separable from read loss (KNOWN_LIMITATIONS 3).",
-    "Colour is not batch-adjusted; see the QC figure for sign conflicts.",
+    paste("HMM row not shown (KNOWN_LIMITATIONS 2). Registered FU-CC1 and Stage 30 results are used where exactly compatible.",
+          "CON contrasts: animals as units; Stage 29b (Figure 1c) is the cage-aware reference for the rate and shared occupancy."),
+    paste("Light phase (KNOWN_LIMITATIONS 3): few position updates cannot be attributed to rest; rows tracking the rate are named in",
+          "the legend. CON contrasts: animals as units; no cage-aware CON test exists for this window."),
+    paste("Colour is not batch-adjusted (see the QC figure). CON contrasts: animals as units; no cage-aware CON test exists; markers",
+          "carried by one CON cage are named in the legend (marker_robustness). The HMM row carries no marker (KNOWN_LIMITATIONS 1)."),
     "Descriptive: no p or q; not a biomarker claim.",
     "Not habituation or sensitisation (centred within cage change).",
     "Entropy level tracks the position-change rate.",
-    "Co-location, not sociability.",
+    "Co-location, not sociability; not the heatmap's shared-occupancy row.",
     "Do not claim EEG sleep or fixed ethological HMM states.",
     "Diagnostic only.",
-    "Old design (stars, SUS-RES, lm without batch or cage terms)."
+    "Old design (stars, SUS−RES, lm without batch or cage terms)."
   )
 )
 
@@ -7267,43 +7494,23 @@ sis_dashboard_visualization_rows <- bind_rows(
 )
 
 # ---- O. Dashboards ------------------------------------------------------------------
-dhm_dashboard_caption <- function(var) dhm_wrap_text(c(
-  paste("Colour: animal-level Hedges g, comparison − reference within sex, not batch-adjusted.", dhm_variant_text[[var]]),
-  paste("A, B: CC1 first dark phase (18:30–06:30) and the light phase after it, one value per animal. C: every clean phase block",
-        "(CC1–CC3: 4 dark / 3 light; CC4: 2 dark / 1 light), z within sex × phase × cage change, one mean per animal. HMM rows are not",
-        "shown for single windows (KNOWN_LIMITATIONS 2). Light phase: lag rows restate the rate; rest-like is saturated and not separable",
-        "from read loss (KNOWN_LIMITATIONS 3)."),
-  dhm_test_caption, dhm_marker_caption,
-  "RES/SUS labels are derived from the later CombZ endpoint, so group contrasts characterise phenotypes; they do not validate the endpoint."
-), width_mm = 215, size_pt = 5.8)
-dhm_annotation_theme <- make_nature_theme(7) + theme(
-  legend.position = "right",
-  plot.title = element_text(face = "bold", size = rel(1.25), hjust = 0, margin = margin(b = 2)),
-  plot.subtitle = element_text(hjust = 0, colour = "grey25", lineheight = 1.05, margin = margin(b = 4)),
-  plot.caption = element_text(hjust = 0, colour = "grey30", size = rel(0.82), lineheight = 1.05, margin = margin(t = 4)),
-  plot.margin = margin(6, 6, 6, 6)
-)
+# 183 x 165 mm: a, b = the two CC1 windows; c = all phase blocks; d = the HMM
+# time budget (its left edge is not aligned to the heatmaps' row labels); one
+# collected legend row at the bottom. Lowercase panel tags only.
 build_sis_dashboard <- function(var) {
   pl <- dhm_plots[[var]]
-  h1 <- pl$cc1_a1 + labs(title = "A. CC1, first dark phase (A1)", caption = NULL)
-  h2 <- pl$cc1_l1 + labs(title = "B. CC1, first light phase (L1)", caption = NULL) +
-    theme(axis.text.y = element_blank(), strip.text.y.left = element_blank())
-  h3 <- pl$all_blocks + labs(title = "C. All phase blocks, CC1–CC4 pooled", caption = NULL)
-  f <- p_sis_state_by_res[[dhm_resolution(var, "hmm")]] + labs(title = "D. HMM state time budget (CC1–CC4)", caption = NULL)
-  ((h1 | h2) / h3 / patchwork::free(f, side = "l")) +
-    patchwork::plot_layout(heights = c(1, 1.15, 0.85), guides = "collect") +
-    patchwork::plot_annotation(
-      title = "Behavioural architecture after adolescent social instability: first night, first day and all phases",
-      subtitle = dhm_wrap_text(paste("RES−CON, SUS−CON and RES−SUS within sex for seven constructs in four tiers (primary, secondary,",
-                                     "integrative HMM, rest-like); markers come from post hoc within-batch tests or consumed registered results."),
-                               width_mm = 215, size_pt = 7),
-      caption = paste(dhm_dashboard_caption(var), collapse = "\n"),
-      theme = dhm_annotation_theme
-    )
+  h2 <- pl$cc1_l1 + theme(axis.text.y = element_blank(), strip.text.y.left = element_blank())
+  budget <- patchwork::free(p_sis_state_by_res[[dhm_resolution(var, "hmm")]], side = "l")
+  patchwork::wrap_plots(A = pl$cc1_a1, B = h2, C = pl$all_blocks, D = budget,
+                        design = "AAAAABBBB\nCCCCCCCCC\nDDDDDDDDD") +
+    patchwork::plot_layout(heights = c(1, 1.05, 1), guides = "collect") +
+    patchwork::plot_annotation(tag_levels = "a") &
+    theme(plot.tag = element_text(size = dhm_pt("panel_label_pt"), face = "bold", family = MMM_DHM_PALETTE$typography$family),
+          legend.position = "bottom", legend.box = "horizontal", legend.direction = "horizontal")
 }
 if (requireNamespace("patchwork", quietly = TRUE)) {
   sis_dashboard <- build_sis_dashboard("picked")
-  save_plot_svg_pdf(sis_dashboard, file.path(output_dir, "figures/Fig_integrated_systems_dashboard"), width = 230, height = 270)
+  save_plot_svg_pdf(sis_dashboard, file.path(output_dir, "figures/Fig_integrated_systems_dashboard"), width = 183, height = 165)
   for (dhm_ext in c(".svg", ".pdf", ".png")) {
     mmm_refresh_mirror_copy(file.path(output_dir, paste0("figures/Fig_integrated_systems_dashboard", dhm_ext)),
                             file.path(output_dir, paste0("figures/publication_panels/Fig_sis_systems_neuroscience_dashboard", dhm_ext)))
@@ -7311,7 +7518,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
   for (dhm_dash_var in c("all5min", "all10min")) {
     save_plot_svg_pdf(build_sis_dashboard(dhm_dash_var),
                       file.path(output_dir, paste0("figures/publication_panels/Fig_integrated_systems_dashboard_", dhm_dash_var)),
-                      width = 230, height = 270)
+                      width = 183, height = 165)
   }
 }
 
@@ -7330,9 +7537,10 @@ duration_methods_text <- tibble(
   )
 )
 
+# The integrated dashboard is described in sis_dashboard_visualization_rows
+# (the older row here contradicted it and is dropped).
 systems_visualization_guide <- tibble(
   Figure = c(
-    "Fig_integrated_systems_dashboard",
     "Fig_systems_module_scorecard",
     "Fig_systems_named_biological_scores",
     "Fig_systems_hmm_transition_difference",
@@ -7345,7 +7553,6 @@ systems_visualization_guide <- tibble(
     "systems_named_biological_scores.html"
   ),
   PrimaryQuestion = c(
-    "What is the smallest coherent systems-neuroscience story supported by robust, integrated outputs?",
     "Which biological modules carry the strongest group effects and how duration-robust are they?",
     "How do animals distribute across named constructs such as rigidity, flexibility, withdrawal and recovery?",
     "Which latent-state transitions differ between SUS, RES and CON?",
@@ -7358,7 +7565,6 @@ systems_visualization_guide <- tibble(
     "Exploratory hoverable view of animal-level named scores"
   ),
   ManuscriptUse = c(
-    "Main figure candidate",
     "Main dashboard subpanel or compact supplement",
     "Supplementary biological interpretation panel",
     "Supplementary HMM/latent-state panel",
@@ -7371,7 +7577,6 @@ systems_visualization_guide <- tibble(
     "Lab meeting/exploration only"
   ),
   Caution = c(
-    "Keeps exploratory nonlinear and state-flow views outside the main composite unless independently central to the claim.",
     "Summarizes strongest effects; use detailed contrast table for exact statistics.",
     "Composite scores are interpretable indices, not independent raw measurements.",
     "Depends on HMM state labeling; semantic labels are data-derived.",
@@ -7791,20 +7996,22 @@ stats_reporting_guide <- bind_rows(
       "systems_sis_canonical_window_gates.csv",
       "systems_sis_dashboard_resolution_manifest.csv",
       "systems_sis_early_movement_cohort_structure.csv",
-      "systems_hmm_state_time_budget_by_animal.csv"
+      "systems_hmm_state_time_budget_by_animal.csv",
+      "systems_sis_zero_event_light_blocks.csv"
     ),
     PrimaryStatistic = c(
       "Animal-level Hedges g and lmerTest/emmeans repeated-measures Group contrasts within Sex for the 7 inference-family domains (contrast orientation SUS-RES)",
       "5-min and 10-min animal-level Hedges g plus repeated-measures estimates, SE, p and BH q",
       "Exact HMM paths/resolution roles, code identity, contextual standardization, model formula and FDR family",
-      "One row per heatmap (CC1 A1, CC1 L1, all blocks) x resolution variant x row x phase x sex x contrast: animal-level Hedges g, the post hoc test (model, estimate, SE, KR df or fallback, p), its BH family and q, any consumed registered result (estimate, p, adjusted p, family), the marker and the reason when none, flags, and the animal-level r with the same-window position-change rate",
-      "One row per fitted model: formula, n, rank, singularity, CON-group theta, convergence, optimizer check and failure",
+      "One row per heatmap (CC1 A1, CC1 L1, all blocks) x resolution variant x row x phase x sex x contrast: animal-level Hedges g, the post hoc test (model, estimate, SE, KR df, p, unit of analysis: CON animals as units, their 3 cages per sex not modelled; a cage-aware CON test exists only in Stage 29b for the CC1 first-dark-phase rate and shared occupancy), its BH family and q, RES-SUS-only family q, any consumed registered result (estimate, p, adjusted p, family), reportability (the HMM row is not reportable under KNOWN_LIMITATIONS 1), the marker and its robustness (phase-pooled family, other resolutions, leaving out each CON cage, RES-SUS-only family), the reason when none, flags, the animal-level r with the same-window position-change rate, and the leave-one-CON-cage-out g of every CON contrast (z not re-standardised)",
+      "One row per fitted model: formula, n, rank, singularity, convergence, optimizer check and failure",
       "One row per heatmap x variant x row x animal x epoch: the displayed row score with Batch and the data-version-2 cage episode",
       "Canonical per-block metrics (data version 2): rate, shared zone use, occupancy dispersion, fragmentation, >= 40-s and >= 60-s positional inactivity",
       "Hash and recomputation gates of the canonical metrics against ebb_v101, the Stage 29 release, s30b and the Stage 30 run",
-      "Declared bin width per component and variant, with the measurement-based rationale",
+      "Declared bin width per component and variant, with its rationale (continuity with the frozen config and Stage 09; measurement grounds where a width is adequate)",
       "SIS batch means of early movement and CombZ, within-batch r and slope per sex, r of the batch means (descriptive)",
-      "Per-animal share of bins per HMM display state, summed within label, mean over CC1-CC4, both resolutions"
+      "Per-animal share of bins per HMM display state, summed within label, mean over CC1-CC4, both resolutions",
+      "Light blocks of the heatmap windows without any position update (animal, group, sex, batch, cage change, block, cage episode)"
     ),
     MultipleTesting = c(
       "BH across all estimable inference-family Domain x three contrasts within Sex x Phase at the configured primary HMM resolution",
@@ -7817,10 +8024,11 @@ stats_reporting_guide <- bind_rows(
       "Not applicable",
       "Not applicable",
       "Not applicable; descriptive",
+      "Not applicable; descriptive",
       "Not applicable; descriptive"
     ),
     ManuscriptUse = c(
-      "Exploratory Stage 14 model for the heatmap's historical domains (not used for the Stage 14 heatmap's markers; still read by the Stage 27 legacy ED candidate broad_domain_map, which outlines q < 0.05 cells); n = distinct animals, clustered in cages",
+      "Exploratory Stage 14 model for the heatmap's historical domains (not used for the Stage 14 heatmap's markers; still read by the Stage 27 legacy ED candidate broad_domain_map, which outlines q < 0.05 cells); n = distinct animals, clustered in cages; like the heatmap's CON tests it counts animals, and it has no Batch or cage terms at all, so its CON-contrast p-values are more liberal still; superseded for display by systems_sis_domain_heatmap_source_data.csv",
       "Required resolution-sensitivity source table and compact panel",
       "Audit trail for exact reconstruction of HMM-dependent tiles",
       "Source data for the domain heatmaps and dashboards (Fig_sis_active_inactive_domain_heatmap*, Fig_sis_heatmap_cc1_*, Fig_integrated_systems_dashboard*)",
@@ -7830,7 +8038,8 @@ stats_reporting_guide <- bind_rows(
       "Audit trail of the canonical recomputation",
       "Audit of the resolution variants",
       "Source data for Fig_sis_early_prediction_first_active_12h",
-      "Source data for Fig_sis_rest_or_state_architecture*"
+      "Source data for Fig_sis_rest_or_state_architecture*",
+      "Disclosure for the light-phase heatmap rows (KNOWN_LIMITATIONS 3): consolidated rest in one position or an undetected tag; listed, not excluded"
     )
   )
 )
