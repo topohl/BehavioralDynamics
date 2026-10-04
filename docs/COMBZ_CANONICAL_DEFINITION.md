@@ -83,6 +83,15 @@ the former values as `*_as_recorded` and the §4b corrections applied, rounded t
 | I | `adrenal_weight` | endocrine organ load | adrenal weight ratio | `100 × adrenal / body weight` | **yes (×−1)** | less adrenal hypertrophy |
 | J | `spleen_weight` | immune organ load | spleen weight ratio | `100 × spleen / body weight` | **yes (×−1)** | less splenic load |
 
+**Weighing days of `weight_dev`.** In the workbook's `bodyWeight` sheet, column Q
+(`weightChange`) is `J − F` in every B1–B5 row (final weighing minus the CC1-day
+weighing, about 17 days) and `J − G` in every B6 row (final weighing minus the
+CC2-day weighing, 16 days; B6's final weighing came 8 days after CC4 instead of 5,
+so `J − F` would span 20 days). This is intended (confirmed 2026-10-04), and the
+canonical table reproduces it exactly. In B6 the growth interval therefore starts
+after the CC1 episode; keep this in mind when `weight_dev` is related to
+first-night behaviour.
+
 The three inversions are what make every component point the same way, so that
 a higher composite always means a more resilient-like animal. In the upstream
 workbook the inverted columns are literally named `OverallInvertA`,
