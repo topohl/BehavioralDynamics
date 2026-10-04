@@ -23,14 +23,23 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # Full history: test_frozen_code_identity.R compares the code sets of the registered runs with the commits that
+      # ran them, and test_behavior_config_identity.R reads the frozen configuration through git show.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: '4.5.1'
           use-public-rspm: true
 
-      # Exactly what the portable suite reaches, determined empirically by
+      # The model stack (data.table, lubridate, lme4, lmerTest, pbkrtest, clubSandwich, sandwich, reformulas) is needed
+      # since the portable suite tests the inference engines of Stages 14, 29, 29b, 30 and 32 on synthetic data;
+      # emmeans and glmmTMB cover optional sections. Versions are not pinned here: the frozen stages pin their own
+      # (S32_PACKAGES) and never run in CI.
+      #
+      # Earlier note: exactly what the portable suite reaches, determined empirically by
       # re-running all 17 tests with candidate packages masked at
       # loadNamespace(). The full analysis stack -- lme4, lmerTest, emmeans,
       # readxl, mgcv, depmixS4, glmnet, igraph, openxlsx, lubridate,
@@ -58,6 +67,16 @@ jobs:
             any::ggplot2
             any::jsonlite
             any::digest
+            any::data.table
+            any::lubridate
+            any::lme4
+            any::lmerTest
+            any::pbkrtest
+            any::clubSandwich
+            any::sandwich
+            any::reformulas
+            any::emmeans
+            any::glmmTMB
 
       - name: Parse every active R script
         shell: bash
@@ -65,7 +84,8 @@ jobs:
           set -euo pipefail
           Rscript - <<'EOF'
           files <- list.files(c("Analysis", "Functions", "Formatting",
-                                "Testing/tests", "manuscript"),
+                                "Testing/tests", "Testing/audits",
+                                "Maintenance", "manuscript"),
                               pattern = "[.][Rr]$", recursive = TRUE,
                               full.names = TRUE)
           files <- files[!grepl("_archive|/legacy/", files)]
