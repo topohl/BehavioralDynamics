@@ -75,21 +75,21 @@ for (k in c("single", "pooled")) {
 }
 check(grepl("animals as units", MMM_DHM_CON_UNIT_NOTE, fixed = TRUE), "B: the CON unit is stated")
 check(!exists("dhm_batch_level_t") && !exists("MMM_DHM_CON_SINGULAR_TOL"), "B: no singular-variance switching remains")
-check(identical(MMM_DHM_PALETTE$version, "manuscript_palette_v1") &&
-        identical(unname(MMM_DHM_PALETTE$group), c("#8A8A8A", "#2E7D91", "#D1543A")) &&
+check(identical(MMM_DHM_PALETTE$version, "manuscript_palette_v2") &&
+        identical(unname(MMM_DHM_PALETTE$group), c("#3E3C6F", "#C6C3BB", "#E63A48")) &&
         identical(names(MMM_DHM_PALETTE$group), c("CON", "RES", "SUS")) &&
-        identical(unname(MMM_DHM_PALETTE$diverging), c("#4C566A", "#D8D2C7", "#D98B3A")),
-      "B: the figure palette is the pinned manuscript palette v1")
+        identical(unname(MMM_DHM_PALETTE$diverging), c("#4C566A", "#D8D2C7", "#96460A")),
+      "B: the figure palette is the pinned manuscript palette v2")
 check(MMM_DHM_PALETTE$typography$minimum_pt >= 5 && MMM_DHM_PALETTE$typography$annotation_pt >= MMM_DHM_PALETTE$typography$minimum_pt,
       "B: no text below the 5-pt minimum")
 check(toupper(dhm_fill_hex(0, 1.75)) == "#D8D2C7" && toupper(dhm_fill_hex(-9, 1.75)) == "#4C566A" &&
-        toupper(dhm_fill_hex(9, 1.75)) == "#D98B3A" && is.na(dhm_fill_hex(NA_real_, 1.75)),
+        toupper(dhm_fill_hex(9, 1.75)) == "#96460A" && is.na(dhm_fill_hex(NA_real_, 1.75)),
       "B: tile fills follow the diverging scale (midpoint 0, squished at the limits)")
-check(identical(dhm_text_on(c("#4C566A", "#D8D2C7", "#D98B3A", "#FFFFFF", "#000000")), c("white", "black", "black", "black", "white")),
+check(identical(dhm_text_on(c("#4C566A", "#D8D2C7", "#96460A", "#FFFFFF", "#000000")), c("white", "black", "white", "black", "white")),
       "B: tile text takes the colour with the higher contrast")
-check(grepl("dae6676", MMM_DHM_PALETTE$source, fixed = TRUE) && grepl("a16f55a", MMM_DHM_PALETTE$source, fixed = TRUE) &&
+check(grepl("176fc7e", MMM_DHM_PALETTE$source, fixed = TRUE) &&
         grepl("^[0-9a-f]{64}$", MMM_DHM_PALETTE$source_sha256) && grepl("^[0-9a-f]{40}$", MMM_DHM_PALETTE$source_git_blob),
-      "B: the palette pin records its source commits, file hash and git blob")
+      "B: the palette pin records its source commit, file hash and git blob")
 if (exists("mmm_diverging_colors")) {
   check(identical(unname(mmm_diverging_colors[c("low", "mid", "high")]), unname(MMM_DHM_PALETTE$diverging[c("low", "mid", "high")])),
         "B: the shared MMMSociability diverging scale equals the pinned manuscript scale")

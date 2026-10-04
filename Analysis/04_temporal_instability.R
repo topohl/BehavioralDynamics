@@ -62,11 +62,7 @@ metrics_to_analyze <- c(primary_metric, secondary_metrics)
 # seconds scale with bin size. Falls back to Proximity if ProximityFraction is absent.
 proximity_col <- "ProximityFraction"
 
-group_colors <- c(
-  "CON" = "#3d3b6e",
-  "SUS" = "#e63947",
-  "RES" = "#C6C3BB"
-)
+group_colors <- mmm_group_colors[c("CON", "SUS", "RES")]
 group_levels <- c("CON", "RES", "SUS")
 pairwise_contrasts <- c("RES-CON", "SUS-CON", "SUS-RES")
 instability_outcomes <- c("mean", "cv", "fano", "rmssd", "acf1")
@@ -1230,12 +1226,12 @@ p_behavioral_patterns <- ggplot(pattern_plot_tbl, aes(Phase, ReadoutLabel, fill 
   ) +
   scale_fill_manual(
     values = c(
-      "Persistent group difference" = "#e63947",
+      "Persistent group difference" = MMM_PALETTE_GROUP[["SUS"]],
       "Emergent later difference" = "#f08a94",
       "Sensitizing divergence from first cage change" = "#b71d2a",
-      "Habituating/converging change from first cage change" = "#3d3b6e",
+      "Habituating/converging change from first cage change" = MMM_PALETTE_GROUP[["CON"]],
       "Acute response with longitudinal change" = "#8f3f71",
-      "Acute-only response" = "#C6C3BB",
+      "Acute-only response" = MMM_PALETTE_GROUP[["RES"]],
       "No clear prioritized pattern" = "grey92"
     ),
     drop = FALSE

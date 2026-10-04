@@ -5,9 +5,9 @@
 # One theme and one palette for every manuscript-facing GAMM figure, so the
 # Active and Inactive panels are directly comparable by eye.
 #
-# Palette is colour-vision-deficiency safe (Okabe-Ito blue/vermillion against a
-# neutral charcoal control) and prints legibly in greyscale because the three
-# lightnesses differ.
+# The colours are the manuscript palette (Functions/manuscript_palette.R): navy
+# CON, beige RES, red SUS. The three lightnesses differ, so the groups stay
+# apart in greyscale; line type and shape carry them redundantly.
 # ================================================================
 
 suppressPackageStartupMessages({
@@ -15,11 +15,19 @@ suppressPackageStartupMessages({
   library(scales)
 })
 
+if (!exists("MMM_PALETTE_GROUP", inherits = TRUE)) {
+  .mmm_palette_file <- file.path(c(if (exists("MMM_REPO_ROOT", inherits = TRUE)) get("MMM_REPO_ROOT", inherits = TRUE), getwd()),
+                                 "Functions", "manuscript_palette.R")
+  .mmm_palette_file <- .mmm_palette_file[file.exists(.mmm_palette_file)][1]
+  if (is.na(.mmm_palette_file)) stop("Functions/manuscript_palette.R not found; run from the repository root", call. = FALSE)
+  source(.mmm_palette_file, local = TRUE)
+  rm(.mmm_palette_file)
+}
 # FIXED manuscript identity colours. Do not substitute, lighten or darken.
-MMM_GROUP_COLOURS <- c(CON = "#3E3C6F", RES = "#C6C3BB", SUS = "#E63A48")
-# Diverging scale for signed effects, the manuscript palette (= mmm_diverging_colors in
-# behavioral_dynamics_helpers.R): blue-grey = lower, orange = higher, warm grey at zero.
-MMM_DIVERGING_COLOURS <- c(low = "#4C566A", mid = "#D8D2C7", high = "#D98B3A")
+MMM_GROUP_COLOURS <- MMM_PALETTE_GROUP
+# Diverging scale for signed effects (= mmm_diverging_colors in behavioral_dynamics_helpers.R): blue-grey = lower,
+# dark orange = higher, warm grey at zero.
+MMM_DIVERGING_COLOURS <- MMM_PALETTE_DIVERGING
 MMM_GROUP_LEVELS <- c("CON", "RES", "SUS")
 
 # RES (#C6C3BB) is deliberately light, so colour must never be the ONLY group

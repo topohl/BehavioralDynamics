@@ -51,11 +51,7 @@ n_states <- 4
 # with bin size and can dominate k-means/PCA for trivial duration reasons.
 proximity_col <- "ProximityFraction"
 
-group_colors <- c(
-  "CON" = "#3d3b6e",
-  "SUS" = "#e63947",
-  "RES" = "#C6C3BB"
-)
+group_colors <- mmm_group_colors[c("CON", "SUS", "RES")]
 group_levels <- c("CON", "RES", "SUS")
 pairwise_contrasts <- c("RES-CON", "SUS-CON", "SUS-RES")
 state_colors <- c("#2F4858", "#7E9F35", "#F2A65A", "#B23A48", "#6D597A", "#4D908E")

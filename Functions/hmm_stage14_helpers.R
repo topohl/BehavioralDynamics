@@ -1309,24 +1309,30 @@ dhm_minus <- function(x, digits = 2) {
   sub("^-", "−", formatC(r, format = "f", digits = digits))
 }
 
-# ---------------------------------------------------------------- manuscript figure format (palette v1)
-# A pinned copy of Exp9_manuscript config/manuscript_palette.yml, so the Stage
-# 14 figures match the manuscript's own figure renderers without reading
-# another repository at run time. Source: master commit dae6676 (2026-10-03),
-# identical to branch behaviour-v101-stage30-candidates commit a16f55a; file
-# sha256 below. The diverging scale also equals mmm_diverging_colors, the
-# shared MMMSociability scale.
+# ---------------------------------------------------------------- manuscript figure format (palette v2)
+# The manuscript's figure format (Exp9_manuscript config/manuscript_palette.yml), so the Stage 14 figures match the
+# manuscript's own figure renderers without reading another repository at run time. Group and diverging colours and
+# the source pin come from Functions/manuscript_palette.R, the single colour source; the remaining roles, typography,
+# line widths and canvas are copied from the same file (they are identical in v1 and v2).
 # Text and line sizes are final-size points on a canvas of at most 183 x 170
 # mm; line widths use the manuscript renderers' pt -> linewidth convention
 # (x 0.75); explanatory text belongs in the figure legend, not in the artwork.
+if (!exists("MMM_PALETTE_GROUP", inherits = TRUE)) {
+  .mmm_palette_file <- file.path(c(if (exists("MMM_REPO_ROOT", inherits = TRUE)) get("MMM_REPO_ROOT", inherits = TRUE), getwd()),
+                                 "Functions", "manuscript_palette.R")
+  .mmm_palette_file <- .mmm_palette_file[file.exists(.mmm_palette_file)][1]
+  if (is.na(.mmm_palette_file)) stop("Functions/manuscript_palette.R not found; run from the repository root", call. = FALSE)
+  source(.mmm_palette_file, local = TRUE)
+  rm(.mmm_palette_file)
+}
 MMM_DHM_PALETTE <- list(
-  version = "manuscript_palette_v1",
-  source = "Exp9_manuscript config/manuscript_palette.yml @ master dae6676 (= branch behaviour-v101-stage30-candidates a16f55a)",
+  version = MMM_PALETTE_VERSION,
+  source = paste0(MMM_PALETTE_SOURCE$repository, " ", MMM_PALETTE_SOURCE$file, " @ master ", substr(MMM_PALETTE_SOURCE$commit, 1, 7)),
   # source_sha256: bytes of the CRLF working copy on S:; source_git_blob: the line-ending independent identity
-  source_sha256 = "4abeafdd2cbbd3b605db8fb8cc93acc2f6d3a36106d5726781a12d6f02def6a3",
-  source_git_blob = "a7be9f395a22db37290199e4b04ec6d3c14e34a3",
-  group = c(CON = "#8A8A8A", RES = "#2E7D91", SUS = "#D1543A"),
-  diverging = c(low = "#4C566A", mid = "#D8D2C7", high = "#D98B3A"),
+  source_sha256 = MMM_PALETTE_SOURCE$sha256,
+  source_git_blob = MMM_PALETTE_SOURCE$git_blob,
+  group = MMM_PALETTE_GROUP,
+  diverging = MMM_PALETTE_DIVERGING,
   evidence = c(supported = "#1F3D52", descriptive = "#B9B9B4", not_evaluable = "#D8D6D0", not_audited = "#E6E4DF",
                qc_context = "#B08968"),
   claimability = c(claimable = "#1F3D52", claimable_with_caveat = "#5B7C93", not_claimable = "#D1543A"),

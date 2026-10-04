@@ -1,5 +1,14 @@
 # Render the fixed Stage 09 headline model from persisted animal predictions and
 # full-refit outcome-permutation draws. Group is descriptive metadata only.
+# Group colours: Functions/manuscript_palette.R (the single colour source).
+if (!exists("MMM_PALETTE_GROUP", inherits = TRUE)) {
+  .mmm_palette_file <- file.path(c(if (exists("MMM_REPO_ROOT", inherits = TRUE)) get("MMM_REPO_ROOT", inherits = TRUE), getwd()),
+                                 "Functions", "manuscript_palette.R")
+  .mmm_palette_file <- .mmm_palette_file[file.exists(.mmm_palette_file)][1]
+  if (is.na(.mmm_palette_file)) stop("Functions/manuscript_palette.R not found; run from the repository root", call. = FALSE)
+  source(.mmm_palette_file, local = TRUE)
+  rm(.mmm_palette_file)
+}
 stage09_loao_figure <- function(predictions, performance, permutations,
                                 model_id = "movement_mean", outcome = "CombZ") {
   needed_pred <- c("Model", "observed", "predicted", "Group", "Sex")
@@ -52,8 +61,7 @@ stage09_loao_figure <- function(predictions, performance, permutations,
     ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed",
                          linewidth = 0.3, colour = "grey60") +
     ggplot2::geom_point(size = 1.8, alpha = 0.78) +
-    ggplot2::scale_colour_manual(values = c(CON = "#3d3b6e", RES = "#C6C3BB",
-                                            SUS = "#d45b58"), drop = FALSE) +
+    ggplot2::scale_colour_manual(values = MMM_PALETTE_GROUP, drop = FALSE) +
     ggplot2::scale_shape_manual(values = c(Female = 16, Male = 17), drop = FALSE) +
     ggplot2::guides(colour = ggplot2::guide_legend(order = 1, nrow = 1),
                     shape = ggplot2::guide_legend(order = 2, nrow = 1)) +

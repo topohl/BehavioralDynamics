@@ -155,14 +155,22 @@ mmm_assert_output_path_budget <- function(paths,
   invisible(TRUE)
 }
 
+# Group and diverging colours come from Functions/manuscript_palette.R, the single colour source (manuscript palette
+# v2): navy CON, beige RES, red SUS; blue-grey = lower, dark orange = higher, warm grey at zero.
+if (!exists("MMM_PALETTE_GROUP", inherits = TRUE)) {
+  .mmm_palette_file <- file.path(c(if (exists("MMM_REPO_ROOT", inherits = TRUE)) get("MMM_REPO_ROOT", inherits = TRUE), getwd()),
+                                 "Functions", "manuscript_palette.R")
+  .mmm_palette_file <- .mmm_palette_file[file.exists(.mmm_palette_file)][1]
+  if (is.na(.mmm_palette_file)) stop("Functions/manuscript_palette.R not found; run from the repository root", call. = FALSE)
+  source(.mmm_palette_file, local = TRUE)
+  rm(.mmm_palette_file)
+}
 mmm_group_levels <- c("CON", "RES", "SUS")
-mmm_group_colors <- c("CON" = "#3d3b6e", "RES" = "#C6C3BB", "SUS" = "#e63947", "All" = "grey55")
-mmm_pair_colors <- c("RES-CON" = "#3d3b6e", "SUS-CON" = "#e63947", "SUS-RES" = "#8A817C")
+mmm_group_colors <- c(MMM_PALETTE_GROUP, "All" = "grey55")
+mmm_pair_colors <- c("RES-CON" = MMM_PALETTE_GROUP[["CON"]], "SUS-CON" = MMM_PALETTE_GROUP[["SUS"]], "SUS-RES" = "#8A817C")
 mmm_state_colors <- c("#2F4858", "#4D908E", "#7E9F35", "#F2A65A", "#B23A48", "#6D597A")
-# Shared diverging scale for signed effects (e.g. Hedges g): the manuscript
-# palette (Exp9_manuscript config/manuscript_palette.yml, master dae6676 =
-# branch a16f55a): blue-grey = lower, orange = higher, warm grey at zero.
-mmm_diverging_colors <- c(low = "#4C566A", mid = "#D8D2C7", high = "#D98B3A")
+# Shared diverging scale for signed effects (e.g. Hedges g).
+mmm_diverging_colors <- MMM_PALETTE_DIVERGING
 
 safe_name <- function(x) {
   x %>%

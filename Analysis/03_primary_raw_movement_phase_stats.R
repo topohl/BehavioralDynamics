@@ -61,7 +61,7 @@ if (!exists("ensure_dir")) {
   }
 }
 if (!exists("mmm_group_levels")) mmm_group_levels <- c("CON", "RES", "SUS")
-if (!exists("mmm_group_colors")) mmm_group_colors <- c("CON" = "#3d3b6e", "RES" = "#C6C3BB", "SUS" = "#e63947")
+if (!exists("mmm_group_colors")) mmm_group_colors <- MMM_PALETTE_GROUP
 
 safe_mean <- function(x) {
   x <- x[is.finite(x)]

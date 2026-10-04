@@ -66,12 +66,7 @@ contact_quantile <- 0.75
 # some same-position contact in the bin. Set FALSE for quantile-thresholded edges.
 use_positive_dyad_weight <- TRUE
 
-group_colors <- c(
-  "CON" = "#3d3b6e",
-  "SUS" = "#e63947",
-  "RES" = "#C6C3BB",
-  "All" = "grey55"
-)
+group_colors <- mmm_group_colors[c("CON", "SUS", "RES", "All")]
 group_levels <- c("CON", "RES", "SUS", "All")
 pairwise_contrasts <- c("RES-CON", "SUS-CON", "SUS-RES")
 

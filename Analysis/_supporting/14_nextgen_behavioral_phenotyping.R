@@ -37,6 +37,7 @@ suppressPackageStartupMessages({
 repo_root <- "C:/Users/topohl/Documents/GitHub/MMMSociability"
 bin_level <- "5min_based"
 source(file.path(repo_root, "Functions/project_paths.R"))
+source(file.path(repo_root, "Functions/manuscript_palette.R"))
 project_root <- mmm_project_root()
 
 input_file <- file.path(mmm_derived_metrics_output_root(project_root), bin_level, "all_behavior_metrics.csv")
@@ -61,7 +62,7 @@ state_labels <- c("Inactive", "Explore", "Social", "Burst")
 random_seed <- 123
 
 group_levels <- c("CON", "RES", "SUS")
-group_colors <- c("CON" = "#3d3b6e", "RES" = "#C6C3BB", "SUS" = "#e63947")
+group_colors <- MMM_PALETTE_GROUP
 sex_levels <- c("Female", "Male")
 
 # -----------------------------

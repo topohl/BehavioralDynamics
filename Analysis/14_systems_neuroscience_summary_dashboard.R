@@ -197,7 +197,7 @@ min_n_per_group <- 2
 
 # Plot colors. CON/RES/SUS are ordered deliberately.
 group_levels <- c("CON", "RES", "SUS")
-group_colors <- c("CON" = "#3d3b6e", "RES" = "#C6C3BB", "SUS" = "#e63947")
+group_colors <- mmm_group_colors[c("CON", "RES", "SUS")]
 sex_levels <- c("Female", "Male")
 
 # ------------------------------------------------
@@ -2829,7 +2829,7 @@ p_module_scorecard <- module_scorecards_base %>%
   ggplot(aes(strongest_abs_hedges_g, Module, fill = n_duration_robust)) +
   geom_col(width = 0.68, colour = "white", linewidth = 0.18) +
   geom_text(aes(label = paste0("n=", n_features, "\nrobust=", n_duration_robust)), hjust = -0.06, size = 1.85, lineheight = 0.85) +
-  scale_fill_gradient(low = "#C6C3BB", high = "#3d3b6e", na.value = "grey85") +
+  scale_fill_gradient(low = MMM_PALETTE_GROUP[["RES"]], high = MMM_PALETTE_GROUP[["CON"]], na.value = "grey85") +
   coord_cartesian(clip = "off") +
   labs(
     title = "Module scorecard",
@@ -4174,8 +4174,8 @@ p_ethological_phase_transition_structure <- plot_domain_summary(
 p_linear_vs_nonlinear_model_ladder <- if (nrow(sis_incremental_ladder$performance) > 0) {
   ggplot(sis_incremental_ladder$performance, aes(factor(ModelOrder), cv_r2, group = 1)) +
     geom_hline(yintercept = 0, linewidth = 0.2, colour = "grey70") +
-    geom_line(linewidth = 0.35, colour = "#3d3b6e") +
-    geom_point(size = 1.8, colour = "#e63947") +
+    geom_line(linewidth = 0.35, colour = MMM_PALETTE_GROUP[["CON"]]) +
+    geom_point(size = 1.8, colour = MMM_PALETTE_GROUP[["SUS"]]) +
     geom_text(aes(label = paste0("Delta=", formatC(delta_cv_r2_vs_magnitude, format = "f", digits = 2))), vjust = -0.8, size = 2) +
     scale_x_discrete(labels = sis_incremental_ladder$performance$Model) +
     labs(
@@ -4659,7 +4659,7 @@ if (length(available_outcomes) > 0) {
       y = "LOOCV R2",
       fill = "Analysis set"
     ) +
-    scale_fill_manual(values = c(full = "#3d3b6e", excluding_short_duration = "#e63947"), drop = FALSE) +
+    scale_fill_manual(values = c(full = MMM_PALETTE_GROUP[["CON"]], excluding_short_duration = MMM_PALETTE_GROUP[["SUS"]]), drop = FALSE) +
     make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "top")
 
@@ -6800,7 +6800,7 @@ p_hmm_resolution_sensitivity <- hmm_resolution_sensitivity %>%
   geom_point(size = 1.35) +
   geom_text(aes(label = effect_label), nudge_x = 0.08, size = 1.7, show.legend = FALSE) +
   facet_grid(Sex ~ Phase) +
-  scale_colour_manual(values = c("RES-CON" = "#3d3b6e", "SUS-CON" = "#e63947", "SUS-RES" = "#8A817C")) +
+  scale_colour_manual(values = mmm_pair_colors) +
   labs(
     title = "HMM-resolution sensitivity of behavioral state architecture",
     subtitle = "Points/95% CI: repeated-measures model contrast; labels: animal-level Hedges g",
@@ -6970,7 +6970,7 @@ p_sis_repeated_adaptation <- plot_domain_trajectory("Repeated adaptation / recov
 save_plot_svg_pdf(p_sis_repeated_adaptation, file.path(output_dir, "figures/publication_panels/Fig_sis_repeated_active_phase_adaptation"),
                   width = 89, height = 56)
 
-# ---- J. Heatmap figures (manuscript figure format and palette v1) --------------------
+# ---- J. Heatmap figures (manuscript figure format and palette v2) --------------------
 # The artwork carries no title, subtitle or caption: the legend text for every
 # figure is in tables/systems_sis_dashboard_figure_legend_draft.csv. One colour
 # scale for every heatmap and variant, so the dashboards collect one colourbar.
