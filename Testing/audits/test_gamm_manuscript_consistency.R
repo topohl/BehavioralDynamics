@@ -137,8 +137,8 @@ ok("all manuscript q values trace to their registry")
 cat("\n8/9/10. upstream parity contracts\n")
 for (t in c("Testing/tests/test_stage09_primary_window.R",
             "Testing/tests/test_first_night_window_parity.R",
-            "Testing/tests/test_acute_active_window_parity.R",
-            "Testing/tests/test_acute_phase_window_parity.R")) {
+            "Testing/audits/test_acute_active_window_parity.R",
+            "Testing/audits/test_acute_phase_window_parity.R")) {
   r <- system2("Rscript", t, stdout = TRUE, stderr = TRUE)
   check(!any(grepl("FAIL|^Error|^Fehler", r)), paste0("must still pass: ", basename(t)))
   ok(paste0("passes: ", basename(t)))

@@ -33,6 +33,7 @@ The portable checks include:
 | Stage 19 / Stage 06 | `test_stage19_group_sex_labels.R`, `test_stage19_identity_and_stage06_schema.R` |
 | Preprocessing / boundaries | `test_animalpos_preprocessing_helpers.R`, `test_downstream_boundary_and_gap_contract.R` |
 | Output/write infrastructure | `test_output_path_length.R`, `test_write_registry_rerun_behavior.R` |
+| Frozen lineage and test safety | `test_frozen_code_identity.R` (pinned code bytes, line endings, code sets of the registered runs), `test_frozen_input_guard.R` (the runner and the frozen-input guard), `test_sourced_scripts_guarded.R` (every script a test sources only defines things) |
 
 Several of these scripts *opportunistically* read the canonical E9 tables when
 the `S:` project root happens to be mounted, but every such read is guarded by
@@ -55,7 +56,7 @@ Forensic and validation analyses that **require the E9 local dataset** under
 S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID
 ```
 
-Fifty scripts. They read canonical pipeline outputs, and many of them also
+Fifty-three scripts. They read canonical pipeline outputs, and many of them also
 *write* audit tables into the local analysis tree. The saved originals of the
 older audits are retained under
 `analysis_ready/history/original_layout/12_systems_neuroscience_summary/5min_based/audit_*/`,
@@ -97,15 +98,19 @@ its August reports, retained under `history/original_layout/03_derived_metrics/q
 older first-night, HMM, phase-impact, and Stage 09 forensic audits read the
 retained numbered Stage 01 original through its archive receipt and require
 input-lineage review before rerun.
-- **Data-dependent contract checks** — `test_animal_identity_contract.R` and
-  `test_reporting_architecture.R`.
+- **Data-dependent contract checks** — `test_animal_identity_contract.R`,
+  `test_reporting_architecture.R`, `test_acute_active_window_parity.R`,
+  `test_acute_phase_window_parity.R` and `test_gamm_manuscript_consistency.R`.
 
-> **Why two `test_*.R` files live here rather than in `tests/`:** both read
+> **Why five `test_*.R` files live here rather than in `tests/`:** the first two read
 > the mounted RFID project data (and, for the reporting check, a list of
 > required canonical artifacts) *unconditionally* —
 > there is no `file.exists()` guard. They are genuine data-dependent contract
 > checks despite the `test_` prefix, and placing them in `tests/` would break CI.
 > Classification here follows what the code actually does, not the filename.
+> The acute-window parity checks (live Stage 01 table throughout) and the GAMM
+> manuscript consistency check (Stage 26 tree; it also runs four parity tests
+> through `Rscript`) moved here on 2026-10-04 for the same reason.
 
 Several audits are chained: they consume a table written by an earlier audit
 rather than by a production stage. Notable chains are recorded in each script's

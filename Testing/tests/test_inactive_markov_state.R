@@ -69,34 +69,40 @@ ok(sprintf("proof: %d blocks, %d START (= blocks + gaps)", pf$n_blocks, pf$n_STA
 
 # ------------------------------------------------------------ 2. real data
 cat("\n2. real CC1 Inactive window\n")
-PROJECT_ROOT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-dat <- read_csv(file.path(mmm_derived_metrics_output_root(PROJECT_ROOT), "10min_based",
-                          "all_behavior_metrics.csv"),
-                col_select = c("AnimalNum","Batch","CageChange","Group","Sex","Phase",
-                               "BinStart","BinSizeSec","Movement","SourceFile"),
-                show_col_types = FALSE, progress = FALSE)
-w <- mmm_select_acute_phase_window(dat, 600, cage_change = "CC1", phase = "Inactive")
-ws <- mmm_build_prev_state(w, block_cols = "target_cage_change")
+# Reads the E9 Stage 01 table when the project root is mounted; skipped otherwise (Testing/README.md).
+PROJECT_ROOT <- getOption("mmm.project_root",
+  "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID")
+live_file <- file.path(mmm_derived_metrics_output_root(PROJECT_ROOT), "10min_based", "all_behavior_metrics.csv")
+if (!file.exists(live_file)) {
+  message("SKIP section 2: the Stage 01 input is not available at ", live_file)
+} else {
+  dat <- read_csv(live_file,
+                  col_select = c("AnimalNum","Batch","CageChange","Group","Sex","Phase",
+                                 "BinStart","BinSizeSec","Movement","SourceFile"),
+                  show_col_types = FALSE, progress = FALSE)
+  w <- mmm_select_acute_phase_window(dat, 600, cage_change = "CC1", phase = "Inactive")
+  ws <- mmm_build_prev_state(w, block_cols = "target_cage_change")
 
-check(all(levels(ws$PrevState) == MMM_PREV_STATE_LEVELS), "PrevState must have exactly 3 levels")
-check(!any(is.na(ws$PrevState)), "PrevState must never be NA")
-pf2 <- mmm_prev_state_proof(ws, block_cols = "target_cage_change")
-check(pf2$every_block_starts_with_START, "every real window must open with START")
-check(pf2$start_count_matches, "real START count must equal windows + gaps")
-# Coverage is complete in this window, so there should be exactly one START per animal.
-check(pf2$n_START == dplyr::n_distinct(ws$AnimalNum),
-      sprintf("with complete coverage START must equal n animals (%d vs %d)",
-              pf2$n_START, dplyr::n_distinct(ws$AnimalNum)))
-ok(sprintf("%d rows, %d blocks, %d START, %d INACTIVE, %d ACTIVE",
-           pf2$n_rows, pf2$n_blocks, pf2$n_START, pf2$n_INACTIVE, pf2$n_ACTIVE))
+  check(all(levels(ws$PrevState) == MMM_PREV_STATE_LEVELS), "PrevState must have exactly 3 levels")
+  check(!any(is.na(ws$PrevState)), "PrevState must never be NA")
+  pf2 <- mmm_prev_state_proof(ws, block_cols = "target_cage_change")
+  check(pf2$every_block_starts_with_START, "every real window must open with START")
+  check(pf2$start_count_matches, "real START count must equal windows + gaps")
+  # Coverage is complete in this window, so there should be exactly one START per animal.
+  check(pf2$n_START == dplyr::n_distinct(ws$AnimalNum),
+        sprintf("with complete coverage START must equal n animals (%d vs %d)",
+                pf2$n_START, dplyr::n_distinct(ws$AnimalNum)))
+  ok(sprintf("%d rows, %d blocks, %d START, %d INACTIVE, %d ACTIVE",
+             pf2$n_rows, pf2$n_blocks, pf2$n_START, pf2$n_INACTIVE, pf2$n_ACTIVE))
 
-tr <- mmm_observed_transitions(ws)
-p01 <- tr %>% filter(.data$PrevState == "INACTIVE") %>% summarise(p = weighted.mean(.data$p_active, .data$n)) %>% pull(.data$p)
-p11 <- tr %>% filter(.data$PrevState == "ACTIVE") %>% summarise(p = weighted.mean(.data$p_active, .data$n)) %>% pull(.data$p)
-check(p01 > 0 && p01 < 0.2, sprintf("activation probability should be small (got %.4f)", p01))
-check(p11 > 0.3 && p11 < 0.7, sprintf("persistence probability should be moderate (got %.4f)", p11))
-check(p11 > p01, "persistence must exceed activation - the process must be state dependent")
-ok(sprintf("observed activation p01 = %.4f, persistence p11 = %.4f", p01, p11))
+  tr <- mmm_observed_transitions(ws)
+  p01 <- tr %>% filter(.data$PrevState == "INACTIVE") %>% summarise(p = weighted.mean(.data$p_active, .data$n)) %>% pull(.data$p)
+  p11 <- tr %>% filter(.data$PrevState == "ACTIVE") %>% summarise(p = weighted.mean(.data$p_active, .data$n)) %>% pull(.data$p)
+  check(p01 > 0 && p01 < 0.2, sprintf("activation probability should be small (got %.4f)", p01))
+  check(p11 > 0.3 && p11 < 0.7, sprintf("persistence probability should be moderate (got %.4f)", p11))
+  check(p11 > p01, "persistence must exceed activation - the process must be state dependent")
+  ok(sprintf("observed activation p01 = %.4f, persistence p11 = %.4f", p01, p11))
+}
 
 # ------------------------------------------------------------ 3. recursion sanity
 cat("\n3. marginal recursion sanity\n")
