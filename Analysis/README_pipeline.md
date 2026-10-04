@@ -2,6 +2,20 @@
 
 This folder is organized as a staged, reviewer-safe pipeline. The scripts remain modular; no scientific models were merged. The staged order below is the intended run order for manuscript-facing analyses.
 
+## Layers
+
+[`STAGE_INVENTORY.csv`](STAGE_INVENTORY.csv) lists every script once with its layer, status, runner profile, output root and write policy; `Testing/tests/test_stage_inventory.R` keeps it complete and consistent with the runner. In short:
+
+| Layer | Scripts | How they run |
+|---|---|---|
+| Frozen lineage | 29 (release v101_dv2_b2ce507), 29b, 30, 32, the bundle writers 16b, 16c and 30b, the CombZ producer, the configuration freezer | once each, into new run or bundle folders, behind identity gates; their code sets are checked by `Testing/tests/test_frozen_code_identity.R` |
+| Inputs the frozen runs pinned | 01, 09, 28 | they rewrite pinned files in place, so the frozen-input guard refuses them on the live root |
+| Systems dashboard and heatmaps | 14, with inputs 04-09, 11-13 and supporting 13/14 | guarded sandbox, then promotion with a producer-rerun record |
+| CC4 candidates | 31, 31b, 31c, 31d | manually, into new run-id folders |
+| Legacy systems analyses | 02-07, 10, 11, 13, 15, supporting 13/14 | runner profile `legacy_systems` or individually |
+| Legacy products | 16, 27, the Figure 1 bridge builders, the release builder | only behind `MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS` (the release builder has no gate) |
+| GAMM family | 20-26 | individually; status to be decided |
+
 ## Run Order
 
 **CC4 grid-associated period:** the manually invoked
@@ -44,7 +58,7 @@ See [`docs/CC4_PHENOTYPE_STATISTICS.md`](../docs/CC4_PHENOTYPE_STATISTICS.md).
 | 05 | `05_behavioral_state_space.R` | Behavioral state-space features | Stage 01 metrics | State diversity and switching tables |
 | 06 | `06_dynamic_social_networks.R` | Dynamic social network features | Stage 02 dyadic contacts, with metric fallback | Animal-level social dynamics and network summaries |
 | 07 | `07_gamm_trajectory_features.R` | GAMM trajectory-derived features | Stage 01 metrics | Trajectory feature tables |
-| 08 | `08_hmm_behavioral_states_optional.R` | Optional HMM state model with canonical identity and explicit 10-min primary / 5-min sensitivity | Stage 01 metrics plus the current canonical Stage 01 roster | HMM state assignments, transitions, occupancy, identity/sequence-quality/model-fit provenance |
+| 08 | `08_hmm_behavioral_states_optional.R` | HMM state model (required by Stage 14; the file name is historical) with canonical identity and explicit 10-min primary / 5-min sensitivity | Stage 01 metrics plus the current canonical Stage 01 roster | HMM state assignments, transitions, occupancy, identity/sequence-quality/model-fit provenance |
 | 09 | `09_early_prediction_model_ladder.R` | Primary early prediction model ladder: first active 12 h after the first cage change, using 10-min bins | Stage 01 metrics plus endpoint table | Fixed a priori early behavior prediction tables, permutation tests, and figures |
 | 10 | `10_systems_feature_prediction_ladder.R` | Secondary systems-extension prediction ladder | Stage 09 plus optional downstream features | Domain-wise systems prediction comparison |
 | 11 | `11_behavioral_adaptation_kinetics.R` | Adaptation/recovery kinetics | Stage 01 metrics | Recovery and stabilization feature tables |
@@ -108,17 +122,24 @@ Stage 09 and Stage 10 canonical writers flatten old category subfolders and supp
 
 ## Running Everything
 
-Use `run_all_analysis.R` from the repo root or the `Analysis/` folder. Optional stages are controlled through R options:
+Use `run_all_analysis.R` from the repo root or the `Analysis/` folder. It runs nothing by default: choose a named profile or list the stages.
 
 ```r
 options(
-  mmm.run_optional_hmm = TRUE,
+  mmm.pipeline_profile = "legacy_systems",   # 02-07, 10, 11, 13, 15
+  # mmm.pipeline_profile = "heatmap_inputs", # 01, 08, 12, 14: the inputs of the Stage 14 heatmaps, then Stage 14
+  # mmm.pipeline_profile = "early_prediction", # 09
+  # mmm.pipeline_stages = c("04", "05"),     # explicit stages instead of a profile
   mmm.run_systems_extension = TRUE,
   mmm.run_behavior_proteomics = FALSE,
   mmm.continue_on_error = FALSE
 )
 source("Analysis/run_all_analysis.R")
 ```
+
+Stages 01, 09 and 28 rewrite files that the frozen runs pinned by sha256 (the Stage 29 v1.0.1 release `audit/run_inputs.csv`, Stage 32 `audit/input_hashes.csv`). `Functions/frozen_input_guard.R` refuses to start them on the live project root. Set `options(mmm.allow_pinned_overwrite = TRUE)` only after deciding to replace the pinned bytes; the guard then backs them up to `analysis_ready/_migration_control/pinned_inputs_before_stage<id>_<time>/` first. After every stage it re-hashes each pinned file whose size or time stamp changed and stops if the bytes differ (a byte-identical rewrite passes). A sandbox root (`MMM_BEHAVIOR_PROJECT_ROOT`) is not guarded. Stages 01 and 28 call the guard themselves, so a direct `Rscript` run is guarded too; Stage 09 is guarded by the runner only, because it is treated as registered and stays unedited. Stage 14 is rebuilt in a guarded sandbox and promoted, not run on the live root.
+
+Stage 08 is required by Stage 14. Its file name still says "optional" for historical reasons; the option `mmm.run_optional_hmm` no longer exists.
 
 After the required canonical Stage 09 and selected Stage 03 outputs have been generated, assemble the manuscript report separately with:
 
@@ -217,7 +238,7 @@ interpreted), `audit_rfid_legacy_vs_new_domains.R`, and
 
 ## The runner covers stages 01-15 only
 
-`run_all_analysis.R` registers stages 01-15. Stage 00 is an unvalidated
+`run_all_analysis.R` registers stages 01-15 and runs only the profile or stages it is given. Stage 00 is an unvalidated
 manual diagnostic; its row-count thresholds are not chip-loss or exclusion
 criteria. It now requires a single resolution and a fresh run ID, for example:
 

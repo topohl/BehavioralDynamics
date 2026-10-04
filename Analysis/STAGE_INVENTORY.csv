@@ -1,0 +1,54 @@
+script,stage,layer,status,status_confirmed,runner_profile,output_root,write_policy,note
+_pipeline_setup.R,,infrastructure,active,yes,,,none,shared setup sourced by every stage
+run_all_analysis.R,,infrastructure,active,yes,,,none,runs a named profile or an explicit stage list; nothing by default; frozen-input guard around every stage
+run_cookiehab_preprocessing_and_metrics.R,,infrastructure,active,yes,,RFID/cookiehab/,rewrites in place,"cookie-habituation dataset: Formatting preprocessing, Stage 01 and Stage 02 into the cookiehab tree"
+00_qc_tracking_integrity.R,00,quality control,manual diagnostic,yes,,analysis_ready/quality_control/tracking_integrity/runs/<run_id>/,new run-id folder,unvalidated; row-count thresholds are not exclusion criteria
+01_build_multiscale_behavior_metrics.R,01,foundation,active producer,yes,heatmap_inputs,analysis_ready/foundations/behavior_metrics/,rewrites in place; pinned by frozen runs (guarded),10min_based/all_behavior_metrics.csv is pinned by the Stage 29 v1.0.1 release
+02_build_dyadic_rfid_contacts.R,02,foundation,active,yes,legacy_systems,analysis_ready/analyses/dyadic_contacts/,rewrites in place,
+03_primary_raw_movement_phase_stats.R,03,legacy systems,proposed: secondary (read only by the legacy Stages 16 and 27 and the release builder),no,legacy_systems,analysis_ready/pipeline/03_movement_phase_stats/10min/,rewrites in place,status to confirm
+04_temporal_instability.R,04,legacy systems,active,yes,legacy_systems,analysis_ready/analyses/temporal_instability/10sec/,rewrites in place,Stage 14 input
+05_behavioral_state_space.R,05,legacy systems,active,yes,legacy_systems,analysis_ready/analyses/behavioral_state_space/5min/,rewrites in place,Stage 14 input
+06_dynamic_social_networks.R,06,legacy systems,active,yes,legacy_systems,analysis_ready/analyses/dynamic_social_networks/5min/,rewrites in place,Stage 14 input
+07_gamm_trajectory_features.R,07,legacy systems,active,yes,legacy_systems,analysis_ready/analyses/gamm_trajectory_features/10min/,rewrites in place,Stage 14 input
+08_hmm_behavioral_states_optional.R,08,systems dashboard input,active,yes,heatmap_inputs,analysis_ready/analyses/hmm_states/{10min;5min}/,rewrites in place,required by Stage 14; the file name is historical
+09_early_prediction_model_ladder.R,09,frozen-lineage input,treated as registered,yes,early_prediction,analysis_ready/pipeline/09_early_prediction/10min/,rewrites in place; pinned by frozen runs (guarded by the runner),model_ladder_input.csv is pinned by the Stage 29 v1.0.1 release and Stage 32; Stage 14 reads its tables; the script itself stays unedited
+10_systems_feature_prediction_ladder.R,10,legacy systems,proposed: secondary,no,legacy_systems,analysis_ready/pipeline/10_systems_prediction/10min/,rewrites in place,status to confirm; read by neither Stage 14 nor the frozen lineage
+11_behavioral_adaptation_kinetics.R,11,legacy systems,active,yes,legacy_systems,analysis_ready/analyses/adaptation_kinetics/10min/,rewrites in place,Stage 14 input
+12_sleep_like_quiescence_metrics.R,12,systems dashboard input,active,yes,heatmap_inputs,analysis_ready/analyses/sleep_like_inactivity/10min/,rewrites in place,Stage 14 input
+13_ethological_phase_organization.R,13,legacy systems,active,yes,legacy_systems,analysis_ready/analyses/phase_organization/10min/,rewrites in place,Stage 14 input
+14_systems_neuroscience_summary_dashboard.R,14,systems dashboard,active (guarded sandbox and promotion),yes,heatmap_inputs,analysis_ready/analyses/systems_dashboard/5min/,sandbox run then promotion with a producer-rerun record,"reads Stages 01, 04-09, 11-13 and supporting 13/14; never run on the live root; docs/BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md"
+15_behavior_proteomics_integration.R,15,legacy systems,active (opt-in),yes,legacy_systems,analysis_ready/analyses/behavior_proteomics/,rewrites in place,runs only with options(mmm.run_behavior_proteomics = TRUE)
+16_manuscript_behavior_report.R,16,legacy product,legacy (opt-in),yes,,analysis_ready/manuscript/behavior/,legacy opt-in (MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS),also defines output_index.csv and the analysis_ready README
+16b_canonical_behavior_bundle.R,16b,frozen lineage,frozen bundle writer,yes,,analysis_ready/canonical/behavior_bundle/<bundle_id>/,new bundle folder only,wrote ebb_v101_20260929_b2ce507
+16c_figure_support_bundle.R,16c,frozen lineage,frozen bundle writer,yes,,analysis_ready/canonical/figure_support_bundle/<bundle_id>/,new bundle folder only,wrote fsb_v1 and fsb_v2
+19_spatial_occupancy_maps.R,19,secondary,proposed: secondary (spatial),no,,analysis_ready/analyses/spatial_occupancy/,rewrites in place,run individually; status to confirm
+20_first_night_gamm.R,20,GAMM,proposed: decision pending (Extended Data candidate or legacy),no,,analysis_ready/pipeline/20_first_night_gamm/10min/,rewrites in place,no manuscript product reads it
+21_cc1_active_longitudinal_gamm.R,21,GAMM,proposed: decision pending (Extended Data candidate or legacy),no,,analysis_ready/pipeline/21_cc1_active_longitudinal_gamm/10min/,rewrites in place,no manuscript product reads it
+22_repeated_cagechange_acute_gamm.R,22,GAMM,proposed: decision pending (Extended Data candidate or legacy),no,,analysis_ready/pipeline/22_repeated_cagechange_acute_gamm/10min/,rewrites in place,no manuscript product reads it
+23_first_inactive_gamm.R,23,GAMM,proposed: decision pending (Extended Data candidate or legacy),no,,analysis_ready/pipeline/23_first_inactive_gamm/10min/,rewrites in place,no manuscript product reads it
+24_cc1_inactive_longitudinal_gamm.R,24,GAMM,proposed: decision pending (Extended Data candidate or legacy),no,,analysis_ready/pipeline/24_cc1_inactive_longitudinal_gamm/10min/,rewrites in place,no manuscript product reads it
+25_repeated_cagechange_inactive_gamm.R,25,GAMM,proposed: decision pending (Extended Data candidate or legacy),no,,analysis_ready/pipeline/25_repeated_cagechange_inactive_gamm/10min/,rewrites in place,no manuscript product reads it
+26_build_gamm_manuscript_outputs.R,26,GAMM,proposed: decision pending (Extended Data candidate or legacy),no,,analysis_ready/pipeline/26_gamm_manuscript_outputs/10min/,rewrites in place,assembly only; Testing/audits/test_gamm_manuscript_consistency.R
+27_build_behavior_main_figure.R,27,legacy product,legacy (opt-in),yes,,analysis_ready/pipeline/27_behavior_main_figure/,legacy opt-in (MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS),superseded by the manuscript repository's Figure 1
+27_candidate_recompose_behavior_main_figure.R,27,legacy product,legacy (opt-in),yes,,analysis_ready/pipeline/27_behavior_main_figure/,legacy opt-in (MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS),superseded by the manuscript repository's Figure 1
+28_rfid_behavioral_domains.R,28,frozen-lineage input,active producer,yes,,analysis_ready/pipeline/28_rfid_behavioral_domains/,rewrites in place; pinned by frozen runs (guarded),three acute_window_* tables are pinned by the Stage 29 v1.0.1 release
+29_canonical_behavior_characterization.R,29,frozen lineage,frozen (run v101_dv2_b2ce507),yes,,analysis_ready/pipeline/29_canonical_behavior_releases/<run>/,new run folder only,docs/STAGE29_RELEASE_v1.0.1_dv2.md
+29b_posthoc_con_contrasts.R,29b,frozen lineage,frozen (run v1.0_7f1da1f),yes,,analysis_ready/pipeline/29b_posthoc_con_contrasts/v1.0_7f1da1f/,run once,docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.0.md
+30_exploratory_screen.R,30,frozen lineage,frozen (run v1.0_be71e2f),yes,,analysis_ready/pipeline/30_exploratory_screen/v1.0_be71e2f/,run once; never re-run REAL,docs/stage30/STAGE30_REGISTRY_v1.0.md
+30b_stage30_figure_bundle.R,30b,frozen lineage,frozen bundle writer,yes,,analysis_ready/canonical/stage30_figure_bundle/<bundle_id>/,new bundle folder only,wrote s30b_v10_20260929_5394f2f
+31_cc4_grid_exposure.R,31,CC4 candidate,descriptive run-id stage,yes,,analysis_ready/analyses/cc4_grid_exposure/<run_id>/,new run-id folder,docs/CC4_GRID_EXPOSURE.md
+31b_cc4_phase_groups.R,31b,CC4 candidate,descriptive run-id stage,yes,,<new output directory> (command line),new run-id folder,reads a verified Stage 31 run
+31c_cc4_phase_statistics.R,31c,CC4 candidate,inferential run-id stage,yes,,<new output directory> (command line),new output directory; existing directories refused,docs/CC4_PHASE_STATISTICS.md
+31d_cc4_phenotype_statistics.R,31d,CC4 candidate,inferential run-id stage,yes,,<new output directory> (command line),new output directory; existing directories refused,docs/CC4_PHENOTYPE_STATISTICS.md
+32_behavior_exposure_adaptation.R,32,frozen lineage,frozen (run v1.1_f4c7a31),yes,,analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.1_f4c7a31/,run once,docs/STAGE32_REGISTRY_v1.0.md and addendum A1
+build_later_outcome_combz.R,endpoint,frozen lineage,frozen producer (git blob d850859e),yes,,analysis_ready/canonical/later_outcome_combz/tables/,rewrites in place; pinned by frozen runs (not guarded: blob-pinned code),docs/COMBZ_CANONICAL_DEFINITION.md
+build_publication_release.R,,legacy product,legacy,yes,,release folder,copy only,not behind the legacy opt-in; retire with Stage 16
+verify_publication_release.R,,legacy product,legacy,yes,,,none,checks build_publication_release.R output
+_supporting/13_nonlinear_systems_dynamics.R,support-13,legacy systems,active,yes,,analysis_ready/analyses/nonlinear_dynamics/5min/,rewrites in place,run individually; Stage 14 input
+_supporting/14_nextgen_behavioral_phenotyping.R,support-14,legacy systems,active,yes,,analysis_ready/analyses/systems_phenotyping/5min/,rewrites in place,run individually; Stage 14 input
+_supporting/audit_figure1_bundle_diff.R,,audit,manual audit,yes,,,none,old-versus-new audit of the Figure 1 export bundle
+_supporting/build_figure1_export_bundle.R,,legacy product,legacy (opt-in),yes,,results/manuscript_bridge/figure1/ (repository),legacy opt-in (MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS),kept as provenance of the 2026-09 Figure 1 bridge
+_supporting/build_figure1_manuscript_bridge.R,,legacy product,legacy (opt-in),yes,,results/manuscript_bridge/figure1/ (repository),legacy opt-in (MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS),kept as provenance of the 2026-09 Figure 1 bridge
+_supporting/build_figure1_panel_source_data.R,,legacy product,legacy (opt-in),yes,,results/manuscript_bridge/figure1/figure_source_data/ (repository),legacy opt-in (MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS),kept as provenance of the 2026-09 Figure 1 bridge
+_supporting/freeze_behavior_analysis_config.R,,frozen lineage,frozen configuration writer,yes,,analysis_ready/canonical/behavior_config/v<version>/,new version folder only,froze configuration v1.0.0 and v1.0.1
+_supporting/render_stage09_loao_plot.R,,frozen-lineage input,figure re-render,yes,,analysis_ready/pipeline/09_early_prediction/<resolution>/,rewrites one figure,re-renders the Stage 09 LOAO figure from persisted tables
