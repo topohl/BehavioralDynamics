@@ -11,51 +11,31 @@ experimental data, and how the manuscript package is produced.
 |---|---|
 | Language | R |
 | Developed and validated on | R 4.5.1 (2025-06-13 ucrt), Windows 11 |
-| Dependency manager | **none yet** — see "Environment capture" below |
+| Dependency manager | `renv` lockfile (record only; the project library is not activated) |
 
-Package inventory: `docs/package_versions.csv` lists the 41 non-base packages
-the active code loads, with the version present in the validated environment.
+`renv.lock` (renv 1.3.0, implicit snapshot of 2026-10-05) records R 4.5.1 and
+the version of every package the code uses plus its dependencies (240 packages,
+237 from CRAN, 3 from Bioconductor), read from the validated analysis library.
+It pins the versions that the frozen stages gate on (S32_PACKAGES in
+`Functions/stage32_run.R`): lme4 2.0-1, lmerTest 3.2-1, pbkrtest 0.5.5,
+clubSandwich 0.7.0, Matrix 1.7-5, reformulas 0.4.4. renv was installed into the
+analysis library for the snapshot; no other package was installed or changed
+(the six gated versions were checked before and after). The snapshot created
+only `renv.lock`: there is no `renv/` folder and no `.Rprofile`, so R starts in
+this repository exactly as before.
 
-### Environment capture status
+`docs/package_versions.csv` lists the 79 non-base packages the code names
+(`renv::dependencies()`), whether they are installed and the installed version.
+Six are not installed. destiny, ranger and randomForest are used only behind
+`requireNamespace()` (supporting Stage 13 and Stage 10 skip those branches);
+GGally, kableExtra and plotrix appear only in archived scripts under
+`Analysis/_archive/`.
+`docs/sessionInfo.txt` is the earlier `sessionInfo()` record.
 
-`renv` is **not** in use and `renv.lock` does **not** exist. It was deliberately
-not created during the publication restructuring: `renv` was not installed in the
-validated environment, and installing it in order to snapshot would have modified
-the very environment being captured. A fabricated lockfile would be worse than
-none.
-
-What exists instead is an honest inventory:
-
-- `docs/package_versions.csv` — package, whether installed, resolved version
-- `docs/sessionInfo.txt` — full `sessionInfo()` from the validated environment
-
-**`renv` adoption is pending** and remains the recommended next reproducibility
-step. It was re-assessed for RC1 and deliberately deferred to RC2.
-
-Assessment: a clean lockfile CAN be produced without restoring packages, without
-changing any analysis package version, and without touching scientific output --
-but only if `renv` is installed into a SEPARATE library so the analysis library
-is not modified:
-
-```r
-dir.create("~/renv-bootstrap", showWarnings = FALSE)
-.libPaths(c("~/renv-bootstrap", .libPaths()))
-install.packages("renv", lib = "~/renv-bootstrap")
-renv::snapshot(type = "all", lockfile = "renv.lock", prompt = FALSE)
-```
-
-`renv::snapshot()` only READS the installed library, so no version moves and no
-stage is re-run. Verify afterwards that the portable suite is still 19/19 and
-that the canonical artifact hashes are unchanged, then commit `renv.lock` for
-RC2.
-
-Do NOT run `renv::restore()` against the current library: that is the one
-operation that would change installed versions under a frozen analysis.
-
-One dependency is genuinely optional: `randomForest` is absent from the
-validated environment. Stage 10 guards it with `requireNamespace()` and skips its
-non-linear sensitivity branch when missing, so this does not block any canonical
-result.
+**Policy.** Never upgrade R 4.5.1 or the gated packages in place, and never run
+`renv::restore()` against the analysis library: the frozen Stage 29, 29b, 30 and
+32 runs check their package versions, and a restore or an upgrade would move
+them. To reproduce elsewhere, restore the lockfile into a new, separate library.
 
 ---
 
