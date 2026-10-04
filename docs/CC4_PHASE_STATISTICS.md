@@ -62,6 +62,9 @@ Remove-Item Env:MMM_TEST_CC4_MODELS
 Rscript --vanilla 'Analysis/31c_cc4_phase_statistics.R' '<Stage31b run>' '<new output directory>' 4999 8
 ```
 
+Test record: on 2026-10-05, at commit 5a3e4e9 with R 4.5.1, the test passed by default and
+with `MMM_TEST_CC4_MODELS=1` (11 s).
+
 The opt-in integration test uses synthetic data, two bootstrap draws, two
 workers and validation-only mode, which cannot emit inferential p-values or
 intervals. Portable tests do not require the fitting package. Production uses

@@ -69,6 +69,9 @@ Remove-Item Env:MMM_TEST_CC4_MODELS
 Rscript --vanilla 'Analysis/31d_cc4_phenotype_statistics.R' '<Stage31b run>' '<new output directory>' 4999 24
 ```
 
+Test record: on 2026-10-05, at commit 5a3e4e9 with R 4.5.1, the test passed by default and
+with `MMM_TEST_CC4_MODELS=1` (25 s).
+
 Short integration runs set `validation_only=TRUE` through the function API and
 cannot emit inferential P values or intervals. The CLI requires final draw counts.
 Existing output directories are refused. No reclassification, new package

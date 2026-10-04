@@ -145,6 +145,11 @@ Rscript --vanilla 'Testing/tests/test_animalpos_preprocessing_helpers.R'
 Rscript --vanilla 'Testing/tests/test_preprocessing_function_ownership.R'
 ```
 
+Test record: on 2026-10-05, at commit 5a3e4e9 with R 4.5.1, `test_cc4_grid_exposure.R`,
+`test_cc4_whole_inactive.R` and `test_cc4_phase_groups.R` passed. They had not been run
+when Stage 31 was committed (383b25c). `Testing/tests/test_sourced_scripts_guarded.R`
+checks that sourcing the Stage 31 scripts only defines functions.
+
 Use a **new** run ID for a later run. `mmm_project_root()` supplies the existing
 root configuration (`MMM_BEHAVIOR_PROJECT_ROOT` / `MMM_PROJECT_ROOT` or the
 documented S: default). Dependencies are existing R packages, including digest
