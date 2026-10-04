@@ -34,7 +34,7 @@ source_mmm_helper("duration_normalization_helpers.R")
 source_mmm_helper("project_paths.R")
 
 bin_level <- "10min_based"
-base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+base_dir <- mmm_project_root()
 input_file <- file.path(mmm_derived_metrics_output_root(base_dir), bin_level, "all_behavior_metrics.csv")
 # Any resolution other than 10min resolves to the retained original root, so
 # the guard refuses it rather than writing into the archive.

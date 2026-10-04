@@ -30,17 +30,10 @@ suppressPackageStartupMessages({
   library(ggsignif)
 })
 
-base_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 bin_level_priority <- c("10min_based", "5min_based", "30min_based", "1min_based")
 analysis_name <- "03_primary_raw_movement_phase_stats"
 min_bins_per_animal <- 2
 export_global_family_corrections <- FALSE
-# As in Stages 09 and 14, CombZ comes from the canonical producer,
-# Analysis/build_later_outcome_combz.R, not from the upstream workbook: its
-# zScore sheet held the uncorrected CombZ, and the workbook restructured on
-# 2026-09-23 no longer has that sheet.
-combz_endpoint_file <- file.path(base_dir, "analysis_ready/canonical/later_outcome_combz/tables",
-                                 "later_outcome_combz_animal_level.csv")
 
 .pipeline_setup_candidates <- c(
   file.path(getwd(), "Analysis", "_pipeline_setup.R"),
@@ -51,6 +44,13 @@ combz_endpoint_file <- file.path(base_dir, "analysis_ready/canonical/later_outco
 if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", call. = FALSE)
 source(.pipeline_setup)
 source_mmm_helper("project_paths.R")
+base_dir <- mmm_project_root()
+# As in Stages 09 and 14, CombZ comes from the canonical producer,
+# Analysis/build_later_outcome_combz.R, not from the upstream workbook: its
+# zScore sheet held the uncorrected CombZ, and the workbook restructured on
+# 2026-09-23 no longer has that sheet.
+combz_endpoint_file <- file.path(base_dir, "analysis_ready/canonical/later_outcome_combz/tables",
+                                 "later_outcome_combz_animal_level.csv")
 input_candidates <- file.path(mmm_derived_metrics_output_root(base_dir),
                               bin_level_priority, "all_behavior_metrics.csv")
 

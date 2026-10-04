@@ -28,7 +28,7 @@ source_mmm_helper("project_paths.R")
 
 # project_root must be defined BEFORE any resolver call. The previous ordering
 # hard-coded an absolute behaviour path above this line.
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+project_root <- mmm_project_root()
 
 analysis_ready_dir <- file.path(project_root, "analysis_ready")
 

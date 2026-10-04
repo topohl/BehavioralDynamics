@@ -158,6 +158,26 @@ check(grepl("MMM_PROJECT_ROOT_DEFAULT", pp[root_code_lines - 1L]) ||
       "the single data-root literal must be the MMM_PROJECT_ROOT_DEFAULT constant")
 ok("data-root default is centralised in one constant in project_paths.R")
 
+# Every stage script takes the RFID data root from mmm_project_root(). The literal remains only in Stage 09 (treated
+# as registered), the legacy-gated report, release and Figure 1 builders, the cookie runner's dataset paths and the
+# Stage 09 LOAO re-renderer.
+RFID_ROOT_LITERAL <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+ROOT_LITERAL_EXCEPTIONS <- c(
+  "Analysis/09_early_prediction_model_ladder.R", "Analysis/16_manuscript_behavior_report.R",
+  "Analysis/build_publication_release.R", "Analysis/run_cookiehab_preprocessing_and_metrics.R",
+  "Analysis/_supporting/build_figure1_export_bundle.R", "Analysis/_supporting/build_figure1_manuscript_bridge.R",
+  "Analysis/_supporting/build_figure1_panel_source_data.R", "Analysis/_supporting/render_stage09_loao_plot.R")
+stage_scripts <- c(list.files("Analysis", pattern = "[.][Rr]$", full.names = TRUE),
+                   list.files("Analysis/_supporting", pattern = "[.][Rr]$", full.names = TRUE))
+check(all(file.exists(ROOT_LITERAL_EXCEPTIONS)), "every root-literal exception names an existing script")
+for (f in setdiff(stage_scripts, ROOT_LITERAL_EXCEPTIONS)) {
+  hit <- grep(RFID_ROOT_LITERAL, readLines(f, warn = FALSE), fixed = TRUE)
+  check(length(hit) == 0L, paste0(f, " hard-codes the RFID data root at line(s) ", paste(hit, collapse = ", "),
+                                  "; it must call mmm_project_root() instead"))
+}
+ok(sprintf("%d stage scripts take the data root from mmm_project_root() (%d listed exceptions)",
+           length(setdiff(stage_scripts, ROOT_LITERAL_EXCEPTIONS)), length(ROOT_LITERAL_EXCEPTIONS)))
+
 # It must be overridable by BOTH conventions that already exist in the repo.
 # Whatever the caller configured is saved and restored, so probing the override
 # mechanism cannot change which root the data section below actually reads --

@@ -29,8 +29,9 @@ source(.pipeline_setup)
 source_mmm_helper("mmm_publication_theme.R")
 source_mmm_helper("gamm_publication_style_helpers.R")
 source_mmm_helper("gamm_manuscript_docs.R")
+source_mmm_helper("project_paths.R")
 
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+project_root <- mmm_project_root()
 bin_level <- "10min_based"
 P <- file.path(project_root, "analysis_ready", "pipeline")
 

@@ -44,10 +44,7 @@ source_mmm_helper("project_paths.R")
 # USER INPUT
 # ------------------------------------------------
 
-project_root <- getOption(
-  "mmm.project_root",
-  "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-)
+project_root <- mmm_project_root()   # options(mmm.project_root) or MMM_BEHAVIOR_PROJECT_ROOT, else the documented default
 hmm_primary_bin_level <- getOption("mmm.hmm.primary_bin_level", "10min_based")
 hmm_sensitivity_bin_levels <- getOption("mmm.hmm.sensitivity_bin_levels", "5min_based")
 hmm_roster_bin_level <- getOption("mmm.hmm.roster_bin_level", "5min_based")

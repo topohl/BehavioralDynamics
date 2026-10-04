@@ -41,7 +41,7 @@ for (h in c("phase_classification_helpers.R", "animalpos_preprocessing_helpers.R
             "mmm_publication_theme.R", "single_window_stage_runner.R")) source_mmm_helper(h)
 
 source_mmm_helper("project_paths.R")
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+project_root <- mmm_project_root()
 bin_level <- "10min_based"
 bin_size_sec <- 600L
 

@@ -35,7 +35,7 @@ for (h in c("phase_classification_helpers.R", "animalpos_preprocessing_helpers.R
             "inactive_markov_gamm_helpers.R", "inactive_markov_stage_runner.R")) source_mmm_helper(h)
 
 source_mmm_helper("project_paths.R")
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+project_root <- mmm_project_root()
 bin_level <- "10min_based"; bin_size_sec <- 600L
 
 input_file <- file.path(mmm_derived_metrics_output_root(project_root), bin_level,

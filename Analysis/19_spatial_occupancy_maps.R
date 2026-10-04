@@ -66,7 +66,7 @@ source(.mmm_paths)
 # User options
 # -----------------------------
 
-RAW_POSITION_DIR <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/preprocessed_data"
+RAW_POSITION_DIR <- file.path(mmm_project_root(), "MMMSociability", "preprocessed_data")
 
 SUS_ANIMALS_FILE <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/sus_animals.csv"
 CON_ANIMALS_FILE <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/con_animals.csv"
@@ -112,7 +112,7 @@ POSITION_MAP <- tibble::tibble(
 # silently deposited 186 MB into the checkout and left the real outputs on the
 # lab drive untouched since 2026-08-28, while still exiting 0. Anchor the
 # outputs to the same RFID root the input is pinned to.
-RFID_ROOT <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+RFID_ROOT <- mmm_project_root()
 
 spatial_groups <- c("spatial_tables", "spatial_audit", "spatial_models", "spatial_figures")
 mmm_behavior_output_assert_uniform_layout(spatial_groups, project_root = RFID_ROOT,

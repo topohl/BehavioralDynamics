@@ -34,10 +34,10 @@ suppressPackageStartupMessages({
 # -----------------------------
 # User settings
 # -----------------------------
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
 repo_root <- "C:/Users/topohl/Documents/GitHub/MMMSociability"
 bin_level <- "5min_based"
 source(file.path(repo_root, "Functions/project_paths.R"))
+project_root <- mmm_project_root()
 
 input_file <- file.path(mmm_derived_metrics_output_root(project_root), bin_level, "all_behavior_metrics.csv")
 # Any resolution other than 5min resolves to the retained original root, so

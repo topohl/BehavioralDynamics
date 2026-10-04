@@ -82,7 +82,7 @@ source_mmm_helper("acute_phase_window_helpers.R")
 # ------------------------------------------------
 
 # Project root used in your existing scripts. Change only if needed.
-project_root <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+project_root <- mmm_project_root()
 repo_root <- MMM_REPO_ROOT
 
 # Refuse a partially activated first-night migration before any Stage 14 writes.

@@ -32,8 +32,8 @@
 # Stage 01 inputs are selected after the shared path helper is loaded below.
 INPUT_FILES <- NULL
 
-# Project output root used by the analysis pipeline.
-PROJECT_BASE_DIR <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
+# Project output root used by the analysis pipeline: mmm_project_root(), set once the shared path helper is loaded
+# below (options(mmm.project_root) or MMM_BEHAVIOR_PROJECT_ROOT override the documented default).
 
 SEARCH_DIRS <- NULL
 
@@ -87,6 +87,7 @@ if (is.na(.pipeline_setup)) stop("Could not locate Analysis/_pipeline_setup.R", 
 source(.pipeline_setup)
 source_mmm_helper("project_paths.R")
 source_mmm_helper("tracking_qc_run_config.R")
+PROJECT_BASE_DIR <- mmm_project_root()
 input_base <- mmm_derived_metrics_output_root(PROJECT_BASE_DIR)
 run_config <- mmm_tracking_qc_run_config(
   PROJECT_BASE_DIR, input_base, commandArgs(trailingOnly = TRUE))

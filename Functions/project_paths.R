@@ -20,25 +20,23 @@
 #     layer, not a second path layer.
 #   * It does not move, copy or rewrite any existing output.
 #   * It does not invent a new configuration convention. It UNIFIES the three
-#     that already exist, all of which carry the identical S: default and
-#     currently have no cross-fallback at all:
+#     that existed, all of which carry the identical S: default:
 #       1. getOption("mmm.project_root", <default>)
-#          -- Analysis/08_hmm_behavioral_states_optional.R:46-49, and the
-#             documented convention for portable tests
+#          -- the documented convention for portable tests
 #             (Testing/tests/test_output_path_length.R:21,
 #              test_first_night_window_parity.R:153, docs/REPRODUCIBILITY.md:145)
 #       2. Sys.getenv("MMM_BEHAVIOR_PROJECT_ROOT", unset = <default>)
 #          -- Analysis/09_early_prediction_model_ladder.R:53,
 #             Analysis/build_publication_release.R:59-64 (also --project-root=),
 #             manuscript/Fig1_behavior_candidates/build_fig1_candidates.R:39
-#       3. a bare hard-coded literal -- 9 active stages including 14, 15 and the
-#          whole GAMM family 20-26
-#     Today, setting the option does NOT redirect Stage 09 or the release
-#     builder, and setting the environment variable does NOT redirect Stage 08 or
-#     Stages 20-26. mmm_project_root() honours BOTH, so new code follows whichever
-#     one the caller already uses. Migrating the existing stages onto it is a
-#     separate, deliberate change (see docs/FUTURE_REPO_RESTRUCTURE_PLAN.md);
-#     nothing here modifies them.
+#       3. a bare hard-coded literal
+#     Since 2026-10-04 Stages 00-08, 10-15, 19-26 and the supporting Stages 13
+#     and 14 call mmm_project_root(), which honours BOTH and returns the same
+#     default string. The literal remains only in Stage 09 (treated as
+#     registered; it reads the environment variable but hard-codes the CombZ
+#     endpoint), in the legacy-gated Stage 16, release and Figure 1 builders, in
+#     the cookie runner's dataset paths and in the Stage 09 LOAO re-renderer.
+#     Testing/tests/test_behavior_main_figure_contracts.R holds that list.
 #
 # PRECEDENCE for every root: getOption() > Sys.getenv() > documented default.
 #

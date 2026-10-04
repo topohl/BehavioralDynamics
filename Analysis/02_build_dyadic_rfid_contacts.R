@@ -56,7 +56,7 @@ source_mmm_helper("project_paths.R")
 # USER INPUT
 # ------------------------------------------------
 
-existing_default_input_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/preprocessed_data"
+existing_default_input_dir <- file.path(mmm_project_root(), "MMMSociability", "preprocessed_data")
 input_dir <- getOption("mmm.preprocessed_dir", existing_default_input_dir)
 configured_output_dir <- getOption("mmm.dyadic_contacts_dir", NULL)
 output_dir <- mmm_behavior_guard_numbered_output_path(
