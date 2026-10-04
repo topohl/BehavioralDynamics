@@ -1,0 +1,18 @@
+# Line endings of the files whose exact bytes the registered runs pin by sha256. Each file is checked out with the
+# line endings it was frozen with, whatever core.autocrlf says, so a fresh clone, a Linux CI checkout or a re-checkout
+# in the shared worktree still passes the gates. There is deliberately no repository-wide rule.
+#
+# Frozen code: S32_FROZEN_CODE_SHA256 (Functions/stage32_run.R) and S30SC_CODE_SHA256 (Functions/stage30_screen.R).
+Functions/stage30_movement.R eol=lf
+Functions/rfid_event_stream.R eol=lf
+Functions/rfid_binfree_metrics.R eol=lf
+Functions/stage30_figure_bundle.R eol=lf
+Functions/rfid_canonical_inference.R eol=crlf
+# Stage 30 registry v1.0, repository copies: S30SC_REGISTRY_SHA256 / S30SC_REGISTRY_MD_SHA256 (Functions/stage30_screen.R)
+# and docs/stage30/REGISTRY_SHA256.txt.
+docs/stage30/stage30_registry_v1.0.json eol=crlf
+docs/stage30/STAGE30_REGISTRY_v1.0.md eol=crlf
+# Frozen configuration v1.0.1: the R file sha256 f34c7624... recorded in docs/STAGE29_RELEASE_v1.0.1_dv2.md.
+Functions/behavior_analysis_config.R eol=lf
+#
+# Testing/tests/test_frozen_code_identity.R checks these hashes and that each attribute matches the pinned bytes.

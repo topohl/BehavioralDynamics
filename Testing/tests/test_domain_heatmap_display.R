@@ -88,8 +88,8 @@ check(toupper(dhm_fill_hex(0, 1.75)) == "#D8D2C7" && toupper(dhm_fill_hex(-9, 1.
 check(identical(dhm_text_on(c("#4C566A", "#D8D2C7", "#D98B3A", "#FFFFFF", "#000000")), c("white", "black", "black", "black", "white")),
       "B: tile text takes the colour with the higher contrast")
 check(grepl("dae6676", MMM_DHM_PALETTE$source, fixed = TRUE) && grepl("a16f55a", MMM_DHM_PALETTE$source, fixed = TRUE) &&
-        grepl("^[0-9a-f]{64}$", MMM_DHM_PALETTE$source_sha256),
-      "B: the palette pin records its source commits and file hash")
+        grepl("^[0-9a-f]{64}$", MMM_DHM_PALETTE$source_sha256) && grepl("^[0-9a-f]{40}$", MMM_DHM_PALETTE$source_git_blob),
+      "B: the palette pin records its source commits, file hash and git blob")
 if (exists("mmm_diverging_colors")) {
   check(identical(unname(mmm_diverging_colors[c("low", "mid", "high")]), unname(MMM_DHM_PALETTE$diverging[c("low", "mid", "high")])),
         "B: the shared MMMSociability diverging scale equals the pinned manuscript scale")

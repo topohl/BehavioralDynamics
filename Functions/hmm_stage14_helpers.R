@@ -1322,7 +1322,9 @@ dhm_minus <- function(x, digits = 2) {
 MMM_DHM_PALETTE <- list(
   version = "manuscript_palette_v1",
   source = "Exp9_manuscript config/manuscript_palette.yml @ master dae6676 (= branch behaviour-v101-stage30-candidates a16f55a)",
+  # source_sha256: bytes of the CRLF working copy on S:; source_git_blob: the line-ending independent identity
   source_sha256 = "4abeafdd2cbbd3b605db8fb8cc93acc2f6d3a36106d5726781a12d6f02def6a3",
+  source_git_blob = "a7be9f395a22db37290199e4b04ec6d3c14e34a3",
   group = c(CON = "#8A8A8A", RES = "#2E7D91", SUS = "#D1543A"),
   diverging = c(low = "#4C566A", mid = "#D8D2C7", high = "#D98B3A"),
   evidence = c(supported = "#1F3D52", descriptive = "#B9B9B4", not_evaluable = "#D8D6D0", not_audited = "#E6E4DF",
