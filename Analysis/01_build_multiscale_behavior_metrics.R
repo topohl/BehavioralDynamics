@@ -67,10 +67,14 @@ source_mmm_helper("project_paths.R")
 # USER INPUT
 # ------------------------------------------------
 
-existing_default_input_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/preprocessed_data"
+existing_default_input_dir <- file.path(mmm_project_root(), "MMMSociability", "preprocessed_data")
 input_dir <- getOption("mmm.preprocessed_dir", existing_default_input_dir)
 output_root <- mmm_behavior_guard_numbered_output_path(
   mmm_derived_metrics_output_root())
+# 10min_based/all_behavior_metrics.csv is an input the frozen Stage 29 release pinned by sha256: on the live root the
+# guard refuses to run without options(mmm.allow_pinned_overwrite = TRUE) (Functions/frozen_input_guard.R).
+source_mmm_helper("frozen_input_guard.R")
+frozen_guard_snapshot <- mmm_frozen_guard_before("01", output_roots = output_root)
 dataset_id <- getOption("mmm.dataset_id", "sis_cc")
 
 # Optional animal reference lists. These are one-ID-per-line CSV/text files.
@@ -1367,6 +1371,7 @@ if (nrow(bad_bin_qc) > 0) {
 }
 
 if (exists("harmonize_analysis_outputs")) harmonize_analysis_outputs(output_root)
+mmm_frozen_guard_after(frozen_guard_snapshot)
 
 message("Multiscale behavior metric export complete.")
 message("Primary downstream file pattern: ", file.path(output_root, "<scale>_based", "all_behavior_metrics.csv"))

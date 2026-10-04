@@ -130,17 +130,21 @@ The runner sources `Analysis/_pipeline_setup.R` and executes Stages 00–15:
 | 19 | `19_spatial_occupancy_maps.R` | Secondary/spatial; not part of the manuscript package |
 | — | `Formatting/E9_SIS_AnimalPos-preprocessing_parallell.r` | Rewrites Stage 01's canonical input; must be deliberate |
 
-Optional stages are controlled by options before sourcing the runner:
+The runner runs nothing by default; choose a profile (`legacy_systems`, `heatmap_inputs` or `early_prediction`) or an
+explicit stage list before sourcing it:
 
 ```r
 options(
-  mmm.run_optional_hmm        = FALSE,
+  mmm.pipeline_profile        = "legacy_systems",
   mmm.run_systems_extension   = TRUE,
   mmm.run_behavior_proteomics = FALSE,
   mmm.continue_on_error       = FALSE
 )
 source("Analysis/run_all_analysis.R")
 ```
+
+Stages 01, 09 and 28 rewrite inputs that the frozen runs pinned by sha256, so the frozen-input guard refuses them on the
+live root unless `options(mmm.allow_pinned_overwrite = TRUE)` is set. See `Analysis/README_pipeline.md`.
 
 ---
 

@@ -80,22 +80,36 @@ input of Stage 01. See `Formatting/README.md`.
 
 ```r
 options(
-  mmm.run_optional_hmm       = FALSE,
-  mmm.run_systems_extension  = TRUE,
+  mmm.pipeline_profile        = "legacy_systems",  # or "heatmap_inputs", "early_prediction"
+  mmm.run_systems_extension   = TRUE,
   mmm.run_behavior_proteomics = FALSE,
-  mmm.continue_on_error      = FALSE
+  mmm.continue_on_error       = FALSE
 )
 source("Analysis/run_all_analysis.R")
 ```
 
-The runner sources `Analysis/_pipeline_setup.R`, then executes Stages 00–15 in
-order. Three stages are option-gated:
+The runner runs nothing by default. It needs one profile or an explicit list
+(`options(mmm.pipeline_stages = c("04", "05"))`), sources
+`Analysis/_pipeline_setup.R`, then executes the selected stages in order:
+
+| Profile | Stages |
+|---|---|
+| `legacy_systems` | 02-07, 10, 11, 13, 15 |
+| `heatmap_inputs` | 01, 08, 12, 14 (the Stage 14 heatmap inputs, then Stage 14) |
+| `early_prediction` | 09 |
+
+Two stages are option-gated within a profile:
 
 | Stage | Option | Default |
 |---|---|---|
-| 08 optional HMM | `mmm.run_optional_hmm` | `TRUE` |
 | 10 systems extension | `mmm.run_systems_extension` | `TRUE` |
 | 15 behaviour-proteomics | `mmm.run_behavior_proteomics` | `FALSE` |
+
+Stages 01, 09 and 28 rewrite inputs that the frozen runs pinned by sha256.
+`Functions/frozen_input_guard.R` refuses to start them on the live root unless
+`options(mmm.allow_pinned_overwrite = TRUE)` is set (it then backs the pinned
+files up first), and after each stage it stops if a pinned file changed. A
+sandbox root is not guarded. See `Analysis/README_pipeline.md`.
 
 ### 2. Stages outside the runner
 

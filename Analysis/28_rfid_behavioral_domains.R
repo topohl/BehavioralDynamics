@@ -63,6 +63,10 @@ if (!exists("ensure_dir")) {
 }
 
 PROJECT_ROOT <- mmm_project_root()
+# The acute_window_* tables are inputs the frozen Stage 29 release pinned by sha256: on the live root the guard
+# refuses to run without options(mmm.allow_pinned_overwrite = TRUE) (Functions/frozen_input_guard.R).
+source_mmm_helper("frozen_input_guard.R")
+frozen_guard_snapshot <- mmm_frozen_guard_before("28", PROJECT_ROOT)
 PRIMARY_BIN <- "10min_based"
 SENSITIVITY_BIN <- "5min_based"
 STAGE_ID <- "28"
@@ -472,4 +476,5 @@ for (bl in c(PRIMARY_BIN, SENSITIVITY_BIN)) {
   message("     wrote ", length(list.files(out, pattern = "csv$")), " tables to ", out)
 }
 
+mmm_frozen_guard_after(frozen_guard_snapshot)
 message("Stage 28 complete.")
