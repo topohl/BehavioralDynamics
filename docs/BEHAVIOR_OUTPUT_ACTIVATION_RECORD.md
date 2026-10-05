@@ -1131,3 +1131,47 @@ residual inventory, the foundation inventory, and the copy-parity check.
 
 Stage 16's recorded hashes, Stage 27 and the release bundle were not
 regenerated.
+
+## 2026-10-05 Stage 14 promoted with the manuscript palette v2
+
+**What ran.** Commit `9f45a71` (one colour source, `Functions/manuscript_palette.R`:
+navy/beige/red groups, diverging high end `#96460A`) ran in a guarded sandbox
+from a clean checkout of that commit (`s14src_20261005_9f45a71_palv2`, sandbox
+`stage_sandbox_20261005_palv2b`). A first attempt (`stage_sandbox_20261005_palv2`)
+ended in a native R crash (0xC0000005) three minutes in, while writing early
+figures, as on 2026-10-03; its post-scan found nothing. The retry passed: R exit
+0, no post-scan finding.
+
+**Checkout.** Since `d2df1df`, `.gitattributes` gives three files CRLF on
+checkout (`Functions/rfid_canonical_inference.R` and the two `docs/stage30`
+registry copies), and `git archive` applies it. `make_stage14_checkout_dhm.ps1`
+now restores their committed LF bytes before its blob check; the checkout record
+lists them as `eol_restored_to_lf`.
+
+**Comparisons.** Against the live outputs, with the expected-change manifest
+`expected_changes_palette_v2.csv` (figures only):
+- 374 files: 205 identical or known run-to-run noise, 169 expected changes,
+  none unexpected.
+- The engine effect summary `systems_sis_domain_effect_summary.csv` is
+  identical (84 rows).
+- Of the tables, only the manifest timestamp and `output_figure_inventory.csv`
+  changed.
+- The independent validator passes 32 of 32 checks.
+
+**Promotion.** Script `promote_stage14_rerun_20261005.ps1`, same steps as on
+2026-10-03:
+1. All 374 live files were backed up to
+   `_migration_control/stage14_before_rerun_20261005/`.
+2. 374 files were promoted; none was added.
+3. Every live file was verified against its staged hash.
+
+**Record.** `docs/behavior_output_producer_reruns/stage14_20261005.csv`
+(SHA-256 `8AB89CBE...`; 374 rows: 177 rewritten, 197 unchanged; the 20
+first-night files are unchanged).
+
+**Checks after the promotion.** All three read-only checks pass: the Stage 14
+residual inventory, the foundation inventory, and the copy-parity check.
+- 2,181 originals match their plans.
+- 1,969 copies match the plan, and 212 match a recorded rerun.
+- The 54 files added by recorded reruns match their records.
+- No copy root holds an unplanned file.
