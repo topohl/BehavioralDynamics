@@ -1,0 +1,10 @@
+level,n,df,mde_noncentral_t,mde_fisher
+cage primary G22,22,14,0.627,0.651
+cage S1 G20,20,12,0.661,0.688
+cage S2 G22,22,14,0.627,0.651
+cage S8 G19,19,11,0.68,0.709
+cage S9 (+bw) G22,22,13,0.644,0.669
+cage S10 (+board) G22,22,10,0.701,0.732
+cage F G12,12,8,0.749,0.785
+cage M G10,10,6,0.809,0.849
+within primary N85,85,61,0.342,0.347

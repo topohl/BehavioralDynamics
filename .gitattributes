@@ -17,5 +17,9 @@ Functions/behavior_analysis_config.R eol=lf
 # The frozen 2026-09 Figure 1 bridge export: figure1_panel_source_manifest.csv records the SHA-256 and byte size of the
 # CRLF files, which Testing/tests/test_figure1_panel_source_data.R checks.
 results/manuscript_bridge/figure1/figure_source_data/*.csv eol=crlf
+# Stage 33 estimation plan v1.0, frozen: S33_PLAN (Functions/stage33_run.R) pins its LF sha256; the module C expected
+# values keep the CRLF bytes their pins were computed on.
+docs/STAGE33_POSTHOC_COHORT_FOLLOWUPS_PLAN_v1.0.md eol=lf
+docs/stage33/expected/*.csv eol=crlf
 #
 # Testing/tests/test_frozen_code_identity.R checks these hashes and that each attribute matches the pinned bytes.
