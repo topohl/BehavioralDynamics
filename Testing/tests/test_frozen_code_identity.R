@@ -138,4 +138,22 @@ if (!in_work_tree || shallow) {
   ok(paste0(fsb$path, " = pinned blob ", substr(fsb$git_blob, 1, 8), " (working tree and HEAD)"))
 }
 
+cat("\n6. Stage 33 plan and expected values\n")
+s33_env <- new.env(); sys.source("Functions/stage33_run.R", envir = s33_env)
+plan <- s33_env$S33_PLAN
+plan_lf <- gsub("\r\n", "\n", rawToChar(readBin(plan$path, "raw", file.size(plan$path))), fixed = TRUE)
+check(identical(digest::digest(plan_lf, algo = "sha256", serialize = FALSE), plan$sha256_lf), "Stage 33 plan: LF sha256 differs from S33_PLAN")
+check(identical(readBin(plan$path, "raw", file.size(plan$path)), charToRaw(plan_lf)), "Stage 33 plan: the checkout must have LF line endings")
+exp_dir <- "docs/stage33/expected"
+exp_pins <- c(bw_cc1_primary.csv = "909e16d1f9024c3915b6ec9d0ca38a166d5ac2e6a8aabcca79a9a05a3bf67c95",
+              expected_cage_terms.csv = "cdc933f318eb6955082a4709b4958943539e54da42a450c8a446a43deee72f24",
+              expected_information_primary.csv = "481e211075bc8cf4ba6f11a71a9c54cd8cbd1d19f44c3e60f8510a03bb139965",
+              expected_board_offsets.csv = "da74215125034a9afc955410baa4aa79f9af24c8e38f7866c0f56f7cecd9c044",
+              expected_design_sensitivity.csv = "7061dfac25d2736c49833cd5262db8dcdefbcfeceb63aa1f7e6fb00d536928b5",
+              expected_s2_shared_zone_no692.csv = "0bd2458f4269b15203551612dbe34985e75ac658329a5f16eb5aa82fd25c7dc5",
+              expected_reallocation.csv = "7a520498b5ad0ce2e80d086bef33e0565ce67828ba5f5137bee99ddc6bbe2c9f")
+for (f in names(exp_pins)) check(identical(digest::digest(file = file.path(exp_dir, f), algo = "sha256"), exp_pins[[f]]),
+                                 paste0(exp_dir, "/", f, ": sha256 differs from its pin (CRLF bytes)"))
+ok(sprintf("plan LF sha256 %s and %d expected-value files match their pins", substr(plan$sha256_lf, 1, 8), length(exp_pins)))
+
 cat("\nPASS: frozen code identity\n")

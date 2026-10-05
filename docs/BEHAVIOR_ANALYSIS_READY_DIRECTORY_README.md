@@ -12,6 +12,7 @@
 **Descriptive and exploratory layers.**
 - `analyses/systems_dashboard/5min/`: the Stage 14 dashboard and domain heatmaps, rebuilt in a guarded sandbox and promoted with a producer-rerun record.
 - `analyses/cc4_grid_exposure/<run-id>/`: Stage 31 CC4 runs.
+- `analyses/posthoc_cohort_followups/<run-id>/`: Stage 33 post hoc cohort follow-ups (modules A-E; estimation only, no p-values), one read-only folder per run under the frozen plan `docs/STAGE33_POSTHOC_COHORT_FOLLOWUPS_PLAN_v1.0.md` of the repository; each run folder holds its README, the plan copy and its audit.
 - `pipeline/20_first_night_gamm/` and `pipeline/22_repeated_cagechange_acute_gamm/`: within-night GAMM profiles, kept as descriptive Extended Data candidates without group inference.
 - The other semantically named analyses live under `analyses/`; see its `README.md` for the active groups.
 

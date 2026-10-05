@@ -12,10 +12,28 @@ This folder is organized as a staged, reviewer-safe pipeline. The scripts remain
 | Inputs the frozen runs pinned | 01, 09, 28 | they rewrite pinned files in place, so the frozen-input guard refuses them on the live root |
 | Systems dashboard and heatmaps | 14, with inputs 04-09, 11-13 and supporting 13/14 | guarded sandbox, then promotion with a producer-rerun record |
 | CC4 candidates | 31, 31b, 31c, 31d | manually, into new run-id folders |
+| Post hoc cohort follow-ups | 33 (modules A-E) | manually, into new run-id folders under `analysis_ready/analyses/posthoc_cohort_followups/`, after the frozen plan |
 | Legacy systems analyses | 02-07, 10, 11, 13, 15, supporting 13/14 | runner profile `legacy_systems` or individually |
 | Within-night GAMM profiles | 20, 22 | individually; descriptive Extended Data candidates with no group inference |
 
 Retired on 2026-10-05: Stage 16 (its index and README writer now lives in `Functions/behavior_output_index.R`), the GAMM Stages 21 and 23-26, the Stage 27 main-figure assemblers, the Figure 1 bridge builders and their audit, the release builder and verifier, and `manuscript/Fig1_behavior_candidates/`. Their code is in git history, their outputs are under `analysis_ready/history/retired/` with receipts, and [`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`](../docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md) gives the reasons and the last commit of each file.
+
+**Post hoc cohort follow-ups (Stage 33).** `33_posthoc_cohort_followups.R` implements the plan
+[`docs/STAGE33_POSTHOC_COHORT_FOLLOWUPS_PLAN_v1.0.md`](../docs/STAGE33_POSTHOC_COHORT_FOLLOWUPS_PLAN_v1.0.md),
+frozen at commit d914f10 before any Stage 33 code existed. Its five modules are descriptive estimation only:
+- A: CombZ components by cohort;
+- B: pre-SIS covariates and the B2/B6 arena ranks;
+- C: the parts of the Stage 29 within-cohort slope;
+- D: the hourly separation of cohort means in the first active phase after CC1;
+- E: classes of cohort-mates.
+
+The stage reports no test or p-value and re-tests no registered Stage 29/29b/30/32 hypothesis. The run is staged
+locally and copied to a new run-id folder only after every gate has passed.
+
+```bash
+MMM_S33_REAL_RUN=<HEAD commit7> MMM_S33_A4_DIR=<batch decomposition folder> \
+  Rscript Analysis/33_posthoc_cohort_followups.R --real --modules=ABCDE
+```
 
 ## Run Order
 
