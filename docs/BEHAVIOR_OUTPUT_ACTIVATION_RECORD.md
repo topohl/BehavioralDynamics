@@ -1175,3 +1175,65 @@ residual inventory, the foundation inventory, and the copy-parity check.
 - 1,969 copies match the plan, and 212 match a recorded rerun.
 - The 54 files added by recorded reruns match their records.
 - No copy root holds an unplanned file.
+
+## 2026-10-05 Retired outputs moved to history/retired/; index and READMEs refreshed
+
+**Decision.** The legacy products and the GAMM Stages 21 and 23-26 were retired, and Stages 20 and 22 kept as
+descriptive Extended Data candidates (`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`). Their outputs moved unchanged
+to `analysis_ready/history/retired/` with `Maintenance/Invoke-BehaviorOutputRetirement.ps1`. For each move the tool
+lists every file with its SHA-256, writes the manifest, copies, verifies each copy against the manifest, and only then
+removes the original. It writes a receipt (`state = archived`) under `_migration_control/retired_outputs/`. Before the
+moves, no frozen pin list, bundle provenance table or migration receipt named any of these folders; only old index
+backups did.
+
+| Label | Source | Target | Files | Bytes | Manifest SHA-256 |
+|---|---|---|---:|---:|---|
+| `s21_gamm_20261005` | `pipeline/21_cc1_active_longitudinal_gamm` | `history/retired/21_cc1_active_longitudinal_gamm` | 45 | 6723909 | `3d29f0d820d3...` |
+| `s23_gamm_20261005` | `pipeline/23_first_inactive_gamm` | `history/retired/23_first_inactive_gamm` | 49 | 2776891 | `57e89c778d33...` |
+| `s24_gamm_20261005` | `pipeline/24_cc1_inactive_longitudinal_gamm` | `history/retired/24_cc1_inactive_longitudinal_gamm` | 50 | 7996890 | `8f048d9a564e...` |
+| `s25_gamm_20261005` | `pipeline/25_repeated_cagechange_inactive_gamm` | `history/retired/25_repeated_cagechange_inactive_gamm` | 51 | 10670194 | `b8765ad5ff4a...` |
+| `s26_gamm_20261005` | `pipeline/26_gamm_manuscript_outputs` | `history/retired/26_gamm_manuscript_outputs` | 69 | 7169298 | `f80c95f22335...` |
+| `s27_main_figure_20261005` | `pipeline/27_behavior_main_figure` | `history/retired/27_behavior_main_figure` | 238 | 14260256 | `dfb0f3d74eda...` |
+| `s16_manuscript_behavior_20261005` | `manuscript/behavior` | `history/retired/manuscript_behavior` | 9 | 461239 | `7ac101b80f25...` |
+| `s20_leftovers_20260907` | `pipeline/20_first_night_gamm/10min` (11 listed files) | `history/retired/20_first_night_gamm_20260907` | 11 | 573765 | `ed5f7eba7a4c...` |
+| `s22_leftovers_20260907` | `pipeline/22_repeated_cagechange_acute_gamm/10min` (15 listed files) | `history/retired/22_repeated_cagechange_acute_gamm_20260907` | 15 | 2344186 | `7088c1c10fd0...` |
+
+- The longest target path has 241 characters (Stage 27 candidates).
+- The Stage 20 and 22 leftovers are the 2026-09-07 files of superseded runs (old classification): ten
+  `tables/first_night_*.csv` and `audit/first_night_ar1_sequence_proof.csv` for Stage 20, and fourteen
+  `tables/allcc_*.csv` and `audit/allcc_ar1_sequence_proof.csv` for Stage 22. No code reads those names. The current
+  files stay in place (32 and 39).
+- `analysis_ready/manuscript/` is now empty.
+
+**A failed first attempt at Stage 27.** The first `s27` run stopped after 117 of 238 copies. Explorer's `Thumbs.db`
+caches are hidden system files, and `Get-Item` without `-Force` cannot see them. Nothing had been removed. All 238
+originals were checked against the manifest (no difference), and the 117 partial copies were checked against it too.
+The partial copies and the orphan manifest were then deleted. The tool now passes `-Force` wherever it touches a file,
+its fixture test (`Testing/tests/test_behavior_output_retirement.ps1`) includes a hidden system file, and the retry
+completed.
+
+**Verification after all moves.** Every target file was re-hashed against its manifest and every manifest against its
+receipt: 537 files, 0 mismatches, no original left behind.
+
+**Navigation files.**
+- `history/README.md`: the old copy was backed up to `_migration_control/history_README_before_retirement_20261005.md`
+  (SHA-256 `de43f938...`). The new copy is `docs/BEHAVIOR_HISTORY_DIRECTORY_README.md` (`92f324ec...`), which adds
+  `retired/`.
+- `output_index.csv` and `README.md`: `Maintenance/Refresh-BehaviorOutputIndex.R --write
+  --backup=output_index_before_retirement_20261005.csv`. The backups are `output_index_before_retirement_20261005.csv`
+  (`5c1c45df...`) and `README_before_retirement_20261005.md` (`ffc7c192...`).
+  - The index went from 65 to 77 rows. It adds 16b, 16c, 29, 29b, 30, 30b, 31, 32, the frozen configuration and the
+    three registry copies, and changes 94 cells in 31 rows: runner profiles, the retired rows and the new roles of 20
+    and 22 (`descriptive_candidate`) and 28 (`active_producer_pinned`). New SHA-256 `7fa3362e...`.
+  - A second dry run reports no difference. All 67 canonical paths exist.
+  - `README.md` (`cffcc3a3...`) now starts at the frozen bundles.
+
+**Rationale retired.** The Stage 27 reason for keeping `analyses/systems_dashboard/5min/stats_tables/
+systems_sis_domain_effect_summary.csv` byte-identical across Stage 14 reruns (its candidate B-alt asserted the
+contrast orientation) retired with Stage 27. The file stays a live Stage 14 output. Its column contract and the
+per-file SHA-256 in the producer-rerun records still apply, and any change in its p or q values needs a rerun record.
+
+**Checks after the moves.** All three read-only checks pass, with the counts of the morning's Stage 14
+promotion: the Stage 14 residual inventory (700 numbered files, 371 activated copies), the foundation inventory,
+and the copy-parity check (2,181 originals and 1,969 copies match the plans, 212 match a recorded rerun, 54 files
+added by recorded reruns, no unplanned file).

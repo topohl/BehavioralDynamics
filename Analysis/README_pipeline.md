@@ -13,8 +13,9 @@ This folder is organized as a staged, reviewer-safe pipeline. The scripts remain
 | Systems dashboard and heatmaps | 14, with inputs 04-09, 11-13 and supporting 13/14 | guarded sandbox, then promotion with a producer-rerun record |
 | CC4 candidates | 31, 31b, 31c, 31d | manually, into new run-id folders |
 | Legacy systems analyses | 02-07, 10, 11, 13, 15, supporting 13/14 | runner profile `legacy_systems` or individually |
-| Legacy products | 16, 27, the Figure 1 bridge builders, the release builder | only behind `MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS` (the release builder has no gate) |
-| GAMM family | 20-26 | individually; status to be decided |
+| Within-night GAMM profiles | 20, 22 | individually; descriptive Extended Data candidates with no group inference |
+
+Retired on 2026-10-05: Stage 16 (its index and README writer now lives in `Functions/behavior_output_index.R`), the GAMM Stages 21 and 23-26, the Stage 27 main-figure assemblers, the Figure 1 bridge builders and their audit, the release builder and verifier, and `manuscript/Fig1_behavior_candidates/`. Their code is in git history, their outputs are under `analysis_ready/history/retired/` with receipts, and [`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`](../docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md) gives the reasons and the last commit of each file.
 
 ## Run Order
 
@@ -66,7 +67,6 @@ See [`docs/CC4_PHENOTYPE_STATISTICS.md`](../docs/CC4_PHENOTYPE_STATISTICS.md).
 | 13 | `13_ethological_phase_organization.R` | Ethological phase organization | Stage 01 metrics | Phase contrast, timing, fragmentation, and recovery features |
 | 14 | `14_systems_neuroscience_summary_dashboard.R` | Integrated systems neuroscience dashboard; HMM-domain heatmap uses animal-level g and repeated-measures contrasts | Stages 01, 04-13, optional proteomics | Feature matrix, audits, scorecards, dashboard panels, HMM-resolution sensitivity |
 | 15 | `15_behavior_proteomics_integration.R` | Optional behavior-proteomics integration | Behavioral feature tables plus proteomics module data | Behavior-proteomics bridge tables and figures |
-| 16 | `16_manuscript_behavior_report.R` | Export-only manuscript reporting layer | Canonical Stage 09 tables plus selected Stage 03/QC tables | Typed results, animal/prediction/movement source data, provenance, validation, and one source-data workbook |
 
 ## Primary vs Secondary
 
@@ -78,7 +78,7 @@ The fixed a priori behavior-only models are the mean-only intercept baseline, `M
 
 `03_primary_raw_movement_phase_stats.R` is the active secondary phenotype/group-characterization script for broad raw movement. Its displayed CON/RES/SUS pairwise comparisons are Holm-adjusted within each prespecified three-contrast panel. With `export_global_family_corrections = FALSE`, no wider global family-wise correction is exported or claimed. The wider Stage 03 scan is secondary/descriptive and does not replace the Stage 09 prospective analysis. The older `18_raw_movement_publication_trajectory.R` and `18b_raw_movement_broad_phase_stats.R` are archived.
 
-`16_manuscript_behavior_report.R` is a thin assembly layer. It reads existing Stage 09, Stage 03, and QC tables and writes the canonical manuscript package to `analysis_ready/manuscript/behavior/`. The entry point is `Behavioral_Source_Data.xlsx`; compact CSV companions provide primary results, supplementary results, animal-level source data, held-out prediction source data, movement-phase source data, provenance, validation, and a SHA-256 manifest. It does not fit models or recalculate statistics. Stage 10/14 predictive claims, HMM/state, manifold, nonlinear, systems-composite, and behavior-proteomics outputs remain exploratory and are not promoted to the primary registry.
+The manuscript renders from the frozen Stage 29 v1.0.1 bundle (`canonical/behavior_bundle/ebb_v101_20260929_b2ce507/`) and the other imported bundles, written once by 16b, 16c and 30b. The former Stage 16 assembly layer and its 2026-09-22 package (`Behavioral_Source_Data.xlsx` and CSV companions) were retired on 2026-10-05. Stage 10/14 predictive claims, HMM/state, manifold, nonlinear, systems-composite, and behavior-proteomics outputs remain exploratory and are not promoted to the primary registry.
 
 ## Stage 08 HMM and Stage 14 state-architecture contract
 
@@ -114,9 +114,9 @@ The bounded Stage 03/09/10 migration uses:
 - `figures/`
 - `audit/`
 
-Canonical migrated roots are `analysis_ready/pipeline/03_movement_phase_stats/10min/`, `analysis_ready/pipeline/09_early_prediction/10min/`, and `analysis_ready/pipeline/10_systems_prediction/10min/`. Resolution tokens use `10min`, not `10min_based`. Future writes go only to the canonical location. Stage 16 reads Stages 03 and 09 from canonical paths only. Stage 03's historical counterparts differ from the current files, and Stage 09's former fallback folder is absent. Historical legacy directories remain available to explicit comparison audits; Stage 16 does not rewrite them.
+Canonical migrated roots are `analysis_ready/pipeline/03_movement_phase_stats/10min/`, `analysis_ready/pipeline/09_early_prediction/10min/`, and `analysis_ready/pipeline/10_systems_prediction/10min/`. Resolution tokens use `10min`, not `10min_based`. Future writes go only to the canonical location. Stage 03's historical counterparts differ from the current files, and Stage 09's former fallback folder is absent. Historical legacy directories remain available to explicit comparison audits and are never rewritten.
 
-`analysis_ready/README.md` and `analysis_ready/output_index.csv` are the human and machine-readable navigation entry points. Stages not listed above retain their current layout until a later migration.
+`analysis_ready/README.md` and `analysis_ready/output_index.csv` are the human and machine-readable navigation entry points. `Maintenance/Refresh-BehaviorOutputIndex.R` writes both, from `Functions/behavior_output_index.R` and `docs/BEHAVIOR_ANALYSIS_READY_DIRECTORY_README.md`, after backing up the current files. Stages not listed above retain their current layout until a later migration.
 
 Stage 09 and Stage 10 canonical writers flatten old category subfolders and suppress repeated writes of the same object to the same canonical filename. A conflicting attempt to write different objects to one canonical filename fails clearly.
 
@@ -140,14 +140,6 @@ source("Analysis/run_all_analysis.R")
 Stages 01, 09 and 28 rewrite files that the frozen runs pinned by sha256 (the Stage 29 v1.0.1 release `audit/run_inputs.csv`, Stage 32 `audit/input_hashes.csv`). `Functions/frozen_input_guard.R` refuses to start them on the live project root. Set `options(mmm.allow_pinned_overwrite = TRUE)` only after deciding to replace the pinned bytes; the guard then backs them up to `analysis_ready/_migration_control/pinned_inputs_before_stage<id>_<time>/` first. After every stage it re-hashes each pinned file whose size or time stamp changed and stops if the bytes differ (a byte-identical rewrite passes). A sandbox root (`MMM_BEHAVIOR_PROJECT_ROOT`) is not guarded. Stages 01 and 28 call the guard themselves, so a direct `Rscript` run is guarded too; Stage 09 is guarded by the runner only, because it is treated as registered and stays unedited. Stage 14 is rebuilt in a guarded sandbox and promoted, not run on the live root.
 
 Stage 08 is required by Stage 14. Its file name still says "optional" for historical reasons; the option `mmm.run_optional_hmm` no longer exists.
-
-After the required canonical Stage 09 and selected Stage 03 outputs have been generated, assemble the manuscript report separately with:
-
-```r
-source("Analysis/16_manuscript_behavior_report.R")
-```
-
-Stage 16 requires the current canonical Stage 03 and Stage 09 sources. The manuscript package is written only to `analysis_ready/manuscript/behavior/`.
 
 ## Old-to-New Filename Map
 
@@ -178,34 +170,32 @@ Stage 16 requires the current canonical Stage 03 and Stage 09 sources. The manus
 
 ---
 
-# Stages 19-27, the endpoint producer, and what the runner does not cover
+# Stages 19-28, the endpoint producer, and what the runner does not cover
 
-The Run Order table above stops at Stage 16. It predates the stages that now own
-most manuscript claims. This section covers the rest.
+The Run Order table above stops at Stage 15. The frozen Stages 29-32 and the
+CC4 Stages 31-31d are described in the Layers table and the Run Order notes;
+this section covers the rest.
 
-## Two layers, deliberately separate
+## Producers outside the runner
 
-**Scientific producers** fit models and own claims. **Manuscript assemblers**
-read already-validated outputs and fit nothing; two of them are test-enforced to
-contain no model call at all.
+**Scientific producers** fit models. The only assemblers left are the frozen
+bundle writers 16b, 16c and 30b, which copy already-validated outputs into new
+bundle folders and fit nothing.
 
-| Stage | Script | Layer | Owns |
+| Stage | Script | Layer | Role |
 |---:|---|---|---|
 | — | `build_later_outcome_combz.R` | canonical endpoint | CombZ and the CON/RES/SUS assignment. Hard-stops unless it reproduces the upstream workbook exactly. |
 | 19 | `19_spatial_occupancy_maps.R` | producer | Reader-occupancy maps. Effect sizes only, no p/q. |
-| 20 | `20_first_night_gamm.R` | producer | First-night Active trajectory (`CLAIM_GAMM_01`, `_02`). |
-| 21 | `21_cc1_active_longitudinal_gamm.R` | producer | Nights within CC1. |
-| 22 | `22_repeated_cagechange_acute_gamm.R` | producer | CC1→CC4 acute adaptation (`CLAIM_GAMM_04`, `_05`). |
-| 23 | `23_first_inactive_gamm.R` | producer | First Inactive Markov activation (`CLAIM_GAMM_06`). |
-| 24 | `24_cc1_inactive_longitudinal_gamm.R` | producer | CC1 Inactive nights. All contrasts null. |
-| 25 | `25_repeated_cagechange_inactive_gamm.R` | producer | Repeated Inactive. No supported adaptation. |
-| 26 | `26_build_gamm_manuscript_outputs.R` | assembler | GAMM manuscript/Extended Data products. |
-| 27 | `27_build_behavior_main_figure.R` | assembler | The four-panel behavior main figure. |
+| 20 | `20_first_night_gamm.R` | descriptive producer | Within-night 10-min profile of the first active phase after CC1, by sex and group. Display trajectories only: the group contrasts are null and carry no cage term (CON is 3 intact cages per sex). |
+| 22 | `22_repeated_cagechange_acute_gamm.R` | descriptive producer | Where in the night the CC1-to-CC4 change happens (mostly in the first hour after 18:30). Display only: the CC4−CC1 p-values ignore cohort variation and CON shares the change, so it is not adaptation (Stage 32 registry section 9). |
+
+The GAMM claim ids `CLAIM_GAMM_01`-`_06` were retired with Stage 26; no stage
+owns them.
 
 ## Stage 28 — four core raw-RFID behavioural domains
 
 `28_rfid_behavioral_domains.R` is a **secondary, descriptive** characterisation
-and is run deliberately and individually, like 16 and 19-27. It is additive: it
+and is run deliberately and individually, like 19, 20 and 22. It is additive: it
 neither modifies nor re-runs Stage 01 or Stage 09, and it does not touch the
 legacy five-domain first-night producer
 (`Functions/first_night_domain_driver.R`), whose artifacts remain the
@@ -246,17 +236,18 @@ criteria. It now requires a single resolution and a fresh run ID, for example:
 Rscript Analysis/00_qc_tracking_integrity.R --input-scale=10sec_based --run-id=review_YYYYMMDD
 ```
 
-Stages 16, 19-27 and 28 and the endpoint producer are run **deliberately and individually**.
+Stages 19, 20, 22 and 28 and the endpoint producer are run **deliberately and individually**; the frozen Stages 29-32 ran once each behind identity gates.
 
-This is a declaration, not a backlog. Stage 27's absence is asserted by
-`Testing/tests/test_behavior_main_figure_contracts.R`: an assembler must not be
-swept into a bulk re-run of the scientific pipeline, because re-running it is a
-publication act, not an analysis act. Treat 26 and the endpoint producer the
-same way.
+This is a declaration, not a backlog. `Testing/tests/test_stage_inventory.R`
+checks that the runner's profiles name exactly the stages the inventory gives a
+profile. A frozen writer or the endpoint producer must not be swept into a bulk
+re-run of the scientific pipeline, because re-running it is a publication act,
+not an analysis act.
 
-`analysis_ready/output_index.csv` — generated by Stage 16 — is the
-machine-readable version of this table, including a `runner_registration`
-column. Prefer it over this README when the two disagree.
+`analysis_ready/output_index.csv` — written by
+`Maintenance/Refresh-BehaviorOutputIndex.R` from `Functions/behavior_output_index.R`
+— is the machine-readable version of this table, including a
+`runner_registration` column. Prefer it over this README when the two disagree.
 
 ## Logical stage number ≠ output directory number
 
@@ -284,7 +275,8 @@ identify the stage.**
 | `_supporting/14_nextgen_behavioral_phenotyping.R` | `analysis_ready/analyses/systems_phenotyping/5min/` (numbered original under `history/original_layout/`) |
 | `Testing/audits/audit_inactive_phase_qc_redesign.R` | `analysis_ready/analyses/inactive_phase_qc_audit/` (manual QC proposal; numbered original retained) |
 
-Stages 03, 09 and 20-27 write under `analysis_ready/pipeline/<stage>_<name>/`.
+Stages 03, 09, 20, 22, 28, 29, 29b, 30 and 32 write under `analysis_ready/pipeline/<stage>_<name>/`;
+the outputs of the retired Stages 21 and 23-27 are under `analysis_ready/history/retired/`.
 The remaining numbered output roots need separate dependency review; see
 `docs/BEHAVIOR_OUTPUT_MIGRATION.md`.
 

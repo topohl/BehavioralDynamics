@@ -1,62 +1,47 @@
 # Manuscript
 
-Publication-facing assembly for the E9 SIS behavioural manuscript. This file is
-the **authoritative statement of the current publication architecture**. Where
-any other document in this repository disagrees with it, this file wins — with
-the single exception of the machine-readable registry it points to, which wins
-over prose.
+The E9 SIS behavioural manuscript is built in the Exp9_manuscript repository. It imports frozen, hash-gated bundles
+that this repository wrote once each and renders every figure from them; it fits nothing. This file states what this
+repository supplies. Until 2026-10-05 it also described an in-repository export layer and Figure 1 staging; both were
+retired (`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`).
 
 ```text
 manuscript/
-├── README.md                    this file — current publication architecture
-├── Fig1_behavior_candidates/    candidate panel staging for Figure 1
-└── archive/                     historical/forensic provenance, not current
+├── README.md     this file
+└── archive/      historical/forensic provenance, not current
 ```
 
-The authoritative machine-readable map of every manuscript-facing analysis is:
-
-```text
-docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv
-```
+The stage-by-stage layers are in `Analysis/README_pipeline.md` and `Analysis/STAGE_INVENTORY.csv`. The
+machine-readable map of manuscript-facing analyses is `docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv`, kept byte-unchanged
+because the frozen configurations cite it; read it with `docs/MANUSCRIPT_ANALYSIS_REGISTRY_ADDENDUM.md`.
 
 ---
 
-## Current publication architecture
+## What the manuscript imports
 
-### PRIMARY — Stage 09 prospective prediction
+Under `analysis_ready/canonical/` on the project root:
 
-`Analysis/09_early_prediction_model_ladder.R`
+- `behavior_bundle/ebb_v101_20260929_b2ce507/`: the Stage 29 v1.0.1 release bundle (writer: Stage 16b). Figure 1 is
+  rendered from it.
+- `figure_support_bundle/` (writer: Stage 16c) and `stage30_figure_bundle/` (writer: Stage 30b).
+- `later_outcome_combz/tables/`: the later outcome CombZ and the CON/RES/SUS classification
+  (`Analysis/build_later_outcome_combz.R`, `docs/COMBZ_CANONICAL_DEFINITION.md`).
 
-Whether behaviour during the **first active 12 h after the first cage change**
-predicts **later CombZ**. Canonical resolution 10-min bins, n = 111 animals.
+## The registered runs behind them
 
-The canonical feature set is fixed a priori and is exactly three features in
-order: `Movement_mean`, `Movement_rmssd`, `Entropy_acf1`. The headline model is
-`Movement_mean` alone. `Group` is endpoint-derived and is excluded from every
-canonical primary model.
+Each ran once, behind identity gates, into its own run folder:
 
-This is the only layer that carries a primary manuscript claim.
+- Stage 29 v1.0.1 (`docs/STAGE29_RELEASE_v1.0.1_dv2.md`), with Stage 09 as its prospective prediction input: the
+  fixed a priori features `Movement_mean`, `Movement_rmssd` and `Entropy_acf1` in the first active 12 h after the first
+  cage change; `Group` is endpoint-derived and excluded from every prediction model.
+- Stage 29b, post hoc CON contrasts (`docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.0.md`).
+- Stage 30, the exploratory screen (`docs/stage30/STAGE30_REGISTRY_v1.0.md`).
+- Stage 32, exposure and adaptation (`docs/STAGE32_REGISTRY_v1.0.md` and addendum A1).
 
-### SECONDARY — phenotype characterization
-
-- **Stage 03** raw longitudinal movement
-  (`Analysis/03_primary_raw_movement_phase_stats.R`) — cage-change × phase
-  characterization. Displayed CON/RES/SUS pairwise comparisons are Holm-adjusted
-  within each prespecified three-contrast panel; no wider global family is
-  claimed.
-- **First-night five-domain panel** (Stage 14, via
-  `Functions/first_night_domain_driver.R`) — the canonical first-night analysis
-  on the same clock window Stage 09 owns, primary at 10 min with 5 min as a
-  declared resolution sensitivity. Five displayed domains, BH-corrected within
-  Sex over a declared 5 × 3 family.
-
-### SUPPLEMENTARY / CONDITIONAL
-
-- **Active longitudinal HMM persistence.** The active-phase persistence family
-  (mean dwell, self-transition probability, state-switch rate, transition
-  entropy) is sign-stable across all five distinct gap-aware optima for
-  SUS–CON. Conditional on the identifiability caveats in
-  `docs/KNOWN_LIMITATIONS.md` being stated alongside it.
+Descriptive layers that are not in a bundle: Stage 28 (four core domains; `docs/RFID_FOUR_DOMAIN_RECONCILIATION.md`),
+the Stage 14 first-night five-domain panel as its conservative sensitivity, the CC4 Stages 31-31d
+(`docs/CC4_GRID_EXPOSURE.md`) and the within-night GAMM profiles of Stages 20 and 22 (Extended Data candidates without
+group inference; `docs/EXTENDED_DATA_CLASSIFICATION.md`).
 
 ### NOT CURRENTLY PROMOTED
 
@@ -70,40 +55,16 @@ None of the following may carry a manuscript claim as the repository stands:
 - **Occupancy-entropy phenotype** — unstable. Active `occupancy_entropy`
   SUS–RES flips sign across gap-aware optima and is explicitly recorded as
   `NOT robust: sign flips across optima; do not report as a finding`.
-- **First-night HMM persistence** — instability at the first-night window;
-  distinct from the longitudinal active persistence above.
+- **First-night HMM persistence** — instability at the first-night window.
+  Active longitudinal HMM persistence is at most supplementary and conditional
+  on the identifiability caveats in `docs/KNOWN_LIMITATIONS.md`.
 - **Stage 10 / Stage 14 systems predictive claims, nonlinear and manifold
   analyses, and behaviour-proteomics integration** — exploratory.
-
-### Stage 16 — canonical manuscript behaviour / source-data export layer
-
-`Analysis/16_manuscript_behavior_report.R`
-
-The canonical manuscript export layer. It **reads** existing Stage 09, Stage 03
-and QC tables and writes the manuscript package to
-`analysis_ready/manuscript/behavior/`. It fits no models and recalculates no
-statistics; it is assembly only, and it verifies that the upstream SHA-256
-hashes are unchanged across its own run.
-
-Entry point: `Behavioral_Source_Data.xlsx`, with typed CSV companions
-(`primary_results.csv`, `supplementary_results.csv`, three source-data tables,
-`provenance.csv`, `validation.csv`, `manifest.csv`).
-
-Stage 16 is **not** part of `Analysis/run_all_analysis.R`; it is run explicitly
-after the canonical upstream outputs exist.
+- **GAMM group contrasts** (Stages 20 and 22, and the retired 21 and 23-26) —
+  no cage term while CON is 3 intact cages per sex (`docs/KNOWN_LIMITATIONS.md`
+  item 13).
 
 ---
-
-## `Fig1_behavior_candidates/`
-
-Candidate panel staging for Figure 1 — deliberately a candidate set, not a
-frozen figure. `figure_manifest.csv` declares each candidate's status;
-`build_fig1_candidates.R` is the source of truth for the status vocabulary and
-records what actually resolved into `rendered/core/staging_status.csv`.
-
-**The final panel selection is not made by this repository and must not be
-inferred from significance.** It is an explicit editorial decision recorded in
-`docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv`.
 
 ## `archive/`
 
@@ -121,5 +82,5 @@ was altered, and its scripts still run from the archived location.
 ## What must not be inferred from this directory
 
 - Panel selection is not a function of p-values.
-- The presence of a rendered candidate does not make it a promoted result.
+- A rendered candidate is not a promoted result.
 - Anything under `archive/` describes the past, not the present.

@@ -1,5 +1,9 @@
 # Behavior main figure — five-source provenance audit
 
+> **Historical (2026-10-05).** This audit served the Stage 27 main figure, retired on 2026-10-05 together with its
+> contract test (`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`). Figure 1 is rendered in Exp9_manuscript from
+> `ebb_v101`. Read the findings as the record of that review, not as current requirements.
+
 Companion prose for `docs/BEHAVIOR_MAIN_FIGURE_SOURCE_AUDIT.csv`. The CSV is the
 machine-readable authority; this file explains what was found and what still
 needs a human decision.

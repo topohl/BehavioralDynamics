@@ -1,5 +1,9 @@
 # Future repository restructure — plan only
 
+> **Partly outdated (2026-10-05).** Stage 16, Stage 27, the release builder and the publication-root helpers it
+> maps were retired on 2026-10-05 (`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`); rows that move them no
+> longer apply.
+
 **Nothing in this document has been executed.** It records a possible eventual
 layout, maps current locations onto it, and states for each move what the
 benefit is, what the risk is, what depends on it, and whether the path registry

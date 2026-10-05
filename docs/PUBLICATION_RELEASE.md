@@ -1,5 +1,9 @@
 # Publication release process
 
+> **Historical (2026-10-05).** The release builder and verifier this file describes were retired on 2026-10-05
+> (`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`). The manuscript imports the frozen bundles under
+> `analysis_ready/canonical/` instead. The only release, `rc1` (2026-09-04), predates the CombZ correction.
+
 How a BehavioralDynamics release candidate is frozen, validated and archived.
 
 A "release" here means a **self-contained, hash-verified bundle** of exactly the

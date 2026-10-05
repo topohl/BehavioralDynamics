@@ -30,7 +30,7 @@ across those five fits; the five fits must not be described as five distinct
 optima or as an exhaustive search. Its isolated outputs are under
 `analysis_ready/analyses/hmm_revalidation_runs/current_stage08_review_20260924/`.
 The source manuscript registry now cites the current-input rerun and its
-five-fit ranges; the existing Stage 16 and release products were not refreshed.
+five-fit ranges; the former Stage 16 and release products, retired on 2026-10-05, were never refreshed.
 Only contrasts supported by a reviewed current audit may be reported, and
 they retain the identifiability caveat.
 
@@ -97,8 +97,7 @@ SUS are defined by thresholding the downstream composite `CombZ`.
 - treating any CON/RES/SUS comparison as independent validation of the endpoint —
   it is phenotype characterization by construction;
 - using `Group` as a predictor in a prospective model. The canonical Stage 09
-  models exclude it, and Stage 16 asserts this
-  (`group_excluded_primary_prediction` PASS).
+  models exclude it.
 
 Every group-contrast analysis in this repository — Stage 03, the first-night
 panel, all HMM contrasts — inherits this limitation.
@@ -140,21 +139,24 @@ generalisation beyond this cohort and paradigm.
 ## 7. Resolution sensitivity: resolved, with a construct caveat
 
 The canonical Stage 09 resolution is 10-min bins, with 5-min declared as the
-resolution sensitivity. That sensitivity has now been **run and exported**:
-`analysis_ready/pipeline/09_early_prediction/5min/`, with a direct comparison in
-`5min/audit/stage09_resolution_sensitivity_comparison.csv`. Stage 16 reports it
-as supplementary evidence and `resolution_sensitivity_status` now reads
-*Available*. The 10-min analysis remains the primary and its values are
-unchanged.
+resolution sensitivity. Both are in
+`analysis_ready/pipeline/09_early_prediction/{10min,5min}/tables/`, regenerated on
+2026-09-27 after the CombZ correction and the leading-bin fix. The direct
+comparison in `5min/audit/stage09_resolution_sensitivity_comparison.csv` dates
+from 2026-09-04 and still holds the pre-correction values; read the current
+values from the two `tables/` folders. The 10-min analysis remains the primary.
 
-The headline result is resolution-stable:
+The headline result is resolution-stable (current tables):
 
 | | 10 min | 5 min |
 |---|---|---|
-| `Movement_mean` rho vs CombZ | -0.3903 | -0.3896 |
-| `Movement_mean` LOAO R2 | 0.1594 | 0.1600 |
+| `Movement_mean` rho vs CombZ | -0.408 | -0.408 |
+| `Movement_mean` LOAO R2 | 0.173 | 0.173 |
 | permutation p | 1/1001 | 1/1001 |
 | mean-only baseline R2 | -0.0183 | -0.0183 |
+
+With every window complete at both resolutions, `Movement_mean` at 5 min is the
+10-min value halved, so its rank correlation and LOAO R2 are identical.
 
 **The remaining caveat is about construct, not availability.** `calc_rmssd()` uses
 `diff(x)` and `calc_acf1()` uses `lag.max = 1`, so both express their lag in
@@ -165,14 +167,17 @@ different quantity, not simply a finer-grained estimate of the same one.
 `Movement_mean` has no lag and is directly comparable, which is why the headline
 comparison above is the meaningful one.
 
-This matters most for `Entropy_acf1`, which is **not** BH-supported at 10 min
-(q = 0.0667) but **is** at 5 min (q = 0.0012, rho -0.3141 versus -0.1747).
+This matters most for `Entropy_acf1`. At 10 min it is BH-supported only
+narrowly (q = 0.048; bootstrap interval upper bound -0.0001); at 5 min clearly
+(q = 0.0006, rho -0.330 versus -0.188). Before the 2026-09-20/22 corrections the
+10-min value was q = 0.0667, not BH-supported.
 
-**Forbids:** using the 5-min result to reinterpret or promote the primary
-`Entropy_acf1` finding. The primary reporting wording is unchanged and remains
-qualified. Direction is stable for every feature and every model at both
-resolutions, so the sensitivity is informative regardless of which side of a
-threshold any individual q-value falls.
+**Forbids:** using the 5-min result to strengthen the primary `Entropy_acf1`
+finding. At 10 min it sits at the threshold; how the manuscript words it is a
+separate decision (`docs/MANUSCRIPT_ANALYSIS_REGISTRY_ADDENDUM.md`). Direction is
+stable for every feature and every model at both resolutions, so the sensitivity
+is informative regardless of which side of a threshold any individual q-value
+falls.
 
 Two further mechanical differences, neither a defect:
 
@@ -271,14 +276,12 @@ All 40 curated behaviour–proteomics models have **n between 0 and 9** animals,
 
 ---
 
-## 11. Manuscript figure path resolution caveat
+## 11. Manuscript figure path resolution caveat — no longer applies
 
-`build_fig1_candidates.R` resolves Stage 03 panels under
-`figures/publication_panels/`, but the canonical migrated Stage 03 tree writes
-figures directly to `figures/`. That panel therefore resolves through the
-documented legacy fallback rather than the canonical path. It is recorded in
-`staging_status.csv` rather than failing silently. Left unchanged during the
-restructuring because altering artifact resolution is a behavioural change.
+`build_fig1_candidates.R` resolved Stage 03 panels under
+`figures/publication_panels/` through a documented legacy fallback, because the
+canonical migrated Stage 03 tree writes figures directly to `figures/`. The
+script was retired on 2026-10-05; no current reader resolves those panels.
 
 ---
 
@@ -315,6 +318,29 @@ and a scientifically specified threshold or discriminator.
 
 ---
 
+## 13. Within-night GAMM profiles (Stages 20 and 22) carry no group inference
+
+Stages 20 and 22 are kept as descriptive Extended Data candidates; the GAMM
+Stages 21 and 23-26 were retired on 2026-10-05
+(`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`). The limits that decided this:
+
+- The models have no cage term, while CON is 3 intact cages per sex. Contrasts
+  that compare SIS with CON lost support in unregistered checks that treated CON
+  cages as the unit.
+- `Movement` counts vendor position updates (relocations of at least 200 units),
+  not distance and not every antenna change.
+- The light-phase measure of the retired Stages 23-25 cannot be separated from
+  rest or detection loss (items 3 and 12).
+- The Stage 22 CC4−CC1 p-values treat cohort-specific change as residual. The
+  change is positive in every cohort but varies between them, and CON shares it.
+- Their results were seen before the freeze.
+
+**Forbids:** showing GAMM p-values beside the frozen results, describing the
+CC1-to-CC4 change as adaptation, and citing any contrast of the retired Stages
+23-25.
+
+---
+
 ## Resolved historical issues
 
 These were real defects. They have been **fixed**. They are listed so that older
@@ -330,5 +356,5 @@ correctly, and they must **not** be presented as current limitations.
 | Stage 09 primary window selected both phases rather than Active only, and endpoint identity matching dropped animals (111 → 88) because only one side of the CombZ join was canonicalised. | Fixed; `Testing/tests/test_stage09_primary_window.R` and `test_stage09_endpoint_identity.R` lock both. |
 | Stage 14 used row-count windows rather than a clock window, so it did not match the Stage 09 question. | Stage 14 now uses the canonical first-night analysis on the shared clock-window selector; parity asserted by `Testing/tests/test_first_night_window_parity.R`. |
 | Stale Stage 09 output trees (113 animals, zero-padded IDs, both phases) were resolvable by readers. | Quarantined to `analysis_ready/_quarantine_legacy_s09/` with a manifest recording every contract violation; retained since 2026-09-26 under `analysis_ready/history/original_layout/_quarantine_legacy_s09/` and not to be restored. |
-| Stage 16 reporting contract described `Entropy_acf1` inconsistently with its actual FDR status. | Corrected; the qualified wording is now enforced by the `entropy_wording` validation check. |
+| Stage 16 reporting contract described `Entropy_acf1` inconsistently with its actual FDR status. | Corrected; the qualified wording was enforced by the `entropy_wording` validation check. Stage 16, and with it that check, was retired on 2026-10-05; item 7 gives the current status. |
 | Stage 15 output paths exceeded the Windows `MAX_PATH` limit. | Fixed; `Testing/tests/test_output_path_length.R` guards it. |

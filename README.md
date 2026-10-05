@@ -37,11 +37,11 @@ Core analytical themes:
 | If you want to | Read |
 |---|---|
 | Understand the manuscript claims | [`manuscript/README.md`](manuscript/README.md) |
-| See the machine-readable analysis map | [`docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv`](docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv) |
+| See the machine-readable analysis map | [`docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv`](docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv), read with its [addendum](docs/MANUSCRIPT_ANALYSIS_REGISTRY_ADDENDUM.md) |
 | Re-run the pipeline | [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) |
 | Know what the caveats are | [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md) |
 | Find the data and outputs | [`docs/DATA_AND_OUTPUTS.md`](docs/DATA_AND_OUTPUTS.md) |
-| Freeze a release | [`docs/PUBLICATION_RELEASE.md`](docs/PUBLICATION_RELEASE.md) |
+| See what was retired on 2026-10-05, and why | [`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`](docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md) |
 | Understand the stage-by-stage pipeline | [`Analysis/README_pipeline.md`](Analysis/README_pipeline.md) |
 | Know what every file is for (2026-09-04 snapshot; its output paths predate the output migration) | [`docs/REPOSITORY_FILE_CLASSIFICATION.csv`](docs/REPOSITORY_FILE_CLASSIFICATION.csv) |
 
@@ -74,16 +74,15 @@ Longitudinal analysis of mouse behavior during social instability stress and rel
 
 ```text
 BehavioralDynamics/
-├── Analysis/          Active staged pipeline (Stages 00-16, 19), runners, and _archive/
+├── Analysis/          Staged pipeline (Stages 00-15, 19, 20, 22, 28-32, bundle writers), runners, and _archive/
 ├── Functions/         Shared helpers: identity, preprocessing, windows, first-night, stats, HMM, output
 ├── Formatting/        Raw preprocessing and raw-level QC, upstream of the pipeline, plus _archive/
 ├── Testing/
-│   ├── tests/         17 portable regression/contract checks (CI-eligible)
-│   ├── audits/        42 data-dependent scientific validations
+│   ├── tests/         78 portable regression/contract checks (CI runs all of them)
+│   ├── audits/        51 data-dependent scientific validations
 │   └── legacy/        11 historical development scripts
 ├── manuscript/
-│   ├── README.md      Authoritative current publication architecture
-│   ├── Fig1_behavior_candidates/
+│   ├── README.md      Where the manuscript is built and what this repository supplies
 │   └── archive/       Historical/forensic provenance, explicitly not current
 ├── docs/              Reproducibility, data/outputs, limitations, release process, registries
 ├── .github/workflows/ CI for the portable suite only
@@ -101,7 +100,7 @@ Each of `Analysis/`, `Functions/`, `Formatting/`, `Testing/` and `manuscript/` h
 source("Analysis/run_all_analysis.R")
 ```
 
-The runner sources `Analysis/_pipeline_setup.R` and executes Stages 00–15:
+The runner sources `Analysis/_pipeline_setup.R` and registers Stages 01–15 (Stage 00 is a manual diagnostic):
 
 | Stage | Script | Role |
 |---:|---|---|
@@ -119,15 +118,16 @@ The runner sources `Analysis/_pipeline_setup.R` and executes Stages 00–15:
 | 11 | `11_behavioral_adaptation_kinetics.R` | Adaptation and recovery kinetics |
 | 12 | `12_sleep_like_quiescence_metrics.R` | Sleep-like quiescence and inactivity metrics |
 | 13 | `13_ethological_phase_organization.R` | Ethological phase organization |
-| 14 | `14_systems_neuroscience_summary_dashboard.R` | Systems dashboard; canonical first-night five-domain analysis |
+| 14 | `14_systems_neuroscience_summary_dashboard.R` | Systems dashboard and domain heatmaps; its first-night five-domain section is the conservative sensitivity beside Stage 28 |
 | 15 | `15_behavior_proteomics_integration.R` | Optional behavior-proteomics integration |
 
 **Run outside the runner**, deliberately:
 
 | Stage | Script | Why separate |
 |---:|---|---|
-| 16 | `16_manuscript_behavior_report.R` | Manuscript export layer; must run after canonical Stage 03/09 outputs exist |
-| 19 | `19_spatial_occupancy_maps.R` | Secondary/spatial; not part of the manuscript package |
+| 19 | `19_spatial_occupancy_maps.R` | Secondary/spatial; not part of the manuscript bundles |
+| 20, 22 | `20_first_night_gamm.R`, `22_repeated_cagechange_acute_gamm.R` | Descriptive within-night GAMM profiles; Extended Data candidates without group inference |
+| 28-32 | `28_rfid_behavioral_domains.R`, the CC4 Stages 31-31d and the frozen Stages 29, 29b, 30 and 32 | Stage 28 rewrites pinned inputs; 31-31d write new run-id folders; 29, 29b, 30 and 32 ran once each behind identity gates |
 | — | `Formatting/E9_SIS_AnimalPos-preprocessing_parallell.r` | Rewrites Stage 01's canonical input; must be deliberate |
 
 The runner runs nothing by default; choose a profile (`legacy_systems`, `heatmap_inputs` or `early_prediction`) or an
@@ -158,7 +158,7 @@ The authoritative statement is [`manuscript/README.md`](manuscript/README.md). I
 | **Secondary** | Stage 03 raw longitudinal movement; the first-night five-domain panel. |
 | **Supplementary / conditional** | Active longitudinal HMM persistence, conditional on stating the identifiability caveats. |
 | **Not promoted** | Inactive HMM / rest interpretation (measurement validity); occupancy entropy (sign-unstable); first-night HMM persistence (unstable across refits); Stage 10/14 systems, nonlinear and behavior-proteomics layers. |
-| **Export layer** | Stage 16 writes the canonical manuscript package and source data. |
+| **Frozen layer** | The manuscript renders from the frozen Stage 29 v1.0.1 bundle (`ebb_v101`) and the other imported bundles, with the post hoc Stage 29b, the exploratory screen (Stage 30) and Stage 32. The Stage 16 export package was retired on 2026-10-05. |
 
 ---
 
@@ -188,11 +188,13 @@ Outputs are written to the local project root, never into the repository. Canoni
 analysis_ready/pipeline/<stage_id>_<stage_name>/<resolution>/{tables,figures,audit}/
 ```
 
-The manuscript entry point is:
+The manuscript-facing entry point is the frozen bundle:
 
 ```text
-analysis_ready/manuscript/behavior/Behavioral_Source_Data.xlsx
+analysis_ready/canonical/behavior_bundle/ebb_v101_20260929_b2ce507/
 ```
+
+`analysis_ready/README.md` and `analysis_ready/output_index.csv` map everything else; `Maintenance/Refresh-BehaviorOutputIndex.R` writes both.
 
 Readers resolve canonical paths first and a single documented legacy path second; any fallback is warned and recorded in provenance. See [`docs/DATA_AND_OUTPUTS.md`](docs/DATA_AND_OUTPUTS.md).
 

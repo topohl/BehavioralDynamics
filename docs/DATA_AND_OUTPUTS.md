@@ -60,11 +60,12 @@ Within `MMMSociability/`:
 ## The `analysis_ready` role
 
 `analysis_ready/` is the single output root. Its own `README.md` states the
-entry point. Stage 16 generates `output_index.csv`, a stage and output-group
-navigation map: path, producer, manuscript role, migration status and historical
-location. It is not the file-level migration plan; see
-`docs/BEHAVIOR_OUTPUT_MIGRATION_PLAN.csv`. The live index was refreshed from
-the current Stage 16 source definition after the bounded Stage 14/19,
+entry point. `Maintenance/Refresh-BehaviorOutputIndex.R` writes `output_index.csv`
+from `Functions/behavior_output_index.R` (the definition lived in Stage 16 until
+its retirement on 2026-10-05): a stage and output-group navigation map with path,
+producer, manuscript role, status, runner and historical location. It is not the
+file-level migration plan; see `docs/BEHAVIOR_OUTPUT_MIGRATION_PLAN.csv`. The live
+index was refreshed from the source definition after the bounded Stage 14/19,
 Stage 02/06, Stage 07, Stage 05, Stage 08, Stage 04, Stage 15, Stage 11–13,
 two manual supporting-analysis cutovers, and the inactive-phase QC audit cutover;
 prior copies are
@@ -78,7 +79,7 @@ systems-phenotyping, and inactive-phase QC audit groups,
 the source definition reads
 the migration receipt for each group: an activated receipt records the semantic
 path, while a blocked or prepared group remains at its current path. The full
-Stage 16 exporter was not rerun for the cutover.
+Stage 16 exporter was never rerun for these cutovers.
 
 ### Active semantic analysis outputs
 
@@ -101,23 +102,26 @@ analysis_ready/pipeline/09_early_prediction/10min/
 analysis_ready/pipeline/10_systems_prediction/10min/
 ```
 
-Stages 03 and 09 supply selected manuscript claims; Stage 10 is an exploratory
-systems extension. Manually run scientific and manuscript stages 20–27 also use
-`pipeline/`. Local Stage 28 outputs exist under `pipeline/28_rfid_behavioral_domains/`,
-but its producer is currently untracked work and is not a release contract.
+Stage 09 is the prospective prediction input of the frozen release; Stage 03 has
+no product reader since 2026-10-05; Stage 10 is an exploratory systems extension.
+The descriptive GAMM Stages 20 and 22, Stage 28 and the frozen Stages 29, 29b, 30
+and 32 also use `pipeline/`; the outputs of the retired Stages 21 and 23-27 are
+under `history/retired/`.
 Migrated trees use `tables/`, `figures/` and `audit/` rather than the older
 `publication_panels/` level.
 
-### Manuscript package
+### Manuscript bundles
 
 ```text
-analysis_ready/manuscript/behavior/
+analysis_ready/canonical/behavior_bundle/ebb_v101_20260929_b2ce507/
 ```
 
-The recommended entry point for anyone reading the results:
-`Behavioral_Source_Data.xlsx` plus `primary_results.csv`,
-`supplementary_results.csv`, three source-data tables, `provenance.csv`,
-`validation.csv` and `manifest.csv`.
+The recommended entry point for anyone reading the results is the frozen Stage 29
+v1.0.1 bundle, which Exp9_manuscript imports; `canonical/figure_support_bundle/`
+and `canonical/stage30_figure_bundle/` hold the other imported bundles. The
+2026-09-22 Stage 16 package (`Behavioral_Source_Data.xlsx` and its CSV
+companions) was retired on 2026-10-05 and is under
+`analysis_ready/history/retired/manuscript_behavior/`.
 
 ### Remaining historical output branches
 
@@ -147,7 +151,7 @@ the canonical 111, zero-padded non-canonical `AnimalNum`, both phases present
 where the analysis is Active-only. `QUARANTINE_MANIFEST.csv` records, per tree,
 the generating script, the artifact date, the specific contract violations and
 what replaced it. Quarantined data must never be resolved by any reader, and
-the release builder refuses to touch this tree. The maintainer decided on
+the retired release builder refused to touch this tree. The maintainer decided on
 2026-09-25 that these trees are not to be restored, and the manifest now says
 so. On 2026-09-26 the whole quarantine moved unchanged from
 `analysis_ready/_quarantine_legacy_s09/` to its place under
@@ -169,8 +173,8 @@ to four legacy copies.
 This is not corruption: the legacy copies are earlier generations retained for
 provenance. It matters only because a human browsing the tree can pick the wrong
 one. The mitigation is that code never browses — it resolves through the
-canonical-first contract — and the release bundle copies only resolved canonical
-artifacts and records their hashes.
+canonical-first contract — and the frozen bundles copy only resolved,
+hash-gated artifacts.
 
 Figures that appear 5 or 10 times across `analysis_ready/` are usually the same
 panel rendered at each bin resolution, which is expected fan-out rather than
@@ -178,21 +182,14 @@ duplication.
 
 ---
 
-## Manuscript release bundle
+## Manuscript release bundle (retired)
 
-`Analysis/build_publication_release.R` assembles a self-contained, hash-verified
-bundle:
-
-```text
-<RFID_ROOT>/releases/E9_behavior_manuscript_<release_id>/
-```
-
-It is strictly copy-only: it never moves, deletes or rewrites a source artifact,
-and it refuses to read from quarantined or legacy trees. Contents, guarantees and
-failure modes are documented in `docs/PUBLICATION_RELEASE.md`.
-
-The live `analysis_ready/` tree is **not** reorganised to build a release.
-Filesystem migration is a separate, later decision — see the end of this file.
+`Analysis/build_publication_release.R` assembled a copy-only, hash-verified
+bundle under `<RFID_ROOT>/releases/E9_behavior_manuscript_<release_id>/`
+(`docs/PUBLICATION_RELEASE.md`). It was retired on 2026-10-05. The only release,
+`releases/E9_behavior_manuscript_rc1` (2026-09-04), predates the CombZ correction
+and the leading-bin fix and stays in place as a dated snapshot. The manuscript
+imports the frozen bundles under `analysis_ready/canonical/` instead.
 
 ---
 
@@ -203,12 +200,10 @@ Filesystem migration is a separate, later decision — see the end of this file.
 | `raw_data/` AnimalPos exports | **No.** Irreplaceable experimental measurement. |
 | `preprocessed_data/` | No — requires `raw_data/`. |
 | Stage 01 metric tables | No — requires `preprocessed_data/`. |
-| All downstream stage outputs (03–16, 19) | No — require Stage 01. |
-| Manuscript package | No — requires Stages 03 and 09. |
-| Release bundle | No — copies resolved canonical artifacts. |
-| Figure 1 candidate staging | No — copies from the analysis tree. |
+| All downstream stage outputs (03–15, 19, 20, 22, 28–32) | No — require Stage 01. |
+| Frozen bundles | No — copies of hash-gated outputs of the frozen runs. |
 | The archived provenance schema figures | **Yes** — its `data/` tables are tracked in git, so `R/10`, `R/20` and `R/30` re-render from the repository alone. |
-| Portable test suite | **Yes** — 17 scripts, entirely self-contained. |
+| Portable test suite | **Yes** — 78 scripts, entirely self-contained. |
 
 In short: **everything scientific depends on `raw_data/`, and `raw_data/` cannot
 be reconstructed.** It should be treated as the primary preservation target,
@@ -219,10 +214,11 @@ independent of any git or release process.
 ## Backup and preservation priority
 
 1. `MMMSociability/raw_data/` — irreplaceable.
-2. `analysis_ready/manuscript/behavior/` — the manuscript package, tiny (~0.5 MB).
+2. `analysis_ready/canonical/` — the frozen bundles, configuration and registries
+   the manuscript imports.
 3. `analysis_ready/pipeline/` — canonical migrated outputs backing every claim
    (~54 MB).
-4. This repository at the release commit.
+4. This repository at the commits the frozen runs record.
 5. Everything else — large and regenerable given 1.
 
 ---

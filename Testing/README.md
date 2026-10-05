@@ -99,18 +99,16 @@ older first-night, HMM, phase-impact, and Stage 09 forensic audits read the
 retained numbered Stage 01 original through its archive receipt and require
 input-lineage review before rerun.
 - **Data-dependent contract checks** — `test_animal_identity_contract.R`,
-  `test_reporting_architecture.R`, `test_acute_active_window_parity.R`,
-  `test_acute_phase_window_parity.R` and `test_gamm_manuscript_consistency.R`.
+  `test_acute_active_window_parity.R` and `test_acute_phase_window_parity.R`.
 
-> **Why five `test_*.R` files live here rather than in `tests/`:** the first two read
-> the mounted RFID project data (and, for the reporting check, a list of
-> required canonical artifacts) *unconditionally* —
-> there is no `file.exists()` guard. They are genuine data-dependent contract
-> checks despite the `test_` prefix, and placing them in `tests/` would break CI.
-> Classification here follows what the code actually does, not the filename.
-> The acute-window parity checks (live Stage 01 table throughout) and the GAMM
-> manuscript consistency check (Stage 26 tree; it also runs four parity tests
-> through `Rscript`) moved here on 2026-10-04 for the same reason.
+> **Why three `test_*.R` files live here rather than in `tests/`:** the first reads
+> the mounted RFID project data *unconditionally* — there is no `file.exists()`
+> guard. It is a genuine data-dependent contract check despite the `test_`
+> prefix, and placing it in `tests/` would break CI. Classification here follows
+> what the code actually does, not the filename. The acute-window parity checks
+> (live Stage 01 table throughout) moved here on 2026-10-04 for the same reason.
+> The reporting-architecture check (Stage 16 package) and the GAMM manuscript
+> consistency check (Stage 26 tree) were retired with their stages on 2026-10-05.
 
 Several audits are chained: they consume a table written by an earlier audit
 rather than by a production stage. Notable chains are recorded in each script's

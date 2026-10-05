@@ -93,30 +93,34 @@ sandbox root is not guarded. See `Analysis/README_pipeline.md`.
 
 ### 2. Stages outside the runner
 
-Stages 16 and 19 are **not** in `run_all_analysis.R` and are run explicitly:
+Stages 19, 20 and 22 are **not** in `run_all_analysis.R` and are run explicitly:
 
 ```r
-source("Analysis/16_manuscript_behavior_report.R")   # manuscript export layer
 source("Analysis/19_spatial_occupancy_maps.R")       # secondary/spatial
 ```
 
-Stage 16 must run *after* the canonical Stage 03 and Stage 09 outputs exist,
-because it only reads and assembles them.
+Stages 20 and 22 (descriptive within-night GAMM profiles) are re-run in a
+sandbox, never on the live root:
 
-### 3. Manuscript figure staging
+1. set `MMM_BEHAVIOR_PROJECT_ROOT` (or `options(mmm.project_root = ...)`) to a C:
+   root and `options(mmm.derived_metrics_dir = ...)` to a copy of
+   `analysis_ready/foundations/behavior_metrics/` whose 10-min table matches the
+   sha256 the Stage 29 v1.0.1 release pins;
+2. run Stage 20, then Stage 22 under the same root (Stage 22's CC1 cross-model
+   audit reads Stage 20's trajectory table and skips silently without it);
+3. compare against the live tables: estimates, SE, CI, p, q and n_obs must be
+   identical; only manifests and figure bytes may differ;
+4. promote with a producer-rerun record in `docs/behavior_output_producer_reruns/`.
 
-```r
-source("manuscript/Fig1_behavior_candidates/build_fig1_candidates.R")
-```
+Use the package versions in `docs/package_versions.csv` (R 4.5.1, mgcv 1.9-4).
+The frozen Stages 29-32 ran once each and are never re-run.
 
-### 4. Release bundle
+### 3. Manuscript figures and releases
 
-```r
-Rscript Analysis/build_publication_release.R --dry-run
-Rscript Analysis/build_publication_release.R --release-id=rc1
-```
-
-See `docs/PUBLICATION_RELEASE.md`.
+The manuscript is rendered in Exp9_manuscript from the frozen bundles. This
+repository no longer stages figures or builds release bundles: the Figure 1
+candidate builder, the Stage 16 package and the release builder were retired on
+2026-10-05 (`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`).
 
 ---
 
@@ -135,7 +139,7 @@ Overridable per component:
 |---|---|
 | `MMM_DATA_DIR` | `Formatting/E9_SIS_AnimalPos-preprocessing_parallell.r` |
 | `MMM_REPO_DIR` | preprocessing and several audits, to locate the checkout |
-| `MMM_BEHAVIOR_PROJECT_ROOT` | `build_fig1_candidates.R` |
+| `MMM_BEHAVIOR_PROJECT_ROOT` | `mmm_project_root()` (every stage script), Stage 09 and the sandbox reruns |
 | `getOption("mmm.project_root")` | several portable tests |
 
 > The `MMMSociability` component inside the data path is a **local directory
@@ -154,7 +158,7 @@ This split is the core of the verification story.
 for f in Testing/tests/test_*.R; do Rscript "$f" || echo "FAILED: $f"; done
 ```
 
-17 scripts. Every fixture is in memory or under `tempdir()`. Four of them
+78 scripts. Every fixture is in memory or under `tempdir()`. Four of them
 (`test_first_night_window_parity.R`, `test_hmm_stage14_contract.R`,
 `test_output_path_length.R`, `test_stage19_identity_and_stage06_schema.R`)
 *opportunistically* read the canonical tables when `S:` happens to be mounted,
@@ -163,14 +167,14 @@ passes without them. This is what CI runs.
 
 ### Data-dependent — requires the E9 dataset
 
-42 scripts in `Testing/audits/`. They will fail without `S:`, by design. Two of
-them are named `test_*` — `test_animal_identity_contract.R` and
-`test_reporting_architecture.R` — because they are contract checks, but they read
+51 scripts in `Testing/audits/`. They will fail without `S:`, by design. Three of
+them are named `test_*` — `test_animal_identity_contract.R` and the two
+acute-window parity checks — because they are contract checks, but they read
 canonical tables unconditionally and so are not portable. They live in `audits/`
 for that reason. See `Testing/README.md`.
 
 > **Caution when interpreting a green run on a machine with `S:` mounted.** Every
-> `test_*.R` passes there, including the two non-portable ones. Portability must
+> `test_*.R` passes there, including the non-portable ones. Portability must
 > be judged from the guards, not from the exit code.
 
 ---
@@ -195,45 +199,30 @@ provides the resolution contract:
 
 `analysis_ready/output_index.csv` is the machine-readable map of which stages are
 migrated to the canonical layout and which still write to historical locations.
+`Maintenance/Refresh-BehaviorOutputIndex.R` writes it and `analysis_ready/README.md`
+from `Functions/behavior_output_index.R`: a dry run first, then `--write` with a
+backup.
 
 ---
 
-## How Stage 16 is built
+## The retired Stage 16 package
 
-`Analysis/16_manuscript_behavior_report.R` is an assembly layer with no
-statistics of its own. It:
-
-1. resolves the required canonical Stage 03, Stage 09 and QC artifacts, recording
-   each path, its role, and its SHA-256 in `provenance.csv`;
-2. selects typed result rows into `primary_results.csv` and
-   `supplementary_results.csv` without refitting anything;
-3. emits three source-data tables (animal level, held-out predictions,
-   movement-phase);
-4. writes `Behavioral_Source_Data.xlsx` and then **re-reads it**, aborting if any
-   workbook cell disagrees with its CSV counterpart, and validating OOXML
-   integrity (no formulas, error cells, external links, drawings or VML);
-5. re-hashes every upstream source after assembly and aborts if any hash moved;
-6. writes `validation.csv` with one row per check.
-
-Current state: **16 of 16 validation checks PASS**, and all **19** provenance
-artifacts match their recorded SHA-256.
-
-Reproduce that check independently:
-
-```r
-rfid <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID"
-prov <- read.csv(file.path(rfid, "analysis_ready/manuscript/behavior/provenance.csv"))
-live <- vapply(file.path(rfid, prov$path), digest::digest,
-               character(1), algo = "sha256", file = TRUE)
-stopifnot(all(tolower(live) == tolower(prov$sha256)))
-```
+`Analysis/16_manuscript_behavior_report.R` assembled Stage 03, Stage 09 and QC
+tables into `Behavioral_Source_Data.xlsx` and CSV companions, with a provenance
+table and 16 validation checks. It was retired on 2026-10-05 and its 2026-09-22
+package moved unchanged to `analysis_ready/history/retired/manuscript_behavior/`.
+At the last check its provenance verified 18 of 22 files (two Stage 09 5-min
+tables were rewritten on 2026-09-27 and two QC files archived), so the
+"16 of 16" and "19 of 19" figures quoted for it are historical.
 
 ---
 
 ## What restructuring must never change
 
 Repository reorganisation must leave every canonical scientific output
-byte-identical. The invariance check is the hash comparison above: if any
-canonical artifact hash changes as a result of moving files, stop and
-investigate. It was run before and after the publication restructuring and both
-times reported 19/19 matching.
+byte-identical. The checks are the frozen runs' input pins (re-hashed by
+`Functions/frozen_input_guard.R` after every runner stage),
+`Testing/tests/test_frozen_code_identity.R` for the frozen code, and a sha256
+receipt for every archive move. If a hash changes as a result of moving files,
+stop and investigate. Until 2026-10-05 the check was the Stage 16 provenance
+comparison, which reported 19/19 before and after the publication restructuring.

@@ -169,9 +169,9 @@ Cross-validation results should be emphasized more strongly than single-fit in-s
 
 # Manuscript Report Export Layer
 
-`Analysis/16_manuscript_behavior_report.R` is an export/assembly layer only. It reads canonical Stage 09 results plus selected Stage 03 and QC outputs without refitting models or recalculating statistics. The manuscript entry point is `analysis_ready/manuscript/behavior/Behavioral_Source_Data.xlsx`, accompanied by typed result/source-data CSVs, provenance, validation, and a SHA-256 manifest. Its primary registry is limited to the three canonical Stage 09 feature associations, fixed prospective prediction models and Sex-adjusted sensitivities, and formal feature-by-Sex interaction tests. Stage 10/14 predictive claims, HMM/state models, manifold and nonlinear analyses, high-dimensional systems prediction, systems composites, and behavior-proteomics integration remain exploratory unless explicitly enabled in a later reporting decision.
+The manuscript renders from the frozen bundles: `ebb_v101` (Stage 16b, from the Stage 29 v1.0.1 release), the figure-support bundles (16c) and the Stage 30 bundle (30b). Each is written once into a new folder and copies already-validated outputs without refitting anything. The former export layer, `Analysis/16_manuscript_behavior_report.R` with its `Behavioral_Source_Data.xlsx` package, was retired on 2026-10-05 (`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`). Stage 10/14 predictive claims, HMM/state models, manifold and nonlinear analyses, high-dimensional systems prediction, systems composites, and behavior-proteomics integration remain exploratory unless explicitly enabled in a later reporting decision.
 
-The workbook retains Group only as descriptive animal metadata and for descriptive plotting. Group remains excluded from primary prospective prediction. Individual-level source sheets provide one row per animal for the primary feature/outcome data, held-out LOAO prediction rows for the headline and plotted canonical models, and tidy Stage 03 movement-phase observations underlying manuscript-facing panels.
+Group is used only as descriptive animal metadata and for descriptive plotting. Group remains excluded from primary prospective prediction.
 
 Repeated grouped-CV intervals in this report are labelled 2.5-97.5% resampling quantiles, never confidence intervals. Full-refit empirical permutation results retain the exact numerator and denominator (for example, 1/1001) and are not displayed as P < 0.001. Internal cross-validation is not external validation.
 
@@ -427,7 +427,7 @@ The picked set is a post hoc judgement, recorded in `MMM_DHM_RESOLUTION_MANIFEST
 
 **Tests of the code.** `Testing/tests/test_domain_heatmap_display.R` is a portable synthetic test of the helpers; its model section needs lme4, lmerTest and pbkrtest and is skipped without them.
 
-A separate source table is still needed because `systems_sis_domain_effect_summary.csv` must stay byte-identical for its consumers (Stage 27 asserts the SUS-RES orientation; `Testing/tests/test_hmm_stage14_contract.R` checks its columns).
+A separate source table is still needed because the columns of `systems_sis_domain_effect_summary.csv` are a contract (`Testing/tests/test_hmm_stage14_contract.R` checks them) and its p and q values are unchanged by the redesign. The former reason for keeping the file byte-identical, Stage 27's check of the SUS-RES orientation, retired with Stage 27 on 2026-10-05; any change in its values still needs a producer-rerun record.
 
 HMM, manifold, recurrence, attractor, energy-landscape, and advanced nonlinear analyses should currently be treated as:
 
@@ -661,7 +661,6 @@ The recommended active manuscript-facing order is:
 13. `Analysis/13_ethological_phase_organization.R`
 14. `Analysis/14_systems_neuroscience_summary_dashboard.R`
 15. `Analysis/15_behavior_proteomics_integration.R`
-16. `Analysis/16_manuscript_behavior_report.R` (export/assembly after canonical upstream outputs exist)
 
 Optional analyses:
 
