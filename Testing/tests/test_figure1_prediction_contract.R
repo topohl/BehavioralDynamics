@@ -4,9 +4,9 @@
 #
 # (1) The repeated grouped-CV seed was a bare literal at its call site - the one
 #     prediction parameter with no name to reference - so the Figure 1 bundle
-#     builders transcribed the make_grouped_folds() DEFAULT (123) instead of the
-#     value actually passed (521). The frozen contract shipped a seed that
-#     reproduces nothing. Two seeds legitimately coexist here and are easy to
+#     builders (retired on 2026-10-05) transcribed the make_grouped_folds()
+#     DEFAULT (123) instead of the value actually passed (521). The frozen
+#     contract shipped a seed that reproduces nothing. Two seeds legitimately coexist here and are easy to
 #     confuse: 521 assigns CV folds, 123 drives the association bootstrap.
 #
 # (2) Every model in the legacy adjusted ladder carries Sex + Group, yet several
@@ -31,8 +31,6 @@ check <- function(cond, msg) if (!isTRUE(cond)) fail(msg) else invisible(TRUE)
 ok    <- function(msg) cat("  ok  ", msg, "\n")
 
 STAGE09  <- "Analysis/09_early_prediction_model_ladder.R"
-BUILDERS <- c("Analysis/_supporting/build_figure1_export_bundle.R",
-              "Analysis/_supporting/build_figure1_manuscript_bridge.R")
 skipped <- character()
 
 raw  <- readLines(STAGE09, warn = FALSE)
@@ -69,25 +67,8 @@ check(any(grepl("kfold_lm_predict(model_dat, .x, .y, primary_fold_map)", code,
 ok("the contract seed reaches the repeated CV through primary_fold_map")
 
 # =====================================================================
-cat("\n[B] no Figure 1 builder hard-codes the CV seed\n")
+cat("\n[B] the contract renders the repeated-CV design with seed 521\n")
 # =====================================================================
-
-for (b in BUILDERS) {
-  check(file.exists(b), paste0("missing builder: ", b))
-  bl <- readLines(b, warn = FALSE)
-  bc <- bl[!grepl("^\\s*#", bl)]
-  # the exact defect: a literal "seed 123" in a prediction-design string
-  check(!any(grepl("seed 123", bc, fixed = TRUE)),
-        paste0(b, " still hard-codes 'seed 123' in a contract string"))
-  check(!any(grepl("seed = 123", bc, fixed = TRUE)),
-        paste0(b, " still hard-codes 'seed = 123'"))
-  # and it must source the single source of truth
-  check(any(grepl("figure1_prediction_contract.R", bc, fixed = TRUE)),
-        paste0(b, " does not source Functions/figure1_prediction_contract.R"))
-  check(any(grepl("figure1_repeated_cv_description()", bc, fixed = TRUE)),
-        paste0(b, " does not derive the repeated-CV description from the contract"))
-}
-ok("both builders derive the prediction design from the contract")
 
 # The rendered sentence must carry 521 and must not carry 123.
 desc <- figure1_repeated_cv_description()
@@ -233,8 +214,8 @@ if (is.null(T10)) {
   # 0.76637416508998391 / 0.76637416508998391.
   #
   # NOTE: Entropy_acf1 crossed the significance threshold in this rebuild
-  # (BH p 0.04776, bootstrap CI now excluding zero). Its reporting contract lives
-  # in Analysis/16_manuscript_behavior_report.R, not here.
+  # (BH p 0.04776, bootstrap CI now excluding zero). How it is reported follows
+  # the frozen Stage 29 release (ebb_v101), not this file.
   #
   # The constants in block [F] were previously re-frozen on 2026-09-21 against the
   # CORRECTED CombZ (producer commit 497deb7), which changed the endpoint for 19

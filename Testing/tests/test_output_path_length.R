@@ -105,14 +105,4 @@ check(nchar(old_worst) > 260L,
       "the pre-fix sensitivity path must exceed 260 (documents the original defect)")
 cat("pre-fix sensitivity path would have been", nchar(old_worst), "chars (over MAX_PATH)\n")
 
-# Stage 16 downstream tree must also stay inside budget.
-s16 <- behavior_manuscript_dir(project_root, "behavior")
-if (dir.exists(s16)) {
-  f16 <- list.files(s16, recursive = TRUE, full.names = TRUE)
-  if (length(f16)) {
-    cat("longest Stage 16 path:", max(nchar(f16)), "chars\n")
-    mmm_assert_output_path_budget(f16, source_label = "Stage 16 output tree")
-  }
-}
-
 cat("Output path-length regression checks: PASS\n")

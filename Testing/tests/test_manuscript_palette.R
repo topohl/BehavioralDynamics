@@ -48,10 +48,7 @@ ok("every alias equals the source")
 cat("\n3. no repeated literals\n")
 hexes <- toupper(c(G, D, "#3d3b6e", "#e63947", "#d45b58", "#D98B3A"))   # current values and the replaced variants
 EXCEPTIONS <- c("Functions/manuscript_palette.R",
-                "Analysis/09_early_prediction_model_ladder.R",          # treated as registered; stays unedited
-                "Analysis/16_manuscript_behavior_report.R", "Analysis/27_build_behavior_main_figure.R",
-                "Analysis/27_candidate_recompose_behavior_main_figure.R",   # legacy products behind the opt-in
-                "Functions/gamm_manuscript_docs.R")                     # legend text naming the group colours
+                "Analysis/09_early_prediction_model_ladder.R")          # treated as registered; stays unedited
 FROZEN <- "^Functions/(stage30_|stage32_|rfid_)"                         # frozen code keeps its own colours
 files <- c(list.files("Analysis", pattern = "[.][Rr]$", recursive = TRUE, full.names = TRUE),
            list.files("Functions", pattern = "[.][Rr]$", full.names = TRUE))

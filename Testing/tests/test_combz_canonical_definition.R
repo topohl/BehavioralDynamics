@@ -20,7 +20,6 @@ ok    <- function(msg) cat("  ok  ", msg, "\n")
 
 PRODUCER  <- "Analysis/build_later_outcome_combz.R"
 STAGE09   <- "Analysis/09_early_prediction_model_ladder.R"
-STAGE27   <- "Analysis/27_build_behavior_main_figure.R"
 CANON_SHEET <- "zScore"
 NONCANON  <- c("combZScore", "CombZScore_noBatch", "sus_animals_batchCorrected")
 skipped <- character()
@@ -156,43 +155,6 @@ for (aud in c("Testing/audits/audit_first_night_domain_scores.R",
         paste0(aud, " must not hard-code the workbook path"))
 }
 ok("the three first-night audits read the pinned pre-restructure workbook")
-
-# Stage 27 must not touch the endpoint definition at all.
-s27 <- code_lines(STAGE27)
-for (nc in c(NONCANON, "read_excel", "excel_sheets")) {
-  hit <- grep(nc, s27, fixed = TRUE)
-  check(length(hit) == 0L,
-        paste0("Stage 27 must not reach the endpoint workbook; found '", nc,
-               "' at line(s) ", paste(hit, collapse = ", ")))
-}
-# These patterns are deliberately narrow. `population_sd` and
-# `susceptibility_threshold` also occur as CANONICAL COLUMN NAMES that Stage 27
-# legitimately carries through into Source Data, so only defining or CALLING a
-# standard-deviation helper, or assigning a threshold, counts as recomputation.
-s27_raw <- readLines(STAGE27, warn = FALSE)
-s27_is_comment <- grepl("^\\s*#", s27_raw)
-recompute_grep <- function(pat) {
-  hit <- grep(pat, s27_raw)
-  hit[!s27_is_comment[hit]]
-}
-for (pat in c("(^|[^_.$[:alnum:]])CombZ\\s*<-",
-              "\\b(mutate|transmute)\\s*\\(\\s*CombZ\\s*=",
-              "\\browMeans\\s*\\(",
-              "population_sd\\s*(<-\\s*function|\\()",
-              "(^|[^_.$[:alnum:]\"])susceptibility_threshold\\s*<-",
-              "\\bstats::sd\\s*\\(", "[^_.$[:alnum:]]sd\\s*\\(")) {
-  hit <- recompute_grep(pat)
-  check(length(hit) == 0L,
-        paste0("Stage 27 appears to recompute the outcome, pattern '", pat,
-               "' at line(s) ", paste(hit, collapse = ", ")))
-}
-# Positive control: the canonical column names ARE expected to appear, because
-# Stage 27 exports them verbatim. If they vanish, the provenance has been lost.
-check(any(grepl("control_population_sd_combz", s27_raw, fixed = TRUE)),
-      paste("Stage 27 should carry the canonical control_population_sd_combz",
-            "column into Source Data; its absence means the threshold",
-            "provenance is no longer exported"))
-ok("Stage 27 neither reads the workbook nor recomputes CombZ or the thresholds")
 
 # =====================================================================
 # DATA-DEPENDENT SECTION

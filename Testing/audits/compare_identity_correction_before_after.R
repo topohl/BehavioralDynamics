@@ -108,9 +108,9 @@ current_code_commit_info <- function() {
 
 #' Resolve one registered table on one side (baseline or current), trying the
 #' canonical analysis_ready/pipeline/ location first and the documented
-#' pre-migration legacy location second, exactly mirroring how the live
-#' pipeline (Analysis/16_manuscript_behavior_report.R) resolves the same
-#' sources -- just rooted at whichever `root` is passed in.
+#' pre-migration legacy location second, exactly mirroring how the Stage 16
+#' report (retired on 2026-10-05) resolved the same sources -- just rooted at
+#' whichever `root` is passed in.
 resolve_registered_table <- function(root, stage, table_name, legacy_subfolder, legacy_filename, resolution_10min) {
   legacy_filename <- if (is.na(legacy_filename)) table_name else legacy_filename
   if (identical(stage, "03")) {

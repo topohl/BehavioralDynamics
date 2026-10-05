@@ -25,8 +25,8 @@ suppressPackageStartupMessages({
 # *_col fields name the single column (if any) that plays that manuscript-facing
 # role for the headline view; every numeric column is still compared regardless.
 # legacy_subfolder / legacy_filename describe the documented pre-migration
-# location (mirrors Analysis/16_manuscript_behavior_report.R's already-proven
-# source_registry) used only when resolving an old baseline snapshot.
+# location (mirrors the source_registry of the Stage 16 report, retired on
+# 2026-10-05) used only when resolving an old baseline snapshot.
 identity_comparison_table_registry <- tribble(
   ~stage, ~table_name,                                         ~key_cols_str,                                                 ~n_col,          ~estimate_col,           ~effect_size_col, ~p_raw_col,      ~p_adjusted_col,      ~legacy_subfolder, ~legacy_filename,
   "03",   "raw_movement_animal_level_endpoints",               "AnimalNum|ScopeType|Endpoint|CageChange|PhaseClass",         NA_character_,   "mean_movement",         NA_character_,    NA_character_,   NA_character_,        "tables",          NA_character_,

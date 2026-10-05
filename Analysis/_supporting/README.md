@@ -36,9 +36,8 @@ the broader Stage 14 dashboard consume whatever is on disk.
   product — is built by `Functions/first_night_domain_driver.R`, whose only data
   input is the receipt-selected Stage 01 metric at
   `analysis_ready/foundations/behavior_metrics/<bin>/all_behavior_metrics.csv`.
-- Stage 16 assembles only Stage 03, Stage 09 and QC artifacts.
-- `Analysis/build_publication_release.R` resolves only Stage 03, Stage 09,
-  first-night, Stage 16 and QC artifacts.
+- The Stage 16 package and the publication release builder, which assembled
+  Stage 03, Stage 09, first-night and QC artifacts, were retired on 2026-10-05.
 
 The supporting artifacts also feed optional Stage 15 behavior-proteomics
 integration. These exploratory results are not promoted to primary manuscript

@@ -1,12 +1,8 @@
-# Validate the Stage 16 index definition without running Stage 16 or writing to S:.
-source_lines <- readLines("Analysis/16_manuscript_behavior_report.R", warn = FALSE)
-start <- grep("^output_group_index <- function\\(group\\) \\{$", source_lines)
-end <- grep("^if \\(anyDuplicated\\(na.omit\\(output_index\\$canonical_path\\)\\)\\) \\{$", source_lines)
-stopifnot(length(start) == 1L, length(end) == 1L, end > start)
-index_source <- paste(source_lines[start:(end - 1L)], collapse = "\n")
+# Validate the output index definition (Functions/behavior_output_index.R) without writing to S:.
+index_source <- "output_index <- mmm_behavior_output_index(base_dir)"
 env <- new.env(parent = baseenv())
-env$tribble <- tibble::tribble
 source("Functions/project_paths.R", local = env)
+source("Functions/behavior_output_index.R", local = env)
 fixture_root <- file.path(tempdir(), "behavior_output_path_fixture")
 foundation_group <- "behavior_metrics_foundation"
 foundation_current <- env$mmm_behavior_output_group_root(foundation_group, "current", fixture_root)
@@ -88,11 +84,7 @@ foundation_readers <- c(
   "Analysis/14_systems_neuroscience_summary_dashboard.R",
   "Analysis/15_behavior_proteomics_integration.R",
   "Analysis/20_first_night_gamm.R",
-  "Analysis/21_cc1_active_longitudinal_gamm.R",
   "Analysis/22_repeated_cagechange_acute_gamm.R",
-  "Analysis/23_first_inactive_gamm.R",
-  "Analysis/24_cc1_inactive_longitudinal_gamm.R",
-  "Analysis/25_repeated_cagechange_inactive_gamm.R",
   "Analysis/28_rfid_behavioral_domains.R",
   "Analysis/_supporting/13_nonlinear_systems_dynamics.R",
   "Analysis/_supporting/14_nextgen_behavioral_phenotyping.R",
@@ -182,7 +174,7 @@ stopifnot(nrow(row("10")) == 1L,
           nrow(row("19-models")) == 1L,
           nrow(row("19-figures")) == 1L,
           nrow(row("28")) == 1L,
-          identical(row("28")$status, "local_untracked_candidate"))
+          identical(row("28")$status, "active_producer_pinned"))
 stopifnot(!any(grepl("_quarantine|_archive", na.omit(idx$legacy_path))))
 history_ids <- c("04-history-1min", "04-history-5min",
                  "05-history-1min", "05-history-10min",
@@ -639,11 +631,6 @@ stopifnot(identical(as.integer(table(factor(plan$group, levels = c(
   "inactive_phase_qc_audit")))),
   c(10L, 10L, 6L, 8L, 6L, 5L, 16L, 94L, 18L, 97L, 36L, 36L, 212L, 43L, 43L,
     19L, 19L, 22L, 97L, 138L, 3L)))
-release_lines <- grep('a\\("fn_', readLines("Analysis/build_publication_release.R",
-                                        warn = FALSE), value = TRUE)
-release_files <- sub('.*file.path\\(FIRSTNIGHT, "([^"]+)"\\).*', '\\1', release_lines)
-stopifnot(length(release_files) == 8L,
-          all(release_files %in% plan$target_file[plan$group == "first_night_10min"]))
 for (group in unique(plan$group)) {
   rows <- plan[plan$group == group, , drop = FALSE]
   stopifnot(length(unique(rows$target_root_rel)) == 1L,
@@ -658,26 +645,15 @@ cat("PASS: explicit semantic output-group paths\n")
 
 stage14 <- paste(readLines("Analysis/14_systems_neuroscience_summary_dashboard.R", warn = FALSE),
                  collapse = "\n")
-fig1_candidates <- paste(readLines(
-  "manuscript/Fig1_behavior_candidates/build_fig1_candidates.R", warn = FALSE),
-  collapse = "\n")
-stage27 <- paste(readLines("Analysis/27_build_behavior_main_figure.R", warn = FALSE),
-                 collapse = "\n")
 stopifnot(grepl('mmm_behavior_output_active_root("systems_dashboard_5min", project_root)',
                stage14, fixed = TRUE),
-          grepl('mmm_behavior_output_active_root("systems_dashboard_5min", project_root)',
-                fig1_candidates, fixed = TRUE),
           grepl(paste0('pre_fix_effect_path <- file.path(\n',
                        '  mmm_behavior_retained_source_root("systems_dashboard_5min", project_root),'),
                 stage14, fixed = TRUE),
           !grepl('mmm_behavior_output_group_root("systems_dashboard_5min", "current"',
                  stage14, fixed = TRUE),
           !grepl('file.copy(domain_effect_path, pre_fix_effect_path',
-                 stage14, fixed = TRUE),
-          grepl('broad_source_rel <- mmm_source_relative_path(broad_source_path, project_root)',
-                stage27, fixed = TRUE),
-          !grepl('"12_systems_neuroscience_summary/5min_based/stats_tables/systems_sis_domain_effect_summary.csv"',
-                 stage27, fixed = TRUE))
+                 stage14, fixed = TRUE))
 stage02 <- paste(readLines("Analysis/02_build_dyadic_rfid_contacts.R", warn = FALSE),
                  collapse = "\n")
 stage06 <- paste(readLines("Analysis/06_dynamic_social_networks.R", warn = FALSE),
@@ -702,8 +678,6 @@ stage15 <- paste(readLines("Analysis/15_behavior_proteomics_integration.R", warn
                  collapse = "\n")
 stage19 <- paste(readLines("Analysis/19_spatial_occupancy_maps.R", warn = FALSE),
                  collapse = "\n")
-release <- paste(readLines("Analysis/build_publication_release.R", warn = FALSE),
-                 collapse = "\n")
 inactive_qc_audit <- paste(readLines("Testing/audits/audit_inactive_phase_qc_redesign.R",
                                 warn = FALSE), collapse = "\n")
 stopifnot(grepl('mmm_behavior_output_active_root("inactive_phase_qc_audit", PROJ)',
@@ -726,9 +700,7 @@ stopifnot(nrow(stage15_registry) == 1L,
 stopifnot(grepl('mmm_behavior_output_active_root(group, project_root = project_root)', stage14,
                fixed = TRUE),
           grepl('mmm_behavior_output_active_root("spatial_models", project_root = RFID_ROOT)',
-                stage19, fixed = TRUE),
-          grepl('mmm_behavior_output_active_root("first_night_10min"',
-                release, fixed = TRUE))
+                stage19, fixed = TRUE))
 stopifnot(grepl('mmm_behavior_output_active_root("dyadic_contacts")', stage02,
                fixed = TRUE),
           grepl('getOption("mmm.dyadic_contacts_dir", NULL)', stage02, fixed = TRUE),
@@ -786,7 +758,7 @@ stopifnot(grepl('mmm_behavior_output_active_root("rfid_leading_bin_seed_audit", 
                seed_writer, fixed = TRUE),
           grepl('mmm_behavior_output_active_root("rfid_leading_bin_seed_audit", project_root = ROOT)',
                 seed_reader, fixed = TRUE))
-cat("PASS: key producer and release paths follow the explicit migration receipt\n")
+cat("PASS: key producer paths follow the explicit migration receipt\n")
 
 # After a numbered root is archived, index rows keep their legacy provenance
 # path and name the retained original's location; other roots are unchanged.
@@ -795,8 +767,8 @@ archive_root <- file.path(tempdir(), paste0("output_index_archive_",
 archive_ready <- file.path(archive_root, "analysis_ready")
 dir.create(file.path(archive_ready, "03_derived_metrics", "qc"), recursive = TRUE)
 archive_env <- new.env(parent = baseenv())
-archive_env$tribble <- tibble::tribble
 source("Functions/project_paths.R", local = archive_env)
+source("Functions/behavior_output_index.R", local = archive_env)
 archive_env$base_dir <- archive_root
 eval(parse(text = index_source), envir = archive_env)
 before_archive <- archive_env$output_index

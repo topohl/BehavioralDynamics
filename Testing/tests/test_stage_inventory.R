@@ -2,7 +2,7 @@
 #
 #   1. one row per Analysis/*.R and Analysis/_supporting/*.R, no row for a missing file, no empty layer or status;
 #   2. runner profiles equal PIPELINE_PROFILES in Analysis/run_all_analysis.R (parsed, never run);
-#   3. every script behind MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS is a legacy product;
+#   3. the legacy products retired on 2026-10-05 stay retired: no legacy-product row, no script behind their opt-in;
 #   4. the stages that rewrite pinned inputs (Functions/frozen_input_guard.R) say so, and frozen-lineage rows are frozen.
 #
 # Portable: repository files only.
@@ -37,11 +37,11 @@ check(setequal(names(from_runner), in_inv$stage), "the stages with a runner prof
 check(all(from_runner[in_inv$stage] == in_inv$runner_profile), "each stage's runner profile matches PIPELINE_PROFILES")
 ok(sprintf("%d stages in %d profiles match the runner", nrow(in_inv), length(prof)))
 
-cat("\n3. legacy opt-in\n")
+cat("\n3. retired legacy products\n")
 gated <- scripts[vapply(file.path("Analysis", scripts), function(f) any(grepl("MMM_ALLOW_LEGACY_BEHAVIOR_PRODUCTS", readLines(f, warn = FALSE), fixed = TRUE)), logical(1))]
-check(all(inv$layer[inv$script %in% gated] == "legacy product"), paste("legacy-gated scripts must be legacy products:", paste(gated, collapse = ", ")))
-check(all(grepl("legacy opt-in", inv$write_policy[inv$script %in% gated])), "legacy-gated rows name the opt-in in write_policy")
-ok(sprintf("%d legacy-gated scripts are legacy products", length(gated)))
+check(!length(gated), paste("the legacy products were retired on 2026-10-05; scripts behind their opt-in:", paste(gated, collapse = ", ")))
+check(!any(inv$layer == "legacy product"), paste("legacy-product rows:", paste(inv$script[inv$layer == "legacy product"], collapse = ", ")))
+ok("no legacy product and no script behind the retired opt-in")
 
 cat("\n4. pinned producers and frozen lineage\n")
 guard <- new.env(); sys.source("Functions/frozen_input_guard.R", envir = guard)

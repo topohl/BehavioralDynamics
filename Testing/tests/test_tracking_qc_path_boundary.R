@@ -1,5 +1,7 @@
 # Stage 00 path boundary: a future run cannot overwrite the May QC snapshot,
-# and current optional reporting/release reads remain explicitly historical.
+# and the output index and analysis_ready README keep that snapshot explicitly
+# historical. (The Stage 16 package and the release builder, which read two of its
+# tables, were retired on 2026-10-05.)
 env <- new.env(parent = baseenv())
 source("Functions/project_paths.R", local = env)
 fixture <- file.path(tempdir(), "tracking_qc_path_fixture")
@@ -12,8 +14,9 @@ stopifnot(identical(env$mmm_tracking_qc_historical_root(fixture), historical),
 
 source_text <- function(path) paste(readLines(path, warn = FALSE), collapse = "\n")
 producer <- source_text("Analysis/00_qc_tracking_integrity.R")
-report <- source_text("Analysis/16_manuscript_behavior_report.R")
-release <- source_text("Analysis/build_publication_release.R")
+index_source <- source_text("Functions/behavior_output_index.R")
+refresher <- source_text("Maintenance/Refresh-BehaviorOutputIndex.R")
+readme <- source_text("docs/BEHAVIOR_ANALYSIS_READY_DIRECTORY_README.md")
 runner <- source_text("Analysis/run_all_analysis.R")
 stopifnot(grepl("OUT_DIR <- run_config$output_dir",
                producer, fixed = TRUE),
@@ -25,14 +28,13 @@ stopifnot(grepl("OUT_DIR <- run_config$output_dir",
                 producer, fixed = TRUE),
           !grepl('OUT_DIR <- file.path(PROJECT_BASE_DIR, "analysis_ready", "00_qc_tracking_integrity")',
                  producer, fixed = TRUE),
-          grepl("qc_dir <- mmm_tracking_qc_historical_root(base_dir)",
-                report, fixed = TRUE),
-          grepl("QC <- file.path(mmm_tracking_qc_historical_root(PROJECT_ROOT)",
-                release, fixed = TRUE),
-          grepl("current Stage 01 input lineage unverified", report, fixed = TRUE),
-          grepl("current Stage 01 lineage unverified", release, fixed = TRUE),
-          grepl("BEHAVIOR_ANALYSIS_READY_DIRECTORY_README.md", report,
+          grepl('output_group_index("history_tracking_integrity_10sec")',
+                index_source, fixed = TRUE),
+          grepl("Current Stage 01 lineage unverified", index_source, fixed = TRUE),
+          grepl("BEHAVIOR_ANALYSIS_READY_DIRECTORY_README.md", refresher,
                 fixed = TRUE),
+          grepl("history/tracking_integrity/10sec/", readme, fixed = TRUE),
+          grepl("REVIEW_STATUS.md", readme, fixed = TRUE),
           !grepl('"00_qc_tracking_integrity.R", "00"', runner, fixed = TRUE),
           file.exists("docs/BEHAVIOR_ANALYSIS_READY_DIRECTORY_README.md"))
 

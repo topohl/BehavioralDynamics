@@ -172,4 +172,13 @@ check(all(unlist(MMM_FIRST_NIGHT_DOMAIN_CONTRIBUTORS) %in%
             paste0(MMM_FIRST_NIGHT_RAW_FEATURES, "_z")),
       "G: every declared contributor must be a standardized raw RFID feature")
 
+# The barred constructs must not be nameable as a displayed domain either (lifted from the
+# Stage 27 contract test, retired on 2026-10-05).
+BARRED <- c("Behavioral state architecture", "Inactive-phase rest", "latent-state", "dwell",
+            "occupancy_entropy", "gaussian_log1p_invalid", "MODEL_INADEQUATE")
+for (b in BARRED) {
+  check(!any(grepl(b, MMM_FIRST_NIGHT_DISPLAYED_DOMAINS, fixed = TRUE)),
+        paste0("G: the displayed set contains the barred construct '", b, "'"))
+}
+
 cat("First-night domain contract checks: PASS\n")

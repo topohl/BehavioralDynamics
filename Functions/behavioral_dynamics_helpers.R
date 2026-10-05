@@ -397,8 +397,8 @@ harmonize_analysis_outputs <- function(output_dir,
 #' wrong: re-running a figure producer rewrites the authored file and leaves the
 #' mirror at whatever it was, so `figures/x.svg` and
 #' `figures/publication_panels/x.svg` silently drift apart. A manuscript builder
-#' reads the mirror (manuscript/Fig1_behavior_candidates/build_fig1_candidates.R),
-#' so a stale mirror is a wrong-figure hazard, not just wasted disk.
+#' may read the mirror (the Figure 1 candidate builder did until its retirement
+#' on 2026-10-05), so a stale mirror is a wrong-figure hazard, not just wasted disk.
 #'
 #' Semantics here:
 #'   * skip only when the destination is ALREADY byte-identical (cheap no-op);
@@ -407,7 +407,7 @@ harmonize_analysis_outputs <- function(output_dir,
 #'   * verify the copy by checksum before it is published;
 #'   * on any failure, stop() - never leave a stale mirror behind silently.
 #'
-#' Deliberately NOT deleting mirrors: an active consumer still reads that path.
+#' Deliberately NOT deleting mirrors: a reader may still use that path.
 #'
 #' @return TRUE if the mirror was rewritten, FALSE if it was already current.
 mmm_refresh_mirror_copy <- function(src, dst) {

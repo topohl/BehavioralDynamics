@@ -1,5 +1,5 @@
 # ================================================================
-# Shared runner for the stratified stages (21, 22 Active; 24, 25 Inactive)
+# Runner for the stratified Stage 22 (Stages 21, 24 and 25 retired 2026-10-05)
 # MMMSociability
 # ================================================================
 # Wraps mmm_run_stratified_gamm() and adds everything the revision pass needs

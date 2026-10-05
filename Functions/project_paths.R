@@ -26,24 +26,21 @@
 #             (Testing/tests/test_output_path_length.R:21,
 #              test_first_night_window_parity.R:153, docs/REPRODUCIBILITY.md:145)
 #       2. Sys.getenv("MMM_BEHAVIOR_PROJECT_ROOT", unset = <default>)
-#          -- Analysis/09_early_prediction_model_ladder.R:53,
-#             Analysis/build_publication_release.R:59-64 (also --project-root=),
-#             manuscript/Fig1_behavior_candidates/build_fig1_candidates.R:39
+#          -- Analysis/09_early_prediction_model_ladder.R (base_dir), and the
+#             release and Figure 1 builders retired on 2026-10-05
 #       3. a bare hard-coded literal
-#     Since 2026-10-04 Stages 00-08, 10-15, 19-26 and the supporting Stages 13
-#     and 14 call mmm_project_root(), which honours BOTH and returns the same
-#     default string. The literal remains only in Stage 09 (treated as
-#     registered; it reads the environment variable but hard-codes the CombZ
-#     endpoint), in the legacy-gated Stage 16, release and Figure 1 builders, in
-#     the cookie runner's dataset paths and in the Stage 09 LOAO re-renderer.
-#     Testing/tests/test_behavior_main_figure_contracts.R holds that list.
+#     Since 2026-10-04 the stage scripts and the supporting Stages 13 and 14
+#     call mmm_project_root(), which honours BOTH and returns the same default
+#     string. The literal remains only in Stage 09 (treated as registered; it
+#     reads the environment variable but hard-codes the CombZ endpoint), in the
+#     cookie runner's dataset paths and in the Stage 09 LOAO re-renderer.
+#     Testing/tests/test_data_root_literals.R holds that list.
 #
 # PRECEDENCE for every root: getOption() > Sys.getenv() > documented default.
 #
 # The maintainer-specific default below is the ONE place it may appear in new
 # code. New analysis or manuscript scripts must call the accessors instead of
-# repeating the literal; Testing/tests/test_behavior_main_figure_contracts.R
-# asserts that.
+# repeating the literal; Testing/tests/test_data_root_literals.R asserts that.
 # ================================================================
 
 # ------------------------------------------------------------------ roots
@@ -542,9 +539,9 @@ mmm_derived_metrics_output_root <- function(project_root = mmm_project_root(),
 }
 
 # The eight May 2026 QC products have no proved lineage to the current Stage 01
-# files. A new Stage 00 run must not overwrite them or silently replace the
-# optional manuscript/release sources before its results are reviewed. Their
-# receipt-selected copy is history/tracking_integrity/10sec/.
+# files. A new Stage 00 run must not overwrite them before its results are
+# reviewed (the Stage 16 package and release builder retired on 2026-10-05 read
+# two of them). Their receipt-selected copy is history/tracking_integrity/10sec/.
 mmm_tracking_qc_historical_root <- function(project_root = mmm_project_root()) {
   mmm_behavior_output_active_root("history_tracking_integrity_10sec", project_root)
 }
@@ -838,67 +835,6 @@ mmm_behavior_output_index_entry <- function(group, project_root = mmm_project_ro
   invisible(TRUE)
 }
 
-#' Configured publication-output root for the behavior main figure.
-#'
-#' Defaults to the current pipeline layout but is overridable, so the whole
-#' publication tree can be relocated without touching any assembler source.
-#'
-#' Deliberately NOT resolution-scoped: a manuscript figure is not "a 10-min
-#' analysis". The resolution of each contributing source travels in the
-#' manifests instead (see mmm_path_describe()).
-mmm_publication_root <- function(project_root = mmm_project_root(),
-                                 stage_id = "27",
-                                 stage_name = "behavior_main_figure") {
-  configured <- .mmm_configured("mmm.publication_root", "MMM_PUBLICATION_ROOT", "")
-  if (nzchar(configured)) {
-    return(normalizePath(configured, winslash = "/", mustWork = FALSE))
-  }
-  .mmm_require_pipeline_setup()
-  normalizePath(behavior_stage_dir(project_root, stage_id, stage_name),
-                winslash = "/", mustWork = FALSE)
-}
-
-
-#' Semantic publication subdirectories.
-#'
-#' Manuscript figures, panel candidates, source data, legends, audit records and
-#' manifests are conceptually distinct products. Keeping the mapping in one
-#' named vector means a future restructure edits this vector, not the assembler.
-# Note on brevity: these slugs are deliberately short. Stage 27 also renders
-# into candidate variant roots such as
-#   .../27_behavior_main_figure/candidates/<variant_slug>/
-# and the combined path has to stay inside the 240-character budget enforced by
-# mmm_assert_publication_path_budget(). On 2026-09-21 "figures/panel_candidates"
-# pushed six outputs to 243 characters and Stage 27 hard-stopped; shortening the
-# two slugs below reclaimed 10 and 11 characters respectively. Lengthen them
-# again only after checking the longest candidate-variant path still fits.
-MMM_PUBLICATION_SUBDIRS <- c(
-  figures_main      = "figures/main",
-  figures_panels    = "figures/panels",
-  figures_ed        = "figures/extended_data",
-  figures_previews  = "figures/previews",
-  tables_manuscript = "tables/manuscript",
-  source_data       = "source_data",
-  legends           = "legends",
-  audit             = "audit",
-  manifests         = "manifests"
-)
-
-#' Resolve one semantic publication subdirectory, optionally creating it.
-mmm_publication_dir <- function(kind, create = FALSE,
-                                publication_root = mmm_publication_root()) {
-  if (length(kind) != 1L || !kind %in% names(MMM_PUBLICATION_SUBDIRS)) {
-    stop("Unknown publication subdirectory '", paste(kind, collapse = ", "),
-         "'. Known kinds: ",
-         paste(names(MMM_PUBLICATION_SUBDIRS), collapse = ", "), call. = FALSE)
-  }
-  path <- file.path(publication_root, MMM_PUBLICATION_SUBDIRS[[kind]])
-  if (isTRUE(create) && !dir.exists(path)) {
-    dir.create(path, recursive = TRUE, showWarnings = FALSE)
-  }
-  path
-}
-
 # ------------------------------------------------------------------ registry
 #
 # Each entry declares the SEMANTIC meaning of a canonical analysis product plus
@@ -971,25 +907,7 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
                 alternative_composite_audit = "combz_alternative_composite_audit.csv")
     ),
 
-    # ---------------------------------------------------------------- panel A
-    "behavior.combz_definition" = list(
-      description = paste(
-        "Canonical manuscript-facing animal-level outcome package: later CombZ",
-        "per animal, its endpoint-derived CON/RES/SUS label, and the frozen",
-        "primary result rows. Assembly-only stage; nothing is refitted there."),
-      producer_stage = "16",
-      producer_script = "Analysis/16_manuscript_behavior_report.R",
-      resolution = "10min",
-      analysis_role = "manuscript source-data package (INFRASTRUCTURE)",
-      dir = function(root) behavior_manuscript_dir(root, "behavior"),
-      files = c(animal_level = "animal_level_source_data.csv",
-                primary_results = "primary_results.csv",
-                provenance = "provenance.csv",
-                validation = "validation.csv",
-                manifest = "manifest.csv")
-    ),
-
-    # ---------------------------------------------------------------- panel B
+    # ------------------------------------------- first-night domains (Stage 14)
     "behavior.rfid_domain_summary" = list(
       description = paste(
         "Canonical first-night multiscale DOMAIN-level group contrasts: five",
@@ -1031,7 +949,7 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
       files = c(domain_effects = "systems_sis_domain_effect_summary.csv")
     ),
 
-    # -------------------------------------------------------- panels C and D
+    # --------------------------------------- first-night features and CombZ
     "behavior.first_night_movement" = list(
       description = paste(
         "Canonical Stage 09 animal-level first-active-window feature table,",
@@ -1086,7 +1004,7 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
       stage09_resolver = TRUE
     ),
 
-    # ---------------------------------------------------------------- panel E
+    # -------------------------------------------- early prediction (Stage 09)
     "behavior.early_prediction" = list(
       description = paste(
         "Canonical Stage 09 out-of-sample prediction of later CombZ from",
@@ -1111,31 +1029,17 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
       stage09_resolver = TRUE
     ),
 
-    "behavior.early_prediction_heldout" = list(
-      description = paste(
-        "Canonical manuscript-facing held-out predictions: one row per animal",
-        "per fixed model, observed versus leave-one-animal-out predicted",
-        "CombZ. Every predicted value was generated with that animal absent",
-        "from the corresponding training fold."),
-      producer_stage = "16",
-      producer_script = "Analysis/16_manuscript_behavior_report.R",
-      resolution = "10min",
-      analysis_role = "manuscript source-data package (INFRASTRUCTURE)",
-      dir = function(root) behavior_manuscript_dir(root, "behavior"),
-      files = c(predictions = "prediction_source_data.csv")
-    ),
-
-    # ---------------------------------------- temporal panels for Stage 27 candidates
+    # -------------------------------- within-night GAMM profiles (Stages 20, 22)
     "behavior.first_active_trajectory" = list(
       description = paste(
-        "Canonical Stage 20 first-active 12 h GAMM outputs used by the",
-        "assembly-only five-panel behavior-figure candidate. The primary",
-        "prediction grid is already fitted upstream; group-aware candidates",
-        "must plot those stored Sex x Group trajectories directly."),
+        "Canonical Stage 20 first-active 12 h GAMM outputs: the stored",
+        "Sex x Group within-night trajectories, plotted as fitted, never",
+        "refitted. Descriptive display only: the group contrasts are null and",
+        "carry no cage term, so inference stays with Stages 29 and 32."),
       producer_stage = "20",
       producer_script = "Analysis/20_first_night_gamm.R",
       resolution = "10min",
-      analysis_role = "PRIMARY first-active temporal characterisation",
+      analysis_role = "Extended Data candidate (descriptive; no group inference)",
       dir = function(root) behavior_stage_tables(root, "20",
                                                  "first_night_gamm", "10min"),
       files = c(
@@ -1146,14 +1050,14 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
 
     "behavior.repeated_acute_movement" = list(
       description = paste(
-        "Canonical Stage 22 repeated acute Active-window outputs used by the",
-        "assembly-only five-panel behavior-figure candidate: animal-level",
-        "empirical points and the precomputed overall-population CC4-CC1",
-        "estimand, with the phenotype-dependent null retained as context."),
+        "Canonical Stage 22 repeated acute Active-window outputs: animal-level",
+        "empirical points and the overall-population CC4-CC1 estimand, with",
+        "the phenotype-dependent null retained as context. Descriptive display",
+        "only: CON shares the change, so it is not adaptation (Stage 32)."),
       producer_stage = "22",
       producer_script = "Analysis/22_repeated_cagechange_acute_gamm.R",
       resolution = "10min",
-      analysis_role = "SECONDARY repeated acute-response characterisation",
+      analysis_role = "Extended Data candidate (descriptive; no group inference)",
       dir = function(root) behavior_stage_tables(
         root, "22", "repeated_cagechange_acute_gamm", "10min"),
       files = c(
@@ -1176,22 +1080,6 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
       dir = function(root) behavior_stage_tables(root, "03",
                                                  "movement_phase_stats", "10min"),
       files = c(animal_endpoints = "raw_movement_animal_level_endpoints.csv")
-    ),
-
-    "gamm.manuscript_outputs" = list(
-      description = paste(
-        "Stage 26 GAMM manuscript-assembly claim trace. Read only to",
-        "cross-reference the temporal-characterisation claims and to inherit",
-        "the declared ownership of the prospective claim; never re-assembled",
-        "here."),
-      producer_stage = "26",
-      producer_script = "Analysis/26_build_gamm_manuscript_outputs.R",
-      resolution = "10min",
-      analysis_role = "sibling manuscript assembler",
-      dir = function(root) file.path(
-        behavior_stage_dir(root, "26", "gamm_manuscript_outputs", "10min"),
-        "audit"),
-      files = c(claim_trace = "gamm_claim_to_analysis_trace.csv")
     )
   )
 }
@@ -1256,7 +1144,7 @@ mmm_path_get <- function(key, file = NULL, required = TRUE,
   if (length(resolved) == 1L) unname(resolved) else resolved
 }
 
-#' SHA-256 of a file, matching Analysis/build_publication_release.R.
+#' SHA-256 of each file (lower-case hex); NA when the file or the digest package is missing.
 mmm_file_sha256 <- function(path) {
   vapply(path, function(p) {
     if (is.na(p) || !file.exists(p)) return(NA_character_)
@@ -1309,19 +1197,4 @@ mmm_path_describe <- function(keys = mmm_path_keys(), root = mmm_project_root(),
   if (isTRUE(hash)) out$sha256 <- mmm_file_sha256(out$resolved_path)
   rownames(out) <- NULL
   out
-}
-
-#' Assert an intended publication tree fits the repository path-length budget.
-#'
-#' Wraps the existing mmm_assert_output_path_budget() so the manuscript tree is
-#' held to the same MAX_PATH discipline as every analysis output tree.
-mmm_assert_publication_path_budget <- function(paths,
-                                               source_label = "publication tree") {
-  if (exists("mmm_assert_output_path_budget", mode = "function", inherits = TRUE)) {
-    return(mmm_assert_output_path_budget(paths, source_label = source_label))
-  }
-  if (any(nchar(paths) > 240L)) {
-    stop(source_label, ": path exceeds the 240-character budget.", call. = FALSE)
-  }
-  invisible(TRUE)
 }

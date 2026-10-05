@@ -1,9 +1,12 @@
 # Contract tests for the frozen Figure 1 panel source data.
 #
-# This directory is the interface the proteomics manuscript renderer consumes.
-# The renderer fits nothing, so every number the published figure shows has to be
+# These tracked tables are the frozen 2026-09 Figure 1 bridge export. Their exporter
+# (Analysis/_supporting/build_figure1_panel_source_data.R) was retired on 2026-10-05
+# and the files stay unchanged until Extended Data 5 and 9 move to the ebb_v101
+# bundle; they predate the 2026-09-20 CombZ correction, so nothing new may import
+# them. A renderer fits nothing, so every number such a figure showed has to be
 # recoverable from these seven tables - and has to still equal the value the
-# canonical analysis produced. These tests check both directions: that the export
+# canonical analysis produced at the time. These tests check both directions: that the export
 # reproduces the canonical statistics, and that it has not quietly grown a column
 # that would let a panel imply something the analysis does not support.
 #
@@ -20,7 +23,6 @@ ok    <- function(msg) cat("  ok  ", msg, "\n")
 near  <- function(a, b, tol = 1e-9) isTRUE(abs(a - b) < tol)
 
 SRC <- file.path(MMM_REPO_ROOT, "results/manuscript_bridge/figure1/figure_source_data")
-EXPORTER <- "Analysis/_supporting/build_figure1_panel_source_data.R"
 skipped <- character()
 
 TABLES <- c("figure1a_timeline_source.csv", "figure1b_combz_classification_source.csv",
@@ -174,25 +176,6 @@ for (f in c("figure1c_movement_combz_source.csv", "figure1d_loao_predictions_sou
 }
 ok("no outcome-derived predictor, no GAMM or HMM, no by-construction series")
 
-# =====================================================================
-cat("\n[E] the exporter computes nothing\n")
-# =====================================================================
-
-src <- readLines(EXPORTER, warn = FALSE)
-code <- src[!grepl("^\\s*#", src)]
-# Match CALLS, not prose. The exporter legitimately names the bootstrap and the
-# permutation in descriptive notes attached to the statistics it copies; what it
-# must never do is perform one.
-FORBIDDEN <- c("\\blm\\(", "\\bglm\\(", "cor\\.test\\(", "\\bcor\\(",
-               "p\\.adjust\\(", "\\bsample\\(", "set\\.seed\\(", "\\bgam\\(",
-               "\\bboot\\(", "replicate\\(", "\\bt\\.test\\(", "wilcox\\.test\\(")
-for (f in FORBIDDEN) {
-  check(!any(grepl(f, code)),
-        paste0("the exporter appears to compute something: ", f))
-}
-check(any(grepl("must(", code, fixed = TRUE)),
-      "the exporter must assert its reproduction checks")
-ok("export and validation only; no model, no resampling, no adjustment")
 }
 
 if (length(skipped) > 0L) {

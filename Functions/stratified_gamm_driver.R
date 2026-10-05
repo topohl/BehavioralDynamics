@@ -2,9 +2,10 @@
 # Shared driver for the stratified Active/Inactive GAMM stages
 # MMMSociability
 # ================================================================
-# Stages 21/22 (Active) and 24/25 (Inactive) all have the same shape: one
-# phase-window dataset stratified by a repeated factor, fitted within Sex, with
-# a formal Group x Stratum interaction.
+# Stage 22 (Active) has this shape, as had Stages 21 (Active) and 24/25
+# (Inactive) until their retirement on 2026-10-05: one phase-window dataset
+# stratified by a repeated factor, fitted within Sex, with a formal
+# Group x Stratum interaction.
 #
 # TWO SHAPE STRUCTURES ARE FITTED, both prespecified.
 #

@@ -2,10 +2,10 @@
 # Shared GAMM group-inference machinery
 # MMMSociability
 # ================================================================
-# Used by the three Active-window GAMM stages:
-#   Analysis/20_first_night_gamm.R                 PRIMARY   (CC1 night 1)
-#   Analysis/21_cc1_active_longitudinal_gamm.R     SECONDARY A (CC1 nights 1..N)
-#   Analysis/22_repeated_cagechange_acute_gamm.R   SECONDARY B (CC1..CC4 acute)
+# Used by the two Active-window GAMM stages, both descriptive Extended Data
+# candidates (Stage 21, CC1 nights 1..N, was retired on 2026-10-05):
+#   Analysis/20_first_night_gamm.R                 CC1 night 1
+#   Analysis/22_repeated_cagechange_acute_gamm.R   CC1..CC4 acute
 #
 # WHY THE MODEL IS PARAMETERIZED THE WAY IT IS
 # The conceptual specification is

@@ -9,10 +9,10 @@
 #
 # That is correct exactly once. On every later run the authored figure is
 # rewritten and the mirror is left untouched, so figures/x.svg and
-# figures/publication_panels/x.svg drift apart with no warning. The mirror is
-# not dead weight - manuscript/Fig1_behavior_candidates/build_fig1_candidates.R
-# reads panels from figures/publication_panels/ - so a stale mirror means a
-# manuscript builder can pick up a figure that no longer matches its data.
+# figures/publication_panels/x.svg drift apart with no warning. A builder that
+# reads panels from figures/publication_panels/ (the Figure 1 candidate builder
+# did until its retirement on 2026-10-05) would then pick up a figure that no
+# longer matches its data.
 #
 # These tests pin the corrected semantics. Portable: tempdir() only.
 
