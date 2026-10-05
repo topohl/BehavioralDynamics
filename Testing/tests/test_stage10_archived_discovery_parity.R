@@ -5,8 +5,9 @@ source("Functions/project_paths.R")
 # has the live path length (87 characters); 20 archived 06 paths then reach
 # 260-264 characters, which R on a host without long-path support cannot open.
 run_fixture <- function(live_lengths = FALSE) {
-# Build under a short temporary root, where R can create every file.
-root <- file.path(utils::shortPathName(tempdir()), "s10")
+# Build under a short temporary root, where R can create every file (8.3 names exist only on Windows).
+short_tmp <- if (identical(.Platform$OS.type, "windows")) utils::shortPathName(tempdir()) else tempdir()
+root <- file.path(short_tmp, "s10")
 stopifnot(!file.exists(root))
 dir.create(root)
 on.exit({

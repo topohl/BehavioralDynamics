@@ -2,9 +2,10 @@
 # Historical September audits remain immutable and are never a default target.
 mmm_hmm_revalidation_output_dir <- function(project_root, requested_dir,
                                             expected_files, allowed_existing = character()) {
+  absolute <- if (identical(.Platform$OS.type, "windows")) "^[A-Za-z]:[/\\\\]" else "^/"
   if (!is.character(requested_dir) || length(requested_dir) != 1L ||
       is.na(requested_dir) || !nzchar(requested_dir) ||
-      !grepl("^[A-Za-z]:[/\\\\]", requested_dir)) {
+      !grepl(absolute, requested_dir)) {
     stop("Provide one absolute --output-dir for the HMM revalidation run.",
          call. = FALSE)
   }
