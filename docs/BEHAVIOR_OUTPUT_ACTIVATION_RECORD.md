@@ -1276,3 +1276,39 @@ edge of the domain heatmap panels. The v2 figures show the same clipping.
 - the foundation inventory;
 - the copy-parity check: 2,181 originals and 1,969 copies match the plans, 212 copies match a recorded rerun, 54 files
   were added by recorded reruns, and no file is unplanned.
+
+## 2026-10-06 Stage 14 standalone domain heatmaps promoted with square 8-mm tiles
+
+**What changed.** Tobias asked for square heatmap tiles of 8 or 9 mm. Commit `e5d0c6d` lays out the nine standalone
+domain heatmaps with `dhm_square_tiles()`: each panel is fixed at (columns x 8 mm) wide and (rows x 8 mm) high. The
+figure size follows from the tile size:
+- single window: 74 x 77 mm (was 89 x 56);
+- all blocks: 124 x 76 mm (was 183 x 60).
+
+The standalone heatmaps put the comparison group over the minus reference ("RES" over "-CON"). The single-window
+heatmaps wrap the marker legend onto two rows, which also ends the clipping of its last label. The dashboards keep their
+composite layout, one-line labels and one-row legend.
+
+**What ran.** The run used a clean checkout of `e5d0c6d` (`s14src_20261006_e5d0c6d_tiles8`) in the guarded sandbox
+`stage_sandbox_20261006_tiles8`. It passed on the first attempt: R exit 0 after 354 s, no post-scan finding.
+
+**Comparisons.** Against the live outputs (palette v3, promoted earlier the same day), with the expected-change manifest
+`expected_changes_tiles8.csv`, which lists the standalone heatmaps only:
+- 374 files: 347 identical or known run-to-run noise, 27 expected changes (the 9 heatmaps as SVG, PDF and PNG), none
+  unexpected.
+- The dashboards and every table are unchanged. The engine effect summary is identical (84 rows).
+- The independent validator passes 32 of 32 checks. Its copy `validate_v32.R` also checks the two lines of the new
+  contrast labels for overlap.
+
+**Promotion.** Script `promote_stage14_rerun_20261006b.ps1`:
+1. All 374 live files were backed up to `_migration_control/stage14_before_rerun_20261006b/`.
+2. 374 files were promoted; none was added.
+3. Every live file was verified against its staged hash.
+
+**Record.** `docs/behavior_output_producer_reruns/stage14_20261006b.csv` (SHA-256 `371DB88E...`; 374 rows: 87 rewritten,
+287 unchanged). The 87 hash changes are the 27 heatmap files plus files whose bytes differ only by run-to-run noise; the
+comparison classifies that noise.
+
+**Checks after the promotion.** All three read-only checks pass, with the same counts as after the palette promotion:
+the Stage 14 residual inventory, the foundation inventory, and the copy-parity check (2,181 originals and 1,969 copies
+match the plans, 212 match a recorded rerun, 54 files added by recorded reruns, no unplanned file).
