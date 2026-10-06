@@ -174,8 +174,8 @@ mmm_diverging_colors <- MMM_PALETTE_DIVERGING
 mmm_diverging_limits <- MMM_DIVERGING_LIMITS
 
 # Fill scale of a signed measure with its fixed limit (mmm_diverging_limits): white at zero, values beyond the limit at
-# full colour (the end labels say so), missing values light grey (never white, which means zero). Give `limit` only for
-# a measure that no other figure shares.
+# full colour (the end labels say so), missing values light grey (never white, which means zero). A measure that no
+# other figure shares ("own") takes `limit` from its own data: nothing is cut, so its breaks are plain round numbers.
 mmm_scale_fill_diverging <- function(measure = c("smd", "correlation", "own"), name = ggplot2::waiver(), limit = NULL,
                                      na.value = "grey90", ...) {
   measure <- match.arg(measure)
@@ -184,13 +184,20 @@ mmm_scale_fill_diverging <- function(measure = c("smd", "correlation", "own"), n
     limit <- mmm_diverging_limits[[measure]]
   }
   stopifnot(is.numeric(limit), length(limit) == 1L, is.finite(limit), limit > 0)
-  num <- function(v) sub("[.]?0+$", "", formatC(v, format = "f", digits = 2))
+  if (measure == "own") {
+    breaks <- scales::breaks_extended(n = 5)(c(-limit, limit))
+    breaks <- breaks[abs(breaks) <= limit * (1 + 1e-9)]
+    labels <- scales::label_number(style_negative = "minus")(breaks)
+  } else {
+    num <- function(v) sub("[.]?0+$", "", formatC(v, format = "f", digits = 2))
+    breaks <- c(-limit, -limit / 2, 0, limit / 2, limit)
+    labels <- c(paste0("\u2264\u2212", num(limit)), paste0("\u2212", num(limit / 2)), "0", num(limit / 2),
+                paste0("\u2265", num(limit)))
+  }
   ggplot2::scale_fill_gradient2(
     low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]],
     midpoint = 0, limits = c(-limit, limit), oob = scales::squish, na.value = na.value, name = name,
-    breaks = c(-limit, -limit / 2, 0, limit / 2, limit),
-    labels = c(paste0("\u2264\u2212", num(limit)), paste0("\u2212", num(limit / 2)), "0", num(limit / 2),
-               paste0("\u2265", num(limit))), ...)
+    breaks = breaks, labels = labels, ...)
 }
 
 # Bars encode their value by length, so their fill only shows the sign: flat blue below zero, flat yellow above, grey at

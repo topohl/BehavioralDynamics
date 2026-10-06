@@ -80,6 +80,9 @@ s_cor <- mmm_scale_fill_diverging("correlation")
 check(identical(s_cor$get_labels(s_cor$get_breaks()), c("≤−0.6", "−0.3", "0", "0.3", "≥0.6")), "4: correlation limit 0.6")
 check(inherits(tryCatch(mmm_scale_fill_diverging("own"), error = function(e) e), "error") &&
         isTRUE(all.equal(mmm_scale_fill_diverging("own", limit = 0.2)$limits, c(-0.2, 0.2))), "4: a measure of its own needs its limit")
+s_own <- mmm_scale_fill_diverging("own", limit = 0.1149)   # a limit from the data: nothing is cut
+check(identical(s_own$get_labels(s_own$get_breaks()), c("−0.10", "−0.05", "0.00", "0.05", "0.10")),
+      "4: a measure of its own: round breaks without the full-colour end marks")
 check(identical(as.character(mmm_sign_class(c(-0.2, 0, 1e-13, 0.3, NA))), c("negative", "zero", "zero", "positive", NA)) &&
         identical(unname(mmm_scale_fill_sign()$palette(3)), unname(c(D[["low"]], "grey80", D[["high"]]))),
       "4: bars take a flat fill by sign (grey for a zero reference)")
