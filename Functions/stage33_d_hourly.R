@@ -457,30 +457,30 @@ s33d_cc_tables <- function(design, U, lagt) {
       wide <- data.table::dcast(mm, Batch ~ CC, value.var = "m")
       for (k in 2:4) { a <- stats::setNames(wide$CC1, wide$Batch); bb <- stats::setNames(wide[[paste0("CC", k)]], wide$Batch)
         ra <- s33d_rank_desc(a); rb <- s33d_rank_desc(bb)
-        add_row(metric = met_cur, exposure_set = e, variant = vn, comparison = paste0("CC1_vs_CC", k), statistic = "spearman_rho",
+        add_row(metric = met_cur, exposure_set = e, variant = vn, comparison = paste0("CC1_vs_CC", k), coefficient = "spearman_rho",
                 n_units = length(a), value = stats::cor(a, bb, method = "spearman"), max_abs_rank_shift = max(abs(ra - rb)),
                 n_cohorts_same_rank = sum(ra == rb), ranks_first = rank_txt(a), ranks_second = rank_txt(bb))
-        add_row(metric = met_cur, exposure_set = e, variant = vn, comparison = paste0("CC1_vs_CC", k), statistic = "kendall_tau_b",
+        add_row(metric = met_cur, exposure_set = e, variant = vn, comparison = paste0("CC1_vs_CC", k), coefficient = "kendall_tau_b",
                 n_units = length(a), value = stats::cor(a, bb, method = "kendall")) }
       R <- as.matrix(wide[, S33_CC, with = FALSE]); rk <- apply(R, 2, s33d_rank_desc); n <- nrow(R)
       Wk <- 12 * sum((rowSums(rk) - 4 * (n + 1) / 2)^2) / (4^2 * (n^3 - n))
-      add_row(metric = met_cur, exposure_set = e, variant = vn, comparison = "kendall_W_CC1_CC4", statistic = "kendall_W", n_units = n, value = Wk)
+      add_row(metric = met_cur, exposure_set = e, variant = vn, comparison = "kendall_W_CC1_CC4", coefficient = "kendall_W", n_units = n, value = Wk)
     }
   }
   # lag alignment (E7): per CC Spearman of lag and SIS mean, raw and sex-centred; double-centred over the 24 cells
   mm <- ep[condition == "SIS", .(m = mean(crossing_rate)), by = .(Batch, CC)]
   lm2 <- merge(mm, lagt[, .(Batch, CC, lag_h)], by = c("Batch", "CC"))
   for (cc in S33_CC) { x <- lm2[CC == cc]
-    add_row(metric = "crossing_rate", exposure_set = "SIS", variant = "raw", comparison = paste0("lag_vs_mean_", cc), statistic = "spearman_rho",
+    add_row(metric = "crossing_rate", exposure_set = "SIS", variant = "raw", comparison = paste0("lag_vs_mean_", cc), coefficient = "spearman_rho",
             n_units = nrow(x), value = stats::cor(x$lag_h, x$m, method = "spearman"))
     xs <- data.table::copy(x)[, `:=`(lag_c = lag_h - mean(lag_h), m_c = m - mean(m)), by = .(sx = sexes[Batch])]
-    add_row(metric = "crossing_rate", exposure_set = "SIS", variant = "sex_centred", comparison = paste0("lag_vs_mean_", cc), statistic = "spearman_rho",
+    add_row(metric = "crossing_rate", exposure_set = "SIS", variant = "sex_centred", comparison = paste0("lag_vs_mean_", cc), coefficient = "spearman_rho",
             n_units = nrow(xs), value = stats::cor(xs$lag_c, xs$m_c, method = "spearman")) }
   dc <- data.table::copy(lm2)
   for (v in c("lag_h", "m")) { dc[, (v) := get(v) - mean(get(v)), by = Batch]; dc[, (v) := get(v) - mean(get(v)), by = CC] }
-  add_row(metric = "crossing_rate", exposure_set = "SIS", variant = "raw", comparison = "lag_vs_mean_double_centred", statistic = "pearson_r",
+  add_row(metric = "crossing_rate", exposure_set = "SIS", variant = "raw", comparison = "lag_vs_mean_double_centred", coefficient = "pearson_r",
           n_units = nrow(dc), value = stats::cor(dc$lag_h, dc$m))
-  add_row(metric = "crossing_rate", exposure_set = "SIS", variant = "raw", comparison = "lag_vs_mean_double_centred", statistic = "spearman_rho",
+  add_row(metric = "crossing_rate", exposure_set = "SIS", variant = "raw", comparison = "lag_vs_mean_double_centred", coefficient = "spearman_rho",
           n_units = nrow(dc), value = stats::cor(dc$lag_h, dc$m, method = "spearman"))
   d06 <- data.table::rbindlist(rows, fill = TRUE)
   # S9: two-way (CC1 x CCk) cage-resampling ranges for the SIS rho rows (raw, crossing_rate and occupancy)
@@ -498,7 +498,7 @@ s33d_cc_tables <- function(design, U, lagt) {
     ok <- stats::complete.cases(ms1, msk)
     rho <- vapply(which(ok), function(i) stats::cor(ms1[i, ], msk[i, ], method = "spearman"), 0)
     p <- s33_percentile(rho)
-    d06[metric == met_cur & exposure_set == "SIS" & variant == "raw" & comparison == paste0("CC1_vs_CC", k) & statistic == "spearman_rho",
+    d06[metric == met_cur & exposure_set == "SIS" & variant == "raw" & comparison == paste0("CC1_vs_CC", k) & coefficient == "spearman_rho",
         `:=`(resampling_low = p$lo, resampling_high = p$hi, n_draws_used = sum(ok),
              note = paste0("within-cohort two-way cage-sampling sensitivity; ", sum(!ok), " draws dropped (a zero-weight cohort)"))]
   }
@@ -514,10 +514,10 @@ s33d_cc_tables <- function(design, U, lagt) {
         if (data.table::uniqueN(y1[idx]) < 2L || data.table::uniqueN(yk[idx]) < 2L) return(NA_real_)
         stats::cor(y1[idx], yk[idx], method = "spearman") })
       p <- s33_percentile(dr)
-      list(n_animals = .N, statistic = "spearman_rho", value = v, resampling_low = p$lo, resampling_high = p$hi, n_finite_draws = sum(is.finite(dr))) },
+      list(n_animals = .N, coefficient = "spearman_rho", value = v, resampling_low = p$lo, resampling_high = p$hi, n_finite_draws = sum(is.finite(dr))) },
       by = .(scope = Batch)]
     z <- data.table::copy(xx)[, `:=`(z1 = (y1 - mean(y1)) / stats::sd(y1), zk = (yk - mean(yk)) / stats::sd(yk)), by = Batch]
-    pooled <- data.table::data.table(scope = "pooled_within_cohort", n_animals = nrow(z), statistic = "pearson_r_within_z",
+    pooled <- data.table::data.table(scope = "pooled_within_cohort", n_animals = nrow(z), coefficient = "pearson_r_within_z",
                                      value = stats::cor(z$z1, z$zk), resampling_low = NA_real_, resampling_high = NA_real_, n_finite_draws = NA_integer_)
     rbind(per, pooled)[, `:=`(CC_pair = paste0("CC1_vs_", cck), metric = met, level_note = "individual, within cohort")] }))))
   list(d05 = d05, d06 = d06, d07 = d07)
@@ -575,10 +575,11 @@ s33d_annotate <- function(p) {
                                 interval_basis = basis_of(ci_method))]
   p$d06_rank_correlations[, `:=`(level = "cohort", metric_label = lab_of(metric), units = "rank statistic over six cohorts",
                                   lead = variant == "raw" & exposure_set == "SIS" & metric == "crossing_rate" &
-                                    statistic %in% c("spearman_rho", "kendall_W") & !grepl("^lag", comparison),
+                                    coefficient %in% c("spearman_rho", "kendall_W") & !grepl("^lag", comparison),
                                   interval_basis = data.table::fifelse(is.finite(resampling_low), "conditional_on_cohorts", "none"))]
   p$d07_individual_stability[, `:=`(level = "animal_within_cohort", metric_label = lab_of(metric), units = "correlation", lead = FALSE,
                                      interval_basis = data.table::fifelse(is.finite(resampling_low), "conditional_on_cohorts", "none"))]
-  p$d08_recording_start_lags[, `:=`(level = "descriptive_record", units = "hours")]
+  p$d08_recording_start_lags[, `:=`(level = "descriptive_record", metric_label = "recording-start lag", units = "hours", lead = FALSE,
+                                     interval_basis = "none")]
   p
 }

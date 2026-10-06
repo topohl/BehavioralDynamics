@@ -236,6 +236,23 @@ s33_checkpoint <- function(ctx, module, step, fun, key_extra = list()) {
   v
 }
 
+#' Plan-mandated fixed sentences (verbatim from the frozen plan; test_stage33_run.R checks them against the plan text).
+#' A cell equal to one of them is not linted: the plan prescribes the wording (B's sentence names 'distance' and
+#' 'shared-cause' only to say that no such statement is made).
+S33_FIXED_SENTENCES <- c(
+  b_selection = paste("B2 and B6 were selected because their SIS A1 RFID position-change rates were the lowest of their sex.",
+                      "In the planning dry run (SIS including the untracked B1 animals) B2 and B6 SIS were the highest of their sex in OFT,",
+                      "EPM and NOR distance, opposite to their A1 rates. With three cohorts per sex and different constructs, no shared-cause",
+                      "statement is made."))
+#' Columns the lint skips (plan section 7: engine messages and declared path columns): the core set and each module's
+#' declared S33<M>_LINT_EXEMPT_COLUMNS.
+S33_LINT_EXEMPT_CORE <- c("messages", "kr_messages", "failure_reason", "path", "raw_file", "SourceFile", "file", "error",
+                          "optimizer_check_messages", "formula")
+s33_lint_exempt_columns <- function(modules) {
+  unique(c(S33_LINT_EXEMPT_CORE, unlist(lapply(modules, function(m) get0(paste0("S33", m, "_LINT_EXEMPT_COLUMNS"), envir = globalenv(),
+                                                                        ifnotfound = character())))))
+}
+
 # ---------------------------------------------------------------- lint (plan section 7, GC-9)
 #' Barred patterns, built from fragments so no barred literal sits in the source. Returns a list of named groups.
 s33_lint_patterns <- function(config = NULL) {
@@ -259,10 +276,10 @@ s33_lint_patterns <- function(config = NULL) {
 }
 
 #' Lint every table (character cells and column names) and the README. Returns one row per hit.
-#' Not scanned: a10/a11 (verbatim registered rows), engine message and path columns. RFID labels are checked on rows of
+#' Not scanned: a10/a11 (verbatim registered rows), engine message and path columns, cells equal to a plan-mandated fixed
+#' sentence (S33_FIXED_SENTENCES). RFID labels are checked on rows of
 #' an RFID metric, on column names (except declared SLEAP columns) and on README lines that are not arena lines.
-s33_lint <- function(tables, readme, pats, exempt_columns = c("messages", "kr_messages", "failure_reason", "path", "raw_file", "SourceFile",
-                                                              "file", "error", "optimizer_check_messages", "formula")) {
+s33_lint <- function(tables, readme, pats, exempt_columns = S33_LINT_EXEMPT_CORE, fixed_text = S33_FIXED_SENTENCES) {
   hits <- list(); hit <- function(where, pat, text) hits[[length(hits) + 1L]] <<- data.table::data.table(where = where, pattern = pat, text = substr(text, 1, 160))
   scan_txt <- function(where, v, pats_vec, ignore_case = TRUE) for (p in pats_vec) { m <- grepl(p, v, ignore.case = ignore_case, perl = TRUE)
     if (any(m, na.rm = TRUE)) hit(where, p, v[which(m)[1]]) }
@@ -277,11 +294,11 @@ s33_lint <- function(tables, readme, pats, exempt_columns = c("messages", "kr_me
     scan_txt(paste0(nm, " column"), cn, c(pats$stage))
     chr <- setdiff(cn[vapply(x, is.character, TRUE)], exempt_columns)
     for (k in chr) {
-      v <- unique(x[[k]]); v <- v[!is.na(v) & nzchar(v)]; if (!length(v)) next
+      v <- unique(x[[k]]); v <- v[!is.na(v) & nzchar(v) & !trimws(v) %in% fixed_text]; if (!length(v)) next
       scan_txt(paste(nm, k), v, pats$stage); scan_txt(paste(nm, k), v, pats$journals, ignore_case = FALSE)
       if ("metric_id" %in% cn) {
         rf <- unique(x[metric_id %in% c("crossing_rate", "shared_zone_use", "Movement_mean")][[k]])
-        rf <- rf[!is.na(rf) & nzchar(rf)]; if (length(rf)) scan_txt(paste(nm, k, "(RFID rows)"), rf, pats$rfid_labels)
+        rf <- rf[!is.na(rf) & nzchar(rf) & !trimws(rf) %in% fixed_text]; if (length(rf)) scan_txt(paste(nm, k, "(RFID rows)"), rf, pats$rfid_labels)
       }
     }
   }
@@ -359,9 +376,30 @@ s33_product_hashes <- function(products, module) {
   }))
 }
 
+# ---------------------------------------------------------------- recorded deviations (README; plan section 6)
+#' Readings of the plan that differ from its literal text, each marked 'PLAN ISSUE' or explained at its code site.
+S33_DEVIATIONS <- data.table::data.table(module = c("core", "core", "core"), text = c(
+  "The four SLEAP configuration files are read from <SLEAP release>/provenance/configs/ (the plan names <SLEAP release>/configs/); the pinned bytes are the same.",
+  "GC-6q compares board first records with Stage 32 board_first except on the boards whose labels v2 corrected (B1 CC2, B6 CC4).",
+  "The lint (GC-9) skips cells equal to the plan's fixed B2/B6 selection sentence (section 9, E10), which the plan prescribes verbatim."))
+s33_deviations <- function(modules) S33_DEVIATIONS[module %in% c("core", modules), paste0(module, ": ", text)]
+
 # ---------------------------------------------------------------- README (plan section 6)
+#' Interval counts per module for the README (plan 17.1 item 6): pairs of finite limits in any column pair named alike
+#' but for 'low' / 'high' (ci_low / ci_high, resamp_low / resamp_high, ci_low_S13 / ci_high_S13, ...), over the module
+#' tables except the verbatim copies a10/a11.
+s33_interval_counts <- function(results, modules) {
+  stats::setNames(vapply(modules, function(m) {
+    tabs <- results[[m]]$tables[setdiff(names(results[[m]]$tables), c("a10_s32_multiplicity_rows", "a11_s32_estimate_rows"))]
+    as.integer(sum(vapply(tabs, function(x) {
+      lo <- grep("(^|_)low(_|$)", names(x), value = TRUE); hi <- sub("(^|_)low(_|$)", "\\1high\\2", lo); keep <- hi %in% names(x)
+      sum(vapply(which(keep), function(i) sum(is.finite(suppressWarnings(as.numeric(x[[lo[i]]]))) &
+                                                is.finite(suppressWarnings(as.numeric(x[[hi[i]]])))), 0)) }, 0)))
+  }, 0L), modules)
+}
+
 s33_readme <- function(run_id, modules, commit, tables_by_module, gate_counts, deviations = character(), earlier = character(),
-                       rerun_reason = "", partial = FALSE) {
+                       rerun_reason = "", partial = FALSE, interval_counts = integer()) {
   c(paste0("Stage 33 post hoc cohort follow-ups, run ", run_id),
     "POST HOC, descriptive estimation only; not registered; not a re-test of any registered hypothesis.",
     paste0("Modules: ", paste(modules, collapse = ", "), if (partial) " (partial run: cross-module gates without a partner are recorded as not evaluated)" else ""),
@@ -372,12 +410,57 @@ s33_readme <- function(run_id, modules, commit, tables_by_module, gate_counts, d
     "Intervals: nominal 95% (method and basis in each row: interval_method, interval_basis). Percentile intervals from about 4 cages per cohort undercover (about 80% coverage) and are labelled cage_resampling_range. Intervals that use a CON cohort mean depend on the single CON cage of the cohort and are anti-conservative.",
     "Rates are RFID position-change rates: position changes per observed hour, counting vendor position updates of at least 200 grid units.",
     "With no association anywhere, about 1 in 20 nominal 95% intervals, and more of the cage-resampling ranges, would exclude 0.",
+    if (length(interval_counts)) paste0("Intervals reported (pairs of finite limits, every method and basis): ",
+                                        paste(paste(names(interval_counts), interval_counts), collapse = ", "), "; ", sum(interval_counts), " in total.")
+    else character(),
     "Cohort-level and individual-level results are reported separately; six cohorts cannot separate cohort biology from cohort-level procedure, assay runs or CC1 body size.",
     "Tables:", unlist(lapply(names(tables_by_module), function(m) paste0("  ", S33_MODULES[[m]], "/tables/", tables_by_module[[m]], ".csv"))),
     paste0("Gates: ", gate_counts),
     if (length(deviations)) c("Deviations from the plan:", paste0("  - ", deviations)) else "Deviations from the plan: none recorded.",
     if (length(earlier)) paste0("Earlier runs in this folder: ", paste(earlier, collapse = ", ")) else "Earlier runs in this folder: none.",
     if (nzchar(rerun_reason)) paste0("Rerun reason: ", rerun_reason) else character())
+}
+
+# ---------------------------------------------------------------- the run folder's file set (plan section 14)
+#' Phase 5 file set: the module tables and audit tables under their module folders, the run audit (section 5), the plan
+#' copy, session_info and the README. `run` holds repo, run_id, commit, root, modules, stage33_files, earlier, rerun_reason,
+#' timings, input_table, prod_hashes, gates_all, lint, checkpoints and readme. Stops unless the set (plus the writer's
+#' output_manifest) equals s33_planned_outputs(modules).
+s33_assemble_files <- function(results, run) {
+  files <- list()
+  for (m in run$modules) {
+    for (nm in names(results[[m]]$tables)) files[[file.path(S33_MODULES[[m]], "tables", paste0(nm, ".csv"))]] <- results[[m]]$tables[[nm]]
+    for (nm in names(results[[m]]$audit)) files[[file.path(S33_MODULES[[m]], "audit", paste0(nm, ".csv"))]] <- results[[m]]$audit[[nm]]
+  }
+  files[["audit/input_hashes.csv"]] <- run$input_table
+  files[["audit/code_hashes.csv"]] <- data.table::data.table(file = run$stage33_files,
+    sha256 = vapply(run$stage33_files, function(p) digest::digest(file = file.path(run$repo, p), algo = "sha256"), "", USE.NAMES = FALSE),
+    blob = vapply(run$stage33_files, function(p) s33_git(run$repo, "rev-parse", paste0("HEAD:", p))[1], "", USE.NAMES = FALSE))
+  files[["audit/gate_results.csv"]] <- run$gates_all
+  ck <- run$checkpoints
+  # "key" cannot be a data.table() argument name (it sets the key): build as field, then rename (as Stage 30)
+  files[["audit/run_manifest.csv"]] <- data.table::setnames(data.table::data.table(
+    field = c("run_id", "modules", "commit", "branch", "plan_sha256", "R", "root_form", "earlier_runs", "rerun_reason",
+            "checkpoints_reused", paste0("seconds_", names(run$timings))),
+    value = c(run$run_id, paste(run$modules, collapse = ""), run$commit, s33_git(run$repo, "branch", "--show-current")[1] %s33or% "",
+              S33_PLAN$sha256_lf, R.version.string, if (grepl("^//", run$root)) "UNC" else "drive", paste(run$earlier, collapse = ";"),
+              run$rerun_reason %s33or% "", if (nrow(ck)) sum(ck$reused) else 0L, vapply(run$timings, function(t) sprintf("%.1f", t), ""))),
+    "field", "key")
+  files[["audit/seeds_and_streams.csv"]] <- data.table::data.table(stream = names(S33_SEEDS), seed = unname(S33_SEEDS),
+    rng = paste(RNGkind(), collapse = "/"))
+  files[["audit/outcome_free_products.csv"]] <- data.table::rbindlist(run$prod_hashes)
+  files[["audit/lint_results.csv"]] <- run$lint
+  files[["audit/checkpoints_used.csv"]] <- if (nrow(ck)) ck else data.table::data.table(module = character(), step = character(),
+                                                                                       checkpoint_key = character(), file = character(), reused = logical())
+  files[["audit/session_info.txt"]] <- utils::capture.output(utils::sessionInfo())
+  files[[file.path("plan", basename(S33_PLAN$path))]] <- readLines(file.path(run$repo, S33_PLAN$path), warn = FALSE)
+  files[["README.txt"]] <- run$readme
+  planned <- s33_planned_outputs(run$modules)
+  got <- c(names(files), "audit/output_manifest.csv")
+  if (!setequal(got, planned) || anyDuplicated(got))
+    stop("Run file set differs from the plan: missing ", paste(setdiff(planned, got), collapse = ","), "; extra ",
+         paste(setdiff(got, planned), collapse = ","), call. = FALSE)
+  files
 }
 
 # ---------------------------------------------------------------- the writer (plan section 6, Phase 5)
@@ -428,6 +511,29 @@ s33_write_run <- function(local_root, out_root, run_id, files, spec, pre_copy_ch
        checks = data.table::data.table(stage = c("local", "copy", "final"), passed = c(all(loc), all(cp), all(post))))
 }
 
+# ---------------------------------------------------------------- gate registry (plan section 5)
+#' The core and cross-module gates: id, phase, kind ('hard' stops the run; 'recorded' never stops) and the module a gate
+#' belongs to (NA = every run). Module gates (GA-*, GB-*, GC-C*, GD-*, GE-*) are kept by their modules. GC-10 is the
+#' writer's pre-copy check (it stops inside s33_write_run() and leaves no row).
+S33_GATES <- data.table::data.table(
+  gate_id = c(paste0("GC-1", letters[1:5]), "GC-2", "GC-3", "GC-4", "GC-5", paste0("GC-6", letters[1:23]), paste0("GC-7", letters[1:4]),
+              paste0("GC-8", LETTERS[1:5]), "GC-8x", "GC-9", paste0("X", 1:8), "GC-10", "GC-11"),
+  phase = c(rep(1L, 9L), rep(2L, 23L), rep(3L, 4L), rep(4L, 6L), 4L, rep(4L, 8L), 5L, 5L),
+  kind = c(rep("hard", 9L + 23L + 4L + 6L + 1L + 7L), "recorded", "hard", "recorded"),
+  module = c(rep(NA_character_, 9L + 23L + 4L), LETTERS[1:5], rep(NA_character_, 1L + 1L + 8L + 2L)))
+
+#' GC-8x: every registered gate of Phases 1-4 that applies to the run was recorded (cross-module gates as held or 'not
+#' evaluated') and no unregistered core or cross-module id appears.
+s33_registry_gate <- function(gates_all, modules) {
+  want <- S33_GATES[phase <= 4L & gate_id != "GC-8x" & (is.na(module) | module %in% modules), gate_id]
+  got <- unique(gates_all$gate_id)
+  unknown <- setdiff(grep("^(GC-[0-9]|X[0-9])", got, value = TRUE), S33_GATES$gate_id)
+  s33_gate_rows("GC-8x", "every registered gate of Phases 1-4 recorded (section 13 held or not evaluated); no unregistered core id",
+                c(want %in% got, length(unknown) == 0L), n_expected = length(want) + 1L,
+                detail = paste(c(if (length(setdiff(want, got))) paste("missing", paste(setdiff(want, got), collapse = ",")),
+                                 if (length(unknown)) paste("unregistered", paste(unknown, collapse = ","))), collapse = "; "))
+}
+
 # ---------------------------------------------------------------- post-fit gates (plan sections 5 and 13)
 #' GC-8: every declared table and audit table present; a 'tier' column on all tables but a10/a11; estimate tables carry
 #' level, units, lead, interval_basis and metric_label, with levels from the declared vocabulary.
@@ -440,7 +546,7 @@ s33_table_gates <- function(results, modules) {
     tier_ok <- vapply(names(tabs), function(nm) nm %in% c("a10_s32_multiplicity_rows", "a11_s32_estimate_rows") || "tier" %in% names(tabs[[nm]]), TRUE)
     est <- names(r$tables)[vapply(r$tables, function(x) "estimate" %in% names(x) || "level" %in% names(x), TRUE)]
     est <- setdiff(est, c("a10_s32_multiplicity_rows", "a11_s32_estimate_rows"))
-    cols_ok <- vapply(est, function(nm) all(c("level", "units", "lead", "interval_basis") %in% names(r$tables[[nm]])), TRUE)
+    cols_ok <- vapply(est, function(nm) all(c("level", "units", "lead", "interval_basis", "metric_label") %in% names(r$tables[[nm]])), TRUE)
     lev_ok <- vapply(est, function(nm) { lv <- r$tables[[nm]]$level; all(is.na(lv) | lv %in% S33_LEVELS) }, TRUE)
     rows[[m]] <- s33_gate_rows(paste0("GC-8", m), paste0("module ", m, ": declared tables, tier column, section-7 columns and levels on estimate rows"),
                                c(present, tier_ok, cols_ok, lev_ok),
@@ -449,7 +555,116 @@ s33_table_gates <- function(results, modules) {
   data.table::rbindlist(rows)
 }
 
-#' Cross-module gates X1-X8 (plan section 13). Implemented against the module tables once all five modules exist.
+#' Phase 4, before the gates: C's S3 delta_peer per frozen SD is placed beside E's S15 row (plan section 12, S15) when C
+#' and E are both in the run (e06 column c_s3_delta_peer_per_frozen_sd; it stays NA otherwise).
+s33_cross_fill <- function(results, modules) {
+  if (!all(c("C", "E") %in% modules)) return(results)
+  v <- results$C$cross$s3_delta_peer_per_sd
+  if (length(v) != 1L) stop("C's S3 delta_peer per frozen SD must be one value (", length(v), " found).", call. = FALSE)
+  e06 <- data.table::copy(results$E$tables$e06_sensitivities)
+  if (!"c_s3_delta_peer_per_frozen_sd" %in% names(e06) || e06[sensitivity_id == "S15", .N] != 1L)
+    stop("e06 needs one S15 row and the column c_s3_delta_peer_per_frozen_sd.", call. = FALSE)
+  e06[sensitivity_id == "S15", c_s3_delta_peer_per_frozen_sd := v]
+  results$E$tables$e06_sensitivities <- e06
+  results
+}
+
+#' Cross-module gates X1-X8 (plan section 13), from the module tables and the modules' `cross` exports
+#' (results[[m]]$cross). 'Not evaluated' when a partner module is absent (X1 and X4 need two of their modules); X8 is
+#' recorded. A missing column or export fails its gate with the error as detail.
 s33_cross_gates <- function(results, p2, modules) {
-  stop("s33_cross_gates(): the cross-module gates X1-X8 are not implemented yet.", call. = FALSE)
+  G <- list(); add <- function(g) G[[length(G) + 1L]] <<- g
+  tb <- function(m, nm) { x <- results[[m]]$tables[[nm]]; if (is.null(x)) stop("table ", nm, " missing", call. = FALSE); data.table::as.data.table(x) }
+  cx <- function(m, nm) { x <- results[[m]]$cross[[nm]]; if (is.null(x)) stop("module ", m, " exports no cross$", nm, call. = FALSE); x }
+  num_eq <- function(a, b, tol) (is.na(a) & is.na(b)) | (!is.na(a) & !is.na(b) & abs(a - b) <= tol)
+  chr_eq <- function(a, b) (is.na(a) & is.na(b)) | (!is.na(a) & !is.na(b) & a == b)
+  run <- function(id, text, need, f, hard = TRUE, min_present = length(need)) {
+    present <- intersect(need, modules)
+    if (length(present) < min_present)
+      return(add(s33_gate_not_evaluated(id, text, paste0("module(s) ", paste(setdiff(need, modules), collapse = ","), " not in this run"))))
+    r <- tryCatch(f(present), error = function(e) list(ok = NA, detail = paste("error:", conditionMessage(e))))
+    add(s33_gate_rows(id, text, r$ok, hard = hard, detail = paste0(r$detail, if (length(present) < length(need))
+      paste0(" (evaluated over ", paste(present, collapse = ","), ")") else "")))
+  }
+  # X1 recording-start lags (CC1, by cohort)
+  run("X1", "CC1 recording-start lags identical in a12, b03 and b01, d08", c("A", "B", "D"), min_present = 2L, function(ms) {
+    lags <- list()
+    if ("A" %in% ms) { x <- cx("A", "lags"); lags$A <- stats::setNames(x$lag_cc1_h, x$Batch) }
+    if ("B" %in% ms) { x3 <- unique(tb("B", "b03_balance_cohort")[, .(Batch, lag_h_cc1)]); x1 <- unique(tb("B", "b01_covariates_animal")[, .(Batch, lag_h_cc1)])
+      lags$B_b03 <- stats::setNames(x3$lag_h_cc1, x3$Batch); lags$B_b01 <- stats::setNames(x1$lag_h_cc1, x1$Batch) }
+    if ("D" %in% ms) { x <- tb("D", "d08_recording_start_lags")[CC == "CC1"]; lags$D <- stats::setNames(x$lag_h, x$Batch) }
+    shape <- vapply(lags, function(v) length(v) == 6L && setequal(names(v), S33_COHORTS) && !anyNA(v), TRUE)
+    ref <- lags[[1]]
+    same <- vapply(lags[-1], function(v) isTRUE(all(shape)) && all(num_eq(v[S33_COHORTS], ref[S33_COHORTS], 1e-9)), TRUE)
+    list(ok = c(shape, same), detail = paste0("sources ", paste(names(lags), collapse = ","), "; max |difference| ",
+      if (all(shape)) sprintf("%.3g h", max(vapply(lags, function(v) max(abs(v[S33_COHORTS] - ref[S33_COHORTS])), 0))) else "n/a"))
+  })
+  # X2 A's x_RU means and CR2 rows x 6 = D's d05 SIS CC1 rows
+  run("X2", "A's SIS x_RU cohort means and CR2 rows x 6 = D's d05 SIS CC1 rate rows (1e-9)", c("A", "D"), function(ms) {
+    a <- data.table::as.data.table(cx("A", "x_RU_sis_cc1_rows"))
+    d <- tb("D", "d05_cohort_cc_table")[CC == "CC1" & exposure_set == "SIS" & metric == "crossing_rate"]
+    m <- merge(a, d, by = "Batch")
+    ok <- c(nrow(a) == 6L, nrow(d) == 6L, nrow(m) == 6L,
+            all(num_eq(6 * m$estimate, m$mean, 1e-9)), all(num_eq(6 * m$cr2_cc1_se, m$se_cr2, 1e-9)), all(num_eq(m$cr2_cc1_df, m$df_satt, 1e-9)),
+            all(num_eq(6 * m$cr2_cc1_ci_low, m$ci_low, 1e-9)), all(num_eq(6 * m$cr2_cc1_ci_high, m$ci_high, 1e-9)))
+    list(ok = ok, detail = sprintf("%d cohorts; max |6 x A - D| mean %.3g, interval %.3g", nrow(m), max(abs(6 * m$estimate - m$mean)),
+                                   max(abs(c(6 * m$cr2_cc1_ci_low - m$ci_low, 6 * m$cr2_cc1_ci_high - m$ci_high)), na.rm = TRUE, 0)))
+  })
+  # X3 C cages = A's cage_sd_reference_cc1 cages; C focal = E focal
+  run("X3", "C's CC1 cages = A's cage_sd_reference_cc1 cages; C's focal animals = E's focal animals", c("A", "C", "E"), min_present = 2L, function(ms) {
+    if (!"C" %in% ms) stop("module C not in this run")
+    cc <- cx("C", "cages"); cf <- cx("C", "focal"); ok <- c(!anyDuplicated(cc), !anyDuplicated(cf)); det <- character()
+    if ("A" %in% ms) { ac <- cx("A", "cage_sd_reference_cc1_cages"); ok <- c(ok, !anyDuplicated(ac), setequal(ac, cc), length(ac) == length(cc))
+      det <- c(det, sprintf("cages C %d, A %d", length(cc), length(ac))) }
+    if ("E" %in% ms) { ef <- tb("E", "e01_exposures_animal")[focal %in% TRUE, AnimalNum]; ok <- c(ok, setequal(ef, cf), length(ef) == length(cf), length(cf) == 85L)
+      det <- c(det, sprintf("focal C %d, E %d", length(cf), length(ef))) }
+    list(ok = ok, detail = paste(det, collapse = "; "))
+  })
+  # X4 tp2 and source cages identical in A, B, C, E (on the animals each pair shares)
+  run("X4", "tp2 and source cages identical in A, B, C and E (animals shared by each pair)", c("A", "B", "C", "E"), min_present = 2L, function(ms) {
+    src <- list()
+    if ("A" %in% ms) src$A <- data.table::as.data.table(cx("A", "tp2"))[, .(AnimalNum, tp2, src_cage)]
+    if ("B" %in% ms) src$B <- tb("B", "b01_covariates_animal")[, .(AnimalNum, tp2, src_cage)]
+    if ("C" %in% ms) src$C <- merge(data.table::as.data.table(cx("C", "tp2")), data.table::as.data.table(cx("C", "src_cage")), by = "AnimalNum", all = TRUE)
+    if ("E" %in% ms) src$E <- tb("E", "e01_exposures_animal")[, .(AnimalNum, tp2, src_cage)]
+    pr <- utils::combn(names(src), 2L); ok <- logical(); det <- character()
+    for (k in seq_len(ncol(pr))) {
+      a <- src[[pr[1, k]]]; b <- src[[pr[2, k]]]; m <- merge(a, b, by = "AnimalNum", suffixes = c(".a", ".b"))
+      ok <- c(ok, !anyDuplicated(a$AnimalNum), !anyDuplicated(b$AnimalNum), nrow(m) > 0L,
+              all(num_eq(m$tp2.a, m$tp2.b, 1e-12)), all(chr_eq(as.character(m$src_cage.a), as.character(m$src_cage.b))))
+      det <- c(det, sprintf("%s-%s %d animals", pr[1, k], pr[2, k], nrow(m)))
+    }
+    list(ok = ok, detail = paste(det, collapse = "; "))
+  })
+  # X5 cc4_cage identical in A and B
+  run("X5", "cc4_cage identical in A and B (shared animals)", c("A", "B"), function(ms) {
+    a <- data.table::as.data.table(cx("A", "cc4_cage"))[, .(AnimalNum, cc4_cage)]; b <- tb("B", "b01_covariates_animal")[, .(AnimalNum, cc4_cage)]
+    m <- merge(a, b, by = "AnimalNum", suffixes = c(".a", ".b"))
+    list(ok = c(!anyDuplicated(a$AnimalNum), nrow(m) == nrow(a), all(chr_eq(as.character(m$cc4_cage.a), as.character(m$cc4_cage.b)))),
+         detail = sprintf("%d of A's %d animals in b01", nrow(m), nrow(a)))
+  })
+  # X6 identical s1 in C and E
+  run("X6", "identical s1 (frozen SD of the CC1 A1 rate) in C and E", c("C", "E"), function(ms) {
+    cs <- cx("C", "s1"); es <- unique(tb("E", "e01_exposures_animal")$s1)
+    list(ok = c(length(cs) == 1L, length(es) == 1L, isTRUE(cs == es)), detail = sprintf("C %s, E %s", paste(cs, collapse = ","), paste(es, collapse = ",")))
+  })
+  # X7 |xbar_loo (C) - s1 m1 (E)| < 1e-10 on the 85 focal animals
+  run("X7", "|xbar_loo (C) - s1 m1 (E)| < 1e-10 on the 85 focal animals", c("C", "E"), function(ms) {
+    cl <- data.table::as.data.table(cx("C", "xbar_loo"))[, .(AnimalNum, xbar_loo)]
+    e <- tb("E", "e01_exposures_animal")[focal %in% TRUE, .(AnimalNum, m1, s1)]
+    m <- merge(cl, e, by = "AnimalNum"); dd <- abs(m$xbar_loo - m$s1 * m$m1)
+    list(ok = c(nrow(cl) == 85L, nrow(e) == 85L, nrow(m) == 85L, all(is.finite(dd) & dd < 1e-10)),
+         detail = sprintf("%d animals; max |difference| %.3g", nrow(m), if (nrow(m)) max(dd) else NA_real_))
+  })
+  # X8 (recorded) E's S15 = C's S3 per frozen SD within 1e-6 when S3 is singular, else the difference
+  run("X8", "E's S15 = C's S3 delta_peer per frozen SD (1e-6) when S3 is singular; otherwise the difference is recorded", c("C", "E"),
+      hard = FALSE, function(ms) {
+    c3 <- cx("C", "s3_delta_peer_per_sd"); sg <- cx("C", "s3_singular")
+    e15 <- tb("E", "e06_sensitivities")[sensitivity_id == "S15", estimate]
+    if (length(c3) != 1L || length(e15) != 1L) stop(sprintf("expected one C S3 and one E S15 value (%d, %d)", length(c3), length(e15)))
+    d <- e15 - c3
+    if (isTRUE(sg)) list(ok = is.finite(d) && abs(d) < 1e-6, detail = sprintf("S3 singular; E S15 - C S3 = %.3g per frozen SD", d))
+    else list(ok = is.finite(d), detail = sprintf("S3 not singular; E S15 - C S3 = %.6g per frozen SD (recorded; equality not expected)", d))
+  })
+  data.table::rbindlist(G, fill = TRUE)
 }

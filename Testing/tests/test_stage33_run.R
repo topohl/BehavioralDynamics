@@ -7,7 +7,8 @@
 #   3. seeds unique and in the declared ranges; replicate counts;
 #   4. lint: README blocks and declared columns pass; a barred RFID label, a p column, a journal name and a
 #      SIS-minus-CON column in module D fail; arena rows and a10/a11 are exempt;
-#   5. the writer on a temporary project root, including the pre-copy refusal (GC-10);
+#   5. the writer on a temporary project root, including the pre-copy refusal (GC-10); the run file set (= the planned
+#      outputs), the run manifest, the README interval counts and the recorded deviations;
 #   6. checkpoints: keys, reuse, integrity (a corrupted file is recomputed), no checkpoint without a folder;
 #   7. the Stage 33 rows of Analysis/STAGE_INVENTORY.csv and of the output index.
 # Portable: temporary folders only; no S: drive.
@@ -29,6 +30,8 @@ check(pos("s33_code_gates(") < pos("s33_design(paths") && pos("s33_input_gates(s
 check(pos("s33_attach_outcomes(") > pos("_phase2\"))"), "outcomes read after the outcome-free phase")
 check(!any(grepl("fwrite\\(|write\\.csv\\(|saveRDS\\(|writeLines\\(|file\\.copy\\(", code)), "the runner writes nothing itself")
 check(!any(grepl("print\\(|cat\\(", code)), "the runner prints no estimate (messages only)")
+check(pos("s33_assemble_files(results") > pos("s33_lint(") && pos("s33_write_run(") > pos("s33_assemble_files(results"),
+      "the file set is assembled after the lint and written only by the writer")
 check(!any(grepl("S:/", code, fixed = TRUE)) && !any(grepl("#[0-9A-Fa-f]{6}\\b", code)), "no data-root or colour literal")
 check(grepl("pdf(NULL)", txt, fixed = TRUE) && grepl("setwd(local_root)", txt, fixed = TRUE), "null graphics device and local working directory")
 ok("one guard; order of reads; no writes, prints or literals")
@@ -76,6 +79,20 @@ check(nrow(s33_lint(bad2, character(), pats)) > 0L, "a p column fails")
 check(nrow(s33_lint(bad3, character(), pats)) > 0L, "a SIS-minus-CON column in module D fails")
 check(nrow(s33_lint(bad4, character(), pats)) > 0L, "a journal name fails")
 check(nrow(s33_lint(list(), "Batch expl" %s33or% "", pats)) == 0L && nrow(s33_lint(list(), paste0("Batch expl", "ains it"), pats)) > 0L, "batch attribution in the README fails")
+plan_txt <- paste(readLines(S33_PLAN$path, warn = FALSE), collapse = "\n")
+fixed_in_plan <- regmatches(plan_txt, regexpr("(?<=Fixed sentence: ')[^']+(?=')", plan_txt, perl = TRUE))
+check(identical(unname(S33_FIXED_SENTENCES[["b_selection"]]), fixed_in_plan), "the fixed B2/B6 sentence is the plan's text verbatim")
+fx_tab <- list(b12_arena_cohort_contrasts = data.table(metric_id = "crossing_rate", selection_statement = S33_FIXED_SENTENCES[["b_selection"]], tier = S33_TIER))
+check(nrow(s33_lint(fx_tab, character(), pats)) == 0L, "a cell equal to the fixed sentence passes")
+fx_tab$b12_arena_cohort_contrasts[, selection_statement := paste(selection_statement, "Cause unknown.")]
+check(nrow(s33_lint(fx_tab, character(), pats)) > 0L, "an altered fixed sentence is linted")
+S33Q_LINT_EXEMPT_COLUMNS <- "engine_notes"
+check(all(c(S33_LINT_EXEMPT_CORE, "engine_notes") %in% s33_lint_exempt_columns("Q")) && identical(s33_lint_exempt_columns("Z"), S33_LINT_EXEMPT_CORE),
+      "module-declared exempt columns join the core set")
+eng <- list(c06_models = data.table(engine_notes = paste("the optimizer", "is due to converge"), tier = S33_TIER))
+check(nrow(s33_lint(eng, character(), pats)) > 0L && nrow(s33_lint(eng, character(), pats, exempt_columns = s33_lint_exempt_columns("Q"))) == 0L,
+      "a declared engine-message column is not linted")
+rm(S33Q_LINT_EXEMPT_COLUMNS)
 ok("scoped lint")
 
 cat("\n5. writer (temporary project root)\n")
@@ -95,6 +112,33 @@ check(!dir.exists(file.path(fx, "proj", "v1.0_B_1234567")) && !dir.exists(file.p
 writeLines("a,b\n1,3", spec$path)
 check(must_error(s33_write_run(file.path(fx, "local"), file.path(fx, "proj"), "v1.0_C_1234567", files, spec)), "a changed input stops before the copy")
 ok("writer with GC-10")
+
+cat("\n5b. run file set, interval counts, deviations\n")
+tabD <- data.table(level = "cohort", estimate = 1, ci_low = c(0, NA), ci_high = c(2, 3), resampling_low = 0.5, resampling_high = 1.5,
+                   metric_label = "x", units = "u", lead = FALSE, interval_basis = "none", tier = S33_TIER)
+resD <- list(D = list(tables = setNames(lapply(S33_TABLES$D, function(n) tabD), S33_TABLES$D),
+                      audit = setNames(lapply(S33_AUDIT_TABLES$D, function(n) data.table(a = 1, tier = S33_TIER)), S33_AUDIT_TABLES$D)))
+run <- list(repo = normalizePath(getwd(), winslash = "/"), run_id = "v1.0_D_1234567", commit = "1234567", root = "C:/x", modules = "D",
+            stage33_files = "Functions/stage33_run.R", earlier = character(), rerun_reason = "", timings = list(phase1 = 1, phase2_D = 2),
+            input_table = data.table(role = "in", observed_sha256 = "x"), prod_hashes = list(D = data.table(module = "D", product = "d01", sha256 = "x")),
+            gates_all = s33_gate_rows("GC-1", "x", TRUE), lint = data.table(where = character(), pattern = character(), text = character()),
+            checkpoints = data.table(), readme = c("a", "b"))
+af <- s33_assemble_files(resD, run)
+check(setequal(c(names(af), "audit/output_manifest.csv"), s33_planned_outputs("D")) && !anyDuplicated(names(af)), "file set = planned outputs")
+check(length(s33_planned_outputs(LETTERS[1:5])) == 77L, "77 files in a full run (plan section 14)")
+rm <- af[["audit/run_manifest.csv"]]
+check(identical(names(rm), c("key", "value")) && rm[key == "run_id", value] == "v1.0_D_1234567" && rm[key == "seconds_phase2_D", value] == "2.0",
+      "run_manifest has key/value rows (no data.table key argument)")
+resD_bad <- resD; resD_bad$D$tables[[1]] <- NULL
+check(must_error(s33_assemble_files(resD_bad, run)), "a missing declared table stops the assembly")
+check(identical(s33_interval_counts(resD, "D"), c(D = as.integer(length(S33_TABLES$D) * 3L))), "interval counts = pairs of finite limits")
+rd <- s33_readme("v1.0_D_1234567", "D", "1234567", S33_TABLES["D"], "1 recorded", deviations = s33_deviations("D"), partial = TRUE,
+                 interval_counts = s33_interval_counts(resD, "D"))
+check(any(grepl("^Intervals reported .*D 24; 24 in total[.]$", rd)) && any(grepl("^  - core: ", rd)), "README carries interval counts and deviations")
+check(all(startsWith(s33_deviations("D"), "core: ")) && all(S33_DEVIATIONS$module %in% c("core", LETTERS[1:5])), "deviations by module")
+check(nrow(s33_lint(list(), s33_readme("v1.0_ABCDE_1234567", LETTERS[1:5], "1234567", S33_TABLES, "1 recorded",
+                                       deviations = s33_deviations(LETTERS[1:5])), pats)) == 0L, "the full README and the deviations pass the lint")
+ok("file set, run manifest, interval counts, deviations")
 
 cat("\n6. checkpoints\n")
 ctx <- list(checkpoint_dir = file.path(fx, "ck"), run_mode = "test", head = "abc", checkpoint_log = new.env())

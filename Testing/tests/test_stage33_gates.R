@@ -7,6 +7,10 @@
 #   GC-6   the planning parsers on in-memory sheets (Social Golfer plan, GroupCompBatch2, GroupComposition) and the
 #          ID-list reader; the recording start of a synthetic raw file
 #   GC-8   declared tables, tier column, section-7 columns and levels
+#   registry  every S33_GATES id passes on a passing fixture and fails on a failing, an NA and an empty one; GC-8x
+#          (every registered Phase 1-4 gate recorded; partial runs; unregistered ids)
+#   X1-X8  cross-module gates on consistent synthetic modules, a targeted failure for each, partial runs (not evaluated),
+#          a missing export, X8 recorded; s33_cross_fill() places C's S3 beside E's S15
 #   gate rows: NA fails, empty (vacuous) fails, not-evaluated never stops
 # Portable: temporary files and in-memory matrices only; no readxl, no S: drive.
 
@@ -99,6 +103,77 @@ check(!isTRUE(s33_table_gates(res_bad2, "D")$passed), "a missing declared table 
 res_bad3 <- res_ok; res_bad3$D$audit[[1]][, tier := NULL]
 check(!isTRUE(s33_table_gates(res_bad3, "D")$passed), "a table without tier fails")
 ok("pass and fail")
+
+cat("\nregistry (S33_GATES) and GC-8x\n")
+check(!anyDuplicated(S33_GATES$gate_id) && all(S33_GATES$kind %in% c("hard", "recorded")) && all(S33_GATES$phase %in% 1:5) &&
+        identical(S33_GATES[kind == "recorded", gate_id], c("X8", "GC-11")), "registry ids unique; X8 and GC-11 recorded")
+for (id in S33_GATES$gate_id) {
+  check(isTRUE(s33_gate_rows(id, "fixture", c(TRUE, TRUE))$passed), paste(id, "passes on a passing fixture"))
+  check(!isTRUE(s33_gate_rows(id, "fixture", c(TRUE, FALSE))$passed) && !isTRUE(s33_gate_rows(id, "fixture", c(TRUE, NA))$passed) &&
+          !isTRUE(s33_gate_rows(id, "fixture", logical(), n_expected = 0L)$passed), paste(id, "fails on a failing, an NA and an empty fixture"))
+}
+rec <- function(ids) rbindlist(lapply(ids, function(id) s33_gate_rows(id, "fixture", TRUE)))
+full <- S33_GATES[phase <= 4L & gate_id != "GC-8x", gate_id]
+check(isTRUE(s33_registry_gate(rec(full), LETTERS[1:5])$passed), "GC-8x passes when every Phase 1-4 gate was recorded")
+check(!isTRUE(s33_registry_gate(rec(setdiff(full, "X3")), LETTERS[1:5])$passed), "GC-8x fails when a cross-module gate is missing")
+check(!isTRUE(s33_registry_gate(rec(c(full, "GC-6z")), LETTERS[1:5])$passed), "GC-8x fails on an unregistered core id")
+check(isTRUE(s33_registry_gate(rec(setdiff(full, paste0("GC-8", c("A", "B", "C", "E")))), "D")$passed), "a partial run needs only its own GC-8 rows")
+check(isTRUE(s33_registry_gate(rbind(rec(full), rec("GD-9")), LETTERS[1:5])$passed), "module gate ids are not core ids")
+ok("every registered id: pass, fail, NA, empty; GC-8x completeness")
+
+cat("\ncross-module gates X1-X8 and the S15 fill\n")
+co <- S33_COHORTS; lagv <- c(B1 = 2.5, B2 = 3, B3 = 4, B4 = 5, B5 = 6, B6 = 2.75)
+ani <- data.table(AnimalNum = sprintf("A%03d", 1:85), Batch = rep(co, length.out = 85), tp2 = seq(20, 28, length.out = 85),
+                  src_cage = rep(paste0("S", 1:17), each = 5), cc4_cage = rep(paste0("K", 1:17), 5))
+xr <- data.table(Batch = co, estimate = 1:6, cr2_cc1_se = 0.1 * (1:6), cr2_cc1_df = 2 + (1:6) / 10, cr2_cc1_ci_low = (1:6) - 1, cr2_cc1_ci_high = (1:6) + 1)
+cages <- paste0("C", 1:22); xl <- data.table(AnimalNum = ani$AnimalNum, xbar_loo = seq(5, 15, length.out = 85))
+# built fresh for every fixture: data.table's := changes a table in place
+mkX <- function() list(
+  A = list(tables = list(), cross = list(lags = data.table(Batch = co, lag_cc1_h = unname(lagv[co])), x_RU_sis_cc1_rows = xr,
+                                         cage_sd_reference_cc1_cages = cages, cc4_cage = ani[, .(AnimalNum, cc4_cage)], tp2 = ani[, .(AnimalNum, tp2, src_cage)])),
+  B = list(tables = list(b03_balance_cohort = data.table(Batch = rep(co, each = 2), condition = c("CON", "SIS"), lag_h_cc1 = rep(unname(lagv[co]), each = 2)),
+                         b01_covariates_animal = ani[, .(AnimalNum, Batch, tp2, src_cage, cc4_cage, lag_h_cc1 = unname(lagv[Batch]))])),
+  C = list(tables = list(), cross = list(focal = ani$AnimalNum, cages = cages, tp2 = ani[, .(AnimalNum, tp2)], src_cage = ani[, .(AnimalNum, src_cage)],
+                                         s1 = S33_SD_RATE, xbar_loo = xl, s3_delta_peer_per_sd = 0.25, s3_singular = TRUE)),
+  D = list(tables = list(d08_recording_start_lags = data.table(Batch = rep(co, 4), CC = rep(S33_CC, each = 6), lag_h = rep(unname(lagv[co]), 4)),
+                         d05_cohort_cc_table = data.table(Batch = co, CC = "CC1", exposure_set = "SIS", metric = "crossing_rate", mean = 6 * xr$estimate,
+                                                          se_cr2 = 6 * xr$cr2_cc1_se, df_satt = xr$cr2_cc1_df, ci_low = 6 * xr$cr2_cc1_ci_low,
+                                                          ci_high = 6 * xr$cr2_cc1_ci_high))),
+  E = list(tables = list(e01_exposures_animal = ani[, .(AnimalNum, tp2, src_cage, focal = TRUE, s1 = S33_SD_RATE, m1 = xl$xbar_loo / S33_SD_RATE)],
+                         e06_sensitivities = data.table(sensitivity_id = c("S1", "S15"), estimate = c(0.1, 0.25), c_s3_delta_peer_per_frozen_sd = NA_real_))))
+resX <- mkX()
+xg <- s33_cross_gates(resX, list(), LETTERS[1:5])
+check(identical(xg$gate_id, paste0("X", 1:8)) && all(xg$passed) && all(xg$evaluated) && identical(xg[gate_id == "X8", hard], FALSE) &&
+        all(xg[gate_id != "X8", hard]), "all eight pass on consistent modules; X8 recorded, X1-X7 hard")
+bad <- function(f) s33_cross_gates(f(mkX()), list(), LETTERS[1:5])
+passed_of <- function(g, id) isTRUE(g[gate_id == id, passed])
+check(!passed_of(bad(function(r) { r$D$tables$d08_recording_start_lags[CC == "CC1" & Batch == "B3", lag_h := 4.01]; r }), "X1"), "X1 fails on a changed lag")
+check(!passed_of(bad(function(r) { r$B$tables$b01_covariates_animal[1, lag_h_cc1 := 9]; r }), "X1"), "X1 fails when b01 and b03 disagree")
+check(!passed_of(bad(function(r) { r$D$tables$d05_cohort_cc_table[Batch == "B2", ci_high := ci_high + 1e-6]; r }), "X2"), "X2 fails on a changed CR2 limit")
+check(!passed_of(bad(function(r) { r$A$cross$cage_sd_reference_cc1_cages <- cages[-1]; r }), "X3"), "X3 fails on a different cage set")
+check(!passed_of(bad(function(r) { r$E$tables$e01_exposures_animal[1, focal := FALSE]; r }), "X3"), "X3 fails on a different focal set")
+check(!passed_of(bad(function(r) { r$B$tables$b01_covariates_animal[5, tp2 := tp2 + 0.5]; r }), "X4"), "X4 fails on a changed tp2")
+check(!passed_of(bad(function(r) { r$E$tables$e01_exposures_animal[7, src_cage := "S99"]; r }), "X4"), "X4 fails on a changed source cage")
+check(!passed_of(bad(function(r) { r$A$cross$cc4_cage <- data.table::copy(r$A$cross$cc4_cage)[3, cc4_cage := "K99"]; r }), "X5"), "X5 fails on a changed cc4_cage")
+check(!passed_of(bad(function(r) { r$E$tables$e01_exposures_animal[, s1 := 5.1699]; r }), "X6"), "X6 fails on a different s1")
+check(!passed_of(bad(function(r) { r$E$tables$e01_exposures_animal[2, m1 := m1 + 1e-9]; r }), "X7"), "X7 fails beyond 1e-10")
+g8 <- bad(function(r) { r$E$tables$e06_sensitivities[sensitivity_id == "S15", estimate := 0.26]; r })
+check(!passed_of(g8, "X8") && all(g8[gate_id != "X8", passed]), "X8 differs when S3 is singular (recorded)")
+check(isTRUE(s33_stop_on_gates(g8)), "a failing X8 does not stop the run")
+g8b <- bad(function(r) { r$C$cross$s3_singular <- FALSE; r$E$tables$e06_sensitivities[sensitivity_id == "S15", estimate := 0.26]; r })
+check(passed_of(g8b, "X8") && grepl("not singular", g8b[gate_id == "X8", detail]), "X8 records the difference when S3 is not singular")
+gm <- bad(function(r) { r$A$cross$lags <- NULL; r })
+check(!passed_of(gm, "X1") && grepl("^error:", gm[gate_id == "X1", detail]), "a missing export fails its gate with the error as detail")
+gD <- s33_cross_gates(resX["D"], list(), "D")
+check(nrow(gD) == 8L && all(!gD$evaluated) && isTRUE(s33_stop_on_gates(gD)), "a D-only run: every cross gate not evaluated")
+gAD <- s33_cross_gates(resX[c("A", "D")], list(), c("A", "D"))
+check(all(gAD[gate_id %in% c("X1", "X2"), passed]) && all(!gAD[!gate_id %in% c("X1", "X2"), evaluated]) &&
+        grepl("evaluated over A,D", gAD[gate_id == "X1", detail]), "an A+D run evaluates X1 (over A, D) and X2 only")
+filled <- s33_cross_fill(resX, LETTERS[1:5])$E$tables$e06_sensitivities
+check(filled[sensitivity_id == "S15", c_s3_delta_peer_per_frozen_sd] == 0.25 && is.na(filled[sensitivity_id == "S1", c_s3_delta_peer_per_frozen_sd]) &&
+        is.na(resX$E$tables$e06_sensitivities[sensitivity_id == "S15", c_s3_delta_peer_per_frozen_sd]), "S15 fill: C's S3 beside E's S15 only; input unchanged")
+check(identical(s33_cross_fill(resX[c("D", "E")], c("D", "E")), resX[c("D", "E")]) && all(xg$passed), "no fill without C; the fixture is unchanged")
+ok("X1-X8 pass and fail fixtures, partial runs, missing exports, S15 fill")
 
 cat("\ngate rows\n")
 check(!isTRUE(s33_gate_rows("X", "x", NA)$passed) && !isTRUE(s33_gate_rows("X", "x", logical(), n_expected = 0L)$passed), "NA and vacuous gates fail")

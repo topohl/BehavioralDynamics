@@ -99,47 +99,29 @@ s33_main <- function(args) {
     tick(paste0("phase3_", m))
   }
   # ---- Phase 4
+  results <- s33_cross_fill(results, modules)
   addg(s33_cross_gates(results, p2, modules))
   addg(s33_table_gates(results, modules))
   tables <- unlist(lapply(modules, function(m) c(results[[m]]$tables, results[[m]]$audit)), recursive = FALSE)
   gates_all <- data.table::rbindlist(G, fill = TRUE)
-  gate_counts <- sprintf("%d recorded, %d hard passed, %d not evaluated", nrow(gates_all), sum(gates_all$hard & gates_all$passed %in% TRUE),
-                         sum(!gates_all$evaluated))
-  readme <- s33_readme(run_id, modules, commit, S33_TABLES[modules], gate_counts, earlier = earlier,
-                       rerun_reason = Sys.getenv("MMM_S33_RERUN_REASON", ""), partial = !setequal(modules, LETTERS[1:5]))
-  lint <- s33_lint(tables, readme, s33_lint_patterns(cfg_env$MMM_BEHAVIOR_CONFIG))
+  gate_counts <- sprintf("%d recorded before the lint (GC-9) and the git-status record (GC-11), %d hard passed, %d not evaluated; every row in audit/gate_results.csv",
+                         nrow(gates_all), sum(gates_all$hard & gates_all$passed %in% TRUE), sum(!gates_all$evaluated))
+  readme <- s33_readme(run_id, modules, commit, S33_TABLES[modules], gate_counts, deviations = s33_deviations(modules), earlier = earlier,
+                       rerun_reason = Sys.getenv("MMM_S33_RERUN_REASON", ""), partial = !setequal(modules, LETTERS[1:5]),
+                       interval_counts = s33_interval_counts(results, modules))
+  lint <- s33_lint(tables, readme, s33_lint_patterns(cfg_env$MMM_BEHAVIOR_CONFIG), exempt_columns = s33_lint_exempt_columns(modules))
   addg(s33_gate_rows("GC-9", "lint: no barred word, p column or SIS-minus-CON column", nrow(lint) == 0L,
                      n_expected = 1L, detail = if (nrow(lint)) paste(lint$where[1], lint$pattern[1]) else ""))
+  addg(s33_registry_gate(data.table::rbindlist(G, fill = TRUE), modules))
   tick("phase4")
   # ---- Phase 5
   ck <- data.table::rbindlist(mget(sort(ls(ctx$checkpoint_log)), envir = ctx$checkpoint_log), fill = TRUE)
-  files <- list()
-  for (m in modules) {
-    for (nm in names(results[[m]]$tables)) files[[file.path(S33_MODULES[[m]], "tables", paste0(nm, ".csv"))]] <- results[[m]]$tables[[nm]]
-    for (nm in names(results[[m]]$audit)) files[[file.path(S33_MODULES[[m]], "audit", paste0(nm, ".csv"))]] <- results[[m]]$audit[[nm]]
-  }
   status1 <- s33_git(repo, "status", "--porcelain", "--ignored", "--untracked-files=all")
-  gc11 <- s33_gate_rows("GC-11", "git status unchanged since Phase 1 (recorded; the worktree is shared)", identical(status0, status1), hard = FALSE)
-  G[[length(G) + 1L]] <- gc11
-  gates_all <- data.table::rbindlist(G, fill = TRUE)
-  files[["audit/input_hashes.csv"]] <- input_table
-  files[["audit/code_hashes.csv"]] <- data.table::data.table(file = stage33_files,
-    sha256 = vapply(stage33_files, function(p) digest::digest(file = file.path(repo, p), algo = "sha256"), ""),
-    blob = vapply(stage33_files, function(p) s33_git(repo, "rev-parse", paste0("HEAD:", p))[1], ""))
-  files[["audit/gate_results.csv"]] <- gates_all
-  files[["audit/run_manifest.csv"]] <- data.table::data.table(key = c("run_id", "modules", "commit", "branch", "plan_sha256", "R", "root_form",
-                                                                      "earlier_runs", "rerun_reason", "checkpoints_reused", paste0("seconds_", names(timings))),
-    value = c(run_id, paste(modules, collapse = ""), commit, s33_git(repo, "branch", "--show-current")[1], S33_PLAN$sha256_lf, R.version.string,
-              if (grepl("^//", root)) "UNC" else "drive", paste(earlier, collapse = ";"), Sys.getenv("MMM_S33_RERUN_REASON", ""),
-              if (nrow(ck)) sum(ck$reused) else 0L, vapply(timings, function(t) sprintf("%.1f", t), "")))
-  files[["audit/seeds_and_streams.csv"]] <- data.table::data.table(stream = names(S33_SEEDS), seed = unname(S33_SEEDS),
-    rng = paste(RNGkind(), collapse = "/"))
-  files[["audit/outcome_free_products.csv"]] <- data.table::rbindlist(prod_hashes)
-  files[["audit/lint_results.csv"]] <- lint
-  files[["audit/checkpoints_used.csv"]] <- if (nrow(ck)) ck else data.table::data.table(module = character(), step = character(), checkpoint_key = character(), file = character(), reused = logical())
-  files[["audit/session_info.txt"]] <- utils::capture.output(utils::sessionInfo())
-  files[[file.path("plan", basename(S33_PLAN$path))]] <- readLines(file.path(repo, S33_PLAN$path), warn = FALSE)
-  files[["README.txt"]] <- readme
+  G[[length(G) + 1L]] <- s33_gate_rows("GC-11", "git status unchanged since Phase 1 (recorded; the worktree is shared)", identical(status0, status1), hard = FALSE)
+  files <- s33_assemble_files(results, list(repo = repo, run_id = run_id, commit = commit, root = root, modules = modules,
+    stage33_files = stage33_files, earlier = earlier, rerun_reason = Sys.getenv("MMM_S33_RERUN_REASON", ""), timings = timings,
+    input_table = input_table, prod_hashes = prod_hashes, gates_all = data.table::rbindlist(G, fill = TRUE), lint = lint,
+    checkpoints = ck, readme = readme))
   pre_copy <- function() { s33_output_refusals(out_root, run_id, modules, Sys.getenv("MMM_S33_RERUN_REASON", "")); TRUE }
   w <- s33_write_run(local_root, out_root, run_id, files, spec, pre_copy)
   message("Stage 33 written: ", w$dir, " (", nrow(w$manifest), " files; manifest sha256 ", w$manifest_sha256, ")")
