@@ -1312,3 +1312,51 @@ comparison classifies that noise.
 **Checks after the promotion.** All three read-only checks pass, with the same counts as after the palette promotion:
 the Stage 14 residual inventory, the foundation inventory, and the copy-parity check (2,181 originals and 1,969 copies
 match the plans, 212 match a recorded rerun, 54 files added by recorded reruns, no unplanned file).
+
+## 2026-10-06 Stage 14 figures promoted with fixed colour limits by measure and a flat sign fill for bars
+
+**What changed.** Tobias chose fixed, linear colour limits for each measure, the same in every figure of that measure
+(manuscript palette v3.1, Exp9_manuscript `b455a93`). Commits `3d87643` and `36f93b2` change three kinds of figure:
+- **Hedges g tiles.** These reach full colour at |g| = 1, and larger effects keep full colour; the colour bar's end
+  labels read ≤−1 and ≥1. This covers the nine domain heatmaps, the dashboards that embed them, the systems
+  effect-size heatmap and the two first-night heatmaps. Before, each figure took its colour range from its own data
+  (the domain heatmaps used ±1.75).
+- **HMM transition-probability differences.** No other figure shares this measure, so its limit still comes from its
+  own data. The limit is now symmetric, with plain round breaks.
+- **Bars.** The coupling and outcome-association ranks, the prediction waterfall and the prediction ladder take a flat
+  fill by sign. The gradient they replace drew bars near zero almost white. The ladder's movement-only reference bar
+  is grey.
+
+**What ran.** The run used a clean checkout of `36f93b2` (`s14src_20261006_36f93b2_limits2`) in the guarded sandbox
+`stage_sandbox_20261006_limits2`. R exited 0 after 366 s and the audit passed.
+
+The post-scan reported one finding: `Documents\Outlook Files` changed during the run. Outlook, running since
+2026-10-05, wrote `archive.pst` at 16:14:48 UTC. The sandboxed R process does not touch that folder; the live and SIS
+listings are unchanged, and the redirect log shows only the standard redirects.
+
+The earlier run of `3d87643` (`stage_sandbox_20261006_limits`) was superseded by `36f93b2` and not promoted.
+
+**Comparisons.** These compare against the live outputs (the square tiles promoted earlier the same day), with the
+expected-change manifest `expected_changes_limits.csv`:
+- **Files.** Of 374 files, 302 are identical or differ only by known run-to-run noise. 72 are expected changes
+  (24 figures as SVG, PDF and PNG) and none is unexpected. The first comparison flagged the dashboard's mirror in
+  `publication_panels/`, which the manifest had left out. Its pattern was then added and is marked as added after the
+  first comparison.
+- **Tables.** Every table is unchanged, and the engine effect summary is identical (84 rows).
+- **Validator.** The independent validator passes 33 of 33 checks. Its copy `validate_v33.R` adds one check: every
+  domain heatmap's colour bar ends at ≤−1 and ≥1.
+
+**Promotion.** Script `promote_stage14_rerun_20261006c.ps1`:
+1. All 374 live files were backed up to `_migration_control/stage14_before_rerun_20261006c/`.
+2. 374 files were promoted; none was added.
+3. Every live file was verified against its staged hash.
+
+**Record.** The record is `docs/behavior_output_producer_reruns/stage14_20261006c.csv` (SHA-256 `429BD298...`;
+374 rows: 117 rewritten, 257 unchanged). The 117 hash changes are the 72 figure files plus files whose bytes differ
+only by run-to-run noise.
+
+**Checks after the promotion.** All three read-only checks pass with the same counts as before:
+- the Stage 14 residual inventory;
+- the foundation inventory;
+- the copy-parity check: 2,181 originals and 1,969 copies match the plans, 212 copies match a recorded rerun, 54 files
+  were added by recorded reruns, and there is no unplanned file.
