@@ -105,7 +105,7 @@ s33_main <- function(args) {
   tables <- unlist(lapply(modules, function(m) c(results[[m]]$tables, results[[m]]$audit)), recursive = FALSE)
   gates_all <- data.table::rbindlist(G, fill = TRUE)
   gate_counts <- sprintf("%d recorded before the lint (GC-9) and the git-status record (GC-11), %d hard passed, %d not evaluated; every row in audit/gate_results.csv",
-                         nrow(gates_all), sum(gates_all$hard & gates_all$passed %in% TRUE), sum(!gates_all$evaluated))
+                         nrow(gates_all), sum(gates_all$hard %in% TRUE & gates_all$passed %in% TRUE), sum(!(gates_all$evaluated %in% TRUE)))
   readme <- s33_readme(run_id, modules, commit, S33_TABLES[modules], gate_counts, deviations = s33_deviations(modules), earlier = earlier,
                        rerun_reason = Sys.getenv("MMM_S33_RERUN_REASON", ""), partial = !setequal(modules, LETTERS[1:5]),
                        interval_counts = s33_interval_counts(results, modules))

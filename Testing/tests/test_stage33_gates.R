@@ -175,6 +175,17 @@ check(filled[sensitivity_id == "S15", c_s3_delta_peer_per_frozen_sd] == 0.25 && 
 check(identical(s33_cross_fill(resX[c("D", "E")], c("D", "E")), resX[c("D", "E")]) && all(xg$passed), "no fill without C; the fixture is unchanged")
 ok("X1-X8 pass and fail fixtures, partial runs, missing exports, S15 fill")
 
+cat("\ngate row types\n")
+must_err <- function(expr) inherits(tryCatch(expr, error = function(e) e), "error")
+check(must_err(s33_gate_rows("X", "x", TRUE, "a detail passed by position")) && must_err(s33_gate_rows("X", "x", TRUE, hard = NA)),
+      "a detail passed by position (landing in hard) or an NA hard flag stops")
+g3 <- s33_package_gates(expected = c(data.table = "0.0.0"), r_version = "none")
+check(isTRUE(g3$hard) && !isTRUE(g3$passed) && nzchar(g3$detail) && isTRUE(tryCatch(s33_stop_on_gates(g3), error = function(e) FALSE) == FALSE),
+      "GC-3 is a hard gate whose failure stops the run (detail named)")
+gg <- rbindlist(list(s33_gate_rows("A", "a", TRUE), s33_gate_not_evaluated("B", "b", "x"), s33_package_gates()), fill = TRUE)
+check(is.logical(gg$hard) && is.logical(gg$passed) && is.logical(gg$evaluated), "combined gate rows keep logical flags")
+ok("hard and evaluated are logical; GC-3 stops")
+
 cat("\ngate rows\n")
 check(!isTRUE(s33_gate_rows("X", "x", NA)$passed) && !isTRUE(s33_gate_rows("X", "x", logical(), n_expected = 0L)$passed), "NA and vacuous gates fail")
 check(isTRUE(s33_stop_on_gates(s33_gate_not_evaluated("X1", "x", "partner absent"))), "not-evaluated rows never stop")

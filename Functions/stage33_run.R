@@ -354,7 +354,7 @@ s33_plan_gates <- function(repo) {
 s33_package_gates <- function(expected = S32_PACKAGES, r_version = S32_R_VERSION) {
   vers <- vapply(names(expected), function(p) tryCatch(as.character(utils::packageVersion(p)), error = function(e) NA_character_), "")
   s33_gate_rows("GC-3", "R 4.5.1 ucrt and the frozen package versions", c(identical(R.version.string, r_version), vers == expected),
-                paste(names(vers)[is.na(vers) | vers != expected], collapse = ","))
+                detail = paste(names(vers)[is.na(vers) | vers != expected], collapse = ","))
 }
 
 #' GC-5: every declared input exists and matches its sha256.

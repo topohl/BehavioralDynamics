@@ -254,6 +254,9 @@ s33_resid_sd <- function(x, group) {
 # ---------------------------------------------------------------- gates
 #' Gate rows (plan section 5): non-vacuous by construction, n_expected > 0, n_checked == n_expected and all(ok), NA fails.
 s33_gate_rows <- function(gate_id, gate, ok, hard = TRUE, detail = "", n_expected = length(ok), evaluated = TRUE) {
+  # a detail passed by position would land in `hard` and make the gate unable to stop the run
+  if (!is.logical(hard) || length(hard) != 1L || is.na(hard)) stop("s33_gate_rows(", gate_id, "): hard must be TRUE or FALSE.", call. = FALSE)
+  if (!is.logical(evaluated) || length(evaluated) != 1L) stop("s33_gate_rows(", gate_id, "): evaluated must be TRUE or FALSE.", call. = FALSE)
   okv <- as.logical(ok)
   passed <- isTRUE(evaluated) && n_expected > 0L && length(okv) == n_expected && !anyNA(okv) && all(okv)
   data.table::data.table(gate_id = gate_id, gate = gate, passed = if (isTRUE(evaluated)) passed else NA,
