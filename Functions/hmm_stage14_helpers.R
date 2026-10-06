@@ -1404,6 +1404,27 @@ dhm_text_on <- function(fill_hex) {
   out
 }
 
+# Square tiles (2026-10-06): each heatmap panel is fixed at (number of columns x tile) wide and (number of rows x tile)
+# high, so every tile is tile_mm x tile_mm; the figure size follows (row labels, strips and legends keep their natural
+# size). Returns the laid-out gtable and its width and height in mm.
+MMM_DHM_TILE_MM <- 8
+dhm_square_tiles <- function(p, tile_mm = MMM_DHM_TILE_MM) {
+  b <- ggplot2::ggplot_build(p)
+  g <- ggplot2::ggplot_gtable(b)
+  lay <- b$layout$layout
+  n_of <- function(i, ax) length(b$layout$panel_params[[i]][[ax]]$get_breaks())
+  ny <- vapply(sort(unique(lay$ROW)), function(r) n_of(lay$PANEL[lay$ROW == r][1], "y"), numeric(1))
+  nx <- vapply(sort(unique(lay$COL)), function(k) n_of(lay$PANEL[lay$COL == k][1], "x"), numeric(1))
+  pl <- g$layout[grepl("^panel", g$layout$name), ]
+  cols <- sort(unique(pl$l)); rows <- sort(unique(pl$t))
+  if (length(cols) != length(nx) || length(rows) != length(ny)) stop("dhm_square_tiles: unexpected panel layout", call. = FALSE)
+  g$widths[cols] <- grid::unit(nx * tile_mm, "mm")
+  g$heights[rows] <- grid::unit(ny * tile_mm, "mm")
+  grDevices::pdf(NULL); on.exit(grDevices::dev.off(), add = TRUE)   # text sizes need a device; the null device writes nothing
+  list(grob = g, tile_mm = tile_mm, width_mm = sum(grid::convertWidth(g$widths, "mm", valueOnly = TRUE)),
+       height_mm = sum(grid::convertHeight(g$heights, "mm", valueOnly = TRUE)))
+}
+
 # Light-phase blocks of a heatmap window without any position update (n_events
 # = 0). Each may be consolidated rest in one position (alone or with
 # cage-mates) or an undetected tag; the vendor position stream cannot tell the

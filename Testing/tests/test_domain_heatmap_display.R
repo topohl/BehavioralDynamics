@@ -273,4 +273,17 @@ check(identical(dhm_minus(c(-0.004, -0.5, 1)), c("0.00", "−0.50", "1.00")), "G
 check(all(nchar(strsplit(dhm_wrap_text(strrep("word ", 200), 50, 6), "\n", fixed = TRUE)[[1]]) <= floor(50 / (0.5 * 6 * 25.4 / 72))),
       "G: wrapped lines fit the printed width")
 
+# square tiles: every panel is (columns x tile) wide and (rows x tile) high, with free row counts per facet row
+sq_dat <- expand.grid(contrast = c("A", "B", "C"), row = paste0("r", 1:5), Sex = c("F", "M"), stringsAsFactors = FALSE)
+sq_dat$tier <- ifelse(sq_dat$row %in% c("r1", "r2"), "t1", "t2"); sq_dat$g <- seq_len(nrow(sq_dat)) / 10
+sq_p <- ggplot2::ggplot(sq_dat, ggplot2::aes(contrast, row, fill = g)) + ggplot2::geom_tile() +
+  ggplot2::facet_grid(tier ~ Sex, scales = "free_y", space = "free_y")
+sq <- dhm_square_tiles(sq_p, 8)
+sq_pl <- sq$grob$layout[grepl("^panel", sq$grob$layout$name), ]
+sq_w <- grid::convertWidth(sq$grob$widths[sort(unique(sq_pl$l))], "mm", valueOnly = TRUE)
+sq_h <- grid::convertHeight(sq$grob$heights[sort(unique(sq_pl$t))], "mm", valueOnly = TRUE)
+check(identical(MMM_DHM_TILE_MM, 8) && isTRUE(all.equal(sq_w, c(24, 24))) && isTRUE(all.equal(sq_h, c(16, 24))) &&
+        sq$width_mm > 48 && sq$height_mm > 40 && sq$tile_mm == 8,
+      "G: square tiles: panels 3 x 8 mm wide, 2 x 8 and 3 x 8 mm high; the figure size follows")
+
 cat("test_domain_heatmap_display: all checks passed\n")

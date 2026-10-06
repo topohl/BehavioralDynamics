@@ -6975,23 +6975,25 @@ save_plot_svg_pdf(p_sis_repeated_adaptation, file.path(output_dir, "figures/publ
 # figure is in tables/systems_sis_dashboard_figure_legend_draft.csv. One colour
 # scale for every heatmap and variant, so the dashboards collect one colourbar.
 dhm_contrast_labels <- c("RES-CON" = "RES−CON", "SUS-CON" = "SUS−CON", "RES-SUS" = "RES−SUS")
+# the standalone heatmaps put the comparison group over "−reference", so the labels fit their square tiles
+dhm_contrast_axis_labels <- c("RES-CON" = "RES\n−CON", "SUS-CON" = "SUS\n−CON", "RES-SUS" = "RES\n−SUS")
 dhm_g_limit <- max(0.5, ceiling(max(abs(dhm_cells$hedges_g[dhm_cells$cell_status == "estimated"]), na.rm = TRUE) / 0.25) * 0.25)
 dhm_title_text <- c(cc1_a1 = "CC1, first dark phase (A1)", cc1_l1 = "CC1, first light phase (L1)",
                     all_blocks = "All phase blocks, CC1–CC4 pooled")
 dhm_phase_labels <- c(Active = "Dark phase", Inactive = "Light phase")
 dhm_sex_labels <- c(Female = "Females", Male = "Males")
-# Final sizes (mm): the single-window heatmaps fit one column (89 mm); the
-# pooled heatmap (12 contrast columns) and the dashboards use the full 183-mm
-# canvas, so the contrast labels never overlap.
-dhm_heatmap_mm <- list(cc1_a1 = c(w = 89, h = 56), cc1_l1 = c(w = 89, h = 56), all_blocks = c(w = 183, h = 60))
+# Sizes: the standalone heatmaps have square tiles of MMM_DHM_TILE_MM (8 mm; dhm_square_tiles()), and the figure size
+# follows from the rows and columns (single window about 74 x 77 mm, all blocks about 124 x 76 mm). The dashboards
+# (183 x 165 mm) keep their composite layout and one-line contrast labels.
 
-plot_dhm_heatmap <- function(hm, var, show_rows = TRUE, show_legend = TRUE) {
+plot_dhm_heatmap <- function(hm, var, show_rows = TRUE, show_legend = TRUE, standalone = FALSE) {
+  axis_labels <- if (standalone) dhm_contrast_axis_labels else dhm_contrast_labels
   tbl <- dhm_cells %>%
     filter(heatmap_id == hm, variant == var) %>%
     mutate(
       display_tier = factor(display_tier, levels = unique(dhm_display_rows$display_tier)),
       row_label = factor(row_label, levels = rev(dhm_display_rows$row_label)),
-      contrast = factor(dhm_contrast_labels[contrast], levels = dhm_contrast_labels),
+      contrast = factor(axis_labels[contrast], levels = axis_labels),
       Sex = factor(dhm_sex_labels[Sex], levels = dhm_sex_labels),
       PhaseClass = factor(dhm_phase_labels[PhaseClass], levels = dhm_phase_labels),
       fill_g = if_else(cell_status == "estimated", hedges_g, NA_real_),
@@ -7023,7 +7025,9 @@ plot_dhm_heatmap <- function(hm, var, show_rows = TRUE, show_legend = TRUE) {
     scale_shape_manual(name = NULL, values = c(posthoc = 16, registered = 1, sign_conflict = 4),
                        labels = MMM_DHM_MARKER_LEVELS, limits = names(MMM_DHM_MARKER_LEVELS), drop = FALSE) +
     guides(fill = guide_colourbar(barwidth = unit(22, "mm"), barheight = unit(1.6, "mm"), order = 1, title.vjust = 0.9),
-           shape = guide_legend(order = 2, nrow = 1, override.aes = list(size = 1.1))) +
+           # the narrow standalone heatmaps wrap the marker legend onto two rows
+           shape = guide_legend(order = 2, nrow = if (standalone && hm != "all_blocks") 2 else 1, byrow = TRUE,
+                                override.aes = list(size = 1.1))) +
     labs(x = NULL, y = NULL) +
     dhm_theme_tile() +
     theme(
@@ -7044,12 +7048,15 @@ dhm_file_base <- function(hm, var) {
 }
 dhm_plots <- list()
 for (dhm_var in MMM_DHM_VARIANTS) for (dhm_hm in dhm_heatmaps$heatmap_id) {
-  dhm_p <- plot_dhm_heatmap(dhm_hm, dhm_var)
-  dhm_plots[[dhm_var]][[dhm_hm]] <- dhm_p
-  save_plot_svg_pdf(dhm_p, file.path(output_dir, "figures/publication_panels", dhm_file_base(dhm_hm, dhm_var)),
-                    width = dhm_heatmap_mm[[dhm_hm]][["w"]], height = dhm_heatmap_mm[[dhm_hm]][["h"]])
+  dhm_plots[[dhm_var]][[dhm_hm]] <- plot_dhm_heatmap(dhm_hm, dhm_var)            # the dashboards' version
+  dhm_sq <- dhm_square_tiles(plot_dhm_heatmap(dhm_hm, dhm_var, standalone = TRUE))
+  if (dhm_sq$width_mm > MMM_DHM_PALETTE$canvas$width_mm || dhm_sq$height_mm > MMM_DHM_PALETTE$canvas$max_height_mm) {
+    stop("Heatmap ", dhm_hm, " / ", dhm_var, " exceeds the canvas: ", round(dhm_sq$width_mm), " x ", round(dhm_sq$height_mm), " mm")
+  }
+  save_plot_svg_pdf(dhm_sq$grob, file.path(output_dir, "figures/publication_panels", dhm_file_base(dhm_hm, dhm_var)),
+                    width = dhm_sq$width_mm, height = dhm_sq$height_mm)
 }
-rm(dhm_var, dhm_hm, dhm_p)
+rm(dhm_var, dhm_hm, dhm_sq)
 p_sis_phase_heatmap <- dhm_plots[["picked"]][["all_blocks"]]
 
 # ---- N. Raw g versus the within-batch estimate (QC, for the explanation) ---------
