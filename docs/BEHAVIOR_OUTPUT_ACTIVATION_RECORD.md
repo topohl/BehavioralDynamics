@@ -1237,3 +1237,42 @@ per-file SHA-256 in the producer-rerun records still apply, and any change in it
 promotion: the Stage 14 residual inventory (700 numbered files, 371 activated copies), the foundation inventory,
 and the copy-parity check (2,181 originals and 1,969 copies match the plans, 212 match a recorded rerun, 54 files
 added by recorded reruns, no unplanned file).
+
+## 2026-10-06 Stage 14 promoted with the manuscript palette v3
+
+**What changed.** Tobias set the general colour scheme (2026-10-06). It is now manuscript palette v3, in
+`Functions/manuscript_palette.R` (commit `78ab93e`), pinned to Exp9_manuscript master `92a0add`:
+- Groups: CON #6B7296, RES #BFBCB4, SUS #C74C56.
+- Diverging scale: low #6679D9, white midpoint #FFFFFF, high #F2CA4E.
+
+The scale is no longer balanced. Its yellow arm is weaker than its blue arm (CIEDE2000 from white 28.4 vs 41.5). A
+missing heatmap cell therefore takes a light grey (grey90) instead of white.
+
+**What ran.** The run used a clean checkout of `fb52ad9` (`s14src_20261006_fb52ad9_palv3`), which holds the palette
+change and a Stage 33 fix that Stage 14 does not read.
+- The first sandbox, `stage_sandbox_20261006_palv3`, ended in a native R crash (0xC0000005) after 141 s, as the first
+  attempts on 2026-10-03 and 2026-10-05 did. Its post-scan found nothing.
+- The retry, `stage_sandbox_20261006_palv3b`, passed: R exit 0 after 391 s and no post-scan finding.
+
+**Comparisons.** Against the live outputs, with the expected-change manifest `expected_changes_palette_v3.csv`
+(figures only):
+- 374 files: 205 identical or known run-to-run noise, 169 expected changes, none unexpected.
+- The engine effect summary `systems_sis_domain_effect_summary.csv` is identical (84 rows).
+- The independent validator passes 32 of 32 checks.
+
+**Promotion.** Script `promote_stage14_rerun_20261006.ps1`, with the same steps as on 2026-10-05:
+1. All 374 live files were backed up to `_migration_control/stage14_before_rerun_20261006/`.
+2. 374 files were promoted; none was added.
+3. Every live file was verified against its staged hash.
+
+**Record.** `docs/behavior_output_producer_reruns/stage14_20261006.csv` (SHA-256 `60A41EAF...`; 374 rows: 177 rewritten,
+197 unchanged; the 20 first-night files are unchanged).
+
+**Known layout issue (not new).** The marker legend's last label ("adj. p < 0.05, opposite sign") runs past the right
+edge of the domain heatmap panels. The v2 figures show the same clipping.
+
+**Checks after the promotion.** All three read-only checks pass:
+- the Stage 14 residual inventory (700 numbered files, 371 activated copies);
+- the foundation inventory;
+- the copy-parity check: 2,181 originals and 1,969 copies match the plans, 212 copies match a recorded rerun, 54 files
+  were added by recorded reruns, and no file is unplanned.
