@@ -66,6 +66,9 @@ s2 <- s33d_summary(y[1:6], cg[1:6], NULL, "SIS"); s3 <- s33d_summary(y[1:4], rep
 check(s2$ci_method == "none" && s2$ci_none_reason == "fewer than 3 informative cages" && is.na(s2$ci_low), "fewer than 3 cages: no interval")
 check(s3$ci_method == "none" && s3$ci_none_reason == "single CON cage", "CON: no interval")
 check(s33d_summary(y, cg, NULL, "SIS", "cc3_cage")$ci_method == "CR2_Satterthwaite_cc3_cage", "the CR2 label names the cage level")
+cw <- s33d_cage_weighted_means(data.table(Batch = "B1", CC = "CC1", CageEpisodeID = c("a", "a", "b", "c", "c"),
+                                          occ = c(0.2, 0.4, NA, 0.6, NA)), "occ")
+check(nrow(cw) == 1L && isTRUE(all.equal(cw$m, mean(c(0.3, 0.6)))), "S1 cage-weighted mean skips a cage without a finite value")
 check(isTRUE(all.equal(sm$mean_cage_weighted, mean(cm))), "cage-weighted mean")
 ok("CR2, CR1, ranges, cage-weighted means")
 

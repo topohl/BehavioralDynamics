@@ -435,6 +435,12 @@ s33d_separation_tables <- function(eng, U, design) {
   list(d03 = d03, d04 = d04)
 }
 
+#' Cage-weighted cohort means (sensitivity S1): the mean of the cage means over the cages with at least one finite value
+#' (a cage of one tracked animal has no occupancy value), as d05's mean_cage_weighted.
+s33d_cage_weighted_means <- function(x, met) {
+  x[, .(cg = mean(get(met), na.rm = TRUE)), by = .(Batch, CC, CageEpisodeID)][is.finite(cg), .(m = mean(cg)), by = .(Batch, CC)]
+}
+
 # ---------------------------------------------------------------- d05 cohort x CC, d06 ranks and lags, d07 individual
 s33d_cc_tables <- function(design, U, lagt) {
   ep <- data.table::copy(design$episodes); sexes <- S33_SEX_OF_COHORT
@@ -463,7 +469,7 @@ s33d_cc_tables <- function(design, U, lagt) {
     if (met_cur == "crossing_rate" && e == "SIS") for (b in S33_COHORTS) variants[[paste0("loco_", b)]] <- base[Batch != b]
     for (vn in names(variants)) {
       x <- variants[[vn]]
-      mm <- if (vn == "S1_cage_weighted") x[, .(cg = mean(get(met_cur), na.rm = TRUE)), by = .(Batch, CC, CageEpisodeID)][, .(m = mean(cg)), by = .(Batch, CC)] else cm(x)
+      mm <- if (vn == "S1_cage_weighted") s33d_cage_weighted_means(x, met_cur) else cm(x)
       if (vn == "sex_centred") mm[, m := m - mean(m), by = .(CC, sx = sexes[Batch])]
       wide <- data.table::dcast(mm, Batch ~ CC, value.var = "m")
       for (k in 2:4) { a <- stats::setNames(wide$CC1, wide$Batch); bb <- stats::setNames(wide[[paste0("CC", k)]], wide$Batch)
