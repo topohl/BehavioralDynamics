@@ -1,10 +1,11 @@
-# One colour source: Functions/manuscript_palette.R (manuscript palette v3) and its aliases.
+# One colour source: Functions/manuscript_palette.R (manuscript palette v3.1) and its aliases.
 #
 #   1. the source: version, group and diverging roles, pin formats, diverging ends distinct from each other and from the
 #      white midpoint;
 #   2. the aliases (mmm_group_colors, mmm_pair_colors, mmm_diverging_colors, MMM_GROUP_COLOURS, MMM_DIVERGING_COLOURS,
 #      MMM_DHM_PALETTE) equal the source;
-#   3. no stage or helper repeats a group or diverging colour as a literal, apart from the listed exceptions.
+#   3. no stage or helper repeats a group or diverging colour as a literal, apart from the listed exceptions;
+#   4. the fixed limits by measure, the shared diverging and sign scales, and no stage builds a diverging fill itself.
 #
 # Portable: repository files only.
 
@@ -15,7 +16,7 @@ ok <- function(msg) cat("  ok  ", msg, "\n")
 cat("1. the palette source\n")
 pal <- new.env(parent = baseenv())
 sys.source("Functions/manuscript_palette.R", envir = pal)
-check(identical(pal$MMM_PALETTE_VERSION, "manuscript_palette_v3"), "1: palette version v3")
+check(identical(pal$MMM_PALETTE_VERSION, "manuscript_palette_v3.1"), "1: palette version v3.1")
 check(identical(names(pal$MMM_PALETTE_GROUP), c("CON", "RES", "SUS")) && all(grepl("^#[0-9A-F]{6}$", pal$MMM_PALETTE_GROUP)),
       "1: group colours CON, RES, SUS as upper-case hex")
 check(identical(names(pal$MMM_PALETTE_DIVERGING), c("low", "mid", "high")) && all(grepl("^#[0-9A-F]{6}$", pal$MMM_PALETTE_DIVERGING)),
@@ -67,5 +68,27 @@ for (f in files) {
                           "; use MMM_PALETTE_GROUP / MMM_PALETTE_DIVERGING or their aliases"))
 }
 ok(sprintf("%d scripts and helpers use the palette names (%d listed exceptions)", length(files), length(EXCEPTIONS)))
+
+cat("\n4. fixed limits by measure and the shared scales\n")
+check(identical(pal$MMM_DIVERGING_LIMITS, c(smd = 1, correlation = 0.6)), "4: limits by measure (g/d 1, correlation 0.6)")
+s_smd <- mmm_scale_fill_diverging("smd", name = "g")
+check(identical(s_smd$get_labels(s_smd$get_breaks()), c("≤−1", "−0.5", "0", "0.5", "≥1")) &&
+        identical(s_smd$na.value, "grey90"), "4: end labels mark the full-colour ends; missing values grey")
+s_smd$train(c(-1, 1))
+check(identical(toupper(s_smd$map(c(-5, 0, 5))), toupper(unname(D[c("low", "mid", "high")]))), "4: values beyond the limit take full colour")
+s_cor <- mmm_scale_fill_diverging("correlation")
+check(identical(s_cor$get_labels(s_cor$get_breaks()), c("≤−0.6", "−0.3", "0", "0.3", "≥0.6")), "4: correlation limit 0.6")
+check(inherits(tryCatch(mmm_scale_fill_diverging("own"), error = function(e) e), "error") &&
+        isTRUE(all.equal(mmm_scale_fill_diverging("own", limit = 0.2)$limits, c(-0.2, 0.2))), "4: a measure of its own needs its limit")
+check(identical(as.character(mmm_sign_class(c(-0.2, 0, 1e-13, 0.3, NA))), c("negative", "zero", "zero", "positive", NA)) &&
+        identical(unname(mmm_scale_fill_sign()$palette(3)), unname(c(D[["low"]], "grey80", D[["high"]]))),
+      "4: bars take a flat fill by sign (grey for a zero reference)")
+for (f in files) {
+  code <- readLines(f, warn = FALSE); code <- code[!grepl("^\\s*#", code)]
+  check(f %in% c("Functions/behavioral_dynamics_helpers.R", "Functions/mmm_publication_theme.R") ||
+          !any(grepl("scale_fill_gradient2\\(", code) & grepl("diverging", code)),
+        paste0("4: ", f, " builds a diverging fill itself; use mmm_scale_fill_diverging() or mmm_scale_fill_sign()"))
+}
+ok("limits, end labels, full colour beyond the limit, sign fill, no hand-built diverging scale")
 
 cat("\nPASS: manuscript palette\n")

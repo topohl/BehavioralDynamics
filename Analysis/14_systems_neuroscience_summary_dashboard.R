@@ -3231,7 +3231,7 @@ p_heat <- heat_tbl %>%
   geom_tile(colour = "white", linewidth = 0.20) +
   geom_text(aes(label = sig), size = 2.1) +
   facet_grid(Sex ~ Domain, scales = "free_y", space = "free_y") +
-  scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
+  mmm_scale_fill_diverging("smd") +
   labs(
     title = "Systems-level group-difference map",
     subtitle = "Hedges g; symbols denote BH FDR within prespecified feature families",
@@ -3294,10 +3294,10 @@ if (nrow(network_long) > 0) {
     ungroup()
 
   p_net <- network_plot_tbl %>%
-    ggplot(aes(rho, Pair, fill = rho)) +
+    ggplot(aes(rho, Pair, fill = mmm_sign_class(rho))) +
     geom_col(width = 0.72) +
     facet_grid(Sex ~ ., scales = "free_y", space = "free_y") +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0) +
+    mmm_scale_fill_sign() +
     labs(
       title = "Sex-specific systems coupling",
       subtitle = "Top feature-feature Spearman correlations among strongest group-discriminating features",
@@ -3450,12 +3450,13 @@ if (!is.null(hmm_transition_prob) && nrow(hmm_transition_prob) > 0) {
   write_table(transition_difference_tbl, file.path(output_dir, "tables/systems_hmm_transition_probability_differences.csv"))
 
   if (nrow(transition_difference_tbl) > 0) {
-    p_hmm_diff <- transition_difference_tbl %>%
-      filter(is.finite(DeltaProbability)) %>%
+    p_hmm_diff_dat <- transition_difference_tbl %>% filter(is.finite(DeltaProbability))
+    p_hmm_diff <- p_hmm_diff_dat %>%
       ggplot(aes(ToLabel, FromLabel, fill = DeltaProbability)) +
       geom_tile(colour = "white", linewidth = 0.22) +
       facet_grid(Sex ~ Contrast) +
-      scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
+      # a measure no other figure shares: its own symmetric limit
+      mmm_scale_fill_diverging("own", limit = max(abs(p_hmm_diff_dat$DeltaProbability))) +
       labs(
         title = "HMM transition architecture differences",
         subtitle = "Group differences in animal-level transition probabilities; positive values indicate higher probability in the first group",
@@ -4235,10 +4236,10 @@ if (nrow(module_coupling_tbl) > 0) {
     filter(abs(spearman_rho) >= 0.25) %>%
     mutate(Pair = paste(Module1, Module2, sep = " <-> "),
            Pair = factor(Pair, levels = unique(Pair[order(abs(spearman_rho), decreasing = TRUE)]))) %>%
-    ggplot(aes(spearman_rho, Pair, fill = spearman_rho)) +
+    ggplot(aes(spearman_rho, Pair, fill = mmm_sign_class(spearman_rho))) +
     geom_col(width = 0.68) +
     facet_grid(Sex ~ ., scales = "free_y", space = "free_y") +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0) +
+    mmm_scale_fill_sign() +
     labs(
       title = "Module-level coupling map",
       subtitle = "Spearman correlations among biologically interpretable module scores",
@@ -4394,10 +4395,10 @@ if (length(available_outcomes) > 0) {
            StatLabel = paste(rho_label(spearman_rho), q_label(spearman_fdr), sep = "\n"),
            LabelX = if_else(spearman_rho >= 0, pmin(spearman_rho + 0.04, 0.96), pmax(spearman_rho - 0.04, -0.96)),
            LabelHJust = if_else(spearman_rho >= 0, 0, 1)) %>%
-    ggplot(aes(spearman_rho, DisplayFeature, fill = spearman_rho)) +
+    ggplot(aes(spearman_rho, DisplayFeature, fill = mmm_sign_class(spearman_rho))) +
     geom_col(width = 0.72) +
     geom_text(aes(x = LabelX, label = StatLabel, hjust = LabelHJust), size = 1.75, lineheight = 0.86) +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0) +
+    mmm_scale_fill_sign() +
     labs(
       title = paste0("Full-experiment systems features linked to ", outcome_to_plot),
       subtitle = paste0("Exploratory associations; labels show Spearman rho and BH q"),
@@ -4426,10 +4427,10 @@ if (length(available_outcomes) > 0) {
              StatLabel = paste(rho_label(spearman_rho), q_label(spearman_fdr), sep = "\n"),
              LabelX = if_else(spearman_rho >= 0, pmin(spearman_rho + 0.04, 0.96), pmax(spearman_rho - 0.04, -0.96)),
              LabelHJust = if_else(spearman_rho >= 0, 0, 1)) %>%
-      ggplot(aes(spearman_rho, DisplayFeature, fill = spearman_rho)) +
+      ggplot(aes(spearman_rho, DisplayFeature, fill = mmm_sign_class(spearman_rho))) +
       geom_col(width = 0.72) +
       geom_text(aes(x = LabelX, label = StatLabel, hjust = LabelHJust), size = 1.75, lineheight = 0.86) +
-      scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0) +
+      mmm_scale_fill_sign() +
       labs(
         title = paste0("Prospective early behavior linked to ", outcome_to_plot),
         subtitle = paste0("First active 12 h after ", first_cage_change, "; labels show Spearman rho and BH q"),
@@ -4629,11 +4630,11 @@ if (length(available_outcomes) > 0) {
       AddedModule = factor(AddedModule, levels = AddedModule),
       DeltaLabelVJust = if_else(delta_cv_r2_vs_previous >= 0, -0.2, 1.15)
     ) %>%
-    ggplot(aes(AddedModule, delta_cv_r2_vs_previous, fill = delta_cv_r2_vs_previous)) +
+    ggplot(aes(AddedModule, delta_cv_r2_vs_previous, fill = mmm_sign_class(delta_cv_r2_vs_previous))) +
     geom_hline(yintercept = 0, linewidth = 0.25, colour = "grey55") +
     geom_col(width = 0.68, colour = "white", linewidth = 0.18) +
     geom_text(aes(label = formatC(delta_cv_r2_vs_previous, format = "f", digits = 2), vjust = DeltaLabelVJust), size = 1.9) +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
+    mmm_scale_fill_sign() +
     labs(
       title = "Incremental predictive value by systems module",
       subtitle = paste0("Leave-one-animal-out prediction of ", outcome_to_plot, "; bars show delta CV-R2 versus previous ladder step"),
@@ -4721,11 +4722,11 @@ if (length(available_outcomes) > 0) {
 
   p_ladder <- prediction_perf %>%
     mutate(Model = factor(Model, levels = Model)) %>%
-    ggplot(aes(Model, cv_r2, fill = delta_cv_r2_vs_movement)) +
+    ggplot(aes(Model, cv_r2, fill = mmm_sign_class(delta_cv_r2_vs_movement))) +   # the movement-only reference is grey
     geom_hline(yintercept = 0, linewidth = 0.25, colour = "grey55") +
     geom_col(width = 0.68, colour = "white", linewidth = 0.18) +
     geom_text(aes(label = paste0("r=", formatC(pearson_r, format = "f", digits = 2), "\nΔR2=", formatC(delta_cv_r2_vs_movement, format = "f", digits = 2))), size = 1.8, vjust = -0.15) +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
+    mmm_scale_fill_sign() +
     labs(
       title = paste0("Cross-validated prediction ladder for ", outcome_to_plot),
       subtitle = "Module scores test incremental value beyond early movement magnitude",
@@ -4934,7 +4935,7 @@ if (nrow(systems_behavior_proteomics_bridge) > 0 && any(is.finite(systems_behavi
     ggplot(aes(proteomics_module, BehaviorLabel, fill = spearman_rho)) +
     geom_tile(colour = "white", linewidth = 0.22) +
     geom_text(aes(label = sig_label(spearman_fdr)), size = 1.8) +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
+    mmm_scale_fill_diverging("correlation") +
     labs(title = "Behavior-proteomics bridge", subtitle = "Associative molecular correlates of primary behavioral axes", x = NULL, y = NULL, fill = "rho") +
     make_figure_theme(base_size = 6) +
     theme(axis.text.x = element_text(angle = 40, hjust = 1), legend.position = "right")
@@ -5078,10 +5079,10 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
     )
 
   p_load <- top_loadings %>%
-    ggplot(aes(PC1, DisplayFeature, fill = PC1)) +
+    ggplot(aes(PC1, DisplayFeature, fill = mmm_sign_class(PC1))) +
     geom_vline(xintercept = 0, linewidth = 0.20, colour = "grey55") +
     geom_col(width = 0.72) +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0) +
+    mmm_scale_fill_sign() +
     labs(
       title = "B. Dominant systems axis",
       subtitle = paste0("Top signed PC1 loadings; PC1 explains ", round(100 * var_exp[1], 1), "%"),
@@ -5222,7 +5223,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
     geom_tile(colour = "white", linewidth = 0.25) +
     geom_text(aes(label = sig), size = 1.8) +
     facet_grid(Sex ~ ., scales = "free_y", space = "free_y") +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
+    mmm_scale_fill_diverging("smd") +
     labs(
       title = "F. Multiscale phenotype modules",
       subtitle = "Median Hedges g across feature modules; detailed map exported separately",
@@ -5300,7 +5301,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
       geom_tile(colour = "white", linewidth = 0.22) +
       geom_text(aes(label = sig_label(p_fdr)), size = 1.75) +
       facet_grid(Sex ~ ., scales = "free_y", space = "free_y") +
-      scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
+      mmm_scale_fill_diverging("smd") +
       labs(title = "B. Primary feature effects", subtitle = "Hedges g; symbols denote BH FDR", x = NULL, y = NULL, fill = "g") +
       make_figure_theme(base_size = 5.5) +
       theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "right")
@@ -6977,7 +6978,8 @@ save_plot_svg_pdf(p_sis_repeated_adaptation, file.path(output_dir, "figures/publ
 dhm_contrast_labels <- c("RES-CON" = "RES−CON", "SUS-CON" = "SUS−CON", "RES-SUS" = "RES−SUS")
 # the standalone heatmaps put the comparison group over "−reference", so the labels fit their square tiles
 dhm_contrast_axis_labels <- c("RES-CON" = "RES\n−CON", "SUS-CON" = "SUS\n−CON", "RES-SUS" = "RES\n−SUS")
-dhm_g_limit <- max(0.5, ceiling(max(abs(dhm_cells$hedges_g[dhm_cells$cell_status == "estimated"]), na.rm = TRUE) / 0.25) * 0.25)
+# the shared colour limit of standardized mean differences (MMM_DIVERGING_LIMITS); larger effects take full colour
+dhm_g_limit <- mmm_diverging_limits[["smd"]]
 dhm_title_text <- c(cc1_a1 = "CC1, first dark phase (A1)", cc1_l1 = "CC1, first light phase (L1)",
                     all_blocks = "All phase blocks, CC1–CC4 pooled")
 dhm_phase_labels <- c(Active = "Dark phase", Inactive = "Light phase")
@@ -7016,12 +7018,8 @@ plot_dhm_heatmap <- function(hm, var, show_rows = TRUE, show_legend = TRUE, stan
     geom_point(data = marks, aes(shape = marker_class), size = 0.85, stroke = 0.35, colour = "black",
                position = position_nudge(x = 0.36, y = 0.27), show.legend = TRUE) +
     facets +
-    scale_fill_gradient2(
-      name = "Hedges g", low = MMM_DHM_PALETTE$diverging[["low"]], mid = MMM_DHM_PALETTE$diverging[["mid"]],
-      high = MMM_DHM_PALETTE$diverging[["high"]], midpoint = 0, limits = c(-dhm_g_limit, dhm_g_limit), oob = scales::squish,
-      # the palette's midpoint is white (v3), so a cell without a value takes a light grey
-      na.value = "grey90", labels = scales::label_number(accuracy = 0.5, style_negative = "minus")
-    ) +
+    # the shared limit (MMM_DIVERGING_LIMITS); a cell without a value takes a light grey (white means zero)
+    mmm_scale_fill_diverging("smd", name = "Hedges g", limit = dhm_g_limit) +
     scale_shape_manual(name = NULL, values = c(posthoc = 16, registered = 1, sign_conflict = 4),
                        labels = MMM_DHM_MARKER_LEVELS, limits = names(MMM_DHM_MARKER_LEVELS), drop = FALSE) +
     guides(fill = guide_colourbar(barwidth = unit(22, "mm"), barheight = unit(1.6, "mm"), order = 1, title.vjust = 0.9),
@@ -7098,15 +7096,12 @@ plot_first_night_heatmap <- function(res, panel_role) {
       tile_label = paste0(formatC(.data$hedges_g, format = "f", digits = 2),
                           first_night_sig_label(.data$q))
     )
-  lim <- max(abs(ct$hedges_g[is.finite(ct$hedges_g)]), na.rm = TRUE)
   n_tests <- unique(ct$n_tests_in_family)[1]
   ggplot(ct, aes(contrast, Domain, fill = hedges_g)) +
     geom_tile(colour = "white", linewidth = 0.22) +
     geom_text(aes(label = tile_label), size = 1.75) +
     facet_grid(Sex ~ .) +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]],
-                         high = mmm_diverging_colors[["high"]], midpoint = 0,
-                         limits = c(-lim, lim), na.value = "grey90") +
+    mmm_scale_fill_diverging("smd") +
     labs(
       title = "First response to social instability",
       subtitle = paste0(

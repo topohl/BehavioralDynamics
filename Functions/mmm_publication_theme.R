@@ -164,17 +164,18 @@ mmm_save_pub <- function(plot, path, width_mm, height_mm, dpi = 600) {
 #' encodes DIRECTION AND MAGNITUDE of a contrast, never significance: cells are
 #' never recoloured by a p or q value.
 #'
-#' `limits` is symmetric by construction so that equal and opposite effects are
+#' The default is the shared limit of standardized mean differences (MMM_DIVERGING_LIMITS, manuscript_palette.R);
+#' missing cells are light grey (white means zero). `limits` is symmetric by construction so that equal and opposite effects are
 #' equally salient, and values outside it are squished rather than dropped, so a
 #' large effect can never render as missing data.
-mmm_scale_fill_effect <- function(limits = c(-1.2, 1.2),
+mmm_scale_fill_effect <- function(limits = c(-MMM_DIVERGING_LIMITS[["smd"]], MMM_DIVERGING_LIMITS[["smd"]]),
                                   name = "Hedges g",
                                   ...) {
   limits <- c(-max(abs(limits)), max(abs(limits)))
   scale_fill_gradient2(
     low = MMM_DIVERGING_COLOURS[["low"]], mid = MMM_DIVERGING_COLOURS[["mid"]],
     high = MMM_DIVERGING_COLOURS[["high"]], midpoint = 0,
-    limits = limits, oob = scales::squish, name = name, ...
+    limits = limits, oob = scales::squish, na.value = "grey90", name = name, ...
   )
 }
 

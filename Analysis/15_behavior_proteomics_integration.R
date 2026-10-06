@@ -1209,14 +1209,7 @@ run_crossmodal_analysis <- function(
       ggplot(aes(ProteomicAxisLabel, BehaviorAxisLabel, fill = spearman_rho)) +
       geom_tile(color = "white", linewidth = 0.35) +
       geom_text(aes(label = EvidenceLabel), size = 2.4, color = "black") +
-      scale_fill_gradient2(
-        low = mmm_diverging_colors[["low"]],
-        mid = mmm_diverging_colors[["mid"]],
-        high = mmm_diverging_colors[["high"]],
-        midpoint = 0,
-        limits = c(-1, 1),
-        name = "Spearman\nrho"
-      ) +
+      mmm_scale_fill_diverging("correlation", name = "Spearman\nrho") +   # the shared correlation limit
       labs(
         title = paste0("Curated behavior-proteomics axes: ", subset_label),
         subtitle = paste0(
@@ -1374,14 +1367,7 @@ run_crossmodal_analysis <- function(
     p_heat <- plot_tbl %>%
       ggplot(aes(ProteomicsFeature, BehaviorFeature, fill = SpearmanRho)) +
       geom_tile(color = "white", linewidth = 0.25) +
-      scale_fill_gradient2(
-        low = mmm_diverging_colors[["low"]],
-        mid = mmm_diverging_colors[["mid"]],
-        high = mmm_diverging_colors[["high"]],
-        midpoint = 0,
-        limits = c(-1, 1),
-        name = "Spearman\nrho"
-      ) +
+      mmm_scale_fill_diverging("correlation", name = "Spearman\nrho") +   # the shared correlation limit
       labs(
         title = paste0(
           "Behavior–proteomics correlations: ",

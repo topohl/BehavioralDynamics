@@ -75,11 +75,11 @@ for (k in c("single", "pooled")) {
 }
 check(grepl("animals as units", MMM_DHM_CON_UNIT_NOTE, fixed = TRUE), "B: the CON unit is stated")
 check(!exists("dhm_batch_level_t") && !exists("MMM_DHM_CON_SINGULAR_TOL"), "B: no singular-variance switching remains")
-check(identical(MMM_DHM_PALETTE$version, "manuscript_palette_v3") &&
+check(identical(MMM_DHM_PALETTE$version, "manuscript_palette_v3.1") &&
         identical(unname(MMM_DHM_PALETTE$group), c("#6B7296", "#BFBCB4", "#C74C56")) &&
         identical(names(MMM_DHM_PALETTE$group), c("CON", "RES", "SUS")) &&
         identical(unname(MMM_DHM_PALETTE$diverging), c("#6679D9", "#FFFFFF", "#F2CA4E")),
-      "B: the figure palette is the pinned manuscript palette v3")
+      "B: the figure palette is the pinned manuscript palette v3.1")
 check(MMM_DHM_PALETTE$typography$minimum_pt >= 5 && MMM_DHM_PALETTE$typography$annotation_pt >= MMM_DHM_PALETTE$typography$minimum_pt,
       "B: no text below the 5-pt minimum")
 check(toupper(dhm_fill_hex(0, 1.75)) == "#FFFFFF" && toupper(dhm_fill_hex(-9, 1.75)) == "#6679D9" &&
@@ -87,7 +87,7 @@ check(toupper(dhm_fill_hex(0, 1.75)) == "#FFFFFF" && toupper(dhm_fill_hex(-9, 1.
       "B: tile fills follow the diverging scale (midpoint 0, squished at the limits)")
 check(identical(dhm_text_on(c("#6679D9", "#FFFFFF", "#F2CA4E", "#4C566A", "#000000")), c("black", "black", "black", "white", "white")),
       "B: tile text takes the colour with the higher contrast")
-check(grepl("92a0add", MMM_DHM_PALETTE$source, fixed = TRUE) &&
+check(grepl("b455a93", MMM_DHM_PALETTE$source, fixed = TRUE) &&
         grepl("^[0-9a-f]{64}$", MMM_DHM_PALETTE$source_sha256) && grepl("^[0-9a-f]{40}$", MMM_DHM_PALETTE$source_git_blob),
       "B: the palette pin records its source commit, file hash and git blob")
 if (exists("mmm_diverging_colors")) {

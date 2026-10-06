@@ -702,7 +702,7 @@ p_occ_heat <- ggplot(occupancy_effect_tbl, aes(CagePhase, StateLabel, fill = coh
     y = NULL,
     fill = "Cohen's d"
   ) +
-  scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
+  mmm_scale_fill_diverging("smd") +   # Cohen's d: the shared limit (MMM_DIVERGING_LIMITS)
   make_publication_theme(base_size = 6) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
@@ -739,7 +739,7 @@ p_switch_heat <- ggplot(switch_effect_tbl, aes(CagePhase, Outcome, fill = cohen_
     y = NULL,
     fill = "Cohen's d"
   ) +
-  scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
+  mmm_scale_fill_diverging("smd") +   # Cohen's d: the shared limit (MMM_DIVERGING_LIMITS)
   make_publication_theme(base_size = 6) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),

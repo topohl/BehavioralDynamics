@@ -877,7 +877,8 @@ if (nrow(primary_contrasts) > 0) {
     subtitle = paste0(primary_window_label, "; positive values indicate higher occupancy in numerator group"),
     fill_label = "Delta\noccupancy"
   ) +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], limits = c(-lim_delta, lim_delta), oob = scales::squish, na.value = "white") +
+    # occupancy differences: a measure no other figure shares, so its own symmetric limit
+    mmm_scale_fill_diverging("own", limit = lim_delta) +
     facet_grid(Sex ~ contrast)
 
   save_svg(p_diff, file.path(DIR_FIGS, "primary_cc1_first_active_reader_occupancy_difference_maps.svg"), width = 8.2, height = 4.8)
@@ -911,14 +912,11 @@ longitudinal_contrasts <- contrast_occ %>%
   mutate(PositionID = factor(PositionID, levels = POSITION_MAP$PositionID), CageChangeIndex = factor(CageChangeIndex))
 
 if (nrow(longitudinal_contrasts) > 0) {
-  lim_d <- max(abs(longitudinal_contrasts$cohens_d), na.rm = TRUE)
-  if (!is.finite(lim_d) || lim_d == 0) lim_d <- 1
-  lim_d <- min(lim_d, 3)
 
   p_long_d <- longitudinal_contrasts %>%
     ggplot(aes(x = CageChangeIndex, y = PositionID, fill = cohens_d)) +
     geom_tile(color = "white", linewidth = 0.2) +
-    scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], limits = c(-lim_d, lim_d), oob = scales::squish, na.value = "white", name = "Cohen's d") +
+    mmm_scale_fill_diverging("smd", name = "Cohen's d") +   # the shared limit (MMM_DIVERGING_LIMITS)
     facet_grid(Sex + PhaseClass ~ contrast) +
     labs(
       title = "Spatial redistribution effect sizes across SIS cage changes",

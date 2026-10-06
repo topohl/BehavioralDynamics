@@ -519,7 +519,7 @@ p_phase_effect <- phase_effect_heatmap %>%
   geom_tile(colour = "white", linewidth = 0.35) +
   geom_text(aes(label = label), size = 2.0, lineheight = 0.86) +
   facet_grid(Metric + contrast ~ Sex) +
-  scale_fill_gradient2(low = mmm_diverging_colors[["low"]], mid = mmm_diverging_colors[["mid"]], high = mmm_diverging_colors[["high"]], midpoint = 0, na.value = "white") +
+  mmm_scale_fill_diverging("smd") +   # Cohen's d: the shared limit (MMM_DIVERGING_LIMITS)
   labs(
     title = "C  Where group differences emerge over time",
     subtitle = "Tiles show Cohen's d for primary contrasts; text shows d and BH-adjusted significance",
