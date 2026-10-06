@@ -1575,7 +1575,7 @@ pub_heat_tbl <- overall_stats$contrasts %>%
 write_table(pub_heat_tbl, file.path(output_dir, "tables", "publication_instability_effect_size_heatmap_data.csv"))
 
 p_pub_heat <- ggplot(pub_heat_tbl, aes(CagePhase, Outcome, fill = cohen_d)) +
-  geom_tile(colour = "white", linewidth = 0.35) +
+  geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.35) +
   geom_text(aes(label = SigLabel), size = 2.4, colour = "black") +
   facet_grid(Metric + Sex ~ BiologicalComparison, scales = "free_x", space = "free_x") +
   labs(
@@ -1666,7 +1666,7 @@ write_table(temporal_domain_dictionary, file.path(output_dir, "tables", "tempora
 write_table(temporal_maintext_feature_set, file.path(output_dir, "tables", "temporal_maintext_feature_set.csv"))
 
 p_pub_delta_heat <- ggplot(pub_delta_heat_tbl, aes(CagePhase, Outcome, fill = cohen_d)) +
-  geom_tile(colour = "white", linewidth = 0.35) +
+  geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.35) +
   geom_text(aes(label = SigLabel), size = 2.4, colour = "black") +
   facet_grid(Metric + Sex ~ BiologicalComparison, scales = "free_x", space = "free_x") +
   labs(

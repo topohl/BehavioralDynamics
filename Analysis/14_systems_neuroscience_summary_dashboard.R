@@ -3228,7 +3228,7 @@ if (publication_focus_only) {
 p_heat <- heat_tbl %>%
   mutate(DisplayFeature = factor(DisplayFeature, levels = rev(unique(DisplayFeature)))) %>%
   ggplot(aes(contrast, DisplayFeature, fill = effect_size)) +
-  geom_tile(colour = "white", linewidth = 0.20) +
+  geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.20) +
   geom_text(aes(label = sig), size = 2.1) +
   facet_grid(Sex ~ Domain, scales = "free_y", space = "free_y") +
   mmm_scale_fill_diverging("smd") +
@@ -3453,7 +3453,7 @@ if (!is.null(hmm_transition_prob) && nrow(hmm_transition_prob) > 0) {
     p_hmm_diff_dat <- transition_difference_tbl %>% filter(is.finite(DeltaProbability))
     p_hmm_diff <- p_hmm_diff_dat %>%
       ggplot(aes(ToLabel, FromLabel, fill = DeltaProbability)) +
-      geom_tile(colour = "white", linewidth = 0.22) +
+      geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.22) +
       facet_grid(Sex ~ Contrast) +
       # a measure no other figure shares: its own symmetric limit
       mmm_scale_fill_diverging("own", limit = max(abs(p_hmm_diff_dat$DeltaProbability))) +
@@ -4933,7 +4933,7 @@ if (nrow(systems_behavior_proteomics_bridge) > 0 && any(is.finite(systems_behavi
       proteomics_module = factor(str_replace_all(proteomics_module, "_", " "))
     ) %>%
     ggplot(aes(proteomics_module, BehaviorLabel, fill = spearman_rho)) +
-    geom_tile(colour = "white", linewidth = 0.22) +
+    geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.22) +
     geom_text(aes(label = sig_label(spearman_fdr)), size = 1.8) +
     mmm_scale_fill_diverging("correlation") +
     labs(title = "Behavior-proteomics bridge", subtitle = "Associative molecular correlates of primary behavioral axes", x = NULL, y = NULL, fill = "rho") +
@@ -5220,7 +5220,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
 
   p_heat_small <- module_effect_tbl %>%
     ggplot(aes(contrast, Module, fill = module_effect)) +
-    geom_tile(colour = "white", linewidth = 0.25) +
+    geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.25) +
     geom_text(aes(label = sig), size = 1.8) +
     facet_grid(Sex ~ ., scales = "free_y", space = "free_y") +
     mmm_scale_fill_diverging("smd") +
@@ -5298,7 +5298,7 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
   p_dashboard_heat <- if (nrow(primary_heat_tbl) > 0) {
     primary_heat_tbl %>%
       ggplot(aes(contrast, PrimaryFeatureLabel, fill = hedges_g)) +
-      geom_tile(colour = "white", linewidth = 0.22) +
+      geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.22) +
       geom_text(aes(label = sig_label(p_fdr)), size = 1.75) +
       facet_grid(Sex ~ ., scales = "free_y", space = "free_y") +
       mmm_scale_fill_diverging("smd") +
@@ -7009,7 +7009,7 @@ plot_dhm_heatmap <- function(hm, var, show_rows = TRUE, show_legend = TRUE, stan
     facet_grid(display_tier ~ Sex, scales = "free_y", space = "free_y", switch = "y")
   }
   p <- ggplot(tbl, aes(contrast, row_label)) +
-    geom_tile(aes(fill = fill_g), colour = "white", linewidth = dhm_lw(2 * MMM_DHM_PALETTE$line$tile_border_pt)) +
+    geom_tile(aes(fill = fill_g), colour = MMM_TILE_BORDER, linewidth = dhm_lw(2 * MMM_DHM_PALETTE$line$tile_border_pt)) +
     geom_tile(data = ~ filter(.x, cell_status == "not_shown"), fill = NA, colour = "grey80",
               linewidth = dhm_lw(MMM_DHM_PALETTE$line$tile_border_pt), width = 0.9, height = 0.85) +
     geom_text(aes(label = g_text, colour = text_col), size = dhm_size(dhm_pt("annotation_pt")),
@@ -7098,7 +7098,7 @@ plot_first_night_heatmap <- function(res, panel_role) {
     )
   n_tests <- unique(ct$n_tests_in_family)[1]
   ggplot(ct, aes(contrast, Domain, fill = hedges_g)) +
-    geom_tile(colour = "white", linewidth = 0.22) +
+    geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.22) +
     geom_text(aes(label = tile_label), size = 1.75) +
     facet_grid(Sex ~ .) +
     mmm_scale_fill_diverging("smd") +

@@ -1,4 +1,4 @@
-# One colour source: Functions/manuscript_palette.R (manuscript palette v3.1) and its aliases.
+# One colour source: Functions/manuscript_palette.R (manuscript palette v3.2) and its aliases.
 #
 #   1. the source: version, group and diverging roles, pin formats, diverging ends distinct from each other and from the
 #      white midpoint;
@@ -16,7 +16,7 @@ ok <- function(msg) cat("  ok  ", msg, "\n")
 cat("1. the palette source\n")
 pal <- new.env(parent = baseenv())
 sys.source("Functions/manuscript_palette.R", envir = pal)
-check(identical(pal$MMM_PALETTE_VERSION, "manuscript_palette_v3.1"), "1: palette version v3.1")
+check(identical(pal$MMM_PALETTE_VERSION, "manuscript_palette_v3.2"), "1: palette version v3.2")
 check(identical(names(pal$MMM_PALETTE_GROUP), c("CON", "RES", "SUS")) && all(grepl("^#[0-9A-F]{6}$", pal$MMM_PALETTE_GROUP)),
       "1: group colours CON, RES, SUS as upper-case hex")
 check(identical(names(pal$MMM_PALETTE_DIVERGING), c("low", "mid", "high")) && all(grepl("^#[0-9A-F]{6}$", pal$MMM_PALETTE_DIVERGING)),
@@ -93,5 +93,46 @@ for (f in files) {
         paste0("4: ", f, " builds a diverging fill itself; use mmm_scale_fill_diverging() or mmm_scale_fill_sign()"))
 }
 ok("limits, end labels, full colour beyond the limit, sign fill, no hand-built diverging scale")
+
+cat("\n5. a tile at zero stays visible\n")
+# A diverging heatmap's tile at zero is white, so a white tile border hides it. Every ggplot chain with a diverging
+# fill (mmm_scale_fill_diverging(), or the domain heatmaps' precomputed fill_g) outlines its tiles in MMM_TILE_BORDER.
+check(identical(pal$MMM_TILE_BORDER, "grey85"), "5: the tile outline is the manuscript's grey85")
+plus_chains <- function(e) {
+  out <- list()
+  walk <- function(x) {
+    if (!is.call(x)) return(invisible(NULL))
+    if (identical(x[[1]], as.name("+")) && length(x) == 3L) {
+      flat <- list()
+      flatten <- function(y) if (is.call(y) && identical(y[[1]], as.name("+")) && length(y) == 3L) {
+        flatten(y[[2]]); flatten(y[[3]])
+      } else flat[[length(flat) + 1L]] <<- y
+      flatten(x)
+      out[[length(out) + 1L]] <<- flat
+      for (y in flat) walk(y)
+      return(invisible(NULL))
+    }
+    args <- as.list(x)[-1]
+    # an empty argument (x[, 1]) is the missing-argument symbol and is skipped
+    for (i in seq_along(args)) if (!(is.symbol(args[[i]]) && !nzchar(as.character(args[[i]])))) walk(args[[i]])
+  }
+  walk(e)
+  out
+}
+n_div <- 0L
+for (f in files) {
+  for (e in parse(f, keep.source = FALSE)) for (ch in plus_chains(e)) {
+    calls <- Filter(is.call, ch)
+    fn <- vapply(calls, function(y) paste(deparse(y[[1]]), collapse = ""), "")
+    if (!any(fn == "mmm_scale_fill_diverging") &&
+        !any(vapply(calls, function(y) "fill_g" %in% all.names(y), logical(1)))) next
+    for (y in calls[fn == "geom_tile"]) {
+      n_div <- n_div + 1L
+      check(!identical(y$colour, "white"), paste0("5: ", f, " outlines a diverging heatmap's tiles in white; use MMM_TILE_BORDER"))
+    }
+  }
+}
+check(n_div >= 7L, sprintf("5: the diverging heatmaps were found (%d tile layers)", n_div))
+ok(sprintf("%d diverging tile layers outline their tiles", n_div))
 
 cat("\nPASS: manuscript palette\n")

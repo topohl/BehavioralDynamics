@@ -692,7 +692,7 @@ occupancy_effect_tbl <- occupancy_stats$contrasts %>%
 write_table(occupancy_effect_tbl, file.path(output_dir, "tables", "state_occupancy_effect_size_heatmap_data.csv"))
 
 p_occ_heat <- ggplot(occupancy_effect_tbl, aes(CagePhase, StateLabel, fill = cohen_d)) +
-  geom_tile(colour = "white", linewidth = 0.35) +
+  geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.35) +
   geom_text(aes(label = SigLabel), size = 2.3, colour = "black") +
   facet_grid(Sex ~ contrast, scales = "free_x", space = "free_x") +
   labs(
@@ -729,7 +729,7 @@ switch_effect_tbl <- switch_stats$contrasts %>%
 write_table(switch_effect_tbl, file.path(output_dir, "tables", "state_switching_effect_size_heatmap_data.csv"))
 
 p_switch_heat <- ggplot(switch_effect_tbl, aes(CagePhase, Outcome, fill = cohen_d)) +
-  geom_tile(colour = "white", linewidth = 0.35) +
+  geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.35) +
   geom_text(aes(label = SigLabel), size = 2.3, colour = "black") +
   facet_grid(Sex ~ contrast, scales = "free_x", space = "free_x") +
   labs(

@@ -156,7 +156,7 @@ mmm_assert_output_path_budget <- function(paths,
 }
 
 # Group and diverging colours come from Functions/manuscript_palette.R, the single colour source (manuscript palette
-# v2): navy CON, beige RES, red SUS; blue-grey = lower, dark orange = higher, warm grey at zero.
+# v3.2): slate blue CON, warm grey RES, red SUS; blue = lower, yellow = higher, white at zero.
 if (!exists("MMM_PALETTE_GROUP", inherits = TRUE)) {
   .mmm_palette_file <- file.path(c(if (exists("MMM_REPO_ROOT", inherits = TRUE)) get("MMM_REPO_ROOT", inherits = TRUE), getwd()),
                                  "Functions", "manuscript_palette.R")

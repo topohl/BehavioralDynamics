@@ -666,7 +666,7 @@ phase_effect_heatmap <- phase_contrasts %>%
 
 p_phase_effect <- phase_effect_heatmap %>%
   ggplot(aes(CageChangeIndex, PhaseClass, fill = cohen_d)) +
-  geom_tile(colour = "white", linewidth = 0.35) +
+  geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.35) +
   geom_text(aes(label = label), size = 1.9, lineheight = 0.86) +
   facet_grid(Metric + contrast ~ Sex) +
   mmm_scale_fill_diverging("smd") +   # Cohen's d: the shared limit (MMM_DIVERGING_LIMITS)

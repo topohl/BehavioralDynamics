@@ -647,7 +647,7 @@ write_table(animal_effect_tbl, file.path(output_dir, "tables", "animal_level_soc
 
 if (nrow(animal_effect_tbl) > 0) {
   p_animal_heat <- ggplot(animal_effect_tbl, aes(CagePhase, OutcomeLabel, fill = cohen_d)) +
-    geom_tile(colour = "white", linewidth = 0.35) +
+    geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.35) +
     geom_text(aes(label = SigLabel), size = 2.3, colour = "black") +
     facet_grid(Sex ~ contrast, scales = "free_x", space = "free_x") +
     labs(
@@ -1144,7 +1144,7 @@ if (!is.null(dyad_file) && file.exists(dyad_file)) {
 
       if (nrow(graph_effect_tbl) > 0) {
         p_graph_heat <- ggplot(graph_effect_tbl, aes(CagePhase, OutcomeLabel, fill = cohen_d)) +
-          geom_tile(colour = "white", linewidth = 0.35) +
+          geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.35) +
           geom_text(aes(label = SigLabel), size = 2.3, colour = "black") +
           facet_grid(Sex ~ contrast, scales = "free_x", space = "free_x") +
           labs(
@@ -1167,7 +1167,7 @@ if (!is.null(dyad_file) && file.exists(dyad_file)) {
 
       if (nrow(node_effect_tbl) > 0) {
         p_node_heat <- ggplot(node_effect_tbl, aes(CagePhase, OutcomeLabel, fill = cohen_d)) +
-          geom_tile(colour = "white", linewidth = 0.35) +
+          geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.35) +
           geom_text(aes(label = SigLabel), size = 2.3, colour = "black") +
           facet_grid(Sex ~ contrast, scales = "free_x", space = "free_x") +
           labs(

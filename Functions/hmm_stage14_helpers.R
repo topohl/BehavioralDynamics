@@ -1335,7 +1335,8 @@ MMM_DHM_PALETTE <- list(
   diverging = MMM_PALETTE_DIVERGING,
   evidence = c(supported = "#1F3D52", descriptive = "#B9B9B4", not_evaluable = "#D8D6D0", not_audited = "#E6E4DF",
                qc_context = "#B08968"),
-  claimability = c(claimable = "#1F3D52", claimable_with_caveat = "#5B7C93", not_claimable = "#D1543A"),
+  # v3.2: not_claimable takes the QC-context tan (the former vermillion read as the SUS red)
+  claimability = c(claimable = "#1F3D52", claimable_with_caveat = "#5B7C93", not_claimable = "#B08968"),
   typography = list(family = "Arial", panel_label_pt = 8, axis_text_pt = 5.2, axis_title_pt = 6, legend_text_pt = 5.2,
                     legend_title_pt = 5.6, annotation_pt = 5, minimum_pt = 5),
   line = list(axis_pt = 0.3, tile_border_pt = 0.15, reference_pt = 0.25, data_pt = 0.5),

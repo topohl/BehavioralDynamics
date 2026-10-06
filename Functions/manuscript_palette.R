@@ -3,7 +3,7 @@
 # MMMSociability
 # ================================================================
 # Group and diverging colours of every MMMSociability figure, pinned to the
-# manuscript's palette file (Exp9_manuscript config/manuscript_palette.yml, v3.1)
+# manuscript's palette file (Exp9_manuscript config/manuscript_palette.yml, v3.2)
 # so the analysis figures and the manuscript's own renderers draw the same
 # colours without reading another repository at run time. mmm_group_colors,
 # mmm_pair_colors, mmm_diverging_colors (behavioral_dynamics_helpers.R),
@@ -22,19 +22,21 @@
 # must take a fill other than white (a light grey).
 # Limits (v3.1): each measure has one fixed colour limit (MMM_DIVERGING_LIMITS),
 # applied by mmm_scale_fill_diverging(); bars take a flat fill by sign
-# (mmm_scale_fill_sign()), both in behavioral_dynamics_helpers.R.
+# (mmm_scale_fill_sign()), both in behavioral_dynamics_helpers.R. v3.2 keeps the
+# colours and these limits and adds the manuscript's own measures (NES, z,
+# set-mean z), which no MMMSociability figure draws.
 #
 # Pure constants: no packages, no file access. Frozen Stage 30/32 code keeps its
 # own colours.
 # ================================================================
 
-MMM_PALETTE_VERSION <- "manuscript_palette_v3.1"
+MMM_PALETTE_VERSION <- "manuscript_palette_v3.2"
 MMM_PALETTE_SOURCE <- list(
   repository = "Exp9_manuscript",
   file = "config/manuscript_palette.yml",
-  commit = "b455a937ddd07c42a218b1560578964ec71ccadc",          # master, 2026-10-06
-  git_blob = "86989712638f91858e0b98019a0e31addf220f02",        # line-ending independent identity
-  sha256 = "733472e50b1292341506ca2fde3c8b94c40d3d5f4849bc01192c3935e5ed9d7f")   # bytes of the CRLF working copy
+  commit = "f0d8592a55a68a7b4a312e4948baec4c6a55de08",          # master, 2026-10-07
+  git_blob = "a09a92bfbbff0bd7d6fde20b0c1142562d57547c",        # line-ending independent identity
+  sha256 = "3e83d2882427b46dd7c4c3161213af8bcdf4d8964180720eb16e95def77cbd47")   # bytes of the CRLF working copy
 
 MMM_PALETTE_GROUP <- c(CON = "#6B7296", RES = "#BFBCB4", SUS = "#C74C56")
 MMM_PALETTE_DIVERGING <- c(low = "#6679D9", mid = "#FFFFFF", high = "#F2CA4E")
@@ -43,3 +45,6 @@ MMM_PALETTE_DIVERGING <- c(low = "#6679D9", mid = "#FFFFFF", high = "#F2CA4E")
 # values beyond the limit are drawn at full colour and the legend ends read <= / >=. A measure that no other figure
 # shares may take its own symmetric limit.
 MMM_DIVERGING_LIMITS <- c(smd = 1, correlation = 0.6)   # smd = standardized mean difference (Hedges g, Cohen's d)
+# Outline of every tile of a diverging heatmap, as in the manuscript's renderers: a tile at zero is white and would
+# otherwise vanish into the page.
+MMM_TILE_BORDER <- "grey85"
