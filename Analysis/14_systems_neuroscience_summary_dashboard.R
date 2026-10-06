@@ -7017,7 +7017,8 @@ plot_dhm_heatmap <- function(hm, var, show_rows = TRUE, show_legend = TRUE) {
     scale_fill_gradient2(
       name = "Hedges g", low = MMM_DHM_PALETTE$diverging[["low"]], mid = MMM_DHM_PALETTE$diverging[["mid"]],
       high = MMM_DHM_PALETTE$diverging[["high"]], midpoint = 0, limits = c(-dhm_g_limit, dhm_g_limit), oob = scales::squish,
-      na.value = "white", labels = scales::label_number(accuracy = 0.5, style_negative = "minus")
+      # the palette's midpoint is white (v3), so a cell without a value takes a light grey
+      na.value = "grey90", labels = scales::label_number(accuracy = 0.5, style_negative = "minus")
     ) +
     scale_shape_manual(name = NULL, values = c(posthoc = 16, registered = 1, sign_conflict = 4),
                        labels = MMM_DHM_MARKER_LEVELS, limits = names(MMM_DHM_MARKER_LEVELS), drop = FALSE) +

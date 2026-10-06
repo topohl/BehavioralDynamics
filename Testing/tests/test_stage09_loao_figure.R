@@ -14,7 +14,7 @@ p <- stage09_loao_figure(pred, perf, perm)
 stopifnot(inherits(p, "ggplot"),
           identical(unname(p$scales$get_scales("shape")$palette(2)), c(16, 17)),
           identical(unname(p$scales$get_scales("colour")$palette(3)),
-                    c("#3E3C6F", "#C6C3BB", "#E63A48")),
+                    c("#6B7296", "#BFBCB4", "#C74C56")),
           any(vapply(p$layers, function(layer)
             inherits(layer$geom, "GeomCustomAnn"), logical(1))))
 bad <- perm[-2, ]

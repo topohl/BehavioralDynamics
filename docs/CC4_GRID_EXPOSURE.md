@@ -203,10 +203,11 @@ The versioned output directory contains animal and cage/group rates, batch
 estimates, group summaries, paired contrasts, population audit, the canonical
 outcome snapshot, input hashes and an output manifest. Exp9_manuscript imports
 this bundle byte-exact and renders candidate figures; it does not calculate
-new estimates or intervals. The behavioural palette is CON #3E3C6F, RES #C6C3BB,
-SUS #E63A48, matching `mmm_publication_theme.R` and the manuscript's vendored
-`plotting_nature.R`. A conflicting manuscript-wide YAML palette is not used by
-these behavioural candidates.
+new estimates or intervals. When this bundle was rendered the behavioural palette
+was CON #3E3C6F, RES #C6C3BB, SUS #E63A48 (manuscript palette v2, as in the
+manuscript's vendored `plotting_nature.R`). The current palette is v3 (CON #6B7296,
+RES #BFBCB4, SUS #C74C56; `Functions/manuscript_palette.R`, 2026-10-06); the
+candidates take it when they are re-rendered.
 
 ```powershell
 Rscript --vanilla 'Testing/tests/test_cc4_phase_groups.R'

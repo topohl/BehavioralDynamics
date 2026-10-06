@@ -30,7 +30,7 @@ MMM_GROUP_COLOURS <- MMM_PALETTE_GROUP
 MMM_DIVERGING_COLOURS <- MMM_PALETTE_DIVERGING
 MMM_GROUP_LEVELS <- c("CON", "RES", "SUS")
 
-# RES (#C6C3BB) is deliberately light, so colour must never be the ONLY group
+# RES (#BFBCB4) is deliberately light, so colour must never be the ONLY group
 # encoding. Line type and point shape carry the same information redundantly,
 # which also keeps the figures readable in greyscale.
 MMM_GROUP_LINETYPES <- c(CON = "solid", RES = "longdash", SUS = "dotdash")

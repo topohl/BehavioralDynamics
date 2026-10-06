@@ -1,6 +1,7 @@
-# One colour source: Functions/manuscript_palette.R (manuscript palette v2) and its aliases.
+# One colour source: Functions/manuscript_palette.R (manuscript palette v3) and its aliases.
 #
-#   1. the source: version, group and diverging roles, pin formats, balanced diverging ends;
+#   1. the source: version, group and diverging roles, pin formats, diverging ends distinct from each other and from the
+#      white midpoint;
 #   2. the aliases (mmm_group_colors, mmm_pair_colors, mmm_diverging_colors, MMM_GROUP_COLOURS, MMM_DIVERGING_COLOURS,
 #      MMM_DHM_PALETTE) equal the source;
 #   3. no stage or helper repeats a group or diverging colour as a literal, apart from the listed exceptions.
@@ -14,7 +15,7 @@ ok <- function(msg) cat("  ok  ", msg, "\n")
 cat("1. the palette source\n")
 pal <- new.env(parent = baseenv())
 sys.source("Functions/manuscript_palette.R", envir = pal)
-check(identical(pal$MMM_PALETTE_VERSION, "manuscript_palette_v2"), "1: palette version v2")
+check(identical(pal$MMM_PALETTE_VERSION, "manuscript_palette_v3"), "1: palette version v3")
 check(identical(names(pal$MMM_PALETTE_GROUP), c("CON", "RES", "SUS")) && all(grepl("^#[0-9A-F]{6}$", pal$MMM_PALETTE_GROUP)),
       "1: group colours CON, RES, SUS as upper-case hex")
 check(identical(names(pal$MMM_PALETTE_DIVERGING), c("low", "mid", "high")) && all(grepl("^#[0-9A-F]{6}$", pal$MMM_PALETTE_DIVERGING)),
@@ -26,10 +27,13 @@ if (requireNamespace("farver", quietly = TRUE)) {
   de <- function(a, b) as.numeric(farver::compare_colour(farver::decode_colour(a), farver::decode_colour(b), from_space = "rgb",
                                                          method = "cie2000"))
   d <- pal$MMM_PALETTE_DIVERGING
-  check(abs(de(d[["high"]], d[["mid"]]) - de(d[["low"]], d[["mid"]])) < 1,
-        sprintf("1: both diverging ends equally far from the midpoint (dE2000 %.1f vs %.1f)", de(d[["low"]], d[["mid"]]), de(d[["high"]], d[["mid"]])))
+  # v3 (2026-10-06): a white midpoint, chosen over a balanced grey; the yellow arm is the weaker one (documented in the
+  # palette source), so the check is distinctness, not balance
+  check(identical(d[["mid"]], "#FFFFFF") && de(d[["low"]], d[["mid"]]) > 25 && de(d[["high"]], d[["mid"]]) > 25 && de(d[["low"]], d[["high"]]) > 50,
+        sprintf("1: diverging ends distinct from the white midpoint (dE2000 %.1f, %.1f) and from each other (%.1f)",
+                de(d[["low"]], d[["mid"]]), de(d[["high"]], d[["mid"]]), de(d[["low"]], d[["high"]])))
 } else message("1: farver not installed; balance check skipped")
-ok("version, roles, pin and balance")
+ok("version, roles, pin and distinct diverging ends")
 
 cat("\n2. aliases\n")
 suppressPackageStartupMessages(source("Analysis/_pipeline_setup.R"))
@@ -46,7 +50,9 @@ check(identical(MMM_DHM_PALETTE$group, G) && identical(MMM_DHM_PALETTE$diverging
 ok("every alias equals the source")
 
 cat("\n3. no repeated literals\n")
-hexes <- toupper(c(G, D, "#3d3b6e", "#e63947", "#d45b58", "#D98B3A"))   # current values and the replaced variants
+# current values (white excepted: a generic background and text colour) and the replaced variants (v1, v2)
+hexes <- toupper(c(G, D[D != "#FFFFFF"], "#3d3b6e", "#e63947", "#d45b58", "#D98B3A",
+                   "#3E3C6F", "#C6C3BB", "#E63A48", "#4C566A", "#D8D2C7", "#96460A"))
 EXCEPTIONS <- c("Functions/manuscript_palette.R",
                 "Analysis/09_early_prediction_model_ladder.R")          # treated as registered; stays unedited
 FROZEN <- "^Functions/(stage30_|stage32_|rfid_)"                         # frozen code keeps its own colours
