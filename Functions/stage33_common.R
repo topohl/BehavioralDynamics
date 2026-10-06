@@ -24,7 +24,10 @@
 #                       audit  = named list of data.tables (module audit tables, names as in the plan),
 #                       gates  = data.table (s33_gate_rows() rows),
 #                       checkpoints = data.table(module, step, checkpoint_key, file, reused); may be empty:
-#                                     the runner records checkpoints from ctx$checkpoint_log).
+#                                     the runner records checkpoints from ctx$checkpoint_log,
+#                       streams = data.table (optional): one row per random stream (seed_name, seed, B, rng_kinds,
+#                                 unit_order, index_sha256, ...), merged into audit/seeds_and_streams.csv,
+#                       cross  = list (optional): the values the cross-module gates X1-X8 read (s33_cross_gates())).
 #
 # `design` (Phase 2, outcome-free) is a list built by s33_design():
 #   $animals   117 rows, one per canonical animal (key AnimalNum), see S33_DESIGN_ANIMAL_COLUMNS

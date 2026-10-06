@@ -111,6 +111,12 @@ check(must_error(s33_write_run(file.path(fx, "local"), file.path(fx, "proj"), "v
 check(!dir.exists(file.path(fx, "proj", "v1.0_B_1234567")) && !dir.exists(file.path(fx, "proj", ".tmp_v1.0_B_1234567")), "nothing copied after the refusal")
 writeLines("a,b\n1,3", spec$path)
 check(must_error(s33_write_run(file.path(fx, "local"), file.path(fx, "proj"), "v1.0_C_1234567", files, spec)), "a changed input stops before the copy")
+dt <- data.table(Batch = "B2", cc1_date = as.Date("2023-01-29"), x = 1.5, tier = S33_TIER)
+pd <- s33_prepare(dt)
+check(is.character(pd$cc1_date) && pd$cc1_date == "2023-01-29" && inherits(dt$cc1_date, "Date"), "Date columns become ISO text (input unchanged)")
+wd <- s33_write_run(file.path(fx, "local"), file.path(fx, "proj"), "v1.0_D_1234567", list("D_hourly/tables/d.csv" = dt, "README.txt" = "x"), spec0 <- data.table::copy(spec)[, sha256 := digest::digest(file = path, algo = "sha256")])
+check(any(grepl("2023-01-29", readLines(file.path(wd$dir, "D_hourly/tables/d.csv")), fixed = TRUE)), "a written Date column reads as a date")
+check(nrow(s33_product_hashes(list(d = dt), "D")) == 1L, "product hashes serialize Date columns")
 ok("writer with GC-10")
 
 cat("\n5b. run file set, interval counts, deviations\n")
@@ -129,13 +135,23 @@ check(length(s33_planned_outputs(LETTERS[1:5])) == 77L, "77 files in a full run 
 rm <- af[["audit/run_manifest.csv"]]
 check(identical(names(rm), c("key", "value")) && rm[key == "run_id", value] == "v1.0_D_1234567" && rm[key == "seconds_phase2_D", value] == "2.0",
       "run_manifest has key/value rows (no data.table key argument)")
+resS <- resD; resS$D$streams <- data.table(seed_name = "D_resample", seed = 33040101L, B = 10L, index_sha256 = "abc")
+ss <- s33_assemble_files(resS, run)[["audit/seeds_and_streams.csv"]]
+check(nrow(ss[record == "declared seed"]) == length(S33_SEEDS) && ss[record == "module stream", .N] == 1L &&
+        ss[record == "module stream", module] == "D" && ss[record == "module stream", B] == 10L &&
+        nrow(af[["audit/seeds_and_streams.csv"]]) == length(S33_SEEDS), "seeds_and_streams: declared seeds plus each module's stream rows")
 resD_bad <- resD; resD_bad$D$tables[[1]] <- NULL
 check(must_error(s33_assemble_files(resD_bad, run)), "a missing declared table stops the assembly")
 check(identical(s33_interval_counts(resD, "D"), c(D = as.integer(length(S33_TABLES$D) * 3L))), "interval counts = pairs of finite limits")
 rd <- s33_readme("v1.0_D_1234567", "D", "1234567", S33_TABLES["D"], "1 recorded", deviations = s33_deviations("D"), partial = TRUE,
                  interval_counts = s33_interval_counts(resD, "D"))
 check(any(grepl("^Intervals reported .*D 24; 24 in total[.]$", rd)) && any(grepl("^  - core: ", rd)), "README carries interval counts and deviations")
+check(all(S33_README_RULES %in% rd) && sum(grepl("^  - ", S33_README_RULES)) == 13L, "README carries the 13 stage-wide reading rules (plan 17.1)")
 check(all(startsWith(s33_deviations("D"), "core: ")) && all(S33_DEVIATIONS$module %in% c("core", LETTERS[1:5])), "deviations by module")
+S33Q_DEVIATIONS <- c("first reading", "second reading")
+check(identical(utils::tail(s33_deviations(c("D", "Q")), 2L), c("Q: first reading", "Q: second reading")) &&
+        !any(grepl("^Q: ", s33_deviations("D"))), "module-declared deviations follow the core rows, only for modules in the run")
+rm(S33Q_DEVIATIONS)
 check(nrow(s33_lint(list(), s33_readme("v1.0_ABCDE_1234567", LETTERS[1:5], "1234567", S33_TABLES, "1 recorded",
                                        deviations = s33_deviations(LETTERS[1:5])), pats)) == 0L, "the full README and the deviations pass the lint")
 ok("file set, run manifest, interval counts, deviations")

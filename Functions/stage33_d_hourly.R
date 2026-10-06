@@ -63,13 +63,16 @@ s33d_raw_checks <- function(rr, active_start, rec_start, tracked) {
 }
 
 #' One v2 file: stream with raw seeds, windows, metrics, A1 boundary events, raw checks. `windows` = TRUE builds the 36
-#' CC1 windows; for CC2-CC4 (sensitivity S7) only hr01-hr12 and A1 are built.
-s33d_file <- function(v2_file, raw_dir, raw_file, tracked, cc1 = TRUE, bout_s = 39.3970988275363) {
+#' CC1 windows; for CC2-CC4 (sensitivity S7) only hr01-hr12 and A1 are built. `rec_start` is the shared design's
+#' recording start (plan section 3: the first parsable raw record, design$lags); the earliest raw timestamp, which in some
+#' files lies a few milliseconds before the first record, is kept as raw_min for the record.
+s33d_file <- function(v2_file, raw_dir, raw_file, tracked, rec_start, cc1 = TRUE, bout_s = 39.3970988275363) {
   pre <- s30mv_read_preprocessed(v2_file)
   st <- s30mv_build_stream(pre, raw_dir)
   FW <- mmm_evs_windows(pre)
   rr <- s32w_read_raw_records(raw_file, FW$SourceFile)
-  rec_start <- min(rr$t)
+  if (!inherits(rec_start, "POSIXct") || length(rec_start) != 1L || !is.finite(rec_start)) stop("s33d_file needs the design's recording start.", call. = FALSE)
+  raw_min <- min(rr$t)
   W <- s33d_windows(FW$SourceFile, FW$active_start, rec_start)
   if (!cc1) W <- W[window_set %in% c("clock_hour", "a1")]
   M <- s30mv_window_metrics(st, W[, .(SourceFile, window_id, start, end)], bout_criterion_s = bout_s,
@@ -83,7 +86,7 @@ s33d_file <- function(v2_file, raw_dir, raw_file, tracked, cc1 = TRUE, bout_s = 
                                          by = AnimalNum]
   rc <- s33d_raw_checks(rr, FW$active_start, rec_start, tracked)
   boards <- rr[, .(first = min(t)), by = AnimalNum]
-  list(metrics = M, edges = edges, raw = rc, FW = FW, rec_start = rec_start, n_unparsed = attr(rr, "n_unparsed") %s33or% 0L,
+  list(metrics = M, edges = edges, raw = rc, FW = FW, rec_start = rec_start, raw_min = raw_min, n_unparsed = attr(rr, "n_unparsed") %s33or% 0L,
        seed_files = unique(st$seeds$raw_file), stream_ids = unique(st$pos$AnimalID), first_reads = boards,
        raw_labels = unique(rr$AnimalNum))
 }
@@ -98,19 +101,21 @@ s33d_cage_stats <- function(y, cage, cages = sort(unique(cage))) {
 }
 
 #' One cohort-set-metric-window summary: mean, spread, CR2 (SIS), CR1, resampling range, cage-weighted mean (S1).
-s33d_summary <- function(y, cage, U = NULL, exposure = "SIS") {
+#' `cluster` names the cage level in the method label (CR2_Satterthwaite_<cluster>); a cell without an interval has
+#' ci_method 'none' and the reason in ci_none_reason.
+s33d_summary <- function(y, cage, U = NULL, exposure = "SIS", cluster = "cc1_cage") {
   ok <- is.finite(y); yy <- y[ok]; cc <- cage[ok]
   cs <- if (length(yy)) data.table::data.table(y = yy, g = cc)[, .(m = mean(y), n = .N), keyby = g] else data.table::data.table(g = character(), m = numeric(), n = integer())
   out <- data.table::data.table(n_animals = length(yy), n_cages = nrow(cs), cage_sizes = paste(sort(cs$n), collapse = ","),
     mean = if (length(yy)) mean(yy) else NA_real_, sd_animals = if (length(yy) > 1L) stats::sd(yy) else NA_real_,
     min = if (length(yy)) min(yy) else NA_real_, max = if (length(yy)) max(yy) else NA_real_,
     cage_means = paste(signif(cs$m, 8), collapse = ";"), se_cr2 = NA_real_, df_satt = NA_real_, ci_low = NA_real_, ci_high = NA_real_,
-    ci_method = "none", se_cr1 = NA_real_, ci_cr1_low = NA_real_, ci_cr1_high = NA_real_, resamp_low = NA_real_, resamp_high = NA_real_,
+    ci_method = "none", ci_none_reason = NA_character_, se_cr1 = NA_real_, ci_cr1_low = NA_real_, ci_cr1_high = NA_real_, resamp_low = NA_real_, resamp_high = NA_real_,
     mean_cage_weighted = if (nrow(cs)) mean(cs$m) else NA_real_, ci_cage_t_low = NA_real_, ci_cage_t_high = NA_real_)
-  if (exposure != "SIS") { out[, ci_method := "none: single CON cage"]; return(out) }
-  if (nrow(cs) < 3L) { out[, ci_method := "none: < 3 cages"]; return(out) }
+  if (exposure != "SIS") { out[, ci_none_reason := "single CON cage"]; return(out) }
+  if (nrow(cs) < 3L) { out[, ci_none_reason := "fewer than 3 informative cages"]; return(out) }
   cr <- s33_cr2_mean(yy, cc)
-  out[, `:=`(se_cr2 = cr$se, df_satt = cr$df, ci_low = cr$ci_low, ci_high = cr$ci_high, ci_method = "CR2_Satterthwaite_cc_cage")]
+  out[, `:=`(se_cr2 = cr$se, df_satt = cr$df, ci_low = cr$ci_low, ci_high = cr$ci_high, ci_method = paste0("CR2_Satterthwaite_", cluster))]
   c1 <- s33_cr1_mean(yy, cc); out[, `:=`(se_cr1 = c1$se, ci_cr1_low = c1$ci_low, ci_cr1_high = c1$ci_high)]
   ti <- s33_t_interval(mean(cs$m), stats::sd(cs$m) / sqrt(nrow(cs)), nrow(cs) - 1L)
   out[, `:=`(ci_cage_t_low = ti$ci_low, ci_cage_t_high = ti$ci_high)]
@@ -168,10 +173,11 @@ s33d_engine <- function(design, ctx) {
     b <- files$Batch[i]; cc <- files$CC[i]
     v2 <- ctx$inputs[[paste0("v2_", b, "_", cc)]]; raw <- ctx$inputs[[paste0("raw_", b, "_", cc)]]
     tracked <- ep[Batch == b & CC == cc, AnimalNum]
+    rs <- design$lags[Batch == b & CC == cc, rec_start]
     s33_checkpoint(ctx, "D", paste0(b, "_", cc),
-                   function() s33d_file(v2, ctx$inputs$raw_dir, raw, tracked, cc1 = cc == "CC1"),
+                   function() s33d_file(v2, ctx$inputs$raw_dir, raw, tracked, rs, cc1 = cc == "CC1"),
                    key_extra = list(v2 = digest::digest(file = v2, algo = "sha256"), raw = digest::digest(file = raw, algo = "sha256"),
-                                    cc1 = cc == "CC1", tracked = sort(tracked)))
+                                    cc1 = cc == "CC1", tracked = sort(tracked), rec_start = format(rs, "%Y-%m-%dT%H:%M:%OS6Z", tz = "UTC")))
   })
   names(res) <- paste(files$Batch, files$CC, sep = "_")
   cc1 <- res[paste0(S33_COHORTS, "_CC1")]
@@ -236,6 +242,7 @@ s33d_lags_light <- function(eng, design) {
     lag_tr <- as.numeric(difftime(anchor, fr[AnimalNum %in% trk, first], units = "hours"))
     data.table::data.table(Batch = b, CC = cc, SourceFile = r$FW$SourceFile, raw_first_utc = r$rec_start, anchor_utc = anchor,
       lag_h = as.numeric(difftime(anchor, r$rec_start, units = "hours")),
+      raw_earliest_utc = r$raw_min, earliest_before_first_s = as.numeric(difftime(r$rec_start, r$raw_min, units = "secs")),
       animal_first_read_lag_min_h = min(lag_tr), animal_first_read_lag_max_h = max(lag_tr),
       file_t0_utc = r$FW$t0, t0_offset_s = as.numeric(difftime(r$FW$t0, anchor, units = "secs")),
       dst_state = if (as.POSIXlt(as.POSIXct(paste(format(anchor, "%Y-%m-%d"), "12:00:00"), tz = "Europe/Berlin"))$isdst > 0) "summer" else "winter",
@@ -283,7 +290,10 @@ s33d_resampling <- function(design, ctx) {
   gate("GD-18", "resampling: two-way with CCk multiplicity 1 = one-way; exact 35-multiset percentiles within one distinct value; 864 single-cage sets",
        c(isTRUE(all.equal(one, oneb, tolerance = 1e-12)), nrow(ms) == 35L, abs(sum(wts) - 1) < 1e-12,
          within_one(mc$lo, ex[1]), within_one(mc$hi, ex[2]), prod(four$N) == 864L))
-  list(U = U, cells = cells, gates = G)
+  stream <- data.table::data.table(seed_name = "D_resample", seed = ctx$seeds[["D_resample"]], B = ctx$B[["nonparametric"]],
+                                   rng_kinds = "Mersenne-Twister/Inversion/Rejection", scheme = "cc1_cage_within_cohort",
+                                   unit_order = paste(names(cells), collapse = ";"), index_sha256 = digest::digest(IDX, algo = "sha256"))
+  list(U = U, cells = cells, gates = G, stream = stream)
 }
 
 #' d02: cohort means per window (CC1 windows; S7 hourly windows of CC2-CC4), SIS with CR2 / CR1 / resampling range,
@@ -298,7 +308,8 @@ s33d_window_means <- function(eng, design, U) {
     data.table::rbindlist(lapply(c("crossing_rate", "shared_zone_use"), function(met) {
       xb <- X[Batch == b & Exposure == e]
       Uk <- if (e == "SIS") U[[paste(CCk, b, sep = "_")]] else NULL
-      out <- xb[, s33d_summary(get(met), get(cage_col), Uk, e), by = .(window_set, window_id, hour_index, k_since_start, lag_h)]
+      out <- xb[, s33d_summary(get(met), get(cage_col), Uk, e, paste0(tolower(CCk), "_cage")),
+                by = .(window_set, window_id, hour_index, k_since_start, lag_h)]
       out[, `:=`(Batch = b, Sex = sexes[[b]], Exposure = e, metric = met, CC = CCk)] }))))))
   d02 <- rbind(summ(M, "CageEpisodeID_CC1", "CC1"),
                data.table::rbindlist(lapply(c("CC2", "CC3", "CC4"), function(k) summ(M7[CC == k], "cage", k))), fill = TRUE)
@@ -315,7 +326,7 @@ s33d_window_means <- function(eng, design, U) {
   d02 <- merge(d02, comp[, .(Batch, Exposure, window_id, metric = "crossing_rate", CC = "CC1", complement_mean)],
                by = c("Batch", "Exposure", "window_id", "metric", "CC"), all.x = TRUE)
   d02[, note := data.table::fifelse(Exposure == "CON", "the single CON cage of the cohort; no interval",
-                data.table::fifelse(ci_method == "none: < 3 cages", "fewer than 3 informative cages; no interval",
+                data.table::fifelse(ci_none_reason %in% "fewer than 3 informative cages", "fewer than 3 informative cages; no interval",
                                     "CR2 interval reflects within-cohort cage sampling only; resampling range about 80% coverage with 4 cages"))]
   chk <- data.table::rbindlist(lapply(S33_COHORTS, function(b) { x <- M[Batch == b & Exposure == "SIS" & window_id == "A1"]
     cr <- s33_cr2_mean(x$crossing_rate, x$CageEpisodeID_CC1)
@@ -430,8 +441,8 @@ s33d_cc_tables <- function(design, U, lagt) {
   rows5 <- list()
   for (b in S33_COHORTS) for (cc in S33_CC) for (e in c("SIS", "CON")) for (met in c("crossing_rate", "shared_zone_use")) {
     x <- ep[Batch == b & CC == cc & condition == e]
-    s <- s33d_summary(x[[met]], x$CageEpisodeID, if (e == "SIS") U[[paste(cc, b, sep = "_")]] else NULL, e)
-    x5 <- x[in_S13 == FALSE]; s5 <- s33d_summary(x5[[met]], x5$CageEpisodeID, NULL, e)
+    s <- s33d_summary(x[[met]], x$CageEpisodeID, if (e == "SIS") U[[paste(cc, b, sep = "_")]] else NULL, e, paste0(tolower(cc), "_cage"))
+    x5 <- x[in_S13 == FALSE]; s5 <- s33d_summary(x5[[met]], x5$CageEpisodeID, NULL, e, paste0(tolower(cc), "_cage"))
     unt <- if (e == "SIS" && b == "B1") 6L else if (e == "SIS" && b %in% c("B4", "B6") && cc == "CC1") 1L else 0L
     s[, `:=`(Batch = b, Sex = sexes[[b]], CC = cc, exposure_set = e, metric = met, n_hardware_flagged = sum(x$hardware_flag %in% TRUE),
              known_untracked_in_cohort = unt, n_S13 = sum(x$in_S13), mean_S13 = s5$mean, ci_low_S13 = s5$ci_low, ci_high_S13 = s5$ci_high)]
@@ -545,14 +556,14 @@ s33d_phase2 <- function(design, ctx) {
   products <- lapply(products, function(x) { x <- data.table::copy(x); x[, tier := S33_TIER]; x })
   for (nm in names(products)) s33_assert_outcome_free(products[[nm]], nm)
   gates <- data.table::rbindlist(c(eng$gates, ll$gates, rs$gates, wm$gates))
-  list(products = products, gates = gates, state = list())
+  list(products = products, gates = gates, state = list(streams = rs$stream))
 }
 
 s33d_phase3 <- function(design_out, p2, ctx) {
   list(tables = p2$products[S33_TABLES$D], audit = p2$products[S33_AUDIT_TABLES$D],
        gates = data.table::data.table(gate_id = character(), gate = character(), passed = logical(), hard = logical(), evaluated = logical(),
                                       n_expected = integer(), n_checked = integer(), n_ok = integer(), detail = character()),
-       checkpoints = data.table::data.table())
+       checkpoints = data.table::data.table(), streams = p2$state$streams)
 }
 
 #' Section-7 columns on the module D tables (level, units, lead, interval_basis, metric_label).
@@ -581,5 +592,9 @@ s33d_annotate <- function(p) {
                                      interval_basis = data.table::fifelse(is.finite(resampling_low), "conditional_on_cohorts", "none"))]
   p$d08_recording_start_lags[, `:=`(level = "descriptive_record", metric_label = "recording-start lag", units = "hours", lead = FALSE,
                                      interval_basis = "none")]
+  # metric_id (plan section 7) on the tables of one RFID metric per row; d01 holds both metrics per row, d08 none
+  for (nm in c("d02_cohort_window_means", "d03_separation_by_window", "d05_cohort_cc_table", "d06_rank_correlations", "d07_individual_stability"))
+    p[[nm]][, metric_id := metric]
+  p$d04_separation_argmax[, metric_id := "crossing_rate"]
   p
 }

@@ -365,26 +365,59 @@ s33_input_gates <- function(spec) {
                                          detail = paste(out[passed == FALSE, role], collapse = ",")))
 }
 
+# ---------------------------------------------------------------- serialization
+#' The frozen s32r_prepare() after Date columns become ISO text: the frozen writer treats a Date as a double and would
+#' write day counts. Used by the writer and by the outcome-free product hashes alike.
+s33_prepare <- function(x) {
+  x <- data.table::copy(data.table::as.data.table(x))
+  for (k in names(x)) if (inherits(x[[k]], "Date")) data.table::set(x, j = k, value = format(x[[k]], "%Y-%m-%d"))
+  s32r_prepare(x)
+}
+
 # ---------------------------------------------------------------- outcome-free products (plan section 6)
 #' sha256 of the s30fb_write_csv serialization of each outcome-free product (re-extractable from the written tables).
 s33_product_hashes <- function(products, module) {
   data.table::rbindlist(lapply(names(products), function(nm) {
     f <- tempfile(fileext = ".csv"); on.exit(unlink(f), add = TRUE)
-    s30fb_write_csv(s32r_prepare(products[[nm]]), f)
+    s30fb_write_csv(s33_prepare(products[[nm]]), f)
     data.table::data.table(module = module, product = nm, rows = nrow(products[[nm]]), columns = ncol(products[[nm]]),
                            sha256 = digest::digest(file = f, algo = "sha256"))
   }))
 }
 
 # ---------------------------------------------------------------- recorded deviations (README; plan section 6)
-#' Readings of the plan that differ from its literal text, each marked 'PLAN ISSUE' or explained at its code site.
+#' Readings of the plan that differ from its literal text, each marked 'PLAN ISSUE' or explained at its code site (core
+#' rows here; modules declare theirs as S33<M>_DEVIATIONS).
 S33_DEVIATIONS <- data.table::data.table(module = c("core", "core", "core"), text = c(
   "The four SLEAP configuration files are read from <SLEAP release>/provenance/configs/ (the plan names <SLEAP release>/configs/); the pinned bytes are the same.",
   "GC-6q compares board first records with Stage 32 board_first except on the boards whose labels v2 corrected (B1 CC2, B6 CC4).",
   "The lint (GC-9) skips cells equal to the plan's fixed B2/B6 selection sentence (section 9, E10), which the plan prescribes verbatim."))
-s33_deviations <- function(modules) S33_DEVIATIONS[module %in% c("core", modules), paste0(module, ": ", text)]
+#' The README's deviation lines: the core rows of S33_DEVIATIONS and each module's declared S33<M>_DEVIATIONS.
+s33_deviations <- function(modules) {
+  c(S33_DEVIATIONS[module %in% c("core", modules), paste0(module, ": ", text)],
+    unlist(lapply(modules, function(m) { d <- get0(paste0("S33", m, "_DEVIATIONS"), envir = globalenv(), ifnotfound = character())
+      if (length(d)) paste0(m, ": ", d) else character() })))
+}
 
 # ---------------------------------------------------------------- README (plan section 6)
+#' The stage-wide reading rules of plan section 17.1, in category form (the lint scans the README, so barred words are
+#' described by category, never quoted).
+S33_README_RULES <- c(
+  "Reading rules (plan section 17.1):",
+  "  - Every table carries the tier 'post hoc, descriptive (estimation only)'; each interval row names its method and basis.",
+  "  - A cohort is one batch, which is one social network; cohort-level structure may be biology. No outcome is attributed to the batch.",
+  "  - Cohort-level and individual-level statements are separate and name their level; nothing is carried from one level to the other, and no statement about a single animal's outcome is made.",
+  "  - The RFID quantities are named by what the system records: the RFID position-change rate (position changes per observed hour) in the first active phase after CC1 (A1, 18:30-06:30) and shared RFID-position occupancy; no motor or behavioural-state label is used. Movement_mean appears only as a legacy identifier.",
+  "  - Associations are worded 'is associated with', 'covaries with' or 'is carried by'; no direction of influence is stated.",
+  "  - Intervals are quoted as [estimate] ([method] 95% interval [L, U]) and read as 'compatible with values from L to U', whether or not 0 is inside; narrative is limited to the rows flagged in the lead column.",
+  "  - There is no comparison of RES and SUS animals; 'SIS animals' throughout.",
+  "  - Registered Stage 32 rows stand beside continuity or reference rows in their own units. Module A's components and module C's parts decompose an association whose registered analyses were null; nothing here is evidence for or against H01-H13, and no sex difference is read from separate female and male estimates.",
+  "  - CON = the single CON cage of each cohort (4 animals from one pre-SIS cage, housed together throughout; in B2, B5 and B6 that pre-SIS cage also supplied 2 SIS); intervals that use a CON mean are anti-conservative or absent.",
+  "  - Across cohorts the A1 rate travels with CC1-day weight (r 0.98) and age (r 0.62); body size may be cohort biology.",
+  "  - CombZ: higher = more resilient-like; components are in CON-SD units relative to the pooled same-sex CON reference.",
+  "  - Module C's contextual (peer-composition) term and module E's CC1-class contrasts are one association (the CC1 cage-mates' mean rate), counted once.",
+  "  - Within-sex offsets and ranks compare a cohort with the other two cohorts of its sex (offsets sum to zero; rank of 3); an offset below a reference SD is not called noise.")
+
 #' Interval counts per module for the README (plan 17.1 item 6): pairs of finite limits in any column pair named alike
 #' but for 'low' / 'high' (ci_low / ci_high, resamp_low / resamp_high, ci_low_S13 / ci_high_S13, ...), over the module
 #' tables except the verbatim copies a10/a11.
@@ -414,6 +447,7 @@ s33_readme <- function(run_id, modules, commit, tables_by_module, gate_counts, d
                                         paste(paste(names(interval_counts), interval_counts), collapse = ", "), "; ", sum(interval_counts), " in total.")
     else character(),
     "Cohort-level and individual-level results are reported separately; six cohorts cannot separate cohort biology from cohort-level procedure, assay runs or CC1 body size.",
+    S33_README_RULES,
     "Tables:", unlist(lapply(names(tables_by_module), function(m) paste0("  ", S33_MODULES[[m]], "/tables/", tables_by_module[[m]], ".csv"))),
     paste0("Gates: ", gate_counts),
     if (length(deviations)) c("Deviations from the plan:", paste0("  - ", deviations)) else "Deviations from the plan: none recorded.",
@@ -446,8 +480,14 @@ s33_assemble_files <- function(results, run) {
               S33_PLAN$sha256_lf, R.version.string, if (grepl("^//", run$root)) "UNC" else "drive", paste(run$earlier, collapse = ";"),
               run$rerun_reason %s33or% "", if (nrow(ck)) sum(ck$reused) else 0L, vapply(run$timings, function(t) sprintf("%.1f", t), ""))),
     "field", "key")
-  files[["audit/seeds_and_streams.csv"]] <- data.table::data.table(stream = names(S33_SEEDS), seed = unname(S33_SEEDS),
-    rng = paste(RNGkind(), collapse = "/"))
+  # declared seeds, then every module's stream records (seed, B, RNG kinds, unit order, sha256 of the index or weight
+  # matrix; plan section 5) as returned in results[[m]]$streams
+  declared <- data.table::data.table(record = "declared seed", module = substr(names(S33_SEEDS), 1L, 1L), stream = names(S33_SEEDS),
+                                     seed = unname(S33_SEEDS), rng = paste(RNGkind(), collapse = "/"))
+  streams <- data.table::rbindlist(lapply(run$modules, function(m) { x <- results[[m]]$streams
+    if (is.null(x) || !NROW(x)) return(NULL)
+    x <- data.table::copy(data.table::as.data.table(x)); x[, `:=`(record = "module stream", module = m)]; x }), fill = TRUE)
+  files[["audit/seeds_and_streams.csv"]] <- if (nrow(streams)) data.table::rbindlist(list(declared, streams), fill = TRUE) else declared
   files[["audit/outcome_free_products.csv"]] <- data.table::rbindlist(run$prod_hashes)
   files[["audit/lint_results.csv"]] <- run$lint
   files[["audit/checkpoints_used.csv"]] <- if (nrow(ck)) ck else data.table::data.table(module = character(), step = character(),
@@ -466,7 +506,7 @@ s33_assemble_files <- function(results, run) {
 # ---------------------------------------------------------------- the writer (plan section 6, Phase 5)
 #' Stage the run locally, verify it, re-hash the inputs (GC-10), copy to <out_root>/.tmp_<run_id>, verify, rename,
 #' make read-only and verify again. `files` = named list: relative path -> data.table (written with s30fb_write_csv after
-#' s32r_prepare) or character (written as text lines). Returns the manifest and the checks.
+#' s33_prepare) or character (written as text lines). Returns the manifest and the checks.
 s33_write_run <- function(local_root, out_root, run_id, files, spec, pre_copy_check = function() TRUE) {
   sd <- file.path(local_root, "staging", run_id)
   if (file.exists(sd)) unlink(sd, recursive = TRUE)
@@ -474,7 +514,7 @@ s33_write_run <- function(local_root, out_root, run_id, files, spec, pre_copy_ch
   for (rel in names(files)) {
     p <- file.path(sd, rel); dir.create(dirname(p), recursive = TRUE, showWarnings = FALSE); x <- files[[rel]]
     if (is.character(x)) { con <- file(p, open = "wb"); writeLines(enc2utf8(x), con, useBytes = TRUE); close(con) }
-    else s30fb_write_csv(s32r_prepare(data.table::as.data.table(x)), p)
+    else s30fb_write_csv(s33_prepare(x), p)
   }
   rel <- sort(names(files))
   man <- data.table::data.table(file = rel, bytes = as.numeric(file.size(file.path(sd, rel))),
