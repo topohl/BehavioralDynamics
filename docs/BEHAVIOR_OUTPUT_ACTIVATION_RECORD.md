@@ -1360,3 +1360,43 @@ only by run-to-run noise.
 - the foundation inventory;
 - the copy-parity check: 2,181 originals and 1,969 copies match the plans, 212 copies match a recorded rerun, 54 files
   were added by recorded reruns, and there is no unplanned file.
+
+## 2026-10-06 Figures of Stages 04, 05, 06, 15, 19 and supporting 13/14 re-plotted from their tables
+
+**What changed.** The fixed colour limits of `3d87643` and `36f93b2` also apply to these stages' figures. Tobias chose
+to redraw the figures from the tables each stage had already written, using the stage's own plot code, rather than
+rerunning the stages. No table and no result changed.
+- **Cohen's d heatmaps** take the shared limit 1. These are the Stage 04, 05 and 06 effect-size maps, the supporting
+  13/14 longitudinal effect-size heatmaps and Stage 19's longitudinal effect sizes.
+- **Stage 15's Spearman rho heatmaps** take the shared limit 0.6; before, they were fixed at ±1. The cross-modal
+  heatmaps show only pairs with |rho| ≥ 0.7, so every tile there is at full colour and the colour shows the sign.
+- **Stage 19's reader-occupancy differences** take a symmetric limit from their own data, with round breaks.
+
+**How the figures were redrawn.** `replot_from_tables.R` (in `evidence/limits_validation/replot/` of the heatmap
+redesign folder) works through each figure in four steps:
+1. It reads the figure's written tables on S:.
+2. It rebuilds the plotted data with the stage's own statements and factor orders. Stage 15's statements come from
+   inside `run_crossmodal_analysis()`.
+3. It evaluates the stage's own plot and save code twice: once with the code before the change (`a16e13b`) as a
+   control, and once with `36f93b2`.
+4. It compares the control's SVG with the live SVG.
+
+For all 13 figures, the control's SVG equals the live SVG once colours are masked: every text, position and tile
+matches. The re-plot therefore reproduces the live figures, and the new figures differ only in their fill scale.
+Stages 04, 05 and 06 define their own `make_publication_theme()`; the re-plot takes it from each script.
+
+**Promotion.** The scripts are `promote_figure_replot_20261006.ps1` (9 figures) and `promote_figure_replot_20261006b.ps1`
+(the 4 Stage 15 figures). For every live copy of each figure (the stage's own file and its mirror), the script did
+three things:
+1. backed it up to `_migration_control/figure_replot_before_20261006/` or `..._20261006b/`;
+2. replaced it with the new render of the same format;
+3. verified the replacement against the render's hash.
+
+In total 68 files in 8 groups were replaced. Stage 19's copies in `publication_ready/` were left as they were; the
+output migration keeps that older staging tree separate.
+
+**Records.** `docs/behavior_output_producer_reruns/figure_replot_20261006.csv` (44 rows) and
+`figure_replot_20261006b.csv` (24 rows); every row is `rewritten`.
+
+**Checks after the promotion.** All three read-only checks pass. In the copy-parity check, 1,901 copies match the plans
+and 280 match a recorded rerun (68 more than before); there is no unplanned file.
