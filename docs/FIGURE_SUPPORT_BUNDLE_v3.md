@@ -74,3 +74,17 @@ is one of the code files that must be committed and clean.
 `H_provenance.csv` adds `stage14_source_dir`, `stage14_promotion_record`, `stage14_tables`, `hmm_dwell_source` and
 `hmm_resolution`. `scientific_recomputation` keeps the v1 opening words and adds that D1 is a verbatim copy and M1-M4 the
 stored Stage 14 HMM figure tables with labels, a rank, the Wald interval and fixed-bin counts.
+
+## Known limitation of M1 and M2 (found 2026-10-07, not fixed)
+
+The stored group mean transition probabilities are conditional on the transition occurring.
+Stage 08 (`Analysis/08_hmm_behavioral_states_optional.R`, `transition_tbl`) counts transitions with
+`count()`, which writes no row for a (State, NextState) pair that never occurred in an animal x cage change x
+phase record. `hmm_transition_probabilities.csv` therefore holds 11,178 of the 13,384 rows that a complete
+grid would have. Stage 14 averages each pair over the records that have a row, with the dark and light
+phases pooled. A transition that did not occur counts as missing rather than zero, so the group means out of a
+state sum to 1.03-1.21 instead of 1, and the M1 differences are differences of these conditional means.
+
+The bundle copies the stored values unchanged, and the manuscript candidate legend states the limitation.
+Correcting it means completing the grid with zero counts in Stage 08 before normalising, then re-running
+Stage 14 and cutting a new bundle. That re-run needs Tobias's OK.
