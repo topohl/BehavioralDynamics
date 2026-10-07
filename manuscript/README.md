@@ -23,7 +23,9 @@ Under `analysis_ready/canonical/` on the project root:
 
 - `behavior_bundle/ebb_v101_20260929_b2ce507/`: the Stage 29 v1.0.1 release bundle (writer: Stage 16b). Figure 1 is
   rendered from it.
-- `figure_support_bundle/` (writer: Stage 16c) and `stage30_figure_bundle/` (writer: Stage 30b).
+- `figure_support_bundle/` (writer: Stage 16c) and `stage30_figure_bundle/` (writer: Stage 30b). Since v3
+  (`fsb_v3_20261007_a2acd57`, `docs/FIGURE_SUPPORT_BUNDLE_v3.md`) the figure-support bundle also carries the Stage 14
+  domain-heatmap source table and the HMM figure tables, for manuscript candidates.
 - `later_outcome_combz/tables/`: the later outcome CombZ and the CON/RES/SUS classification
   (`Analysis/build_later_outcome_combz.R`, `docs/COMBZ_CANONICAL_DEFINITION.md`).
 
@@ -39,7 +41,8 @@ Each ran once, behind identity gates, into its own run folder:
 - Stage 32, exposure and adaptation (`docs/STAGE32_REGISTRY_v1.0.md` and addendum A1).
 
 Descriptive layers that are not in a bundle: Stage 28 (four core domains; `docs/RFID_FOUR_DOMAIN_RECONCILIATION.md`),
-the Stage 14 first-night five-domain panel as its conservative sensitivity, the CC4 Stages 31-31d
+the Stage 14 first-night five-domain panel as its conservative sensitivity (the Stage 14 domain heatmaps are in fsb_v3
+as display data only), the CC4 Stages 31-31d
 (`docs/CC4_GRID_EXPOSURE.md`) and the within-night GAMM profiles of Stages 20 and 22 (Extended Data candidates without
 group inference; `docs/EXTENDED_DATA_CLASSIFICATION.md`).
 
