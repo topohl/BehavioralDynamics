@@ -1,8 +1,9 @@
 # ================================================================
-# Stage 16c - figure-support bundle v2 (source-data export for manuscript Figure 1, options 3 and 3b)
+# Stage 16c - figure-support bundle v3 (source-data export for manuscript Figure 1, options 3 and 3b, and the Stage 14
+# domain-heatmap and HMM figure candidates)
 # MMMSociability -- Analysis/16c_figure_support_bundle.R
 # ================================================================
-# The ONLY writer of the figure-support bundle that Exp9_manuscript imports (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md, _v2.md).
+# The ONLY writer of the figure-support bundle that Exp9_manuscript imports (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md, _v2.md, _v3.md).
 # It fits, tests and refits nothing and computes no p or q value. It exports:
 #   F1  descriptive CON cage means (ebb_v101 B1; 3 CON cages per sex per CC, 4 animals each),
 #   F1b the CON descriptive mean copied from ebb_v101 B2,
@@ -11,13 +12,18 @@
 #   P1  / P1b / P1c (v2) verbatim copies of the post hoc run 29b (registry POSTHOC_CON_CONTRASTS v1.0, fitted there once):
 #       estimates (batch-balanced means, contrasts, Holm, labels), the common-cage-variance sensitivity, the diagnostics;
 #       hash-gated on the run's audit/output_manifest.csv (4c079ecf...), every file, README and run_manifest.
+#   D1  (v3) a verbatim copy of the Stage 14 domain-heatmap source table of the run promoted 2026-10-06c;
+#   M1-M4 (v3) the stored Stage 14 HMM figure tables of that run with display labels (transition differences, transition
+#       means with the rank the state-flow figure draws by, the HMM-resolution sensitivity with its Wald interval) and the
+#       Stage 08 10-minute mean dwell times counted in doubling bins. Stage 14 is not re-run: every Stage 14 file must
+#       match its pinned SHA-256 and the promotion record docs/behavior_output_producer_reruns/stage14_20261006c.csv.
 # Every input is hash-gated first: ebb_v101 (00_manifest ec59aa33..., every file, FROZEN registry row), the canonical
 # CombZ table (1f6a2a69...), its component definition and thresholds, the sus / con lists, and the frozen CombZ
 # definition code Analysis/build_later_outcome_combz.R (git blob pinned). That producer is PARSED, never run: its
 # definition constants and composite-rule lines are evaluated in an empty environment (Functions/figure_support_bundle.R).
 #
 # Output (REAL): analysis_ready/canonical/figure_support_bundle/<bundle_id>/ with BUNDLE_REGISTRY.csv beside it;
-#   bundle_id = fsb_v2_<YYYYMMDD>_<commit7> (fsb_v1_20260930_f06552c stays FROZEN and untouched); written once (refused if it, its staging folder, its registry row or its gate
+#   bundle_id = fsb_v3_<YYYYMMDD>_<commit7> (fsb_v1 and fsb_v2 stay FROZEN and untouched); written once (refused if it, its staging folder, its registry row or its gate
 #   log exists), files 0444; post-write gates before the registry row; complete gate log in logs/ beside the registry.
 # Modes (exactly one argument; with none the runner refuses before reading anything):
 #   --dry-run  writes <dry root>/<YYYYMMDD_HHMMSS>/<bundle_id>/ (status DRY_RUN_NOT_FOR_USE); never writes to S:.
@@ -57,7 +63,8 @@ message("Stage 16c ", MODE, " at commit ", commit, if (DRY) " -- DRY_RUN_NOT_FOR
 
 # ---------------------------------------------------------------- 0. code identity and output location
 CODE_FILES <- c("Analysis/16c_figure_support_bundle.R", "Functions/figure_support_bundle.R", "Functions/stage30_figure_bundle.R",
-                "Analysis/_pipeline_setup.R", "Functions/behavioral_dynamics_helpers.R", "Functions/project_paths.R", FSB_COMBZ_CODE$path)
+                "Analysis/_pipeline_setup.R", "Functions/behavioral_dynamics_helpers.R", "Functions/project_paths.R", FSB_COMBZ_CODE$path,
+                FSB_STAGE14$record)
 cln <- s30fb_code_clean(git("status", "--porcelain", "--untracked-files=all", "--", CODE_FILES), git("ls-files", "--", CODE_FILES), CODE_FILES)
 gate("0-code", "MMM files used are committed and clean (git status --untracked-files=all / ls-files)", cln$ok && grepl("^[0-9a-f]{40}$", commit),
      if (nzchar(cln$detail)) cln$detail else commit, hard = !DRY)
@@ -107,6 +114,17 @@ PH_DIR <- file.path(AR, "pipeline", FSB_POSTHOC$stage_dir, FSB_POSTHOC$run_name)
 VPH <- fsb_verify_posthoc_run(PH_DIR); gate_rows(VPH$gates)
 for (f in VPH$manifest$file) inp(file.path(PH_DIR, f), paste0("posthoc_run_file ", f), VPH$check[file == f, observed_sha256])
 inp(file.path(PH_DIR, "audit", "output_manifest.csv"), "posthoc_run_output_manifest", VPH$manifest_sha256)
+
+# ---------------------------------------------------------------- 1c. Stage 14 display tables and Stage 08 dwell times (v3)
+S14_DIR <- file.path(AR, FSB_STAGE14$root_rel)
+S14_RECORD <- file.path(MMM_REPO_ROOT, FSB_STAGE14$record)
+gate_rows(fsb_verify_stage14_inputs(S14_DIR, fread(S14_RECORD, colClasses = "character")))
+for (k in names(FSB_STAGE14$files)) inp(file.path(S14_DIR, FSB_STAGE14$files[[k]]), paste0("stage14_", k), FSB_STAGE14$sha256[[k]])
+inp(S14_RECORD, "stage14_promotion_record (lists every Stage 14 file of the promoted run with its SHA-256)")
+DWELL <- file.path(AR, FSB_HMM_DWELL$root_rel, FSB_HMM_DWELL$file)
+dw_sha <- if (file.exists(DWELL)) s30fb_sha(DWELL) else NA_character_
+gate("1c-stage14", "Stage 08 10-minute dwell-time table: on-disk SHA-256 = pinned", identical(dw_sha, FSB_HMM_DWELL$sha256), paste(DWELL, dw_sha))
+inp(DWELL, "hmm_dwell_times (Stage 08, 10-minute HMM; the table Stage 14 draws its dwell-time figure from)", dw_sha)
 
 # ---------------------------------------------------------------- 2. canonical CombZ tables and label lists (= pinned)
 SRC <- c(combz_table = mmm_path_get("behavior.later_outcome_combz", "animal_level", root = ROOT),
@@ -199,7 +217,32 @@ gate("6-F2", "F2b: 6 component rows; n_present = 117 - n_missing", nrow(F2b) == 
 PH_LABEL <- paste(FSB_POSTHOC$stage_dir, FSB_POSTHOC$run_name, sep = "/")
 PT <- lapply(FSB_POSTHOC_TABLES, function(rel) fsb_posthoc_copy(PH_DIR, rel, VPH$check[file == rel, observed_sha256], PH_LABEL))
 gate_rows(fsb_posthoc_gates(PT, PH_DIR))
-TABLES <- c(list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b), PT)
+D1 <- fsb_posthoc_copy(S14_DIR, FSB_STAGE14$files[["domain_heatmap"]], FSB_STAGE14$sha256[["domain_heatmap"]],
+                       paste0(FSB_STAGE14$root_rel, " (Stage 14 run promoted 2026-10-06c)"))
+d1n <- D1[, .N, by = .(heatmap_id, variant)]
+gate("6-D1", "D1: 504 rows = 3 heatmaps x 3 variants (all_blocks 84, cc1_a1 42, cc1_l1 42 rows per variant); 468 estimated, 36 not_shown",
+     nrow(D1) == 504L && nrow(d1n) == 9L && setequal(d1n$variant, FSB_D1_VARIANTS) && all(d1n$N == FSB_D1_ROWS[d1n$heatmap_id]) &&
+       sum(D1$cell_status == "estimated") == 468L && sum(D1$cell_status == "not_shown") == 36L, paste(d1n[, paste(heatmap_id, variant, N)], collapse = "; "))
+gate("6-D1", "D1 display text free of banned wording (window, row label and description, tier)", { fsb_check_display(D1, FSB_D1_DISPLAY_COLS, "D1"); TRUE })
+LABS <- fsb_hmm_state_labels(fread(file.path(S14_DIR, FSB_STAGE14$files[["state_display_labels"]])))
+gate("6-M", "HMM display labels: the 4 states of the 10-minute HMM with unique semantic and display labels", nrow(LABS) == 4L, paste(LABS$DisplayState, collapse = "; "))
+M1 <- fsb_hmm_transition_difference(fread(file.path(S14_DIR, FSB_STAGE14$files[["transition_differences"]])), LABS)
+gate("6-M", "M1: 96 rows = 2 sexes x 4 x 4 states x 3 contrasts; DeltaProbability = comparison - reference mean within 1e-12",
+     nrow(M1) == 96L && attr(M1, "max_abs_recon_diff") <= FSB_TOL, paste(nrow(M1), attr(M1, "max_abs_recon_diff")))
+M2 <- fsb_hmm_transition_flows(fread(file.path(S14_DIR, FSB_STAGE14$files[["transition_means"]])), LABS)
+gate("6-M", "M2: 96 rows = 2 sexes x 3 groups x 16 transitions; the 8 largest shown per sex x group",
+     nrow(M2) == 96L && all(M2[, .N, by = .(Sex, Group)]$N == 16L) && all(M2[, sum(shown), by = .(Sex, Group)]$V1 == FSB_HMM_FLOW_TOP), nrow(M2))
+M3 <- fsb_hmm_dwell_distribution(fread(DWELL), LABS)
+gate("6-M", "M3: 2 sexes x 2 phases x 3 groups x 4 states x 7 bins; counts sum to the 3,346 records; fractions sum to 1 per group",
+     nrow(M3) == 2L * 2L * 3L * 4L * 7L && sum(M3$n_records) == FSB_HMM_DWELL$n_records && attr(M3, "n_records_total") == FSB_HMM_DWELL$n_records &&
+       max(abs(M3[, sum(fraction), by = .(Sex, Phase, Group, State)]$V1 - 1)) <= FSB_TOL, paste(nrow(M3), sum(M3$n_records)))
+M4 <- fsb_hmm_resolution_sensitivity(fread(file.path(S14_DIR, FSB_STAGE14$files[["resolution_sensitivity"]])))
+gate("6-M", "M4: 24 rows = 2 HMM resolutions x 2 sexes x 2 phases x 3 contrasts, behavioural state architecture only",
+     nrow(M4) == 24L && uniqueN(M4$resolution) == 2L && all(M4$Domain == "Behavioral state architecture") &&
+       nrow(unique(M4[, .(resolution, Sex, Phase, contrast)])) == 24L, paste(nrow(M4), paste(unique(M4$Domain), collapse = ",")))
+TABLES <- c(list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b), PT,
+            list(D1_domain_heatmap_cells = D1, M1_hmm_transition_difference = M1, M2_hmm_transition_flows = M2,
+                 M3_hmm_dwell_distribution = M3, M4_hmm_resolution_sensitivity = M4))
 gate("6-tables", "display text free of banned wording (labels, F2b text)", { fsb_check_display(F1, c("measure_label", "unit"), "F1")
   fsb_check_display(F1b, c("measure_label", "unit"), "F1b"); TRUE })
 
@@ -226,6 +269,11 @@ H <- fsb_provenance(list(
   posthoc_output_manifest_sha256 = VPH$manifest_sha256, posthoc_registry_sha256 = FSB_POSTHOC$registry_sha256,
   posthoc_registry_version = FSB_POSTHOC$registry_version, posthoc_tier = paste(FSB_POSTHOC$tier, "(decision basis USER_REQUEST_AFTER_DESCRIPTIVE_INSPECTION, 2026-09-30)"),
   posthoc_tables = paste(sprintf("%s = %s/%s", names(FSB_POSTHOC_TABLES), PH_LABEL, FSB_POSTHOC_TABLES), collapse = "; "),
+  stage14_source_dir = normalizePath(S14_DIR, winslash = "/", mustWork = FALSE),
+  stage14_promotion_record = paste0(FSB_STAGE14$record, " (sha256 ", s30fb_sha(S14_RECORD), "; Stage 14 not re-run for this bundle)"),
+  stage14_tables = paste(sprintf("%s = %s (sha256 %s)", names(FSB_STAGE14$files), FSB_STAGE14$files, FSB_STAGE14$sha256), collapse = "; "),
+  hmm_dwell_source = paste0(normalizePath(DWELL, winslash = "/", mustWork = FALSE), " (sha256 ", FSB_HMM_DWELL$sha256, ")"),
+  hmm_resolution = paste0(FSB_HMM_RESOLUTION, " for M1-M3; M4 carries both resolutions"),
   combz_recompose_max_abs_diff = s30fb_num_chr(attr(F2, "recompose_max_abs_diff")),
   con_mean_of_cage_means_max_abs_diff = s30fb_num_chr(max(CK$abs_diff)),
   group_rule = "Group = canonical CombZ-table outcome_group, gated = list rule (CON if con list, else SUS if sus list, else RES) and = ebb_v101 A4 / B1 Group",
@@ -240,7 +288,8 @@ H <- fsb_provenance(list(
   packages = paste(sprintf("%s %s", pk, vapply(pk, function(p) as.character(utils::packageVersion(p)), "")), collapse = "; ")))
 IN <- unique(rbindlist(INPUTS), by = c("input", "role"))
 W <- fsb_write_bundle(TABLES, OUT_ROOT, bundle_id, H, IN, GT, STATUS, FSB_STAGE29$bundle_id, FSB_INPUT_SHA256[["combz_table"]], commit, GEN_AT,
-                      verbatim = stats::setNames(file.path(PH_DIR, FSB_POSTHOC_TABLES), names(FSB_POSTHOC_TABLES)))
+                      verbatim = c(stats::setNames(file.path(PH_DIR, FSB_POSTHOC_TABLES), names(FSB_POSTHOC_TABLES)),
+                                   D1_domain_heatmap_cells = file.path(S14_DIR, FSB_STAGE14$files[["domain_heatmap"]])))
 gate_rows(W$post_gates)
 message("Stage 16c ", MODE, " complete: bundle ", bundle_id, " ", STATUS, " at ", W$dir, " (manifest sha256 ", W$manifest_sha256, ")")
 message("  gate log ", W$log, " (", fsb_gate_count(W$gates), " gates passed; sha256 ", W$log_sha256, ")")

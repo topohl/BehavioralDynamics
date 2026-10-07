@@ -1,8 +1,9 @@
 # ================================================================
-# Figure-support bundle v2: helpers (source-data export for manuscript Figure 1, options 3 and 3b)
+# Figure-support bundle v3: helpers (source-data export for manuscript Figure 1, options 3 and 3b, and the Stage 14
+# domain-heatmap and HMM figure candidates)
 # MMMSociability -- Functions/figure_support_bundle.R
 # ================================================================
-# Pure constants and functions for Analysis/16c_figure_support_bundle.R (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md, _v2.md).
+# Pure constants and functions for Analysis/16c_figure_support_bundle.R (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md, _v2.md, _v3.md).
 # Sourcing this file defines constants and functions only; it reads and writes nothing. It needs the generic hash-gate
 # and writer utilities of Functions/stage30_figure_bundle.R (s30fb_*), which the caller sources first.
 #
@@ -18,11 +19,18 @@
 #     fitted there, once): estimates (batch-balanced means, contrasts, Holm, labels), the common-cage-variance sensitivity
 #     and the diagnostics. Every cell is carried as text; the written lines are checked to be the source lines plus the
 #     three provenance cells. The run is hash-gated on its audit/output_manifest.csv. Nothing is fitted or adjusted here.
+#   * D1 (v3): a verbatim copy of the Stage 14 domain-heatmap source table of the run promoted 2026-10-06c (Hedges g, the
+#     post hoc tests and markers were computed there); line-level verbatim gate as for P1-P1c.
+#   * M1-M4 (v3): the stored Stage 14 HMM figure tables of the same run, with the state display labels joined by the
+#     stored semantic label: group mean transition probabilities and their differences (M1, M2; M2 adds the rank Stage 14
+#     draws the 8 largest by), and the HMM-resolution sensitivity rows with the Wald interval Stage 14 draws (M4). M3
+#     counts the stored Stage 08 mean dwell times in bins doubling from one 10-minute HMM bin: plain counts, where Stage 14
+#     drew kernel densities, so nothing is smoothed here either.
 # Requires: data.table, digest, tibble (the producer's component table is a tibble::tribble).
 # ================================================================
 
-FSB_SCHEMA_VERSION <- "2"
-FSB_BUNDLE_PREFIX <- "fsb_v2"   # v1 (fsb_v1_20260930_f06552c, FROZEN) was written by commit f06552c and is never rewritten
+FSB_SCHEMA_VERSION <- "3"
+FSB_BUNDLE_PREFIX <- "fsb_v3"   # v1 (fsb_v1_20260930_f06552c) and v2 (fsb_v2_20260930_a23d699), both FROZEN, are never rewritten
 FSB_STATUS_REAL <- "FROZEN"
 FSB_STATUS_DRY <- "DRY_RUN_NOT_FOR_USE"
 FSB_TOL <- 1e-12
@@ -42,6 +50,33 @@ FSB_POSTHOC_TABLES <- c(P1_posthoc_con_contrasts = "tables/estimates.csv", P1b_p
 FSB_POSTHOC_ROWS <- c(P1_posthoc_con_contrasts = 24L, P1b_posthoc_sensitivity = 24L, P1c_posthoc_diagnostics = 8L)
 FSB_POSTHOC_ADDED <- c("source_run", "source_file", "source_sha256")
 FSB_POSTHOC_DISPLAY_COLS <- c("measure_label", "unit", "estimand_label", "display_note", "caveats", "registered_rs_note")
+# v3: the Stage 14 display tables of the run promoted 2026-10-06c (the promotion record lists every file with this SHA-256;
+# Stage 14 is not re-run for the bundle) and the Stage 08 10-minute dwell-time table Stage 14 reads
+FSB_STAGE14 <- list(
+  root_rel = "analyses/systems_dashboard/5min", record = "docs/behavior_output_producer_reruns/stage14_20261006c.csv",
+  files = c(domain_heatmap = "stats_tables/systems_sis_domain_heatmap_source_data.csv",
+            transition_means = "tables/systems_hmm_transition_probability_summary.csv",
+            transition_differences = "tables/systems_hmm_transition_probability_differences.csv",
+            resolution_sensitivity = "stats_tables/systems_sis_hmm_resolution_sensitivity.csv",
+            state_display_labels = "tables/systems_hmm_state_display_labels.csv"),
+  sha256 = c(domain_heatmap = "fa4c613260a157ffd6044ce27ab733d583741a65597a32b7031ca691347d2271",
+             transition_means = "0279d418ceca5c6b43f60c02574dca24537712925ac4c63a654af25b42b39837",
+             transition_differences = "222208fb9742b4e45b3b2c7c806843765fd5a59e78a534193415cf20d645a568",
+             resolution_sensitivity = "d3a79a1afd938e7f63ce0e054125d2affd3a34c9159b42e3ecb772645b58ffa5",
+             state_display_labels = "60ec75e62b4b407fef8c3ef8750cd816b821d231df473c3f5cb72e18b1132c29"))
+FSB_HMM_DWELL <- list(root_rel = "analyses/hmm_states/10min", file = "tables/hmm_state_dwell_times.csv",
+                      sha256 = "be4ba0cf6095726326cad6eb8896e6e84509f41edceb5a64887b265fa16dc03d", bin_size_sec = 600, n_records = 3346L)
+FSB_HMM_RESOLUTION <- "10min_based"           # the HMM resolution of the Stage 14 HMM figures (hmm_primary_bin_level)
+FSB_HMM_STATES <- as.character(1:4)
+FSB_HMM_GROUPS <- c("CON", "RES", "SUS")
+FSB_HMM_CONTRASTS <- c("SUS - RES", "SUS - CON", "RES - CON")   # as Stage 14 stores them: comparison - reference
+FSB_HMM_FLOW_TOP <- 8L                        # Stage 14 draws the 8 largest mean transition probabilities per Sex x Group
+FSB_HMM_PHASE_LABELS <- c(Active = "Dark phase", Inactive = "Light phase")   # as the Stage 14 heatmaps label them
+# dwell-time bins in 10-minute HMM bins, doubling from one bin: [1, 2), [2, 4), ..., [64, 128] = 10-20, ..., 640-1280 min
+FSB_DWELL_EDGES_BINS <- 2^(0:7)
+FSB_D1_ROWS <- c(all_blocks = 84L, cc1_a1 = 42L, cc1_l1 = 42L)   # rows per variant
+FSB_D1_VARIANTS <- c("picked", "all5min", "all10min")
+FSB_D1_DISPLAY_COLS <- c("window_label", "row_label", "row_description", "display_tier")
 # canonical CombZ tables and label lists: the on-disk SHA-256 must equal these (the first three = Stage 30 input_hashes)
 FSB_INPUT_SHA256 <- c(
   combz_table = "1f6a2a69c6b0781b8de8da50ecdadf309b62bbc9c82106c0fa91d18119a7de54",
@@ -69,13 +104,16 @@ FSB_SEX_BATCHES <- list(Female = c("B3", "B4", "B6"), Male = c("B1", "B2", "B5")
 FSB_N <- list(con_cages = 3L, con_per_cage = 4L, con_per_sex = 12L, combz_animals = 117L, components = 6L,
               rfid_animals = 111L, con_rfid_animals = 24L)
 FSB_TABLES <- c("F1_con_cage_means", "F1b_con_reference_means", "F2_combz_components", "F2b_combz_definition",
-                "P1_posthoc_con_contrasts", "P1b_posthoc_sensitivity", "P1c_posthoc_diagnostics")
+                "P1_posthoc_con_contrasts", "P1b_posthoc_sensitivity", "P1c_posthoc_diagnostics",
+                "D1_domain_heatmap_cells", "M1_hmm_transition_difference", "M2_hmm_transition_flows",
+                "M3_hmm_dwell_distribution", "M4_hmm_resolution_sensitivity")
 FSB_GATE_FILE <- "H3_gate_results.csv"
 FSB_GATE_COLS <- c("stage", "gate", "passed", "hard", "detail")
 FSB_REGISTRY_COLS <- c("bundle_id", "status", "manifest_sha256", "stage29_bundle_id", "combz_table_sha256", "mmm_git_commit", "created_at")
 FSB_PROVENANCE_KEYS <- c("bundle_id", "status", "generated_at", "generator", "mmm_git_commit", "mmm_branch", "stage29_bundle_id",
                          "stage29_bundle_manifest_sha256", "combz_table_sha256", "combz_definition_code", "combz_definition_code_git_blob",
                          "posthoc_run_dir", "posthoc_run_commit", "posthoc_output_manifest_sha256", "posthoc_registry_sha256",
+                         "stage14_source_dir", "stage14_promotion_record", "stage14_tables", "hmm_dwell_source",
                          "scientific_recomputation", "descriptive_computations", "pre_write_gates_passed", "gate_results")
 FSB_SCIENTIFIC_RECOMPUTATION <- paste(
   "none; descriptive cage means and the frozen CombZ standardisation reproduced exactly; no model.",
@@ -83,7 +121,10 @@ FSB_SCIENTIFIC_RECOMPUTATION <- paste(
   "within-sex CON standardisation is carried through verbatim, not re-derived from raw measures); CombZ is recomposed",
   "from them by the frozen rule of Analysis/build_later_outcome_combz.R and equals the stored CombZ within 1e-12.",
   "P1 / P1b / P1c are verbatim copies of the hash-gated post hoc run 29b (registry POSTHOC_CON_CONTRASTS v1.0), whose",
-  "model was fitted there once; nothing is fitted, tested or adjusted in this bundle")
+  "model was fitted there once; nothing is fitted, tested or adjusted in this bundle.",
+  "D1 is a verbatim copy of the Stage 14 domain-heatmap source table and M1-M4 are the stored Stage 14 HMM figure tables",
+  "of the run promoted 2026-10-06c (display labels joined, a rank, the Wald interval from the stored estimate and SE, and",
+  "dwell-time counts in fixed bins); no model is fitted, no test run, nothing smoothed and no p or q value produced here")
 FSB_DESCRIPTIVE_COMPUTATIONS <- c(
   "F1 cage_mean: arithmetic mean of the measure over the CON animals of one cage epoch (Batch|System|CC) in ebb_v101 B1 (values as stored); n_animals = count of those animals",
   "F1b: n and mean copied from ebb_v101 B2_descriptive_summaries (Group CON); nothing computed",
@@ -91,7 +132,12 @@ FSB_DESCRIPTIVE_COMPUTATIONS <- c(
   "F2 z = direction x signed_z (sign flip, direction -1 where the frozen definition inverts the sign after standardisation); signed_z = the stored component",
   "F2 heatmap_order_within_sex: rank of CombZ within Sex (ascending; ties by AnimalNum), a layout key; below_threshold = CombZ < the stored within-sex susceptibility_threshold",
   "gate only (not exported): CombZ recomposed from signed_z by the frozen producer rule (mean of the present components) = the stored CombZ within 1e-12",
-  "P1 / P1b / P1c: verbatim text copies of the post hoc run tables estimates.csv / sensitivity_common_cage_variance.csv / diagnostics.csv (every cell as stored); source_run, source_file and source_sha256 appended; nothing computed")
+  "P1 / P1b / P1c: verbatim text copies of the post hoc run tables estimates.csv / sensitivity_common_cage_variance.csv / diagnostics.csv (every cell as stored); source_run, source_file and source_sha256 appended; nothing computed",
+  "D1: verbatim text copy of the Stage 14 table systems_sis_domain_heatmap_source_data.csv (every cell as stored; Hedges g, post hoc tests and markers computed by Stage 14); source_run, source_file and source_sha256 appended; nothing computed",
+  "M1: the stored Stage 14 group mean transition probabilities and differences (systems_hmm_transition_probability_differences.csv), state display labels joined by the stored semantic label; colour_limit = max |DeltaProbability| over all rows (the figure's own symmetric limit); gate only: DeltaProbability = comparison mean - reference mean within 1e-12",
+  "M2: the stored Stage 14 group mean transition probabilities (systems_hmm_transition_probability_summary.csv) with display labels; rank_within_sex_group = rank by mean_probability (descending, ties in stored row order) within Sex x Group; shown = rank <= 8, the transitions Stage 14 draws",
+  "M3: number of animal x cage-change x phase x state records of the stored Stage 08 mean dwell time (hmm_state_dwell_times.csv, 10-minute HMM) per bin of mean_dwell_bins doubling from one HMM bin ([1, 2), [2, 4), ..., [64, 128] bins = 10-20 ... 640-1280 min); fraction = count / records of that Sex x Phase x Group x State; n_animals = distinct animals; counts replace Stage 14's kernel density ridges",
+  "M4: the stored Stage 14 HMM-resolution sensitivity rows (systems_sis_hmm_resolution_sensitivity.csv) with wald_ci_low / wald_ci_high = mixed_model_estimate -/+ 1.96 x mixed_model_SE, the interval Stage 14 draws")
 # words never allowed in display text (DESIGN section 0; OPTION3 section 0); identifiers such as crossing_rate are not labels
 FSB_FORBIDDEN_DISPLAY <- paste0("antenna|crossing|sleep|confirmatory|preregistered|approach|investigation|consumption|habituation|time near|",
                                 "female-specific|sex-specific|acute|sociability|social behaviou?r|social preference|huddling")
@@ -412,16 +458,142 @@ fsb_posthoc_gates <- function(P, run_dir, expect = FSB_POSTHOC) {
   data.table::rbindlist(g)
 }
 
-#' Post-write gate: every line of a written P table = the source line + "," + the appended provenance cells (byte-level
-#' verbatim copy of every source cell). `verbatim` = named character (bundle table -> source file path).
+#' Post-write gate: every line of a written verbatim copy (P1-P1c, D1) = the source line + "," + the appended provenance
+#' cells (byte-level verbatim copy of every source cell). `verbatim` = named character (bundle table -> source file path).
 fsb_verbatim_gates <- function(bd, verbatim) {
   if (!length(verbatim)) return(data.table::data.table(stage = character(), gate = character(), passed = logical(), hard = logical(), detail = character()))
   data.table::rbindlist(lapply(names(verbatim), function(k) {
-    a <- readLines(file.path(bd, paste0(k, ".csv")), warn = FALSE, encoding = "UTF-8"); b <- readLines(verbatim[[k]], warn = FALSE, encoding = "UTF-8")
+    a <- readLines(file.path(bd, paste0(k, ".csv")), warn = FALSE, encoding = "UTF-8")
+    b <- s30fb_strip_cr(readLines(verbatim[[k]], warn = FALSE, encoding = "UTF-8"))
     ok <- length(a) == length(b) && length(a) > 1L && all(startsWith(a, paste0(b, ",")))
-    s30fb_gate_row("7-write", paste0(k, ".csv: every line = the post hoc source line + the appended provenance cells"), ok,
+    s30fb_gate_row("7-write", paste0(k, ".csv: every line = the source line + the appended provenance cells"), ok,
                    paste(length(a), "lines vs", length(b)))
   }))
+}
+
+# ---------------------------------------------------------------- D1 / M1-M4 (v3): the Stage 14 display tables
+#' Gate rows on the Stage 14 inputs: each file's on-disk SHA-256 = the pinned value, and the Stage 14 promotion record
+#' lists the file with that SHA-256 (so the copy is the promoted state). `record` = the record table. Never stops.
+fsb_verify_stage14_inputs <- function(root14, record, pin = FSB_STAGE14) {
+  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("1c-stage14", name, passed, detail)
+  rec <- data.table::as.data.table(record)
+  for (k in names(pin$files)) {
+    p <- file.path(root14, pin$files[[k]]); now <- if (file.exists(p)) s30fb_sha(p) else NA_character_
+    add(paste0(k, ": on-disk SHA-256 = pinned"), identical(now, pin$sha256[[k]]), paste(p, now))
+    r <- rec[rec$target_root_rel == pin$root_rel & rec$target_file == pin$files[[k]]]
+    add(paste0(k, ": the Stage 14 promotion record lists this file with this SHA-256"), nrow(r) == 1L && identical(r$sha256, pin$sha256[[k]]),
+        paste(nrow(r), "row(s);", paste(r$change, collapse = ",")))
+  }
+  data.table::rbindlist(g)
+}
+
+#' The display label of each HMM state at one resolution, keyed by the semantic StateLabel Stage 14 writes into its
+#' transition tables. Stops unless each state is present once with a unique semantic and display label.
+fsb_hmm_state_labels <- function(labels, res = FSB_HMM_RESOLUTION) {
+  x <- data.table::as.data.table(labels)
+  need <- c("resolution", "State", "StateLabel", "SemanticState", "DisplayState")
+  if (length(setdiff(need, names(x)))) stop("State label table lacks column(s): ", paste(setdiff(need, names(x)), collapse = ","), call. = FALSE)
+  x <- x[x$resolution == res]; x[, State := as.character(State)]
+  if (nrow(x) != length(FSB_HMM_STATES) || !setequal(x$State, FSB_HMM_STATES) || anyDuplicated(x$StateLabel) || anyDuplicated(x$DisplayState))
+    stop("State label table: expected states ", paste(FSB_HMM_STATES, collapse = ","), " once each with unique labels at ", res, call. = FALSE)
+  fsb_check_display(x, "DisplayState", "HMM state display labels")
+  x[order(as.integer(State)), .(State, StateLabel, SemanticState, DisplayState)]
+}
+fsb_hmm_index <- function(label, lab) {
+  i <- match(label, lab$StateLabel)
+  if (anyNA(i)) stop("HMM label(s) without a state: ", paste(unique(label[is.na(i)]), collapse = " | "), call. = FALSE)
+  i
+}
+
+#' M1: the stored Stage 14 transition-probability differences with display labels and the figure's own colour limit.
+#' Stops unless every row is finite, the contrasts are the stored three, every Sex x From x To x Contrast occurs once, and
+#' DeltaProbability = comparison mean - reference mean within `tol` (attribute max_abs_recon_diff).
+fsb_hmm_transition_difference <- function(diffs, lab, tol = FSB_TOL) {
+  d <- data.table::as.data.table(diffs)
+  need <- c("Sex", "FromLabel", "ToLabel", FSB_HMM_GROUPS, "Contrast", "DeltaProbability")
+  if (length(setdiff(need, names(d)))) stop("Transition differences lack column(s): ", paste(setdiff(need, names(d)), collapse = ","), call. = FALSE)
+  if (!setequal(unique(d$Contrast), FSB_HMM_CONTRASTS)) stop("Transition differences: contrasts are not ", paste(FSB_HMM_CONTRASTS, collapse = ", "), call. = FALSE)
+  fi <- fsb_hmm_index(d$FromLabel, lab); ti <- fsb_hmm_index(d$ToLabel, lab)
+  M <- sapply(FSB_HMM_GROUPS, function(g) as.numeric(d[[g]])); delta <- as.numeric(d$DeltaProbability)
+  if (!all(is.finite(M)) || !all(is.finite(delta))) stop("Transition differences: a non-finite mean or difference.", call. = FALSE)
+  rows <- seq_len(nrow(d)); comp <- match(sub(" - .*$", "", d$Contrast), FSB_HMM_GROUPS); ref <- match(sub("^.* - ", "", d$Contrast), FSB_HMM_GROUPS)
+  recon <- abs(M[cbind(rows, comp)] - M[cbind(rows, ref)] - delta)
+  if (max(recon) > tol) stop(sprintf("Transition differences: DeltaProbability differs from the stored means (max %.3g).", max(recon)), call. = FALSE)
+  out <- data.table::data.table(Sex = d$Sex, from_state = lab$State[fi], to_state = lab$State[ti], from_label = lab$DisplayState[fi],
+                                to_label = lab$DisplayState[ti], CON = M[, "CON"], RES = M[, "RES"], SUS = M[, "SUS"], contrast = d$Contrast,
+                                delta_probability = delta, colour_limit = max(abs(delta)), resolution = FSB_HMM_RESOLUTION,
+                                source_from_label = d$FromLabel, source_to_label = d$ToLabel)
+  if (anyDuplicated(out[, .(Sex, from_state, to_state, contrast)])) stop("Transition differences: a Sex x From x To x Contrast row occurs twice.", call. = FALSE)
+  out[, contrast := factor(contrast, levels = FSB_HMM_CONTRASTS)]
+  data.table::setorderv(out, c("Sex", "contrast", "from_state", "to_state")); out[, contrast := as.character(contrast)]
+  data.table::setattr(out, "max_abs_recon_diff", max(recon))
+  out[]
+}
+
+#' M2: the stored Stage 14 mean transition probabilities with display labels, their rank within Sex x Group (descending,
+#' ties in stored row order) and shown = rank <= n_top, the transitions the Stage 14 state-flow figure draws.
+fsb_hmm_transition_flows <- function(means, lab, n_top = FSB_HMM_FLOW_TOP) {
+  m <- data.table::as.data.table(means)
+  need <- c("Sex", "Group", "FromLabel", "ToLabel", "mean_probability")
+  if (length(setdiff(need, names(m)))) stop("Transition means lack column(s): ", paste(setdiff(need, names(m)), collapse = ","), call. = FALSE)
+  p <- as.numeric(m$mean_probability); if (!all(is.finite(p))) stop("Transition means: a non-finite mean.", call. = FALSE)
+  fi <- fsb_hmm_index(m$FromLabel, lab); ti <- fsb_hmm_index(m$ToLabel, lab)
+  out <- data.table::data.table(Sex = m$Sex, Group = m$Group, from_state = lab$State[fi], to_state = lab$State[ti], from_label = lab$DisplayState[fi],
+                                to_label = lab$DisplayState[ti], mean_probability = p, stored_row = seq_len(nrow(m)), resolution = FSB_HMM_RESOLUTION,
+                                source_from_label = m$FromLabel, source_to_label = m$ToLabel)
+  if (anyDuplicated(out[, .(Sex, Group, from_state, to_state)])) stop("Transition means: a Sex x Group x From x To row occurs twice.", call. = FALSE)
+  data.table::setorderv(out, c("Sex", "Group", "stored_row"))
+  out[, rank_within_sex_group := order(order(-mean_probability, stored_row)), by = .(Sex, Group)]
+  out[, shown := rank_within_sex_group <= n_top]
+  data.table::setorderv(out, c("Sex", "Group", "rank_within_sex_group"))
+  out[, .(Sex, Group, from_state, to_state, from_label, to_label, mean_probability, rank_within_sex_group, shown, resolution,
+          source_from_label, source_to_label, stored_row)]
+}
+
+#' M3: records of the stored mean dwell time per bin of mean_dwell_bins doubling from one HMM bin, for every
+#' Sex x Phase x Group x State (a complete grid, zero counts kept); fraction = count / records of that group.
+#' Stops on a record outside the bins, a missing value, another HMM resolution or bin size, or an unknown state.
+fsb_hmm_dwell_distribution <- function(dwell, lab, edges = FSB_DWELL_EDGES_BINS, pin = FSB_HMM_DWELL, res = FSB_HMM_RESOLUTION) {
+  x <- data.table::copy(data.table::as.data.table(dwell))
+  need <- c("BinLevel", "Group", "Sex", "Phase", "CageChange", "AnimalNum", "State", "mean_dwell_bins", "bin_size_sec")
+  if (length(setdiff(need, names(x)))) stop("Dwell-time table lacks column(s): ", paste(setdiff(need, names(x)), collapse = ","), call. = FALSE)
+  if (!all(x$BinLevel == res) || !all(as.numeric(x$bin_size_sec) == pin$bin_size_sec)) stop("Dwell-time table: not the ", res, " HMM (bin size ", pin$bin_size_sec, " s).", call. = FALSE)
+  v <- as.numeric(x$mean_dwell_bins)
+  if (!all(is.finite(v)) || any(v < min(edges) | v > max(edges))) stop("Dwell-time table: a mean dwell outside [", min(edges), ", ", max(edges), "] bins.", call. = FALSE)
+  if (!all(as.character(x$State) %in% lab$State) || !all(x$Group %in% FSB_HMM_GROUPS) || !all(x$Phase %in% names(FSB_HMM_PHASE_LABELS)))
+    stop("Dwell-time table: an unknown state, group or phase.", call. = FALSE)
+  nb <- length(edges) - 1L
+  x[, `:=`(State = as.character(State), bin = findInterval(v, edges, rightmost.closed = TRUE))]
+  grid <- data.table::CJ(Sex = sort(unique(x$Sex)), Phase = names(FSB_HMM_PHASE_LABELS), Group = FSB_HMM_GROUPS, State = lab$State, bin = seq_len(nb))
+  cnt <- x[, .(n_records = .N), by = .(Sex, Phase, Group, State, bin)]
+  tot <- x[, .(n_records_group = .N, n_animals = data.table::uniqueN(AnimalNum)), by = .(Sex, Phase, Group, State)]
+  out <- merge(merge(grid, cnt, by = c("Sex", "Phase", "Group", "State", "bin"), all.x = TRUE), tot, by = c("Sex", "Phase", "Group", "State"), all.x = TRUE)
+  out[is.na(n_records), n_records := 0L]
+  if (anyNA(out$n_records_group)) stop("Dwell-time table: a Sex x Phase x Group x State without records.", call. = FALSE)
+  out[, `:=`(fraction = n_records / n_records_group, bin_lower_bins = edges[bin], bin_upper_bins = edges[bin + 1L],
+             bin_lower_min = edges[bin] * pin$bin_size_sec / 60, bin_upper_min = edges[bin + 1L] * pin$bin_size_sec / 60,
+             upper_closed = bin == nb, phase_label = unname(FSB_HMM_PHASE_LABELS[Phase]),
+             state_label = lab$DisplayState[match(State, lab$State)], resolution = res)]
+  out[, bin_label := sprintf("%g-%g min", bin_lower_min, bin_upper_min)]
+  data.table::setorderv(out, c("Sex", "Phase", "State", "Group", "bin"))
+  res <- out[, .(Sex, Phase, phase_label, Group, State, state_label, bin, bin_label, bin_lower_min, bin_upper_min, upper_closed, bin_lower_bins,
+                 bin_upper_bins, n_records, n_records_group, fraction, n_animals, resolution)]
+  data.table::setattr(res, "n_records_total", nrow(x))
+  res[]
+}
+
+#' M4: the stored Stage 14 HMM-resolution sensitivity rows with the Wald interval Stage 14 draws
+#' (mixed_model_estimate -/+ 1.96 x mixed_model_SE). Stops on a non-finite estimate or SE.
+fsb_hmm_resolution_sensitivity <- function(rs) {
+  x <- data.table::copy(data.table::as.data.table(rs))
+  need <- c("resolution", "Domain", "Sex", "Phase", "contrast", "animal_level_hedges_g", "mixed_model_estimate", "mixed_model_SE")
+  if (length(setdiff(need, names(x)))) stop("Resolution sensitivity lacks column(s): ", paste(setdiff(need, names(x)), collapse = ","), call. = FALSE)
+  est <- as.numeric(x$mixed_model_estimate); se <- as.numeric(x$mixed_model_SE)
+  if (!all(is.finite(est)) || !all(is.finite(se)) || any(se < 0)) stop("Resolution sensitivity: a non-finite estimate or SE.", call. = FALSE)
+  x[, `:=`(wald_ci_low = est - 1.96 * se, wald_ci_high = est + 1.96 * se, ci_rule = "mixed_model_estimate -/+ 1.96 x mixed_model_SE (as Stage 14 draws it)",
+           phase_label = unname(FSB_HMM_PHASE_LABELS[Phase]))]
+  if (anyNA(x$phase_label)) stop("Resolution sensitivity: an unknown phase.", call. = FALSE)
+  x[]
 }
 
 # ---------------------------------------------------------------- provenance and writer

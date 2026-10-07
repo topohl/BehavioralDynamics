@@ -6,7 +6,7 @@
 #   1. static: no model / test / adjustment call in the helper or the runner; the runner parses its mode before any read,
 #      sources no Analysis/ file other than _pipeline_setup.R and never sources or evaluates the CombZ producer file; the
 #      helper parses (never sources) it; this test sources only Analysis/_pipeline_setup.R;
-#   2. run mode and bundle id fsb_v1_<YYYYMMDD>_<commit7>;
+#   2. run mode and bundle id fsb_v3_<YYYYMMDD>_<commit7>;
 #   3. frozen CombZ definition parser: constants and composite rule read without executing the file; refusal of a missing,
 #      duplicated or non-literal constant and of a missing / non-consecutive rule; the real producer source yields the
 #      six components and three inversions;
@@ -18,8 +18,11 @@
 #      composition checks, NA refusal;
 #   8. (v2) post hoc run 29b: run verification (manifest hash, files, extra file, read-only, README, run_manifest), the
 #      verbatim text copy (P1 / P1b / P1c) and its gates, refusal of a table that differs from its manifest hash;
-#   9. writer: manifest, provenance keys, read-only files, post-write gates (incl. the line-level verbatim gate of the
-#      copied post hoc tables) before the registry row, gate log, refusal to overwrite.
+#   8b. (v3) Stage 14 display tables: input hash and promotion-record gates, state display labels, transition differences
+#      (reconstruction gate, refusal of a tampered difference or an unknown label), flows (rank, shown), dwell-time counts
+#      (bins, fractions, refusal outside the bins or at another resolution), the Wald interval of the resolution rows;
+#   9. writer: manifest, provenance keys, read-only files, post-write gates (incl. the line-level verbatim gates of the
+#      copied post hoc tables and D1) before the registry row, gate log, refusal to overwrite.
 #
 # Portable-suite idiom: plain Rscript, fail()/check()/ok(), no testthat. Run from the repo root:
 #   Rscript Testing/tests/test_figure_support_bundle.R
@@ -68,7 +71,7 @@ check(grepl("Both", errmsg(fsb_parse_mode(c("--dry-run", "--real")))), "both mod
 check(identical(fsb_parse_mode("--dry-run"), "DRY") && identical(fsb_parse_mode("--real"), "REAL"), "modes parse")
 cm <- "0123456789abcdef0123456789abcdef01234567"
 bid <- fsb_bundle_id(as.Date("2026-09-30"), cm)
-check(identical(bid, "fsb_v2_20260930_0123456") && grepl("^fsb_v[0-9]+_[0-9]{8}_[0-9a-f]{7}$", bid), "bundle id fsb_v2_<YYYYMMDD>_<commit7>")
+check(identical(bid, "fsb_v3_20260930_0123456") && grepl("^fsb_v[0-9]+_[0-9]{8}_[0-9a-f]{7}$", bid), "bundle id fsb_v3_<YYYYMMDD>_<commit7>")
 check(grepl("full git commit", errmsg(fsb_bundle_id(Sys.Date(), "abc1234"))), "a short commit is refused")
 ok("run mode and bundle id")
 
@@ -246,9 +249,74 @@ check(grepl("banned display wording", errmsg(fsb_posthoc_gates(bp, PHR, EXPH))),
 check(grepl("differs from its output-manifest", errmsg(fsb_posthoc_copy(PHR, "tables/estimates.csv", strrep("0", 64), "x"))), "a table off its manifest hash is refused")
 ok("post hoc run 29b: verification, verbatim text copy, copy gates, refusals")
 
+# ---------------------------------------------------------------- 8b. (v3) Stage 14 display tables (synthetic)
+S14 <- file.path(TMP, "s14"); dir.create(file.path(S14, "stats_tables"), recursive = TRUE); dir.create(file.path(S14, "tables"))
+lab_src <- data.table(resolution = rep(c("10min_based", "5min_based"), each = 4L), State = rep(1:4, 2),
+                      SemanticState = rep(c("burst", "inactive", "mixed", "inactive"), 2),
+                      StateLabel = paste0("S", rep(1:4, 2), "\n", rep(c("burst", "inactive", "mixed", "inactive"), 2)),
+                      DisplayState = c("Many", "None, together", "Few", "None, apart", "a", "b", "c", "d"))
+LBS <- fsb_hmm_state_labels(lab_src)
+check(identical(LBS$State, FSB_HMM_STATES) && identical(LBS$DisplayState, c("Many", "None, together", "Few", "None, apart")), "state labels of the 10-minute HMM, in state order")
+lx <- copy(lab_src); lx[2, DisplayState := "Many"]
+check(grepl("unique labels", errmsg(fsb_hmm_state_labels(lx))), "a duplicated display label is refused")
+lx <- copy(lab_src); lx[3, DisplayState := "sleep-like"]
+check(grepl("banned display wording", errmsg(fsb_hmm_state_labels(lx))), "a banned display label is refused")
+tm <- CJ(Sex = c("Female", "Male"), Group = FSB_HMM_GROUPS, From = 1:4, To = 1:4)
+tm[, `:=`(FromLabel = LBS$StateLabel[From], ToLabel = LBS$StateLabel[To], mean_probability = round(runif(.N, 0, 1), 6))]
+tmw <- dcast(tm, Sex + FromLabel + ToLabel ~ Group, value.var = "mean_probability")
+td <- rbindlist(lapply(FSB_HMM_CONTRASTS, function(cn) { g <- strsplit(cn, " - ")[[1]]
+  copy(tmw)[, `:=`(Contrast = cn, DeltaProbability = get(g[1]) - get(g[2]))] }))
+M1s <- fsb_hmm_transition_difference(td, LBS)
+check(nrow(M1s) == 96L && attr(M1s, "max_abs_recon_diff") == 0 && all(M1s$colour_limit == max(abs(td$DeltaProbability))) &&
+      identical(M1s[1, c(from_label, to_label)], c("Many", "Many")), "M1: 96 rows, exact reconstruction, the figure's own limit, display labels")
+tdx <- copy(td); tdx[5, DeltaProbability := DeltaProbability + 1e-9]
+check(grepl("differs from the stored means", errmsg(fsb_hmm_transition_difference(tdx, LBS))), "a difference off its means by 1e-9 is refused")
+tdx <- copy(td); tdx[1, FromLabel := "S9\nnew"]
+check(grepl("without a state", errmsg(fsb_hmm_transition_difference(tdx, LBS))), "an unknown state label is refused")
+M2s <- fsb_hmm_transition_flows(tm[, .(Sex, Group, FromLabel, ToLabel, mean_probability)], LBS)
+top <- tm[Sex == "Male" & Group == "SUS"][order(-mean_probability)][1:FSB_HMM_FLOW_TOP]
+check(nrow(M2s) == 96L && all(M2s[, sum(shown), by = .(Sex, Group)]$V1 == FSB_HMM_FLOW_TOP) &&
+      setequal(M2s[Sex == "Male" & Group == "SUS" & shown == TRUE, paste(from_state, to_state)], top[, paste(From, To)]) &&
+      identical(M2s[Sex == "Male" & Group == "SUS", rank_within_sex_group], 1:16), "M2: the 8 largest per sex x group shown, ranks 1-16")
+dw <- CJ(Sex = c("Female", "Male"), Phase = c("Active", "Inactive"), Group = FSB_HMM_GROUPS, State = 1:4, AnimalNum = paste0("a", 1:3), CageChange = c("CC1", "CC2"))
+dw[, `:=`(BinLevel = "10min_based", bin_size_sec = 600, mean_dwell_bins = c(1, 1.5, 2, 3.99, 64, 128)[(seq_len(.N) - 1L) %% 6L + 1L])]
+M3s <- fsb_hmm_dwell_distribution(dw, LBS)
+g1 <- M3s[Sex == "Female" & Phase == "Active" & Group == "CON" & State == "1"]
+check(nrow(M3s) == 2L * 2L * 3L * 4L * 7L && sum(M3s$n_records) == nrow(dw) && identical(attr(M3s, "n_records_total"), nrow(dw)) &&
+      max(abs(M3s[, sum(fraction), by = .(Sex, Phase, Group, State)]$V1 - 1)) <= 1e-12 &&
+      identical(g1$n_records, c(2L, 2L, 0L, 0L, 0L, 0L, 2L)) && identical(g1$bin_label[c(1, 7)], c("10-20 min", "640-1280 min")) && all(g1$n_animals == 3L),
+      "M3: complete grid, counts per doubling bin (lower bound inclusive, last bin closed), fractions sum to 1")
+dwx <- copy(dw); dwx[1, mean_dwell_bins := 0.5]
+check(grepl("outside", errmsg(fsb_hmm_dwell_distribution(dwx, LBS))), "a dwell below one bin is refused")
+dwx <- copy(dw); dwx[1, BinLevel := "5min_based"]
+check(grepl("not the 10min_based HMM", errmsg(fsb_hmm_dwell_distribution(dwx, LBS))), "another HMM resolution is refused")
+rs <- CJ(resolution = c("5min_based", "10min_based"), Sex = c("Female", "Male"), Phase = c("Active", "Inactive"), contrast = c("RES-CON", "SUS-CON", "SUS-RES"))
+rs[, `:=`(Domain = "Behavioral state architecture", animal_level_hedges_g = 0.1, mixed_model_estimate = 0.25, mixed_model_SE = 0.5)]
+M4s <- fsb_hmm_resolution_sensitivity(rs)
+check(nrow(M4s) == 24L && all(M4s$wald_ci_low == 0.25 - 0.98) && all(M4s$wald_ci_high == 0.25 + 0.98) && !"wald_ci_low" %in% names(rs) &&
+      identical(unique(M4s$phase_label), c("Dark phase", "Light phase")), "M4: the Wald interval estimate -/+ 1.96 SE; the input is not modified")
+d1_src <- data.table(heatmap_id = "all_blocks", window_label = "all phase blocks, CC1-CC4 pooled", variant = "picked", row_label = "Position-change rate",
+                     row_description = "Psychomotor activation", display_tier = "Primary", PhaseClass = "Active", Sex = "Female", contrast = "RES-CON",
+                     cell_status = "estimated", hedges_g = c(0.12, -0.5), construct_source = "canonical crossing_rate (not antenna crossings)")
+s30fb_write_csv(d1_src, file.path(S14, "stats_tables", "domain.csv"))
+for (k in c("means", "diffs", "res", "labels")) s30fb_write_csv(data.table(x = k), file.path(S14, "tables", paste0(k, ".csv")))
+pin14 <- list(root_rel = "analyses/s14", files = c(domain_heatmap = "stats_tables/domain.csv", transition_means = "tables/means.csv",
+              transition_differences = "tables/diffs.csv", resolution_sensitivity = "tables/res.csv", state_display_labels = "tables/labels.csv"))
+pin14$sha256 <- vapply(pin14$files, function(f) s30fb_sha(file.path(S14, f)), "")
+rec14 <- data.table(group = "g", target_root_rel = pin14$root_rel, target_file = pin14$files, prior_sha256 = "p", sha256 = pin14$sha256, change = "unchanged")
+check(all(fsb_verify_stage14_inputs(S14, rec14, pin14)$passed), "Stage 14 input gates pass for pinned files the record lists")
+rx <- copy(rec14); rx[2, sha256 := strrep("0", 64)]
+check(sum(!fsb_verify_stage14_inputs(S14, rx, pin14)$passed) == 1L, "a file whose record hash differs fails one gate")
+D1s <- fsb_posthoc_copy(S14, "stats_tables/domain.csv", pin14$sha256[["domain_heatmap"]], "analyses/s14")
+check(all(vapply(D1s, is.character, TRUE)) && identical(tail(names(D1s), 3), FSB_POSTHOC_ADDED) && isTRUE(fsb_check_display(D1s, FSB_D1_DISPLAY_COLS, "D1")),
+      "D1: a text copy with provenance cells; only display columns are held to the wording guard")
+ok("Stage 14 display tables: input gates, labels, differences, flows, dwell counts, Wald interval, D1 copy")
+
 # ---------------------------------------------------------------- 9. writer
-tabs <- c(list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b), PTS)
-VB <- setNames(file.path(PHR, FSB_POSTHOC_TABLES), names(FSB_POSTHOC_TABLES))
+tabs <- c(list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b), PTS,
+          list(D1_domain_heatmap_cells = D1s, M1_hmm_transition_difference = M1s, M2_hmm_transition_flows = M2s,
+               M3_hmm_dwell_distribution = M3s, M4_hmm_resolution_sensitivity = M4s))
+VB <- c(setNames(file.path(PHR, FSB_POSTHOC_TABLES), names(FSB_POSTHOC_TABLES)), D1_domain_heatmap_cells = file.path(S14, "stats_tables", "domain.csv"))
 
 GTS <- rbind(s30fb_gate_row("0-code", "synthetic pre-write gate", TRUE, "c"), s30fb_gate_row("0-code", "soft gate", FALSE, "not met", hard = FALSE))
 pf <- setNames(as.list(paste0("v_", FSB_PROVENANCE_KEYS)), FSB_PROVENANCE_KEYS)
@@ -258,7 +326,7 @@ check(grepl("lacks key", errmsg(fsb_provenance(pf[-1]))), "a missing provenance 
 check(startsWith(H[key == "scientific_recomputation", value], "none; descriptive cage means and the frozen CombZ standardisation reproduced exactly; no model"),
       "scientific_recomputation carries the OPTION3_SPEC wording")
 IN <- data.table(input = "x", bytes = 1, sha256 = "s", role = "r")
-OUT <- file.path(TMP, "out"); BID <- "fsb_v2_20260930_0123456"
+OUT <- file.path(TMP, "out"); BID <- "fsb_v3_20260930_0123456"
 wb <- function(id, out = OUT, gates = GTS, tb = tabs, ...) fsb_write_bundle(tb, out, id, H, IN, gates, FSB_STATUS_DRY, "ebb_x", "czsha", cm, "t", verbatim = VB, ...)
 w <- wb(BID)
 man <- fread(file.path(w$dir, "00_manifest.csv"))
@@ -270,19 +338,19 @@ check(nrow(reg) == 1L && identical(names(reg), FSB_REGISTRY_COLS) && identical(r
 f2back <- fread(file.path(w$dir, "F2_combz_components.csv"))
 check(nrow(f2back) == nrow(F2) && isTRUE(all(f2back$signed_z == F2$signed_z, na.rm = TRUE)) && identical(is.na(f2back$signed_z), is.na(F2$signed_z)), "F2 written at full precision")
 lg <- fread(w$log, colClasses = "character")
-check(nrow(lg) == 2L + 8L && identical(lg$stage[3:10], c(rep("7-write", 7), "8-register")) && all(lg$passed[3:10] == "TRUE") && sum(grepl("post hoc source line", lg$gate)) == 3L,
-      "gate log = pre-write + post-write (incl. 3 line-level verbatim gates) + registration")
+check(nrow(lg) == 2L + 9L && identical(lg$stage[3:11], c(rep("7-write", 8), "8-register")) && all(lg$passed[3:11] == "TRUE") && sum(grepl("the source line", lg$gate)) == 4L,
+      "gate log = pre-write + post-write (incl. 4 line-level verbatim gates: P1-P1c, D1) + registration")
 p1w <- readLines(file.path(w$dir, "P1_posthoc_con_contrasts.csv"), encoding = "UTF-8"); p1s <- readLines(VB[["P1_posthoc_con_contrasts"]], encoding = "UTF-8")
 check(length(p1w) == 25L && all(startsWith(p1w, paste0(p1s, ","))) && grepl(paste("SUS", mn, "RES"), p1w[7], fixed = TRUE), "written P1 lines = the source lines + provenance cells (UTF-8 labels kept)")
 OUT5 <- file.path(TMP, "o5"); tb5 <- tabs; tb5$P1b_posthoc_sensitivity <- copy(tb5$P1b_posthoc_sensitivity)[2, estimate := "9"]
-check(grepl("NOT registered", errmsg(wb("fsb_v2_20260930_5555555", out = OUT5, tb = tb5))) && !file.exists(file.path(OUT5, "BUNDLE_REGISTRY.csv")),
+check(grepl("NOT registered", errmsg(wb("fsb_v3_20260930_5555555", out = OUT5, tb = tb5))) && !file.exists(file.path(OUT5, "BUNDLE_REGISTRY.csv")),
       "a P table that is not a verbatim copy fails the post-write gate before the registry row")
 
 check(grepl("immutable", errmsg(wb(BID))), "a second write of the same bundle is refused")
-check(grepl("declared set", errmsg(wb("fsb_v2_20260930_1111111", out = file.path(TMP, "o2"), tb = tabs[-1]))), "a missing table is refused")
-check(grepl("hard pre-write gate", errmsg(wb("fsb_v2_20260930_1111111", out = file.path(TMP, "o2"), gates = rbind(GTS, s30fb_gate_row("x", "failed", FALSE))))) &&
+check(grepl("declared set", errmsg(wb("fsb_v3_20260930_1111111", out = file.path(TMP, "o2"), tb = tabs[-1]))), "a missing table is refused")
+check(grepl("hard pre-write gate", errmsg(wb("fsb_v3_20260930_1111111", out = file.path(TMP, "o2"), gates = rbind(GTS, s30fb_gate_row("x", "failed", FALSE))))) &&
       !dir.exists(file.path(TMP, "o2")), "a failed hard gate is refused before any write")
-OUT3 <- file.path(TMP, "o3"); BID3 <- "fsb_v2_20260930_0fedcba"
+OUT3 <- file.path(TMP, "o3"); BID3 <- "fsb_v3_20260930_0fedcba"
 tamper <- function(bd) { f <- file.path(bd, "F2_combz_components.csv"); Sys.chmod(f, "0666"); cat("x\n", file = f, append = TRUE) }
 check(grepl("NOT registered", errmsg(wb(BID3, out = OUT3, .before_verify = tamper))) && !file.exists(file.path(OUT3, "BUNDLE_REGISTRY.csv")),
       "a post-write failure stops before the registry row")
