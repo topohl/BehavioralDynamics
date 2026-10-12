@@ -40,12 +40,18 @@ if (is.null(RANT_VERSION)) {
   if (!RANT_VERSION %in% names(RANT_ROOT_NAMES)) stop("mmm.rant_version must be one of ", paste(names(RANT_ROOT_NAMES), collapse = ", "), call. = FALSE)
   repo <- normalizePath(getwd(), winslash = "/")
   if (!file.exists(file.path(repo, "Analysis", "_pipeline_setup.R"))) stop("Run from the repository root.", call. = FALSE)
+  head <- system2("git", c("-C", repo, "rev-parse", "HEAD"), stdout = TRUE)
+  dirty <- system2("git", c("-C", repo, "status", "--porcelain", "--untracked-files=all", "--", "Analysis", "Functions"), stdout = TRUE)
+  if (length(dirty)) stop("Commit the code first (the run log records git HEAD):\n", paste(dirty, collapse = "\n"), call. = FALSE)
   source(file.path(repo, "Functions", "project_paths.R"), local = TRUE)
   norm <- function(p) normalizePath(p, winslash = "/", mustWork = FALSE)
   live_root <- norm(MMM_PROJECT_ROOT_DEFAULT)
   root <- norm(file.path(dirname(live_root), RANT_ROOT_NAMES[[RANT_VERSION]]))
   if (startsWith(tolower(paste0(root, "/")), tolower(paste0(live_root, "/")))) stop("The target root lies inside the live root.", call. = FALSE)
   dv_date <- getOption("mmm.rant_dv_date", "20261012")
+  stages <- getOption("mmm.rant_stages", RANT_DESCRIPTIVE_STAGES)          # read before the mmm.* options are cleared below
+  continue_on_error <- isTRUE(getOption("mmm.rant_continue_on_error", FALSE))
+  if (!all(stages %in% RANT_DESCRIPTIVE_STAGES)) stop("mmm.rant_stages must be a subset of the descriptive tier.", call. = FALSE)
   dv_dir <- file.path(root, "MMMSociability", "data_versions", paste0("raw_antenna_", RANT_VERSION, "_", dv_date))
   pre_dir <- file.path(dv_dir, "preprocessed_data")
   manifest <- utils::read.csv(file.path(dv_dir, "MANIFEST_SHA256.csv"), stringsAsFactors = FALSE)
@@ -80,10 +86,7 @@ if (is.null(RANT_VERSION)) {
   }, add = TRUE)
   if (!identical(norm(mmm_project_root()), root)) stop("The project root did not switch to ", root, call. = FALSE)
 
-  stages <- getOption("mmm.rant_stages", RANT_DESCRIPTIVE_STAGES)
-  continue_on_error <- isTRUE(getOption("mmm.rant_continue_on_error", FALSE))
   log_file <- file.path(root, "raw_antenna_run_log.csv")
-  head <- system2("git", c("-C", repo, "rev-parse", "HEAD"), stdout = TRUE)
   for (s in stages) {
     t0 <- Sys.time(); message("\n==== ", RANT_VERSION, " | ", s, " -> ", root)
     err <- tryCatch({ source(file.path(repo, "Analysis", s), local = new.env(parent = globalenv())); NULL },
