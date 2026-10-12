@@ -26,6 +26,7 @@ run_cookiehab_preprocessing_and_metrics.R,,infrastructure,active,yes,,RFID/cooki
 28_rfid_behavioral_domains.R,28,frozen-lineage input,active producer,yes,,analysis_ready/pipeline/28_rfid_behavioral_domains/,rewrites in place; pinned by frozen runs (guarded),three acute_window_* tables are pinned by the Stage 29 v1.0.1 release
 29_canonical_behavior_characterization.R,29,frozen lineage,frozen (run v101_dv2_b2ce507),yes,,analysis_ready/pipeline/29_canonical_behavior_releases/<run>/,new run folder only,docs/STAGE29_RELEASE_v1.0.1_dv2.md
 29b_posthoc_con_contrasts.R,29b,frozen lineage,frozen (run v1.0_7f1da1f),yes,,analysis_ready/pipeline/29b_posthoc_con_contrasts/v1.0_7f1da1f/,run once,docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.0.md
+29c_posthoc_movement_combz_fit.R,29c,frozen lineage,frozen registry v1.0 (REAL run pending),yes,,analysis_ready/pipeline/29c_posthoc_movement_combz_fit/v1.0_<commit7>/,run once,docs/POSTHOC_MOVEMENT_COMBZ_FIT_REGISTRY_v1.0.md (Figure 1d display line; adds no test)
 30_exploratory_screen.R,30,frozen lineage,frozen (run v1.0_be71e2f),yes,,analysis_ready/pipeline/30_exploratory_screen/v1.0_be71e2f/,run once; never re-run REAL,docs/stage30/STAGE30_REGISTRY_v1.0.md
 30b_stage30_figure_bundle.R,30b,frozen lineage,frozen bundle writer,yes,,analysis_ready/canonical/stage30_figure_bundle/<bundle_id>/,new bundle folder only,wrote s30b_v10_20260929_5394f2f
 31_cc4_grid_exposure.R,31,CC4 candidate,descriptive run-id stage,yes,,analysis_ready/analyses/cc4_grid_exposure/<run_id>/,new run-id folder,docs/CC4_GRID_EXPOSURE.md
