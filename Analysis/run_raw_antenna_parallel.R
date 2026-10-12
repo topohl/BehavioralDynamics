@@ -86,11 +86,25 @@ if (is.null(RANT_VERSION)) {
   }, add = TRUE)
   if (!identical(norm(mmm_project_root()), root)) stop("The project root did not switch to ", root, call. = FALSE)
 
+  # One Rscript process per stage, sourcing the stage at top level as a standalone run does: Stage 08 registers an S4 method
+  # for depmixS4's fit() through a global binding (it fails when sourced into a child environment), and a native crash ends
+  # only its own stage. The child inherits the environment variables set above; its options are set by a bootstrap file.
   log_file <- file.path(root, "raw_antenna_run_log.csv")
+  log_dir <- file.path(root, "raw_antenna_logs"); dir.create(log_dir, showWarnings = FALSE)
+  rscript <- file.path(R.home("bin"), "Rscript")
   for (s in stages) {
     t0 <- Sys.time(); message("\n==== ", RANT_VERSION, " | ", s, " -> ", root)
-    err <- tryCatch({ source(file.path(repo, "Analysis", s), local = new.env(parent = globalenv())); NULL },
-                    error = function(e) conditionMessage(e))
+    boot <- file.path(log_dir, sub("[.]R$", "_bootstrap.R", s)); out_log <- file.path(log_dir, sub("[.]R$", ".log", s))
+    writeLines(c(
+      sprintf("options(mmm.project_root = %s, mmm.preprocessed_dir = %s, mmm.seed_from_vendor_raw = FALSE, mmm.raw_position_root = %s)",
+              deparse(root), deparse(pre_dir), deparse(file.path(root, "no_vendor_raw_data"))),
+      sprintf("source(%s)", deparse(file.path(repo, "Functions", "project_paths.R"))),
+      sprintf("if (!identical(normalizePath(mmm_project_root(), winslash = '/', mustWork = FALSE), %s) || Sys.getenv('MMM_BEHAVIOR_PROJECT_ROOT') != %s) stop('Root switch failed in the stage process.')",
+              deparse(root), deparse(root)),
+      sprintf("source(%s)", deparse(file.path(repo, "Analysis", s)))), boot)
+    status <- system2(rscript, shQuote(boot), stdout = out_log, stderr = out_log)
+    tail_log <- if (file.exists(out_log)) gsub("\\s+", " ", paste(utils::tail(readLines(out_log, warn = FALSE), 3), collapse = " | ")) else ""
+    err <- if (identical(as.integer(status), 0L)) NULL else paste0("exit status ", status, ": ", tail_log)
     row <- data.frame(started = format(t0, "%Y-%m-%d %H:%M:%S"), minutes = round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1),
                       version = RANT_VERSION, data_version = basename(dv_dir), stage = s, status = if (is.null(err)) "ok" else "failed",
                       error = if (is.null(err)) "" else substr(err, 1, 300), git_head = head)
