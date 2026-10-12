@@ -993,7 +993,10 @@ map_animal_occ <- if (by_column) animal_column_occ else animal_reader_occ
 map_group_occ <- if (by_column) group_column_occ else group_occ
 map_contrast_occ <- if (by_column) contrast_column_occ else contrast_occ
 map_unit_label <- if (by_column) "ColumnLabel" else "ReaderLabel"
-map_unit_levels <- if (by_column) RFID_COLUMN_MAP$ColumnLabel else POSITION_MAP$ReaderLabel
+# in the reading order of the cage maps: R5-R8 (top row), then R1-R4
+map_unit_levels <- if (by_column) RFID_COLUMN_MAP$ColumnLabel else RFID_READER_DISPLAY_ORDER
+# heatmap rows: a line between the cage rows R5-R8 and R1-R4
+row_separator <- if (by_column) NULL else geom_hline(yintercept = 4.5, colour = "grey30", linewidth = 0.35)
 map_uniform <- if (by_column) 1 / nrow(RFID_COLUMN_MAP) else RFID_UNIFORM_OCCUPANCY
 
 PRIMARY_WINDOW_TEXT <- c(
@@ -1052,7 +1055,7 @@ qc_reader_batch_system <- position_occupancy_by_bin %>%
   ungroup()
 
 p_qc <- qc_reader_batch_system %>%
-  mutate(ReaderLabel = factor(ReaderLabel, levels = POSITION_MAP$ReaderLabel),
+  mutate(ReaderLabel = factor(ReaderLabel, levels = RFID_READER_DISPLAY_ORDER),
          System = factor(System, levels = rev(sort(unique(System))))) %>%
   ggplot(aes(x = ReaderLabel, y = System, fill = reader_fraction)) +
   geom_tile(colour = "white", linewidth = 0.25) +
@@ -1061,7 +1064,7 @@ p_qc <- qc_reader_batch_system %>%
   labs(
     title = "RFID reader use by cage epoch (QC)",
     subtitle = "All animals of a cage epoch pooled, by recorded reader; check reader or system imbalance first",
-    x = "Reader (R1-R4 row y = 0, R5-R8 row y = 116)", y = NULL
+    x = "Reader (R5-R8 top row, R1-R4 bottom row of the cage maps)", y = NULL
   ) +
   strip_heatmap_theme() +
   theme(axis.text.x = element_text(size = 5), axis.text.y = element_text(size = 5))
@@ -1184,8 +1187,8 @@ for (sex in SEX_LEVELS) {
   animal_outlines <- panels %>% transmute(Cage, Slot, outline = unname(MMM_PALETTE_GROUP[as.character(Group)]))
 
   animal_layout <- rfid_cage_map_layout(
-    paste(OCCUPANCY_CAPTION, "Rows are cages (Batch, ", if (OCCUPANCY_SOURCE == "raw_antenna") "antenna board" else "System label",
-          "); outline colour = group; tile values in %."),
+    paste0(OCCUPANCY_CAPTION, " Rows are cages (Batch, ", if (OCCUPANCY_SOURCE == "raw_antenna") "antenna board" else "System label",
+           "); outline colour = group; tile values in %."),
     n_col = max(panels$Slot), n_row = n_distinct(panels$Cage), panel_w = 1.3, extra_w = 1.45, strip_h = 0)
   p_animal <- rfid_cage_map(d_sex, "occupancy_fraction", resolution = CAGE_MAP_RESOLUTION,
                             label_col = "tile_label", ink_col = "tile_ink",
@@ -1241,10 +1244,11 @@ if (nrow(longitudinal_occ) > 0) {
   p_long <- longitudinal_occ %>%
     ggplot(aes(x = CageChange, y = MapUnit, fill = mean_occupancy)) +
     geom_tile(colour = "white", linewidth = 0.25) +
-    geom_text(aes(label = tile_label, colour = tile_ink), size = 4.5 / .pt) +
+    geom_text(aes(label = tile_label, colour = tile_ink), size = 5 / .pt) +
     scale_colour_identity() +
     rfid_scale_fill_occupancy() +
     scale_y_discrete(limits = rev(map_unit_levels), name = NULL) +
+    row_separator +
     facet_grid(Sex + PhaseClass ~ Group) +
     labs(
       title = "Cage use across SIS cage changes",
@@ -1273,6 +1277,7 @@ if (nrow(longitudinal_contrasts) > 0) {
     geom_tile(colour = MMM_TILE_BORDER, linewidth = 0.25) +
     mmm_scale_fill_diverging("smd", name = "Cohen's d") +   # the shared limit (MMM_DIVERGING_LIMITS)
     scale_y_discrete(limits = rev(map_unit_levels), name = NULL) +
+    row_separator +
     facet_grid(Sex + PhaseClass ~ contrast_label) +
     labs(
       title = "Spatial redistribution effect sizes across SIS cage changes",

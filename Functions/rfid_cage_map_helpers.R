@@ -7,7 +7,9 @@
 #
 # Geometry. Eight readers in two rows along the long axis of the cage, at the vendor tblPosition coordinates
 # (x = 0/100/200/300, y = 0/116); the same grid as animalpos_position_id(). PositionID 1-4 is the y = 0 row and
-# 5-8 the y = 116 row, both left to right. Maps draw the y = 0 row on top and keep the true reader spacing.
+# 5-8 the y = 116 row, both left to right. Maps draw every reader as an equal square cell, the y = 116 row (R5-R8)
+# on top and R1-R4 below, so R5 is top left and R1 bottom left; cells keep the reader order, not the true spacing
+# (100 x 116 units).
 #
 # Occupancy is the share of an animal's reconstructed time assigned to a reader: the vendor position carried forward
 # to the next vendor record. It is a position-record map, not continuous tracking (see the Stage 19 header).
@@ -44,11 +46,14 @@ RFID_UNIFORM_OCCUPANCY <- 1 / 8
 RFID_OCCUPANCY_RAMP <- c("#F7FAFE", "#CDE2FB", "#86B6EF", "#3987E5", "#1C5CAB", "#0D366B")
 RFID_OCCUPANCY_LIMIT <- 0.6
 
-# Drawing geometry in reader units: tiles fill the reader spacing (100 x 116) up to a small gap.
-RFID_TILE_W <- 92
-RFID_TILE_H <- 108
+# Drawing geometry: square cells of RFID_CELL units, tiles of RFID_TILE units (the rest is the gap between tiles).
+# Plotted x is the reader column (0, 100, 200, 300); plotted y is 0 for the R5-R8 row and -RFID_CELL for R1-R4.
+RFID_CELL <- 100
+RFID_TILE <- 92
 RFID_CAGE_X <- c(-54, 354)
-RFID_CAGE_Y <- c(-174, 58)       # plotted y is -ReaderY, so the y = 0 row is on top
+RFID_CAGE_Y <- c(-RFID_CELL - 54, 54)
+# Reading order of the readers in a cage map (top row, then bottom row), used for listings such as heatmap rows.
+RFID_READER_DISPLAY_ORDER <- paste0("R", c(5:8, 1:4))
 RFID_NOTE_ROOM <- 34             # room for one line of text above or below the cage
 
 # Typographic minus and >= for text drawn in the artwork, kept as code points so this file stays ASCII.
@@ -265,14 +270,14 @@ rfid_cage_map <- function(dat, fill_col, resolution = c("reader", "column"), lab
   }
   if (resolution == "reader") {
     dat$.plot_x <- dat$ReaderX
-    dat$.plot_y <- -dat$ReaderY
+    dat$.plot_y <- ifelse(dat$ReaderY > 0, 0, -RFID_CELL)   # R5-R8 on top
     dat$.unit_id <- dat$ReaderLabel
-    tile_h <- RFID_TILE_H
+    tile_h <- RFID_TILE
   } else {
     dat$.plot_x <- dat$ColumnX
-    dat$.plot_y <- -58
+    dat$.plot_y <- -RFID_CELL / 2
     dat$.unit_id <- dat$ColumnLabel
-    tile_h <- 116 + RFID_TILE_H
+    tile_h <- RFID_CELL + RFID_TILE
   }
 
   p <- ggplot2::ggplot(dat, ggplot2::aes(x = .plot_x, y = .plot_y))
@@ -285,17 +290,17 @@ rfid_cage_map <- function(dat, fill_col, resolution = c("reader", "column"), lab
                                 ggplot2::aes(colour = outline),
                                 xmin = RFID_CAGE_X[1], xmax = RFID_CAGE_X[2],
                                 ymin = RFID_CAGE_Y[1], ymax = RFID_CAGE_Y[2],
-                                fill = NA, linewidth = 0.55)
+                                fill = NA, linewidth = 0.8)
   }
-  p <- p + ggplot2::geom_tile(ggplot2::aes(fill = .data[[fill_col]]), width = RFID_TILE_W, height = tile_h,
+  p <- p + ggplot2::geom_tile(ggplot2::aes(fill = .data[[fill_col]]), width = RFID_TILE, height = tile_h,
                               colour = tile_border, linewidth = 0.25)
   if (isTRUE(reader_ids)) {
     # Same ink as the tile value, so the name stays legible on dark fills.
     dat$.id_ink <- if (is.null(ink_col)) "black" else dat[[ink_col]]
     p <- p + ggplot2::geom_text(data = dat,
-                                ggplot2::aes(x = .plot_x - RFID_TILE_W / 2 + 6, y = .plot_y + tile_h / 2 - 6,
+                                ggplot2::aes(x = .plot_x - RFID_TILE / 2 + 6, y = .plot_y + tile_h / 2 - 6,
                                              label = .unit_id, colour = .id_ink),
-                                hjust = 0, vjust = 1, size = 4.5 / ggplot2::.pt, alpha = 0.75)
+                                hjust = 0, vjust = 1, size = 5 / ggplot2::.pt, alpha = 0.75)
   }
   if (!is.null(label_col)) {
     if (is.null(ink_col)) {

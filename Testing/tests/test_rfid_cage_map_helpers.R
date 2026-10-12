@@ -99,13 +99,19 @@ built <- ggplot_build(rfid_cage_map(map_dat, "value", label_col = "lab", ink_col
 tiles <- built$data[[2]]
 check(nrow(tiles) == 8, "6: eight reader tiles")
 y_of <- function(id) tiles$y[which(map_dat$PositionID == id)]
-check(y_of(1) > y_of(5) && y_of(4) > y_of(8), "6: R1-R4 (y = 0) must be drawn above R5-R8")
-check(all(abs(diff(tiles$x[1:4]) - 100) < 1e-9), "6: readers keep their 100-unit spacing")
+x_of <- function(id) tiles$x[which(map_dat$PositionID == id)]
+check(y_of(5) > y_of(1) && y_of(8) > y_of(4), "6: R5-R8 must be drawn above R1-R4 (R5 top left, R1 bottom left)")
+check(y_of(5) == y_of(8) && y_of(1) == y_of(4) && x_of(1) == x_of(5) && x_of(1) < x_of(4),
+      "6: rows are horizontal, R1/R5 on the left")
+check(all(abs((tiles$xmax - tiles$xmin) - (tiles$ymax - tiles$ymin)) < 1e-9), "6: every cell is square")
+check(isTRUE(all.equal(abs(y_of(5) - y_of(1)), abs(x_of(2) - x_of(1)))), "6: equal cell pitch in both directions")
+check(identical(RFID_READER_DISPLAY_ORDER, paste0("R", c(5:8, 1:4))), "6: reading order R5-R8, then R1-R4")
 col_dat <- RFID_COLUMN_MAP %>% mutate(value = c(0.6, 0.2, 0.1, 0.1))
 col_built <- ggplot_build(rfid_cage_map(col_dat, "value", resolution = "column") + rfid_scale_fill_occupancy())
 ct_tiles <- col_built$data[[2]]
 check(nrow(ct_tiles) == 4, "6: four column tiles")
-check(all(ct_tiles$ymax > 0 & ct_tiles$ymin < -116), "6: a column tile spans both reader rows")
+check(all(ct_tiles$ymax >= max(tiles$ymax) - 1e-9 & ct_tiles$ymin <= min(tiles$ymin) + 1e-9),
+      "6: a column tile spans both reader rows")
 size <- rfid_cage_map_size(3, 2)
 check(all(is.finite(size)) && size[["width"]] > 0 && size[["height"]] > 0, "6: positive device size")
 check(rfid_cage_map_size(3, 2, caption_lines = 2)[["height"]] > size[["height"]], "6: caption lines add height")
