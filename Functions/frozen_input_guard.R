@@ -5,6 +5,7 @@
 # The registered runs recorded the sha256 of every input they read (paths relative to the project root):
 #   Stage 29 v1.0.1 release  analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_b2ce507/audit/run_inputs.csv
 #   Stage 29b                analysis_ready/pipeline/29b_posthoc_con_contrasts/v1.0_7f1da1f/audit/input_hashes.csv
+#   Stage 29c                analysis_ready/pipeline/29c_posthoc_movement_combz_fit/v1.0_fd61cd9/audit/input_hashes.csv
 #   Stage 30                 analysis_ready/pipeline/30_exploratory_screen/v1.0_be71e2f/audit/input_hashes.csv
 #   Stage 32 v1.1            analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.1_f4c7a31/audit/input_hashes.csv
 # Some of those inputs are ordinary outputs that a producer stage rewrites in place:
@@ -28,6 +29,7 @@
 MMM_FROZEN_PIN_LISTS <- c(
   stage29_v101 = "analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_b2ce507/audit/run_inputs.csv",
   stage29b_v10 = "analysis_ready/pipeline/29b_posthoc_con_contrasts/v1.0_7f1da1f/audit/input_hashes.csv",
+  stage29c_v10 = "analysis_ready/pipeline/29c_posthoc_movement_combz_fit/v1.0_fd61cd9/audit/input_hashes.csv",
   stage30_v10 = "analysis_ready/pipeline/30_exploratory_screen/v1.0_be71e2f/audit/input_hashes.csv",
   stage32_v11 = "analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.1_f4c7a31/audit/input_hashes.csv")
 

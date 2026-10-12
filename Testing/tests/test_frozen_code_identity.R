@@ -37,6 +37,7 @@ s32 <- pinned_constants("Functions/stage32_run.R",
                         c("S32_FROZEN_CODE_SHA256", "S32_NUMERIC_CODE", "S32_REGISTRY", "S32_ADDENDUM", "S32_ABORTED"))
 s30 <- pinned_constants("Functions/stage30_screen.R", c("S30SC_CODE_SHA256", "S30SC_REGISTRY_SHA256", "S30SC_REGISTRY_MD_SHA256"))
 phc <- pinned_constants("Functions/posthoc_con_contrasts.R", "PHC_REGISTRY")$PHC_REGISTRY
+pmf <- pinned_constants("Functions/posthoc_movement_combz_fit.R", "PMF_REGISTRY")$PMF_REGISTRY
 fsb <- pinned_constants("Functions/figure_support_bundle.R", "FSB_COMBZ_CODE")$FSB_COMBZ_CODE
 
 # ------------------------------------------------------------------ 1. byte pins
@@ -111,6 +112,9 @@ if (!in_work_tree || shallow) {
     list(what = "Stage 29b (run v1.0_7f1da1f)", commit = "7f1da1f6cea098a97cd0b06e3a37140826dda2f1",
          files = c("Analysis/29b_posthoc_con_contrasts.R", "Functions/posthoc_con_contrasts.R",
                    "Functions/rfid_canonical_inference.R", "Functions/stage30_figure_bundle.R")),
+    list(what = "Stage 29c (run v1.0_fd61cd9)", commit = "fd61cd99787e9ce207a650b8c6a6f1ef3764ac30",
+         files = c("Analysis/29c_posthoc_movement_combz_fit.R", "Functions/posthoc_movement_combz_fit.R",
+                   "Functions/posthoc_con_contrasts.R", "Functions/stage30_figure_bundle.R")),
     list(what = "Stage 32 (run v1.1_f4c7a31)", commit = "f4c7a31dfa76486b5af2fdc5024b0c023f0e1921",
          files = c("Analysis/32_behavior_exposure_adaptation.R",
                    sprintf("Functions/stage32_%s.R", c("windows", "inference", "prediction", "reporting", "run")),
@@ -123,7 +127,8 @@ if (!in_work_tree || shallow) {
     list(file = s32$S32_REGISTRY$repo_path, commit = s32$S32_REGISTRY$freeze_commit, sha = s32$S32_REGISTRY$sha256),
     list(file = s32$S32_REGISTRY$repo_csv, commit = s32$S32_REGISTRY$freeze_commit, sha = s32$S32_REGISTRY$csv_sha256),
     list(file = s32$S32_ADDENDUM$repo_path, commit = s32$S32_ADDENDUM$freeze_commit, sha = s32$S32_ADDENDUM$sha256),
-    list(file = phc$repo_path, commit = phc$freeze_commit, sha = phc$sha256))
+    list(file = phc$repo_path, commit = phc$freeze_commit, sha = phc$sha256),
+    list(file = pmf$repo_path, commit = pmf$freeze_commit, sha = pmf$sha256))
   for (r in regs) {
     unchanged_since(r$commit, r$file, paste("registry", basename(r$file)))
     check(identical(sha_lf(r$file), r$sha), paste0(r$file, ": LF-form sha256 differs from the registered ", substr(r$sha, 1, 8)))
