@@ -1,9 +1,9 @@
 # ================================================================
-# Stage 16c - figure-support bundle v3 (source-data export for manuscript Figure 1, options 3 and 3b, and the Stage 14
+# Stage 16c - figure-support bundle v4 (source-data export for manuscript Figure 1, its options 3 and 3b, and the Stage 14
 # domain-heatmap and HMM figure candidates)
 # MMMSociability -- Analysis/16c_figure_support_bundle.R
 # ================================================================
-# The ONLY writer of the figure-support bundle that Exp9_manuscript imports (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md, _v2.md, _v3.md).
+# The ONLY writer of the figure-support bundle that Exp9_manuscript imports (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md to _v4.md).
 # It fits, tests and refits nothing and computes no p or q value. It exports:
 #   F1  descriptive CON cage means (ebb_v101 B1; 3 CON cages per sex per CC, 4 animals each),
 #   F1b the CON descriptive mean copied from ebb_v101 B2,
@@ -17,13 +17,19 @@
 #       means with the rank the state-flow figure draws by, the HMM-resolution sensitivity with its Wald interval) and the
 #       Stage 08 10-minute mean dwell times counted in doubling bins. Stage 14 is not re-run: every Stage 14 file must
 #       match its pinned SHA-256 and the promotion record docs/behavior_output_producer_reruns/stage14_20261006c.csv.
+#   E1  (v4) a verbatim copy of Stage 09's sex-stratified correlations (pipeline/09_early_prediction/10min; pinned SHA-256),
+#   E2-E2c (v4) verbatim copies of the post hoc run 29c (registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0, fitted there once): the
+#       Figure 1d least-squares display line with its 95% band, its coefficients (no t, no P) and diagnostics;
+#   T1 / T1b (v4) the postnatal age at each design step (shuffle start and stop, the five tests, sampling) by date
+#       arithmetic from the planning workbook E9_Experimental Timeline.xlsx (pinned SHA-256 = the Stage 33 pin) and the
+#       ebb_v101 cage-change times, checked against every age the workbook records itself.
 # Every input is hash-gated first: ebb_v101 (00_manifest ec59aa33..., every file, FROZEN registry row), the canonical
 # CombZ table (1f6a2a69...), its component definition and thresholds, the sus / con lists, and the frozen CombZ
 # definition code Analysis/build_later_outcome_combz.R (git blob pinned). That producer is PARSED, never run: its
 # definition constants and composite-rule lines are evaluated in an empty environment (Functions/figure_support_bundle.R).
 #
 # Output (REAL): analysis_ready/canonical/figure_support_bundle/<bundle_id>/ with BUNDLE_REGISTRY.csv beside it;
-#   bundle_id = fsb_v3_<YYYYMMDD>_<commit7> (fsb_v1 and fsb_v2 stay FROZEN and untouched); written once (refused if it, its staging folder, its registry row or its gate
+#   bundle_id = fsb_v4_<YYYYMMDD>_<commit7> (fsb_v1 to fsb_v3 stay FROZEN and untouched); written once (refused if it, its staging folder, its registry row or its gate
 #   log exists), files 0444; post-write gates before the registry row; complete gate log in logs/ beside the registry.
 # Modes (exactly one argument; with none the runner refuses before reading anything):
 #   --dry-run  writes <dry root>/<YYYYMMDD_HHMMSS>/<bundle_id>/ (status DRY_RUN_NOT_FOR_USE); never writes to S:.
@@ -34,7 +40,7 @@
 # ================================================================
 
 MODE_ARGS <- commandArgs(trailingOnly = TRUE)
-suppressPackageStartupMessages({ library(data.table); library(jsonlite); library(digest) })
+suppressPackageStartupMessages({ library(data.table); library(jsonlite); library(digest); library(readxl) })
 .pipeline_setup_candidates <- c(file.path(getwd(), "Analysis", "_pipeline_setup.R"), file.path(getwd(), "_pipeline_setup.R"))
 .pipeline_setup <- .pipeline_setup_candidates[file.exists(.pipeline_setup_candidates)][1]
 if (is.na(.pipeline_setup)) stop("Run from the MMMSociability repo root.", call. = FALSE)
@@ -103,7 +109,8 @@ gate("0-output", "every output path shorter than 250 characters (Windows R path 
 
 # ---------------------------------------------------------------- 1. Stage 29 bundle ebb_v101
 V29 <- s30fb_verify_stage29_bundle(B29, file.path(B29_ROOT, "BUNDLE_REGISTRY.csv"), FSB_STAGE29); gate_rows(V29$gates)
-USED29 <- c("B1_animal_longitudinal.csv", "B2_descriptive_summaries.csv", "A4_combz_animals.csv", "A2b_combz_thresholds.csv", "I_analysis_config.json")
+USED29 <- c("B1_animal_longitudinal.csv", "B2_descriptive_summaries.csv", "A4_combz_animals.csv", "A2b_combz_thresholds.csv", "I_analysis_config.json",
+            "A2_prediction_animals.csv", "V_runtime_gates.csv")
 for (f in USED29) { r <- V29$check[file == f]; gate("1-stage29", paste0("ebb_v101 ", f, " listed in 00_manifest and verified"), nrow(r) == 1L && isTRUE(r$ok), f)
   inp(file.path(B29, f), "stage29_bundle_file", r$observed_sha256, r$observed_bytes) }
 inp(file.path(B29, "00_manifest.csv"), "stage29_bundle_manifest", V29$manifest_sha256)
@@ -125,6 +132,30 @@ DWELL <- file.path(AR, FSB_HMM_DWELL$root_rel, FSB_HMM_DWELL$file)
 dw_sha <- if (file.exists(DWELL)) s30fb_sha(DWELL) else NA_character_
 gate("1c-stage14", "Stage 08 10-minute dwell-time table: on-disk SHA-256 = pinned", identical(dw_sha, FSB_HMM_DWELL$sha256), paste(DWELL, dw_sha))
 inp(DWELL, "hmm_dwell_times (Stage 08, 10-minute HMM; the table Stage 14 draws its dwell-time figure from)", dw_sha)
+
+# ---------------------------------------------------------------- 1d. Stage 09 sex-stratified correlations (v4; copied verbatim)
+S09_DIR <- file.path(AR, FSB_STAGE09$root_rel); S09 <- file.path(S09_DIR, FSB_STAGE09$file)
+s09_sha <- if (file.exists(S09)) s30fb_sha(S09) else NA_character_
+gate("1d-stage09", "Stage 09 sex-stratified correlation table: on-disk SHA-256 = pinned", identical(s09_sha, FSB_STAGE09$sha256), paste(S09, s09_sha))
+inp(S09, "stage09_correlations_by_sex (copied verbatim as E1)", s09_sha)
+S09_IN <- file.path(S09_DIR, FSB_STAGE09$input_file)
+s09_in_sha <- if (file.exists(S09_IN)) s30fb_sha(S09_IN) else NA_character_
+gate("1d-stage09", "Stage 09 model_ladder_input.csv: on-disk SHA-256 = pinned (= the Stage 29 v1.0.1 release input pin)",
+     identical(s09_in_sha, FSB_STAGE09$input_sha256), paste(S09_IN, s09_in_sha))
+inp(S09_IN, "stage09_model_ladder_input (identity gate for E1 only)", s09_in_sha)
+
+# ---------------------------------------------------------------- 1e. post hoc run 29c (v4; copied verbatim)
+P29C_DIR <- file.path(AR, "pipeline", FSB_POSTHOC29C$stage_dir, FSB_POSTHOC29C$run_name)
+VP29C <- fsb_verify_posthoc_run(P29C_DIR, FSB_POSTHOC29C, FSB_POSTHOC29C_TABLES, "1e-posthoc29c"); gate_rows(VP29C$gates)
+for (f in VP29C$manifest$file) inp(file.path(P29C_DIR, f), paste0("posthoc29c_run_file ", f), VP29C$check[file == f, observed_sha256])
+inp(file.path(P29C_DIR, "audit", "output_manifest.csv"), "posthoc29c_run_output_manifest", VP29C$manifest_sha256)
+
+# ---------------------------------------------------------------- 1f. planning workbook (v4; the bytes Stage 33 pins)
+TIMELINE <- file.path(dirname(mmm_endpoint_source_root()), "Planning", FSB_TIMELINE$file)
+tl_sha <- if (file.exists(TIMELINE)) s30fb_sha(TIMELINE) else NA_character_
+gate("1f-timeline", "planning workbook E9_Experimental Timeline.xlsx: on-disk SHA-256 = pinned (2026-10-12, batch-6 SIS start corrected)",
+     identical(tl_sha, FSB_TIMELINE$sha256), paste(TIMELINE, tl_sha))
+inp(TIMELINE, "planning_workbook (Animals sheet: dates of birth, test days and the ages it records)", tl_sha)
 
 # ---------------------------------------------------------------- 2. canonical CombZ tables and label lists (= pinned)
 SRC <- c(combz_table = mmm_path_get("behavior.later_outcome_combz", "animal_level", root = ROOT),
@@ -156,11 +187,15 @@ B2 <- fread(file.path(B29, "B2_descriptive_summaries.csv"))
 A4 <- fread(file.path(B29, "A4_combz_animals.csv"), colClasses = list(character = "AnimalNum"))
 A2B <- fread(file.path(B29, "A2b_combz_thresholds.csv"))
 CFG29 <- jsonlite::fromJSON(file.path(B29, "I_analysis_config.json"), simplifyVector = FALSE)
+A2 <- fread(file.path(B29, "A2_prediction_animals.csv"), colClasses = list(character = "AnimalNum"))
+V29T <- fread(file.path(B29, "V_runtime_gates.csv"), colClasses = "character")
+TL <- data.table::as.data.table(suppressMessages(readxl::read_excel(TIMELINE, sheet = FSB_TIMELINE$sheet, col_types = "text")))
+gate("4-read", "planning workbook re-hashed after the read = pinned (the bytes read are the pinned bytes)", identical(s30fb_sha(TIMELINE), FSB_TIMELINE$sha256))
 CZ <- fread(SRC[["combz_table"]], colClasses = list(character = c("AnimalNum", "upstream_id", "Batch")))
 THR <- fread(SRC[["combz_classification_thresholds"]])
 SUS <- fsb_read_id_list(readLines(SRC[["sus_list"]], warn = FALSE)); CON <- fsb_read_id_list(readLines(SRC[["con_list"]], warn = FALSE))
 CZ[, `:=`(AnimalNum = canonical_animal_id(AnimalNum), Batch = paste0("B", Batch))]
-B1[, AnimalNum := canonical_animal_id(AnimalNum)]; A4[, AnimalNum := canonical_animal_id(AnimalNum)]
+B1[, AnimalNum := canonical_animal_id(AnimalNum)]; A4[, AnimalNum := canonical_animal_id(AnimalNum)]; A2[, AnimalNum := canonical_animal_id(AnimalNum)]
 gate("4-read", "B1: 111 animals x CC1-CC4 (444 rows); CON 24 animals (96 rows)",
      nrow(B1) == 4L * FSB_N$rfid_animals && uniqueN(B1$AnimalNum) == FSB_N$rfid_animals && setequal(B1$CC, FSB_CCS) &&
        B1[Group == "CON", uniqueN(AnimalNum)] == FSB_N$con_rfid_animals && nrow(B1[Group == "CON"]) == 4L * FSB_N$con_rfid_animals,
@@ -240,9 +275,17 @@ M4 <- fsb_hmm_resolution_sensitivity(fread(file.path(S14_DIR, FSB_STAGE14$files[
 gate("6-M", "M4: 24 rows = 2 HMM resolutions x 2 sexes x 2 phases x 3 contrasts, behavioural state architecture only",
      nrow(M4) == 24L && uniqueN(M4$resolution) == 2L && all(M4$Domain == "Behavioral state architecture") &&
        nrow(unique(M4[, .(resolution, Sex, Phase, contrast)])) == 24L, paste(nrow(M4), paste(unique(M4$Domain), collapse = ",")))
+E1 <- fsb_posthoc_copy(S09_DIR, FSB_STAGE09$file, FSB_STAGE09$sha256, FSB_STAGE09$root_rel)
+gate_rows(fsb_stage09_gates(E1, S09, A2, fread(S09_IN, colClasses = list(character = "AnimalNum"))))
+P29C_LABEL <- paste("pipeline", FSB_POSTHOC29C$stage_dir, FSB_POSTHOC29C$run_name, sep = "/")
+P29C <- lapply(FSB_POSTHOC29C_TABLES, function(rel) fsb_posthoc_copy(P29C_DIR, rel, VP29C$check[file == rel, observed_sha256], P29C_LABEL))
+gate_rows(fsb_posthoc29c_gates(P29C, P29C_DIR, A2))
+DA <- fsb_design_ages(TL, A4, V29T)
+gate_rows(fsb_design_age_gates(DA, TL))
 TABLES <- c(list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b), PT,
             list(D1_domain_heatmap_cells = D1, M1_hmm_transition_difference = M1, M2_hmm_transition_flows = M2,
-                 M3_hmm_dwell_distribution = M3, M4_hmm_resolution_sensitivity = M4))
+                 M3_hmm_dwell_distribution = M3, M4_hmm_resolution_sensitivity = M4, E1_movement_combz_spearman_by_sex = E1),
+            P29C, list(T1_design_ages = DA$T1, T1b_design_ages_by_animal = DA$T1b))
 gate("6-tables", "display text free of banned wording (labels, F2b text)", { fsb_check_display(F1, c("measure_label", "unit"), "F1")
   fsb_check_display(F1b, c("measure_label", "unit"), "F1b"); TRUE })
 
@@ -250,7 +293,7 @@ gate("6-tables", "display text free of banned wording (labels, F2b text)", { fsb
 STATUS <- if (DRY) FSB_STATUS_DRY else FSB_STATUS_REAL
 GEN_AT <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
 GT <- rbindlist(GATES)
-pk <- c("data.table", "jsonlite", "digest", "tibble")
+pk <- c("data.table", "jsonlite", "digest", "tibble", "readxl")
 H <- fsb_provenance(list(
   bundle_id = bundle_id, status = STATUS, generated_at = GEN_AT, generator = "Analysis/16c_figure_support_bundle.R",
   mmm_git_commit = commit, mmm_branch = branch, mmm_code_clean = cln$ok, run_mode = MODE,
@@ -274,6 +317,13 @@ H <- fsb_provenance(list(
   stage14_tables = paste(sprintf("%s = %s (sha256 %s)", names(FSB_STAGE14$files), FSB_STAGE14$files, FSB_STAGE14$sha256), collapse = "; "),
   hmm_dwell_source = paste0(normalizePath(DWELL, winslash = "/", mustWork = FALSE), " (sha256 ", FSB_HMM_DWELL$sha256, ")"),
   hmm_resolution = paste0(FSB_HMM_RESOLUTION, " for M1-M3; M4 carries both resolutions"),
+  stage09_table = paste0(normalizePath(S09, winslash = "/", mustWork = FALSE), " (sha256 ", s09_sha, "; copied verbatim as E1)"),
+  posthoc29c_run_dir = normalizePath(P29C_DIR, winslash = "/", mustWork = FALSE), posthoc29c_run_commit = FSB_POSTHOC29C$run_commit,
+  posthoc29c_output_manifest_sha256 = VP29C$manifest_sha256, posthoc29c_registry_sha256 = FSB_POSTHOC29C$registry_sha256,
+  posthoc29c_tier = paste(FSB_POSTHOC29C$tier, "(decision basis USER_REQUEST_AFTER_DESCRIPTIVE_INSPECTION, 2026-10-12); adds no test"),
+  timeline_workbook = paste0(normalizePath(TIMELINE, winslash = "/", mustWork = FALSE), " (sheet ", FSB_TIMELINE$sheet, ")"),
+  timeline_workbook_sha256 = tl_sha, design_age_unit = FSB_DESIGN_UNIT,
+  design_steps = paste(sprintf("%s: %s", FSB_DESIGN_EVENTS$event_id, FSB_DESIGN_EVENTS$definition), collapse = "; "),
   combz_recompose_max_abs_diff = s30fb_num_chr(attr(F2, "recompose_max_abs_diff")),
   con_mean_of_cage_means_max_abs_diff = s30fb_num_chr(max(CK$abs_diff)),
   group_rule = "Group = canonical CombZ-table outcome_group, gated = list rule (CON if con list, else SUS if sus list, else RES) and = ebb_v101 A4 / B1 Group",
@@ -289,7 +339,9 @@ H <- fsb_provenance(list(
 IN <- unique(rbindlist(INPUTS), by = c("input", "role"))
 W <- fsb_write_bundle(TABLES, OUT_ROOT, bundle_id, H, IN, GT, STATUS, FSB_STAGE29$bundle_id, FSB_INPUT_SHA256[["combz_table"]], commit, GEN_AT,
                       verbatim = c(stats::setNames(file.path(PH_DIR, FSB_POSTHOC_TABLES), names(FSB_POSTHOC_TABLES)),
-                                   D1_domain_heatmap_cells = file.path(S14_DIR, FSB_STAGE14$files[["domain_heatmap"]])))
+                                   D1_domain_heatmap_cells = file.path(S14_DIR, FSB_STAGE14$files[["domain_heatmap"]]),
+                                   E1_movement_combz_spearman_by_sex = S09,
+                                   stats::setNames(file.path(P29C_DIR, FSB_POSTHOC29C_TABLES), names(FSB_POSTHOC29C_TABLES))))
 gate_rows(W$post_gates)
 message("Stage 16c ", MODE, " complete: bundle ", bundle_id, " ", STATUS, " at ", W$dir, " (manifest sha256 ", W$manifest_sha256, ")")
 message("  gate log ", W$log, " (", fsb_gate_count(W$gates), " gates passed; sha256 ", W$log_sha256, ")")

@@ -26,11 +26,18 @@
 #     draws the 8 largest by), and the HMM-resolution sensitivity rows with the Wald interval Stage 14 draws (M4). M3
 #     counts the stored Stage 08 mean dwell times in bins doubling from one 10-minute HMM bin: plain counts, where Stage 14
 #     drew kernel densities, so nothing is smoothed here either.
-# Requires: data.table, digest, tibble (the producer's component table is a tibble::tribble).
+#   * E1 (v4): a verbatim copy of Stage 09's sex-stratified feature-to-CombZ correlations (Spearman rho, p and BH q within
+#     sex were computed there); hash-pinned, line-level verbatim gate.
+#   * E2 / E2b / E2c (v4): verbatim copies of the post hoc run 29c (registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0; the
+#     least-squares display line and its band were fitted there, once); hash-gated on its audit/output_manifest.csv.
+#   * T1 / T1b (v4): the postnatal age of every animal at each step of the experimental design, computed by date
+#     arithmetic (event date - date of birth) from the pinned planning workbook (the file Stage 33 pins) and the ebb_v101
+#     cage-change times; checked against the ages the workbook itself records. No model, no p or q value.
+# Requires: data.table, digest, tibble (the producer's component table is a tibble::tribble), readxl (v4: the workbook).
 # ================================================================
 
-FSB_SCHEMA_VERSION <- "3"
-FSB_BUNDLE_PREFIX <- "fsb_v3"   # v1 (fsb_v1_20260930_f06552c) and v2 (fsb_v2_20260930_a23d699), both FROZEN, are never rewritten
+FSB_SCHEMA_VERSION <- "4"
+FSB_BUNDLE_PREFIX <- "fsb_v4"   # v1 (fsb_v1_20260930_f06552c), v2 (fsb_v2_20260930_a23d699) and v3 (fsb_v3_20261007_a2acd57), all FROZEN, are never rewritten
 FSB_STATUS_REAL <- "FROZEN"
 FSB_STATUS_DRY <- "DRY_RUN_NOT_FOR_USE"
 FSB_TOL <- 1e-12
@@ -77,6 +84,45 @@ FSB_DWELL_EDGES_BINS <- 2^(0:7)
 FSB_D1_ROWS <- c(all_blocks = 84L, cc1_a1 = 42L, cc1_l1 = 42L)   # rows per variant
 FSB_D1_VARIANTS <- c("picked", "all5min", "all10min")
 FSB_D1_DISPLAY_COLS <- c("window_label", "row_label", "row_description", "display_tier")
+# v4: Stage 09's sex-stratified correlations (10-minute resolution, the Stage 09 output root the inventory declares;
+# the Movement_mean rows are identical at 5 minutes). Copied verbatim; the file's SHA-256 is pinned.
+FSB_STAGE09 <- list(root_rel = "pipeline/09_early_prediction/10min", file = "tables/primary_movement_entropyacf1_correlations_by_sex.csv",
+                    sha256 = "aeec1749e8ede6c2300c055f25d5d9f6ca66636d28610dffda2825532fd98819", n_rows = 6L,
+                    features = c("Movement_mean", "Movement_rmssd", "Entropy_acf1"), feature = "Movement_mean",
+                    # the same run's per-animal input (pinned by the Stage 29 v1.0.1 release run_inputs), read for an identity gate only
+                    input_file = "tables/model_ladder_input.csv",
+                    input_sha256 = "da78f80e4b7867cbabe7847a7da2667459a690a1b25f8ff97ef919cc8d2426dd")
+# v4: the post hoc run 29c (Analysis/29c_posthoc_movement_combz_fit.R, registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0), REAL, run once
+FSB_POSTHOC29C <- list(stage_dir = "29c_posthoc_movement_combz_fit", run_name = "v1.0_fd61cd9",
+                       run_commit = "fd61cd99787e9ce207a650b8c6a6f1ef3764ac30",
+                       output_manifest_sha256 = "fc0d13db4faa936522347ccf56aa001bc021fde2fe2c48d19b30153f3e463ffd", output_manifest_n = 7L,
+                       registry_version = "1.0", registry_sha256 = "a617bb5be709b558ed628a61fab0095b598345912c86e9c25070d07b02cb8098",
+                       status_counts = "Female OK; Male OK", tier = "POST HOC descriptive display")
+FSB_POSTHOC29C_TABLES <- c(E2_movement_combz_fit_lines = "tables/fit_lines.csv", E2b_movement_combz_fit_coefficients = "tables/coefficients.csv",
+                           E2c_movement_combz_fit_diagnostics = "tables/diagnostics.csv")
+FSB_POSTHOC29C_ROWS <- c(E2_movement_combz_fit_lines = 202L, E2b_movement_combz_fit_coefficients = 4L, E2c_movement_combz_fit_diagnostics = 2L)
+# v4: the planning workbook (Exp9 Planning folder beside the endpoint source root) as of 2026-10-12 11:58: the author's new
+# Animals column "SIS start" (saved 11:50), with the batch-6 year typo corrected at his request (20 cells 45023 = 2023-04-07
+# -> 45389 = 2024-04-07, the batch-6 CC1 date; cell values only, nothing else changed; the 11:50 file is kept as
+# Planning/old/E9_Experimental Timeline_2026-10-12_before_B6_SIS_start_fix.xlsx). Stage 33 pinned earlier bytes (2b785435...).
+FSB_TIMELINE <- list(file = "E9_Experimental Timeline.xlsx", sheet = "Animals",
+                     sha256 = "098f22db860253712e58423c20987c15a5e136ddb37d69bfb9bd03b3da8ec582")
+# the design steps with a printed age, in timeline order. source: the workbook column holding the date (sheet = the
+# column the workbook itself records the age in, NA if none); cc = the ebb_v101 cage change whose time gives the date.
+FSB_DESIGN_EVENTS <- data.table::data.table(
+  event_order = 1:8,
+  event_id = c("shuffle_start", "shuffle_stop", "sucrose_preference", "social_preference", "open_field", "novel_object",
+               "elevated_plus_maze", "samples"),
+  event_label = c("Shuffle start", "Shuffle stop", "Sucrose preference test", "Social preference test", "Open field test",
+                  "Novel object recognition test", "Elevated plus maze", "Blood and tissue collection"),
+  source = c("CC1", "CC4", "SucPref", "SocPref", "OFT", "NOR", "EPM", "End date"),
+  definition = c("first cage change (CC1): the date of the CC1 cage-change time (ebb_v101 V_runtime_gates t0)",
+                 "end of the active phase after the last regrouping (CC4): the date of the CC4 cage-change time + 1 day",
+                 "sucrose preference test window: first to last day, as the workbook records it (SucPref, 'start - end')",
+                 "social preference test day (SocPref)", "open field test day (OFT)", "novel object recognition test day (NOR)",
+                 "elevated plus maze test day (EPM)", "blood and tissue collection day (End date)"))
+FSB_DESIGN_CC1_AGE <- c(22L, 29L)   # Stage 33 gate GC-6l: every one of the 117 animals is 22-29 days old at CC1
+FSB_DESIGN_UNIT <- "postnatal day (event date - date of birth, in days)"
 # canonical CombZ tables and label lists: the on-disk SHA-256 must equal these (the first three = Stage 30 input_hashes)
 FSB_INPUT_SHA256 <- c(
   combz_table = "1f6a2a69c6b0781b8de8da50ecdadf309b62bbc9c82106c0fa91d18119a7de54",
@@ -106,7 +152,9 @@ FSB_N <- list(con_cages = 3L, con_per_cage = 4L, con_per_sex = 12L, combz_animal
 FSB_TABLES <- c("F1_con_cage_means", "F1b_con_reference_means", "F2_combz_components", "F2b_combz_definition",
                 "P1_posthoc_con_contrasts", "P1b_posthoc_sensitivity", "P1c_posthoc_diagnostics",
                 "D1_domain_heatmap_cells", "M1_hmm_transition_difference", "M2_hmm_transition_flows",
-                "M3_hmm_dwell_distribution", "M4_hmm_resolution_sensitivity")
+                "M3_hmm_dwell_distribution", "M4_hmm_resolution_sensitivity",
+                "E1_movement_combz_spearman_by_sex", "E2_movement_combz_fit_lines", "E2b_movement_combz_fit_coefficients",
+                "E2c_movement_combz_fit_diagnostics", "T1_design_ages", "T1b_design_ages_by_animal")
 FSB_GATE_FILE <- "H3_gate_results.csv"
 FSB_GATE_COLS <- c("stage", "gate", "passed", "hard", "detail")
 FSB_REGISTRY_COLS <- c("bundle_id", "status", "manifest_sha256", "stage29_bundle_id", "combz_table_sha256", "mmm_git_commit", "created_at")
@@ -114,6 +162,8 @@ FSB_PROVENANCE_KEYS <- c("bundle_id", "status", "generated_at", "generator", "mm
                          "stage29_bundle_manifest_sha256", "combz_table_sha256", "combz_definition_code", "combz_definition_code_git_blob",
                          "posthoc_run_dir", "posthoc_run_commit", "posthoc_output_manifest_sha256", "posthoc_registry_sha256",
                          "stage14_source_dir", "stage14_promotion_record", "stage14_tables", "hmm_dwell_source",
+                         "stage09_table", "posthoc29c_run_dir", "posthoc29c_run_commit", "posthoc29c_output_manifest_sha256",
+                         "posthoc29c_registry_sha256", "timeline_workbook", "timeline_workbook_sha256", "design_age_unit",
                          "scientific_recomputation", "descriptive_computations", "pre_write_gates_passed", "gate_results")
 FSB_SCIENTIFIC_RECOMPUTATION <- paste(
   "none; descriptive cage means and the frozen CombZ standardisation reproduced exactly; no model.",
@@ -124,7 +174,10 @@ FSB_SCIENTIFIC_RECOMPUTATION <- paste(
   "model was fitted there once; nothing is fitted, tested or adjusted in this bundle.",
   "D1 is a verbatim copy of the Stage 14 domain-heatmap source table and M1-M4 are the stored Stage 14 HMM figure tables",
   "of the run promoted 2026-10-06c (display labels joined, a rank, the Wald interval from the stored estimate and SE, and",
-  "dwell-time counts in fixed bins); no model is fitted, no test run, nothing smoothed and no p or q value produced here")
+  "dwell-time counts in fixed bins); no model is fitted, no test run, nothing smoothed and no p or q value produced here.",
+  "E1 is a verbatim copy of Stage 09's sex-stratified correlation table (rho, p and BH q computed there); E2 / E2b / E2c are",
+  "verbatim copies of the hash-gated post hoc run 29c (registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0), whose display line and band",
+  "were fitted there once; T1 / T1b are ages by date arithmetic from the pinned planning workbook. Nothing is fitted here.")
 FSB_DESCRIPTIVE_COMPUTATIONS <- c(
   "F1 cage_mean: arithmetic mean of the measure over the CON animals of one cage epoch (Batch|System|CC) in ebb_v101 B1 (values as stored); n_animals = count of those animals",
   "F1b: n and mean copied from ebb_v101 B2_descriptive_summaries (Group CON); nothing computed",
@@ -137,7 +190,13 @@ FSB_DESCRIPTIVE_COMPUTATIONS <- c(
   "M1: the stored Stage 14 group mean transition probabilities and differences (systems_hmm_transition_probability_differences.csv), state display labels joined by the stored semantic label; colour_limit = max |DeltaProbability| over all rows (the figure's own symmetric limit); gate only: DeltaProbability = comparison mean - reference mean within 1e-12",
   "M2: the stored Stage 14 group mean transition probabilities (systems_hmm_transition_probability_summary.csv) with display labels; rank_within_sex_group = rank by mean_probability (descending, ties in stored row order) within Sex x Group; shown = rank <= 8, the transitions Stage 14 draws",
   "M3: number of animal x cage-change x phase x state records of the stored Stage 08 mean dwell time (hmm_state_dwell_times.csv, 10-minute HMM) per bin of mean_dwell_bins doubling from one HMM bin ([1, 2), [2, 4), ..., [64, 128] bins = 10-20 ... 640-1280 min); fraction = count / records of that Sex x Phase x Group x State; n_animals = distinct animals; counts replace Stage 14's kernel density ridges",
-  "M4: the stored Stage 14 HMM-resolution sensitivity rows (systems_sis_hmm_resolution_sensitivity.csv) with wald_ci_low / wald_ci_high = mixed_model_estimate -/+ 1.96 x mixed_model_SE, the interval Stage 14 draws")
+  "M4: the stored Stage 14 HMM-resolution sensitivity rows (systems_sis_hmm_resolution_sensitivity.csv) with wald_ci_low / wald_ci_high = mixed_model_estimate -/+ 1.96 x mixed_model_SE, the interval Stage 14 draws",
+  "E1: verbatim text copy of the Stage 09 table primary_movement_entropyacf1_correlations_by_sex.csv (10min; every cell as stored); source_run, source_file and source_sha256 appended; gates only (nothing computed): the Movement_mean rows' n = the ebb_v101 A2 animals per sex, and the same Stage 09 run's per-animal input model_ladder_input.csv (pinned by the Stage 29 v1.0.1 release) = A2 Movement_mean and observed_CombZ for every animal within 1e-12",
+  "E2 / E2b / E2c: verbatim text copies of the post hoc run 29c tables fit_lines.csv / coefficients.csv / diagnostics.csv (every cell as stored); source_run, source_file and source_sha256 appended; nothing computed",
+  "T1b: per animal and design step, date_start / date_end (the date the workbook or the ebb_v101 cage-change time gives; shuffle stop = CC4 date + 1 day) and age_start / age_end = date - date of birth (workbook DoB), in days; gates: every age the workbook records itself (SocPref, OFT, NOR, EPM, sucrose window, Age at the end date) = the computed age; CC1 ages 22-29",
+  "T1: per design step, n_animals and age_min / age_max = the minimum of age_start and the maximum of age_end over the 117 CombZ animals")
+# T1 event labels are the names of the behavioural tests in the experimental design (e.g. the social preference test), not
+# labels of RFID measures; the RFID display-wording rule below is not applied to them (they are fixed constants, gated).
 # words never allowed in display text (DESIGN section 0; OPTION3 section 0); identifiers such as crossing_rate are not labels
 FSB_FORBIDDEN_DISPLAY <- paste0("antenna|crossing|sleep|confirmatory|preregistered|approach|investigation|consumption|habituation|time near|",
                                 "female-specific|sex-specific|acute|sociability|social behaviou?r|social preference|huddling")
@@ -388,10 +447,11 @@ fsb_combz_definition_table <- function(defn, compdef, f2, combz_table_path, comb
 # ---------------------------------------------------------------- P1 / P1b / P1c: the post hoc run 29b (copied verbatim)
 #' Frozen post hoc run: folder name, audit/output_manifest.csv hash, its files (bytes, SHA-256; CR stripped), no extra file,
 #' every file read-only, README commit / registry lines, run_manifest (REAL, commit, registry, status counts). Never stops.
-fsb_verify_posthoc_run <- function(run_dir, expect = FSB_POSTHOC) {
-  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("1b-posthoc", name, passed, detail)
+#' `tables` = the run files the bundle copies; `stage` = the gate-stage label (29b: 1b-posthoc; v4 29c: 1e-posthoc29c).
+fsb_verify_posthoc_run <- function(run_dir, expect = FSB_POSTHOC, tables = FSB_POSTHOC_TABLES, stage = "1b-posthoc") {
+  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row(stage, name, passed, detail)
   mf <- file.path(run_dir, "audit", "output_manifest.csv")
-  add("post hoc run folder = pinned run (29b_posthoc_con_contrasts/v1.0_<commit7>)",
+  add(sprintf("post hoc run folder = pinned run (%s/%s)", expect$stage_dir, expect$run_name),
       identical(basename(run_dir), expect$run_name) && identical(basename(dirname(run_dir)), expect$stage_dir), run_dir)
   if (!file.exists(mf)) { add("audit/output_manifest.csv exists", FALSE, mf); return(list(gates = data.table::rbindlist(g))) }
   msha <- s30fb_sha(mf)
@@ -399,8 +459,8 @@ fsb_verify_posthoc_run <- function(run_dir, expect = FSB_POSTHOC) {
   man <- data.table::fread(mf, colClasses = "character")
   for (k in names(man)) data.table::set(man, j = k, value = s30fb_strip_cr(man[[k]]))
   chk <- s30fb_manifest_check(run_dir, man)
-  add(sprintf("output manifest lists %d files, among them the 3 tables copied", expect$output_manifest_n),
-      nrow(man) == expect$output_manifest_n && all(FSB_POSTHOC_TABLES %in% man$file), nrow(man))
+  add(sprintf("output manifest lists %d files, among them the %d tables copied", expect$output_manifest_n, length(tables)),
+      nrow(man) == expect$output_manifest_n && all(tables %in% man$file), nrow(man))
   add("every manifest file: bytes and SHA-256 match", nrow(chk) > 0L && all(chk$ok), paste(chk[ok == FALSE, file], collapse = ","))
   extra <- setdiff(s30fb_files_on_disk(run_dir), c(chk$file, "audit/output_manifest.csv"))
   add("no file in the run folder outside the manifest", !length(extra), paste(extra, collapse = ","))
@@ -415,8 +475,8 @@ fsb_verify_posthoc_run <- function(run_dir, expect = FSB_POSTHOC) {
   add("run_manifest: REAL at the run commit with the frozen registry, fitted once",
       nrow(run) == 1L && identical(run$mode, "REAL") && identical(run$git_commit, expect$run_commit) && identical(run$registry_sha256, expect$registry_sha256) &&
         identical(run$registry_version, expect$registry_version), paste(run$mode, run$git_commit, run$registry_sha256))
-  add("run_manifest: status counts = pinned (no FAILED fit)", nrow(run) == 1L && identical(run$status_counts, expect$status_counts) && identical(run$n_failed, "0"),
-      paste(run$status_counts, run$n_failed))
+  add("run_manifest: status counts = pinned (no FAILED fit)", nrow(run) == 1L && identical(run$status_counts, expect$status_counts) &&
+        (!("n_failed" %in% names(run)) || identical(run$n_failed, "0")), paste(c(run$status_counts, run$n_failed), collapse = " "))
   list(gates = data.table::rbindlist(g), check = chk, manifest = man, manifest_sha256 = msha, run = run)
 }
 
@@ -594,6 +654,172 @@ fsb_hmm_resolution_sensitivity <- function(rs) {
            phase_label = unname(FSB_HMM_PHASE_LABELS[Phase]))]
   if (anyNA(x$phase_label)) stop("Resolution sensitivity: an unknown phase.", call. = FALSE)
   x[]
+}
+
+# ---------------------------------------------------------------- E1 (v4): Stage 09 sex-stratified correlations (copied verbatim)
+#' Gate rows on E1: 6 rows = 3 features x 2 sexes; the Movement_mean rows describe exactly the ebb_v101 A2 animals (n per
+#' sex = A2; the same Stage 09 run's per-animal input `mli` (model_ladder_input.csv) = A2 Movement_mean and observed_CombZ
+#' for every animal within tol, so the copied rho / q were computed on the plotted values; no statistic is computed here);
+#' every source cell carried verbatim; display text free of banned wording. `src_path` = the Stage 09 file.
+fsb_stage09_gates <- function(E1, src_path, a2, mli, pin = FSB_STAGE09, tol = FSB_TOL) {
+  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("6-E1", name, passed, detail)
+  src <- data.table::fread(src_path, colClasses = "character", na.strings = "", encoding = "UTF-8")
+  cp <- E1[, setdiff(names(E1), FSB_POSTHOC_ADDED), with = FALSE]
+  add("E1: every source cell carried verbatim (text) in source column order", identical(names(cp), names(src)) && identical(as.list(cp), as.list(src)))
+  add(sprintf("E1: %d rows = %d features x 2 sexes, once each", pin$n_rows, length(pin$features)),
+      nrow(E1) == pin$n_rows && setequal(E1$feature, pin$features) && setequal(E1$Sex, FSB_SEXES) && !anyDuplicated(E1[, .(Sex, feature)]),
+      paste(nrow(E1), paste(unique(E1$feature), collapse = ",")))
+  a <- data.table::as.data.table(a2)
+  for (s in FSB_SEXES) {
+    r <- E1[Sex == s & feature == pin$feature]
+    add(sprintf("E1 %s %s: n = the ebb_v101 A2 animals of that sex", s, pin$feature), nrow(r) == 1L && identical(as.integer(r$n), nrow(a[Sex == s])),
+        paste(r$n, nrow(a[Sex == s])))
+  }
+  m <- merge(data.table::as.data.table(mli)[, .(AnimalNum = canonical_animal_id(AnimalNum), Sex_09 = Sex, x09 = Movement_mean, y09 = outcome)],
+             a[, .(AnimalNum, Sex, Movement_mean, observed_CombZ)], by = "AnimalNum")
+  add(sprintf("Stage 09 input (model_ladder_input) = ebb_v101 A2 for all animals: Sex, Movement_mean, outcome = observed_CombZ (within %g)", tol),
+      nrow(m) == nrow(a) && nrow(m) == nrow(mli) && all(m$Sex_09 == m$Sex) && max(abs(m$x09 - m$Movement_mean)) <= tol &&
+        max(abs(m$y09 - m$observed_CombZ)) <= tol, paste(nrow(m), nrow(a), nrow(mli), s30fb_num_chr(max(abs(m$x09 - m$Movement_mean))),
+                                                        s30fb_num_chr(max(abs(m$y09 - m$observed_CombZ)))))
+  add("E1 display text free of banned wording (feature_label, CorrelationUse)", { fsb_check_display(E1, c("feature_label", "CorrelationUse"), "E1"); TRUE })
+  data.table::rbindlist(g)
+}
+
+# ---------------------------------------------------------------- E2 / E2b / E2c (v4): the post hoc run 29c (copied verbatim)
+#' Gate rows on the three copied 29c tables: row counts (202, 4, 2), every source cell carried verbatim, the registry
+#' identity and tier on every row, both fits OK, each line's n = the A2 animals of that sex and its x range = their
+#' Movement_mean range, and no test statistic or P column. Never stops.
+fsb_posthoc29c_gates <- function(P, run_dir, a2, expect = FSB_POSTHOC29C, tol = FSB_TOL) {
+  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("6-E2", name, passed, detail)
+  add("E2 / E2b / E2c present with the declared row counts (202, 4, 2)", setequal(names(P), names(FSB_POSTHOC29C_TABLES)) &&
+        all(vapply(names(FSB_POSTHOC29C_ROWS), function(k) !is.null(P[[k]]) && nrow(P[[k]]) == FSB_POSTHOC29C_ROWS[[k]], TRUE)),
+      paste(vapply(P, nrow, 1L), collapse = ","))
+  for (k in names(P)) {
+    src <- data.table::fread(file.path(run_dir, FSB_POSTHOC29C_TABLES[[k]]), colClasses = "character", na.strings = "", encoding = "UTF-8")
+    cp <- P[[k]][, setdiff(names(P[[k]]), FSB_POSTHOC_ADDED), with = FALSE]
+    add(paste0(k, ": every source cell carried verbatim (text) in source column order"), identical(names(cp), names(src)) && identical(as.list(cp), as.list(src)))
+  }
+  id <- data.table::rbindlist(lapply(P, function(x) x[, .(registry_sha256, registry_version, tier)]))
+  add("E2 / E2b / E2c: registry sha256, version and tier on every row = the frozen registry of run 29c",
+      nrow(id) > 0L && all(id$registry_sha256 == expect$registry_sha256) && all(id$registry_version == expect$registry_version) && all(id$tier == expect$tier))
+  dg <- P$E2c_movement_combz_fit_diagnostics; fl <- P$E2_movement_combz_fit_lines; cf <- P$E2b_movement_combz_fit_coefficients
+  add("E2c: both sex fits OK", setequal(dg$Sex, FSB_SEXES) && all(dg$status == "OK"), paste(dg$Sex, dg$status, collapse = "; "))
+  a <- data.table::as.data.table(a2)
+  for (s in FSB_SEXES) {
+    x <- a[Sex == s]; l <- fl[Sex == s]; xs <- as.numeric(l$x)
+    add(sprintf("E2 %s: n = the ebb_v101 A2 animals; the line spans their Movement_mean range (within %g)", s, tol),
+        nrow(l) > 0L && all(as.integer(l$n) == nrow(x)) && abs(min(xs) - min(x$Movement_mean)) <= tol && abs(max(xs) - max(x$Movement_mean)) <= tol,
+        paste(nrow(x), s30fb_num_chr(min(xs)), s30fb_num_chr(max(xs))))
+  }
+  bad <- grep("(^p_|_p$|^p$|statistic|t_value|p_value)", unique(c(names(fl), names(cf), names(dg))), value = TRUE)
+  add("E2 / E2b / E2c: no test statistic or P column (registry 29c section 3)", !length(bad), paste(bad, collapse = ","))
+  data.table::rbindlist(g)
+}
+
+# ---------------------------------------------------------------- T1 / T1b (v4): design ages from the planning workbook
+FSB_MONTHS <- c("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+fsb_xl_date <- function(x) as.Date(suppressWarnings(as.numeric(x)), origin = "1899-12-30")
+#' A workbook day written as "mm/dd/yyyy" or "dd-Mon-yy" (English month abbreviation, any case) -> Date; NA otherwise.
+#' Locale independent (the month is matched against FSB_MONTHS, never through %b).
+fsb_parse_day <- function(x) {
+  x <- trimws(as.character(x)); out <- as.Date(rep(NA_character_, length(x)))
+  a <- !is.na(x) & grepl("^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}$", x)
+  out[a] <- as.Date(x[a], format = "%m/%d/%Y")
+  b <- !is.na(x) & grepl("^[0-9]{1,2}-[A-Za-z]{3}-[0-9]{2}$", x)
+  if (any(b)) {
+    p <- do.call(rbind, strsplit(x[b], "-", fixed = TRUE)); mo <- match(tolower(p[, 2]), FSB_MONTHS)
+    out[b] <- as.Date(sprintf("20%s-%02d-%02d", p[, 3], mo, as.integer(p[, 1])), format = "%Y-%m-%d")
+  }
+  out
+}
+#' A workbook window "start - end" -> list(start, end): Dates (fsb_parse_day) or, with `as_int`, integers; NA when unparsable.
+fsb_parse_window <- function(x, as_int = FALSE) {
+  parts <- strsplit(trimws(as.character(x)), "\\s+-\\s+")
+  side <- function(i) vapply(parts, function(p) if (length(p) == 2L) p[i] else NA_character_, "")
+  if (as_int) return(list(start = suppressWarnings(as.integer(side(1))), end = suppressWarnings(as.integer(side(2)))))
+  list(start = fsb_parse_day(side(1)), end = fsb_parse_day(side(2)))
+}
+#' Name of the column right after `name` (the workbook records each test's age in the unnamed column beside its date).
+fsb_col_after <- function(x, name) {
+  i <- match(name, names(x))
+  if (is.na(i) || i >= ncol(x)) stop("Planning workbook sheet lacks the column after ", name, ".", call. = FALSE)
+  names(x)[i + 1L]
+}
+
+#' Ages of the CombZ animals at each design step. `tl` = the workbook Animals sheet read as text; `a4` = ebb_v101 A4
+#' (AnimalNum, Sex, Batch, Group); `v` = ebb_v101 V_runtime_gates (Batch, CC, t0, local time). Workbook ids map to
+#' AnimalNum as Stage 33 maps them (prefix "XXXN-" removed, canonical id). Returns list(T1, T1b, frame).
+fsb_design_ages <- function(tl, a4, v, events = FSB_DESIGN_EVENTS) {
+  tl <- data.table::as.data.table(tl)
+  need <- c("ID", "Batch", "DoB", "SucPref", "SocPref", "OFT", "NOR", "EPM", "End date", "Age")
+  miss <- setdiff(need, names(tl)); if (length(miss)) stop("Planning workbook Animals sheet lacks column(s): ", paste(miss, collapse = ", "), call. = FALSE)
+  tl <- tl[!is.na(ID) & nzchar(trimws(ID))]
+  tl[, AnimalNum := canonical_animal_id(sub("^[A-Z]{3}[0-9]-", "", trimws(ID)))]
+  d <- merge(data.table::as.data.table(a4)[, .(AnimalNum, Sex, Batch, Group)], tl, by = "AnimalNum", suffixes = c("", "_workbook"))
+  dob <- fsb_xl_date(d$DoB)
+  vv <- data.table::as.data.table(v)[!is.na(Batch) & nzchar(Batch) & CC %in% c("CC1", "CC4")]
+  day <- function(cc) as.Date(substr(as.character(vv[CC == cc][match(d$Batch, Batch), t0]), 1, 10), format = "%Y-%m-%d")
+  cc1 <- day("CC1"); cc4 <- day("CC4"); sw <- fsb_parse_window(d$SucPref)
+  one <- function(x) list(x, x)
+  dates <- list(shuffle_start = one(cc1), shuffle_stop = one(cc4 + 1L), sucrose_preference = list(sw$start, sw$end),
+                social_preference = one(fsb_xl_date(d$SocPref)), open_field = one(fsb_xl_date(d$OFT)), novel_object = one(fsb_xl_date(d$NOR)),
+                elevated_plus_maze = one(fsb_xl_date(d$EPM)), samples = one(fsb_xl_date(d$`End date`)))
+  if (!setequal(names(dates), events$event_id)) stop("Design events differ from the declared events.", call. = FALSE)
+  chr <- function(x) ifelse(is.na(x), NA_character_, format(x, "%Y-%m-%d"))
+  long <- data.table::rbindlist(lapply(seq_len(nrow(events)), function(i) {
+    e <- events$event_id[i]; ds <- dates[[e]]
+    data.table::data.table(AnimalNum = d$AnimalNum, Sex = d$Sex, Batch = d$Batch, Group = d$Group, event_order = events$event_order[i],
+      event_id = e, date_of_birth = chr(dob), date_start = chr(ds[[1]]), date_end = chr(ds[[2]]),
+      age_start = as.integer(ds[[1]] - dob), age_end = as.integer(ds[[2]] - dob))
+  }))
+  data.table::setorderv(long, c("event_order", "Sex", "Batch", "AnimalNum"))
+  s <- long[, .(n_animals = sum(!is.na(age_start) & !is.na(age_end)), age_min = min(age_start), age_max = max(age_end)), by = .(event_order, event_id)]
+  t1 <- merge(events[, .(event_order, event_id, event_label, source, definition)], s, by = c("event_order", "event_id"))
+  t1[, unit := FSB_DESIGN_UNIT]
+  data.table::setorderv(t1, "event_order")
+  list(T1 = t1[], T1b = long[], frame = d[])
+}
+
+#' Gate rows on the design ages: the 117 CombZ animals matched once each; workbook Batch = ebb_v101 Batch; every date and
+#' age present; the design order holds for every animal; CC1 ages 22-29 (Stage 33 GC-6l); every age the workbook records
+#' itself (the column beside SucPref, SocPref, OFT, NOR, EPM, and Age at the end date) = the computed age. Never stops.
+fsb_design_age_gates <- function(D, tl, n_expected = FSB_N$combz_animals, cc1_age = FSB_DESIGN_CC1_AGE) {
+  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("6-T1", name, passed, detail)
+  f <- D$frame; L <- D$T1b; T1 <- D$T1
+  add(sprintf("planning workbook Animals sheet: the %d CombZ animals matched once each", n_expected),
+      nrow(f) == n_expected && !anyDuplicated(f$AnimalNum), paste(nrow(f), data.table::uniqueN(f$AnimalNum)))
+  add("workbook Batch = ebb_v101 Batch for every animal", all(paste0("B", trimws(f$Batch_workbook)) == f$Batch),
+      paste(f[paste0("B", trimws(Batch_workbook)) != Batch, AnimalNum], collapse = ","))
+  add("every animal has a date of birth and a date and age at every design step", !anyNA(L$date_start) && !anyNA(L$date_end) && !anyNA(L$age_start) &&
+        !anyNA(L$age_end) && nrow(L) == n_expected * nrow(FSB_DESIGN_EVENTS), paste(L[is.na(age_start) | is.na(age_end), unique(paste(event_id, AnimalNum))], collapse = ","))
+  w <- data.table::dcast(L, AnimalNum ~ event_id, value.var = "age_start"); we <- data.table::dcast(L, AnimalNum ~ event_id, value.var = "age_end")
+  tests <- c("sucrose_preference", "social_preference", "open_field", "novel_object", "elevated_plus_maze")
+  ord <- w$shuffle_start < w$shuffle_stop & apply(as.matrix(w[, tests, with = FALSE]) >= w$shuffle_stop, 1L, all) &
+    w$samples >= apply(as.matrix(we[, tests, with = FALSE]), 1L, max)
+  add("design order for every animal: shuffle start < shuffle stop <= every test day <= blood and tissue collection", isTRUE(all(ord)),
+      paste(w$AnimalNum[!ord %in% TRUE], collapse = ","))
+  add(sprintf("CC1 ages %d-%d for every animal (Stage 33 gate GC-6l)", cc1_age[1], cc1_age[2]),
+      isTRUE(all(w$shuffle_start >= cc1_age[1] & w$shuffle_start <= cc1_age[2])), paste(range(w$shuffle_start), collapse = "-"))
+  sis <- if ("SIS start" %in% names(f)) fsb_xl_date(f$`SIS start`) else as.Date(rep(NA_character_, nrow(f)))
+  cc1d <- as.Date(L[event_id == "shuffle_start"][match(f$AnimalNum, AnimalNum), date_start], format = "%Y-%m-%d")
+  add("workbook 'SIS start' = the CC1 date of the ebb_v101 cage-change time, for every animal", !anyNA(sis) && all(sis == cc1d),
+      paste(f$AnimalNum[is.na(sis) | sis != cc1d], collapse = ","))
+  # the ages the workbook records itself
+  key <- function(e, which = "age_start") L[event_id == e][match(f$AnimalNum, AnimalNum)][[which]]
+  cmp <- function(label, recorded, computed) {
+    has <- !is.na(recorded)
+    add(sprintf("workbook-recorded %s age = computed age (%d animals with a recorded age)", label, sum(has)),
+        sum(has) > 0L && all(recorded[has] == computed[has]), paste(f$AnimalNum[has & recorded != computed], collapse = ","))
+  }
+  day_tests <- c(SocPref = "social_preference", OFT = "open_field", NOR = "novel_object", EPM = "elevated_plus_maze")
+  for (nm in names(day_tests)) cmp(nm, suppressWarnings(as.integer(f[[fsb_col_after(tl, nm)]])), key(day_tests[[nm]]))
+  sr <- fsb_parse_window(f[[fsb_col_after(tl, "SucPref")]], as_int = TRUE)
+  cmp("sucrose window start", sr$start, key("sucrose_preference")); cmp("sucrose window end", sr$end, key("sucrose_preference", "age_end"))
+  cmp("end-date (Age)", suppressWarnings(as.integer(f$Age)), key("samples"))
+  add(sprintf("T1: %d design steps, %d animals each", nrow(FSB_DESIGN_EVENTS), n_expected),
+      nrow(T1) == nrow(FSB_DESIGN_EVENTS) && all(T1$n_animals == n_expected) && identical(T1$event_id, FSB_DESIGN_EVENTS$event_id),
+      paste(T1$event_id, T1$n_animals, collapse = "; "))
+  data.table::rbindlist(g)
 }
 
 # ---------------------------------------------------------------- provenance and writer
