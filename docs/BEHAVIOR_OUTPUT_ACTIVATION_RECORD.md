@@ -1444,3 +1444,25 @@ All three read-only checks pass:
 - the copy-parity check: 2,181 originals and 1,883 copies match the plans, 298 copies match a recorded rerun (18 more than before), 67 files were added by recorded reruns (13 more), and there is no unplanned file;
 - the foundation inventory;
 - the Stage 14 residual inventory.
+
+## 2026-10-12 Stage 19 figures re-plotted: square cells, R5-R8 on top
+
+**What changed.** Code commit `d05f9b1`, plot code only; no table changed.
+- The cage maps draw every reader as an equal square cell, with R5-R8 on top and R1-R4 below (R5 top left, R1 bottom left). Before, the cells followed the true 100 x 116 reader spacing and R1-R4 were on top.
+- The reader x cage-change heatmaps and the QC grid list the readers in the same order, with a line between the two cage rows.
+- All text in the artwork is at least 5 pt (reader IDs were 4.5 pt). The group outlines of the per-animal maps are thicker, and a stray space in their caption is gone.
+
+**How the figures were redrawn.** `replot_stage19_figures.R` evaluates the stage's own setup definitions and its Figures section on the tables Stage 19 wrote in the `aff7837` run. A control render with the code of `aff7837` (taken with `git archive`) is byte-identical to all 11 live SVGs, so the re-plot reproduces the live figures exactly. The new figures differ only by the plot code of `d05f9b1`.
+
+**Promotion.** Script `promote_stage19_figures_20261012b.ps1`:
+1. 22 files were backed up to `_migration_control/stage19_figure_replot_before_20261012b/`: the 11 figures and their `publication_ready/` copies.
+2. The 22 files were replaced, and each was verified against its render's hash.
+
+**Record.** `docs/behavior_output_producer_reruns/stage19_20261012b.csv` (SHA-256 `9CE0BB1D...`; 11 rows, all `rewritten`). Every prior hash equals the new hash recorded for that figure in `stage19_20261012.csv`.
+
+**Check after the promotion.** The copy-parity check passes: 2,181 originals and 1,883 copies match the plans, 298 copies match a recorded rerun, 67 files were added by recorded reruns, and there is no unplanned file.
+
+**Related fix.** Commit `44e982f` renamed the two helpers added in `aff7837`: `Functions/rfid_cage_map_helpers.R` became `Functions/cage_map_helpers.R`, and `Functions/rfid_raw_antenna_helpers.R` became `Functions/antenna_log_helpers.R`. Their content is unchanged.
+- The old names matched Stage 33's frozen-code glob `Functions/rfid_*.R`. Gate GC-1c compares those files with their blobs at `f4c7a31`, so a Stage 33 rerun would have failed.
+- After the rename, the tracked `Functions/rfid_*.R` set again equals the `f4c7a31` set; GC-1c, simulated, shows 0 mismatches.
+- The entry above for `aff7837` uses the names those files had at that commit.
