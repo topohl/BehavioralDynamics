@@ -62,6 +62,7 @@ source(.pipeline_setup)
 source_mmm_helper("duration_normalization_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
 source_mmm_helper("project_paths.R")
+source_mmm_helper("interval_reconstruction.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -387,74 +388,16 @@ if (any(is.na(animal_group_sex_qc$Sex))) {
 # INTERVAL RECONSTRUCTION
 # ------------------------------------------------
 
-last_meta_before <- function(dat_sys, t0) {
-  dat_sys %>%
-    filter(DateTime <= t0) %>%
-    slice_tail(n = 1) %>%
-    transmute(
-      SourceFile = first(SourceFile),
-      Dataset = first(Dataset),
-      RawParadigm = first(RawParadigm),
-      Batch = first(Batch),
-      CageChange = first(CageChange),
-      Epoch = first(Epoch),
-      System = first(System),
-      Phase = first(Phase),
-      ConsecActive = first(ConsecActive),
-      ConsecInactive = first(ConsecInactive),
-      MinutesOfDay = first(MinutesOfDay),
-      CookieWindowPrimary = first(CookieWindowPrimary),
-      CookieSubWindow = first(CookieSubWindow),
-      CookieHabEpoch = first(CookieHabEpoch)
-    )
-}
+# Interval reconstruction: Functions/interval_reconstruction.R. Until 2026-10-12 these were per-event loops that
+# re-filtered the system table at every event time (hours on vendor data, quadratic in events); the vectorised
+# versions return the same rows in the same order (Testing/tests/test_interval_reconstruction.R; sandbox rerun of
+# Stage 01 on the vendor data compared with the live outputs).
+STAGE01_INTERVAL_META <- c("SourceFile", "Dataset", "RawParadigm", "Batch", "CageChange", "Epoch", "System", "Phase",
+                           "ConsecActive", "ConsecInactive", "MinutesOfDay", "CookieWindowPrimary", "CookieSubWindow",
+                           "CookieHabEpoch")
 
 make_occupancy_intervals_one_system <- function(dat_sys) {
-  dat_sys <- dat_sys %>% arrange(DateTime, AnimalID)
-  animals <- sort(unique(dat_sys$AnimalID))
-  event_times <- sort(unique(dat_sys$DateTime))
-  if (length(animals) == 0 || length(event_times) < 2) return(tibble())
-
-  out <- vector("list", length(event_times) - 1)
-  current_pos <- rep(NA_integer_, length(animals)); names(current_pos) <- animals
-  current_group <- rep(NA_character_, length(animals)); names(current_group) <- animals
-  current_sex <- rep(NA_character_, length(animals)); names(current_sex) <- animals
-
-  for (i in seq_len(length(event_times) - 1)) {
-    t0 <- event_times[i]
-    t1 <- event_times[i + 1]
-    duration_sec <- as.numeric(difftime(t1, t0, units = "secs"))
-    if (!is.finite(duration_sec) || duration_sec <= 0) next
-
-    updates <- dat_sys %>% filter(DateTime == t0)
-    if (nrow(updates) > 0) {
-      for (j in seq_len(nrow(updates))) {
-        a <- updates$AnimalID[j]
-        current_pos[a] <- updates$PositionID[j]
-        if (!is.na(updates$Group[j])) current_group[a] <- updates$Group[j]
-        if (!is.na(updates$Sex[j])) current_sex[a] <- updates$Sex[j]
-      }
-    }
-
-    valid <- is.finite(current_pos) & current_pos > 0
-    if (!any(valid)) next
-
-    interval_meta <- last_meta_before(dat_sys, t0)
-    out[[i]] <- tibble(
-      AnimalNum = names(current_pos)[valid],
-      AnimalID = names(current_pos)[valid],
-      PositionID = as.integer(current_pos[valid]),
-      Group = current_group[names(current_pos)[valid]],
-      Sex = current_sex[names(current_pos)[valid]],
-      IntervalStart = t0,
-      IntervalEnd = t1,
-      DurationSec = duration_sec,
-      SystemEventGap = duration_sec > system_event_gap_threshold_sec
-    ) %>%
-      bind_cols(interval_meta[rep(1, sum(valid)), ])
-  }
-
-  bind_rows(out)
+  mmm_occupancy_intervals_vec(dat_sys, STAGE01_INTERVAL_META, system_event_gap_threshold_sec)
 }
 
 make_movement_events <- function(pos_tbl) {
@@ -495,49 +438,7 @@ make_movement_events <- function(pos_tbl) {
 }
 
 make_dyadic_intervals_one_system <- function(dat_sys) {
-  dat_sys <- dat_sys %>% arrange(DateTime, AnimalID)
-  animals <- sort(unique(dat_sys$AnimalID))
-  event_times <- sort(unique(dat_sys$DateTime))
-  if (length(animals) < 2 || length(event_times) < 2) return(tibble())
-
-  animal_pairs <- combn(animals, 2, simplify = FALSE)
-  out <- vector("list", length(event_times) - 1)
-  current_pos <- rep(NA_integer_, length(animals)); names(current_pos) <- animals
-
-  for (i in seq_len(length(event_times) - 1)) {
-    t0 <- event_times[i]
-    t1 <- event_times[i + 1]
-    duration_sec <- as.numeric(difftime(t1, t0, units = "secs"))
-    if (!is.finite(duration_sec) || duration_sec <= 0) next
-
-    updates <- dat_sys %>% filter(DateTime == t0)
-    if (nrow(updates) > 0) {
-      for (j in seq_len(nrow(updates))) {
-        current_pos[updates$AnimalID[j]] <- updates$PositionID[j]
-      }
-    }
-
-    pair_tbl <- map_dfr(animal_pairs, function(p) {
-      pos_a <- current_pos[p[1]]
-      pos_b <- current_pos[p[2]]
-      if (!is.finite(pos_a) || !is.finite(pos_b)) return(tibble())
-      tibble(Focal = p[1], Partner = p[2], PositionID_A = as.integer(pos_a), PositionID_B = as.integer(pos_b))
-    })
-    if (nrow(pair_tbl) == 0) next
-
-    interval_meta <- last_meta_before(dat_sys, t0)
-    out[[i]] <- pair_tbl %>%
-      mutate(
-        IntervalStart = t0,
-        IntervalEnd = t1,
-        DurationSec = duration_sec,
-        SystemEventGap = duration_sec > system_event_gap_threshold_sec
-      ) %>%
-      bind_cols(interval_meta[rep(1, nrow(pair_tbl)), ]) %>%
-      left_join(pair_distance_lookup, by = c("PositionID_A", "PositionID_B"))
-  }
-
-  bind_rows(out)
+  mmm_dyad_intervals_vec(dat_sys, STAGE01_INTERVAL_META, system_event_gap_threshold_sec, pair_distance_lookup)
 }
 
 # ---------------------------------------------------------------------------
@@ -635,11 +536,30 @@ seed_rows_for_file <- function(pos_one_file) {
     select(-SeedPositionID)   # SeedReadTime is kept for the provenance export
 }
 
-message("Seeding carry-forward positions from raw_data...")
-seed_rows <- all_pos %>%
-  group_by(SourceFile) %>%
-  group_split() %>%
-  map_dfr(seed_rows_for_file)
+# Inputs that already hold a row for every animal at the file start (the raw-antenna data versions, whose seeds come
+# from the raw antenna logs) must never receive a vendor AnimalPos seed: options(mmm.seed_from_vendor_raw = FALSE)
+# skips the vendor seeding and stops instead if any animal starts after its file.
+if (isTRUE(getOption("mmm.seed_from_vendor_raw", TRUE))) {
+  message("Seeding carry-forward positions from raw_data...")
+  seed_rows <- all_pos %>%
+    group_by(SourceFile) %>%
+    group_split() %>%
+    map_dfr(seed_rows_for_file)
+} else {
+  late_animals <- all_pos %>%
+    group_by(SourceFile) %>%
+    mutate(file_t0 = min(DateTime, na.rm = TRUE)) %>%
+    group_by(SourceFile, AnimalNum) %>%
+    summarise(late_s = as.numeric(difftime(min(DateTime), first(file_t0), units = "secs")), .groups = "drop") %>%
+    filter(late_s > 0)
+  if (nrow(late_animals) > 0) {
+    stop("Vendor seeding is off (mmm.seed_from_vendor_raw = FALSE) but ", nrow(late_animals),
+         " animal-file(s) start after their file: ", paste(head(paste(late_animals$SourceFile, late_animals$AnimalNum), 5), collapse = "; "),
+         call. = FALSE)
+  }
+  message("Vendor seeding off: every animal has a row at its file start")
+  seed_rows <- tibble()
+}
 
 if (nrow(seed_rows) > 0) {
   message("  injected ", nrow(seed_rows), " seed row(s) across ",

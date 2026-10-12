@@ -51,6 +51,7 @@ source(.pipeline_setup)
 source_mmm_helper("duration_normalization_helpers.R")
 source_mmm_helper("animalpos_preprocessing_helpers.R")
 source_mmm_helper("project_paths.R")
+source_mmm_helper("interval_reconstruction.R")
 
 # ------------------------------------------------
 # USER INPUT
@@ -209,103 +210,15 @@ collapse_character_annotation <- function(x) {
   paste(sort(x), collapse = "|")
 }
 
-last_interval_meta_before <- function(dat_sys, t0) {
-  dat_sys %>%
-    filter(DateTime <= t0) %>%
-    slice_tail(n = 1) %>%
-    transmute(
-      SourceFile = first(SourceFile),
-      Dataset = first(Dataset),
-      RawParadigm = first(RawParadigm),
-      Batch = first(Batch),
-      CageChange = first(CageChange),
-      Epoch = first(Epoch),
-      System = first(System),
-      Phase = first(Phase),
-      HalfHoursElapsed = first(HalfHoursElapsed),
-      MinutesOfDay = first(MinutesOfDay),
-      CookieWindowPrimary = first(CookieWindowPrimary),
-      CookieSubWindow = first(CookieSubWindow),
-      CookieHabEpoch = first(CookieHabEpoch)
-    )
-}
+# Interval reconstruction: Functions/interval_reconstruction.R. Until 2026-10-12 this was a per-event loop that
+# re-filtered the system table at every event time (quadratic in events); the vectorised version returns the same
+# rows in the same order (Testing/tests/test_interval_reconstruction.R; sandbox rerun on the vendor data).
+STAGE02_INTERVAL_META <- c("SourceFile", "Dataset", "RawParadigm", "Batch", "CageChange", "Epoch", "System", "Phase",
+                           "HalfHoursElapsed", "MinutesOfDay", "CookieWindowPrimary", "CookieSubWindow", "CookieHabEpoch")
 
 make_interval_dyads_one_system <- function(dat_sys) {
-  dat_sys <- dat_sys %>% arrange(DateTime, AnimalID)
-  animals <- sort(unique(dat_sys$AnimalID))
-
-  if (length(animals) < 2) {
-    return(tibble())
-  }
-
-  event_times <- sort(unique(dat_sys$DateTime))
-  if (length(event_times) < 2) {
-    return(tibble())
-  }
-
-  animal_pairs <- combn(animals, 2, simplify = FALSE)
-  out <- vector("list", length(event_times) - 1)
-
-  current_pos <- rep(NA_integer_, length(animals))
-  names(current_pos) <- animals
-  current_group <- rep(NA_character_, length(animals))
-  names(current_group) <- animals
-  current_sex <- rep(NA_character_, length(animals))
-  names(current_sex) <- animals
-
-  for (i in seq_len(length(event_times) - 1)) {
-    t0 <- event_times[i]
-    t1 <- event_times[i + 1]
-    duration_sec <- as.numeric(difftime(t1, t0, units = "secs"))
-
-    updates <- dat_sys %>% filter(DateTime == t0)
-    if (nrow(updates) > 0) {
-      for (j in seq_len(nrow(updates))) {
-        a <- updates$AnimalID[j]
-        current_pos[a] <- updates$PositionID[j]
-        if (!is.na(updates$Group[j])) current_group[a] <- updates$Group[j]
-        if (!is.na(updates$Sex[j])) current_sex[a] <- updates$Sex[j]
-      }
-    }
-
-    if (!is.finite(duration_sec) || duration_sec <= 0) next
-
-    # Descriptive provenance only: how far apart the bracketing genuine system
-    # events were. Never used to admit or reject an interval.
-    system_event_gap <- duration_sec > system_event_gap_threshold_sec
-
-    interval_meta <- last_interval_meta_before(dat_sys, t0)
-
-    pair_tbl <- map_dfr(animal_pairs, function(p) {
-      pos_a <- current_pos[p[1]]
-      pos_b <- current_pos[p[2]]
-      if (!is.finite(pos_a) || !is.finite(pos_b)) return(tibble())
-      tibble(
-        Focal = p[1],
-        Partner = p[2],
-        PositionID_A = as.integer(pos_a),
-        PositionID_B = as.integer(pos_b),
-        Group_Focal = current_group[p[1]],
-        Group_Partner = current_group[p[2]],
-        Sex_Focal = current_sex[p[1]],
-        Sex_Partner = current_sex[p[2]]
-      )
-    })
-
-    if (nrow(pair_tbl) == 0) next
-
-    out[[i]] <- pair_tbl %>%
-      mutate(
-        IntervalStart = t0,
-        IntervalEnd = t1,
-        DurationSec = duration_sec,
-        SystemEventGap = system_event_gap
-      ) %>%
-      bind_cols(interval_meta[rep(1, nrow(pair_tbl)), ]) %>%
-      left_join(pair_distance_lookup, by = c("PositionID_A", "PositionID_B"))
-  }
-
-  bind_rows(out)
+  mmm_dyad_intervals_vec(dat_sys, STAGE02_INTERVAL_META, system_event_gap_threshold_sec, pair_distance_lookup,
+                         label_cols = c("Group", "Sex"))
 }
 
 # Retained as an explicit, auditable no-op so that reinstating a duration-based
