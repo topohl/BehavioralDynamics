@@ -203,7 +203,7 @@ bundle folders and fit nothing.
 | Stage | Script | Layer | Role |
 |---:|---|---|---|
 | — | `build_later_outcome_combz.R` | canonical endpoint | CombZ and the CON/RES/SUS assignment. Hard-stops unless it reproduces the upstream workbook exactly. |
-| 19 | `19_spatial_occupancy_maps.R` | producer | Reader-occupancy maps. Effect sizes only, no p/q. |
+| 19 | `19_spatial_occupancy_maps.R` | producer | 4 x 2 cage-use maps from the raw antenna logs (AnimalPos reconstruction kept as a comparison). Descriptive effect sizes; exploratory per-sex log-ratio mixed models with a cage random effect, Kenward-Roger df and BH-adjusted p. |
 | 20 | `20_first_night_gamm.R` | descriptive producer | Within-night 10-min profile of the first active phase after CC1, by sex and group. Display trajectories only: the group contrasts are null and carry no cage term (CON is 3 intact cages per sex). |
 | 22 | `22_repeated_cagechange_acute_gamm.R` | descriptive producer | Where in the night the CC1-to-CC4 change happens (mostly in the first hour after 18:30). Display only: the CC4−CC1 p-values ignore cohort variation and CON shares the change, so it is not adaptation (Stage 32 registry section 9). |
 

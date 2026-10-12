@@ -58,10 +58,30 @@ check(identical(as.character(f[1]), "RES"),
 # ---------------------------------------------------------------------------
 # 1-2. The production script must preserve labels, not codes.
 # ---------------------------------------------------------------------------
-check(grepl("current_group[a] <- as.character(updates$Group[j])", src, fixed = TRUE),
-      "1: Group must be carried forward with as.character(), not as a factor element")
-check(grepl("current_sex[a] <- as.character(updates$Sex[j])", src, fixed = TRUE),
-      "2: Sex must be carried forward with as.character(), not as a factor element")
+# The interval builder is run on factor-typed input, as all_pos has it. (Until 2026-10-12 it was a per-event loop and
+# these checks matched its as.character() assignments as text; the vectorised builder must give labels too.)
+s19_exprs <- parse("Analysis/19_spatial_occupancy_maps.R", keep.source = TRUE)
+s19_txt <- vapply(attr(s19_exprs, "srcref"), function(s) paste(as.character(s), collapse = "\n"), character(1))
+s19_env <- new.env()
+for (p in c("SYSTEM_EVENT_GAP_THRESHOLD_SEC <- ", "make_occupancy_intervals_one_system <- function")) {
+  at <- which(startsWith(s19_txt, p))
+  check(length(at) == 1, paste0("1: Stage 19 must define '", p, "' exactly once"))
+  eval(s19_exprs[[at]], s19_env)
+}
+probe <- tibble(
+  DateTime = as.POSIXct("2023-04-24 18:30:00", tz = "UTC") + c(0, 5, 10, 20),
+  AnimalID = c("a", "b", "a", "b"), PositionID = c(1L, 4L, 5L, 8L),
+  Group = factor(c("RES", "SUS", "RES", "SUS"), levels = GROUP_LEVELS),
+  Sex = factor(c("Female", "Female", "Female", "Female"), levels = SEX_LEVELS),
+  SourceFile = "f.csv", Batch = "B3", CageChange = "CC1", System = "sys.1", Phase = "Active",
+  ConsecActive = 1L, ConsecInactive = 0L)
+iv <- s19_env$make_occupancy_intervals_one_system(probe)
+check(is.character(iv$Group) && setequal(unique(iv$Group), c("RES", "SUS")),
+      "1: the interval builder must carry Group as labels, not factor codes")
+check(is.character(iv$Sex) && identical(unique(iv$Sex), "Female"),
+      "2: the interval builder must carry Sex as labels, not factor codes")
+check(identical(iv$PositionID, c(1L, 1L, 4L, 5L, 4L)) && identical(iv$AnimalNum, c("a", "a", "b", "a", "b")),
+      "1: carry-forward positions between the system's event times")
 check(!grepl("current_group[a] <- updates$Group[j]", src, fixed = TRUE),
       "1: the label-stripping Group assignment must be gone")
 check(!grepl("current_sex[a] <- updates$Sex[j]", src, fixed = TRUE),
