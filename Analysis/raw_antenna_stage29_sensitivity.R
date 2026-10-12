@@ -76,14 +76,20 @@ raw29_spec <- function(cfg, v) {
 }
 
 #' The frozen mmm_evs_seeds() with its empty result typed (it returns a 0 x 0 table when no file has a late animal).
-raw29_guard_seeds <- function(seeds_fn) function(pre, raw_dir, parser = MMM_EVS_SEED_PARSER) {
-  s <- seeds_fn(pre, raw_dir, parser = parser)
-  if (nrow(s) || ncol(s)) return(s)
-  data.table::data.table(DateTime = as.POSIXct(character(), tz = "UTC"), AnimalID = character(), System = character(),
-                         PositionID = integer(), Batch = character(), CageChange = character(), SourceFile = character(),
-                         AnimalNum = character(), is_seed = logical(), SeedReadTime = as.POSIXct(character(), tz = "UTC"),
-                         raw_file = character())
+raw29_guard_seeds <- function(seeds_fn) {
+  force(seeds_fn)   # bind the frozen function now: the guard replaces the global binding it was taken from
+  function(pre, raw_dir, parser = MMM_EVS_SEED_PARSER) {
+    s <- seeds_fn(pre, raw_dir, parser = parser)
+    if (nrow(s) || ncol(s)) return(s)
+    data.table::data.table(DateTime = as.POSIXct(character(), tz = "UTC"), AnimalID = character(), System = character(),
+                           PositionID = integer(), Batch = character(), CageChange = character(), SourceFile = character(),
+                           AnimalNum = character(), is_seed = logical(), SeedReadTime = as.POSIXct(character(), tz = "UTC"),
+                           raw_file = character())
+  }
 }
+
+#' Replace the global mmm_evs_seeds() by its guarded version (the frozen stream builder looks it up there).
+raw29_install_seed_guard <- function(env = globalenv()) assign("mmm_evs_seeds", raw29_guard_seeds(get("mmm_evs_seeds", envir = env)), envir = env)
 
 raw29_run <- function(version) {
   if (!version %in% names(RAW29_ROOT_NAMES)) stop("mmm.rant_version must be one of ", paste(names(RAW29_ROOT_NAMES), collapse = ", "), call. = FALSE)
@@ -161,7 +167,7 @@ raw29_run <- function(version) {
   for (i in seq_along(exprs)) {
     j <- match(txt[i], names(RAW29_SUBSTITUTIONS))
     eval(if (is.na(j)) exprs[[i]] else str2lang(RAW29_SUBSTITUTIONS[[j]]), E)
-    if (i == guard_at) assign("mmm_evs_seeds", raw29_guard_seeds(get("mmm_evs_seeds", envir = globalenv())), envir = globalenv())
+    if (i == guard_at) raw29_install_seed_guard()
   }
 
   # Additions (labelled raw_), evaluated with the frozen run's objects.

@@ -90,6 +90,15 @@ check(!is.na(err(guarded(late, missing_raw))), "4: a late animal still makes the
 seeded <- data.table(DateTime = t0, AnimalID = "OR9", System = "sys.1", PositionID = 3L, Batch = "B3", CageChange = "CC1",
                      SourceFile = pre$SourceFile[1], AnimalNum = "OR9", is_seed = TRUE, SeedReadTime = t0 - 5, raw_file = "x.csv")
 check(identical(W$raw29_guard_seeds(function(pre, raw_dir, parser) seeded)(pre, missing_raw), seeded), "4: a frozen result passes through unchanged")
+# installed as in a run: the guard replaces the binding it wraps (a lazily bound wrapper would recurse forever)
+G <- new.env(); G$mmm_evs_seeds <- mmm_evs_seeds
+W$raw29_install_seed_guard(G)
+check(!identical(G$mmm_evs_seeds, mmm_evs_seeds), "4: the install replaces the binding")
+gi <- err(G$mmm_evs_seeds(pre, missing_raw))
+check(is.na(gi), paste("4: the installed guard calls the frozen function, not itself:", gi))
+check(identical(names(G$mmm_evs_seeds(pre, missing_raw)), names(g)), "4: the installed guard types the empty result")
+check(grepl("Fehler|Error|exist|not|nicht", err(G$mmm_evs_seeds(late, missing_raw))) && !grepl("rekursion|recursion", err(G$mmm_evs_seeds(late, missing_raw)), ignore.case = TRUE),
+      "4: the installed guard still stops on a late animal by reading the missing folder")
 ok("the seed guard only types an empty result")
 
 # ---------------------------------------------------------------- 5. labels and paths
