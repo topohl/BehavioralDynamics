@@ -69,16 +69,16 @@ if (!file.exists(.mmm_paths)) {
 source(.mmm_paths)
 
 # Reader grid, time-weighted animal/group summaries and the cage-map plots.
-.mmm_cage_maps <- file.path(.mmm_repo, "Functions", "rfid_cage_map_helpers.R")
+.mmm_cage_maps <- file.path(.mmm_repo, "Functions", "cage_map_helpers.R")
 if (!file.exists(.mmm_cage_maps)) {
-  stop("Cannot locate rfid_cage_map_helpers.R at ", .mmm_cage_maps, ". Set MMM_REPO_DIR.", call. = FALSE)
+  stop("Cannot locate cage_map_helpers.R at ", .mmm_cage_maps, ". Set MMM_REPO_DIR.", call. = FALSE)
 }
 source(.mmm_cage_maps)
 
 # Raw antenna logs: reading, flip filter and carry-forward intervals.
-.mmm_raw_antenna <- file.path(.mmm_repo, "Functions", "rfid_raw_antenna_helpers.R")
+.mmm_raw_antenna <- file.path(.mmm_repo, "Functions", "antenna_log_helpers.R")
 if (!file.exists(.mmm_raw_antenna)) {
-  stop("Cannot locate rfid_raw_antenna_helpers.R at ", .mmm_raw_antenna, ". Set MMM_REPO_DIR.", call. = FALSE)
+  stop("Cannot locate antenna_log_helpers.R at ", .mmm_raw_antenna, ". Set MMM_REPO_DIR.", call. = FALSE)
 }
 source(.mmm_raw_antenna)
 
@@ -132,7 +132,7 @@ PRIMARY_PHASE_NUMBER <- 1L
 GROUP_LEVELS <- c("CON", "RES", "SUS")
 SEX_LEVELS <- c("Female", "Male")
 
-# 4 x 2 grid: R1-R4 along the long axis at y = 0, R5-R8 at y = 116 (Functions/rfid_cage_map_helpers.R).
+# 4 x 2 grid: R1-R4 along the long axis at y = 0, R5-R8 at y = 116 (Functions/cage_map_helpers.R).
 POSITION_MAP <- RFID_READER_MAP
 
 # Spatial resolution of the cage maps and models: "reader" (the 4 x 2 grid) or "column" (four long-axis columns,
@@ -611,7 +611,7 @@ bound_to_phase_blocks <- function(intervals, source_label) {
 # ------------------------------------------------
 # RAW ANTENNA OCCUPANCY
 # ------------------------------------------------
-# One raw recording per batch and cage change (Functions/rfid_raw_antenna_helpers.R). The analysis span of a
+# One raw recording per batch and cage change (Functions/antenna_log_helpers.R). The analysis span of a
 # recording is its observed phase blocks, from the start of the first to the end of the last, clipped to the end of
 # the raw recording. Every roster animal is seeded by its last detection before the span, and its cage is the
 # antenna board that holds most of its detections (the vendor System label is kept in the audit).
@@ -979,7 +979,7 @@ rm(comparison_occupancy_by_phase)
 # -----------------------------
 # Figures
 # -----------------------------
-# Cage maps (Functions/rfid_cage_map_helpers.R) draw each cage at the true reader spacing, R1-R4 on top, with the
+# Cage maps (Functions/cage_map_helpers.R) draw each cage at the true reader spacing, R1-R4 on top, with the
 # value printed in every tile, at CAGE_MAP_RESOLUTION: the 4 x 2 reader grid (default) or four long-axis columns.
 # Occupancy uses one fixed one-hue scale (0 to >= 60%) in every map, so group, animal and longitudinal maps compare by
 # colour. Differences use the shared diverging scale and grey tile outlines (MMM_TILE_BORDER): percentage points take

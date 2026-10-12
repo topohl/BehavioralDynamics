@@ -1,5 +1,5 @@
 # ===========================================================================
-# Cage-map helpers (Functions/rfid_cage_map_helpers.R) and how Stage 19 uses them.
+# Cage-map helpers (Functions/cage_map_helpers.R) and how Stage 19 uses them.
 # Portable: synthetic data only; nothing is read from or written to the lab drive.
 #
 #  1. the reader map is the preprocessing grid (animalpos_position_id) and its column map
@@ -17,7 +17,7 @@ suppressPackageStartupMessages({
 repo <- Sys.getenv("MMM_REPO_DIR", unset = NA_character_)
 if (is.na(repo) || !nzchar(repo)) {
   repo <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
-  while (!(file.exists(file.path(repo, "Functions", "rfid_cage_map_helpers.R")) &&
+  while (!(file.exists(file.path(repo, "Functions", "cage_map_helpers.R")) &&
            dir.exists(file.path(repo, "Analysis")))) {
     parent <- dirname(repo)
     if (identical(parent, repo)) stop("Could not locate the repository root.", call. = FALSE)
@@ -28,7 +28,7 @@ setwd(repo)
 check <- function(cond, msg) if (!isTRUE(cond)) stop("FAIL: ", msg, call. = FALSE)
 fails <- function(expr) inherits(try(expr, silent = TRUE), "try-error")
 
-source("Functions/rfid_cage_map_helpers.R")
+source("Functions/cage_map_helpers.R")
 source("Functions/animalpos_preprocessing_helpers.R")
 
 # 1 -------------------------------------------------------------------------
@@ -128,7 +128,7 @@ check(identical(levels(rfid_contrast_label(c("RES_minus_CON", "SUS_minus_RES")))
                 paste(c("RES", "SUS"), intToUtf8(0x2212), c("CON", "RES"))), "7: contrast labels")
 wrapped <- rfid_wrap_caption(strrep("word ", 80), width_in = 4)
 check(all(nchar(strsplit(wrapped, "\n")[[1]]) <= floor((4 - 0.15) * 23)), "7: captions wrap to the figure width")
-helper_bytes <- readBin("Functions/rfid_cage_map_helpers.R", "raw", file.info("Functions/rfid_cage_map_helpers.R")$size)
+helper_bytes <- readBin("Functions/cage_map_helpers.R", "raw", file.info("Functions/cage_map_helpers.R")$size)
 check(all(helper_bytes < as.raw(0x80)), "7: the helper file stays ASCII (code points via intToUtf8)")
 cat("7 labels: PASS\n")
 

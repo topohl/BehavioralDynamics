@@ -1,5 +1,5 @@
 # ===========================================================================
-# Raw antenna log helpers (Functions/rfid_raw_antenna_helpers.R).
+# Raw antenna log helpers (Functions/antenna_log_helpers.R).
 # Portable: a synthetic UTF-16LE log under tempdir(); nothing is read from or written to the lab drive.
 #
 #  1. file selection: one recording with detections per batch and cage change; initScan files and empty sessions ignored
@@ -13,7 +13,7 @@ suppressPackageStartupMessages({ library(dplyr); library(tibble) })
 repo <- Sys.getenv("MMM_REPO_DIR", unset = NA_character_)
 if (is.na(repo) || !nzchar(repo)) {
   repo <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
-  while (!(file.exists(file.path(repo, "Functions", "rfid_raw_antenna_helpers.R")) &&
+  while (!(file.exists(file.path(repo, "Functions", "antenna_log_helpers.R")) &&
            dir.exists(file.path(repo, "Analysis")))) {
     parent <- dirname(repo)
     if (identical(parent, repo)) stop("Could not locate the repository root.", call. = FALSE)
@@ -24,7 +24,7 @@ setwd(repo)
 check <- function(cond, msg) if (!isTRUE(cond)) stop("FAIL: ", msg, call. = FALSE)
 fails <- function(expr) inherits(try(expr, silent = TRUE), "try-error")
 source("Functions/animalpos_preprocessing_helpers.R")
-source("Functions/rfid_raw_antenna_helpers.R")
+source("Functions/antenna_log_helpers.R")
 canon <- function(x) ifelse(grepl("^[0-9]+$", x), sub("^0+(?=.)", "", x, perl = TRUE), x)
 
 tmp <- tempfile("rawlog_"); dir.create(file.path(tmp, "B3", "raw"), recursive = TRUE)
