@@ -1400,3 +1400,47 @@ output migration keeps that older staging tree separate.
 
 **Checks after the promotion.** All three read-only checks pass. In the copy-parity check, 1,901 copies match the plans
 and 280 match a recorded rerun (68 more than before); there is no unplanned file.
+
+## 2026-10-12 Stage 19 rebuilt from the raw antenna logs
+
+**What changed.** Code commit `aff7837`.
+- **Source.** Stage 19 now takes its cage occupancy from the raw MultiMouseMonitor logs (`Raw Data/Behavior/RFID/MMMdata/B<n>/raw/`, read-only; `Functions/rfid_raw_antenna_helpers.R`).
+  - The vendor AnimalPos records are written only after a move of at least 200 grid units. They never register a change of row within a reader column (0 of 592,161 changes in the 24 preprocessed files) and miss most neighbour moves, so their 4 x 2 maps showed the row an animal arrived on.
+  - Each animal holds the reader of its latest detection, seeded before the window.
+  - Border flips shorter than 2 s are removed.
+  - The cage is the antenna board.
+  - RFID tags are mapped to animals through the AnimalPos export, because Batch 1's logs carry no animal labels.
+  - The AnimalPos reconstruction is kept as a comparison table and QC figure.
+- **Summaries.** Animal occupancy is time-weighted, with one row per animal and window. CC1's first active phase is now part of the longitudinal window; before, the longitudinal contrasts counted an animal once per phase.
+- **Models.** Per sex, one mixed model per reader on centred log-ratios with a cage random effect, Kenward-Roger df and BH-adjusted p. They replace a single pooled model that was rank deficient (Sex nested in Batch).
+- **Figures.** 4 x 2 cage maps. Five new figures: Cohen's d map, per-animal maps (one per sex), longitudinal cage maps (active, inactive) and the source comparison. Eleven SVGs in all.
+
+**What ran.**
+- `run_stage19_sandbox.R` evaluated the stage's own statements, reading the live inputs and writing only to a sandbox folder. It ran in 12.4 min from the code of `aff7837`. The live Stage 19 outputs had the same hashes and modification times before and after (36 files).
+- An earlier attempt was lost to a bluescreen (bugcheck 0x50 at 15:09) during the former per-event AnimalPos loop. That loop was then vectorised. Its output is identical to the former loop's (`identical()` on 12 cages from all batches); the full step now takes seconds instead of about an hour.
+- Data details caught by the stage's guards:
+  - B6 CC4 has a second, empty session file (`MultiMouseMonitor-25.01.07-Batch6_change_4_19Apr24.csv`, start and end markers only), which is ignored and named in the audit.
+  - The B1 CC1 log repeats the hour 02:00-03:00 on 2022-10-30 (daylight saving ends). The 8,097 rows logged after the clock went back are dropped, because the pipeline keeps the wall clock. Only B1 CC1's pooled active phases change, by at most 1.6 percentage points.
+
+**Audit** (`analyses/spatial_occupancy/audit/raw_antenna_occupancy_audit.csv` and companions):
+- All 444 animal-recordings are seeded, assigned for their whole span and have no off-board reads.
+- The antenna board disagrees with the vendor System label for exactly the four known animal-files (B1 CC2 OQ764/OQ770/OQ772, B6 CC4 OR646).
+- Median read coverage is 20.7% of the time (4.0-62.5%).
+- The flip filter removes 27% of reader changes and moves group means by at most 0.03 percentage points (0.52 at 30 s).
+
+**Independent check.** A separate agent reproduced the occupancy from the raw logs with its own code. B1 CC1 and B4 CC1 in the primary window and B2 CC3 and B6 CC4 at phase level matched with a maximum difference of 0. Two model cells (Female R2, Male R8) matched to about 1e-8. Those values did not change with the later clock-fall-back fix.
+
+**Results.** In the CC1 first active phase every group spends 69-80% of the time at the R1/R5 end, mostly at R5 (41-51%). No group contrast survives BH: 0 of 48 primary and 0 of 384 longitudinal contrasts have q < 0.05.
+
+**Promotion.** Script `promote_stage19_20261012.ps1`:
+1. The 36 live files were backed up to `_migration_control/stage19_before_rerun_20261012/`, with `backup_manifest.csv` and `promote_manifest.csv`.
+2. 57 files were promoted, including the `publication_ready/` copies (19 files), and every one was verified against its sandbox hash.
+3. No live file was left stale.
+
+**Record.** `docs/behavior_output_producer_reruns/stage19_20261012.csv` (SHA-256 `89C46192...`; 38 rows: 20 rewritten, 13 added, 5 unchanged). `publication_ready/` is a separate staging tree and is not part of the record.
+
+**Checks after the promotion.**
+All three read-only checks pass:
+- the copy-parity check: 2,181 originals and 1,883 copies match the plans, 298 copies match a recorded rerun (18 more than before), 67 files were added by recorded reruns (13 more), and there is no unplanned file;
+- the foundation inventory;
+- the Stage 14 residual inventory.
