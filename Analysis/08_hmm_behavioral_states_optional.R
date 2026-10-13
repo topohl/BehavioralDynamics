@@ -73,7 +73,7 @@ if (!methods::isClass("HMMRegularizedNORMresponse")) {
   methods::setClass("HMMRegularizedNORMresponse", contains = "NORMresponse")
 }
 methods::setMethod(
-  "fit",
+  depmixS4::fit,
   signature(object = "HMMRegularizedNORMresponse"),
   function(object, w) {
     if (missing(w)) w <- NULL
