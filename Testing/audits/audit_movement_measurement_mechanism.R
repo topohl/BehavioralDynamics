@@ -100,13 +100,11 @@ if (sys.nframe() == 0L) {
     mean_abs_rank_shift = mean(abs(rank(w[[a]]) - rank(w[[b]])), na.rm = TRUE))))))
   fwrite(cors, file.path(OUT, "correlations.csv"))
 
-  dist <- rbindlist(list(
-    per[, .(by = "Group x Sex", level = paste(Group, Sex), n = .N, Movement_mean_median = median(Movement_mean, na.rm = TRUE),
-            q25 = quantile(Movement_mean, 0.25, na.rm = TRUE), q75 = quantile(Movement_mean, 0.75, na.rm = TRUE), rate_per_h_median = median(rate_per_h)), by = variant],
-    per[, .(by = "Batch", level = Batch, n = .N, Movement_mean_median = median(Movement_mean, na.rm = TRUE),
-            q25 = quantile(Movement_mean, 0.25, na.rm = TRUE), q75 = quantile(Movement_mean, 0.75, na.rm = TRUE), rate_per_h_median = median(rate_per_h)), by = variant],
-    per[, .(by = "Cage (Batch System)", level = paste(Batch, System), n = .N, Movement_mean_median = median(Movement_mean, na.rm = TRUE),
-            q25 = quantile(Movement_mean, 0.25, na.rm = TRUE), q75 = quantile(Movement_mean, 0.75, na.rm = TRUE), rate_per_h_median = median(rate_per_h)), by = variant]))
+  per[, `:=`(GroupSex = paste(Group, Sex), Cage = paste(Batch, System))]
+  dsum <- function(col, label) per[, .(by = label, n = .N, Movement_mean_median = median(Movement_mean, na.rm = TRUE),
+                                       q25 = quantile(Movement_mean, 0.25, na.rm = TRUE), q75 = quantile(Movement_mean, 0.75, na.rm = TRUE),
+                                       rate_per_h_median = median(rate_per_h)), by = c("variant", col)][, level := get(col)][, (col) := NULL][]
+  dist <- rbindlist(list(dsum("GroupSex", "Group x Sex"), dsum("Batch", "Batch"), dsum("Cage", "Cage (Batch System)")), use.names = TRUE)
   fwrite(dist, file.path(OUT, "distributions.csv"))
   # Share of the animal-level variance of Movement_mean between batches and between cages (descriptive, by variant)
   part <- per[!is.na(Movement_mean), {
