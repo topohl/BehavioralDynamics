@@ -143,8 +143,9 @@ options(
 source("Analysis/run_all_analysis.R")
 ```
 
-Stages 01, 09 and 28 rewrite inputs that the frozen runs pinned by sha256, so the frozen-input guard refuses them on the
-live root unless `options(mmm.allow_pinned_overwrite = TRUE)` is set. See `Analysis/README_pipeline.md`.
+Stages 01, 08, 09 and 28 rewrite files pinned by sha256 (the frozen runs' inputs; the 72 live Stage 08 HMM outputs), so the
+frozen-input guard refuses them on the live root unless `options(mmm.allow_pinned_overwrite)` allows the stage, preferably by
+its id (e.g. `"08"`; `TRUE` opens every pinned writer). See `Analysis/README_pipeline.md`.
 
 ---
 

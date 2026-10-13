@@ -85,11 +85,13 @@ Two stages are option-gated within a profile:
 | 10 systems extension | `mmm.run_systems_extension` | `TRUE` |
 | 15 behaviour-proteomics | `mmm.run_behavior_proteomics` | `FALSE` |
 
-Stages 01, 09 and 28 rewrite inputs that the frozen runs pinned by sha256.
-`Functions/frozen_input_guard.R` refuses to start them on the live root unless
-`options(mmm.allow_pinned_overwrite = TRUE)` is set (it then backs the pinned
-files up first), and after each stage it stops if a pinned file changed. A
-sandbox root is not guarded. See `Analysis/README_pipeline.md`.
+Stages 01, 08, 09 and 28 rewrite files pinned by sha256 (the frozen runs'
+inputs; the 72 live Stage 08 HMM outputs, pinned in
+`docs/frozen_output_pins/`). `Functions/frozen_input_guard.R` refuses to start
+them on the live root unless `options(mmm.allow_pinned_overwrite)` allows the
+stage, preferably by its id (e.g. `"08"`); `TRUE` opens every pinned writer. It
+then backs the pinned files up first, and after each stage it stops if a pinned
+file changed. A sandbox root is not guarded. See `Analysis/README_pipeline.md`.
 
 ### 2. Stages outside the runner
 

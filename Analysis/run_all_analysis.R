@@ -5,9 +5,10 @@
 #   options(mmm.pipeline_profile = "heatmap_inputs")    # 01, 08, 12, 14: the inputs of the Stage 14 heatmaps, then 14
 #   options(mmm.pipeline_profile = "early_prediction")  # 09
 #   options(mmm.pipeline_stages = c("04", "05"))        # explicit stages instead of a profile
-# Stages 01 and 09 rewrite files that the frozen runs pinned by sha256 (Stage 29 v1.0.1 release run_inputs.csv,
-# Stage 32 input_hashes.csv). Functions/frozen_input_guard.R refuses to start them on the live project root unless
-# options(mmm.allow_pinned_overwrite = TRUE) is set, and after every stage it re-checks the pinned files.
+# Stages 01, 08 and 09 rewrite files that are pinned by sha256 (Stage 29 v1.0.1 release run_inputs.csv, Stage 32
+# input_hashes.csv; the Stage 08 HMM outputs by docs/frozen_output_pins/stage08_hmm_states_20260922.csv).
+# Functions/frozen_input_guard.R refuses to start them on the live project root unless options(mmm.allow_pinned_overwrite)
+# allows the stage (TRUE, or the stage id such as "08"), and after every stage it re-checks the pinned files.
 # Stage 14 is rebuilt in a guarded sandbox and promoted, not run on the live root (docs/BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md).
 
 RUN_SYSTEMS_EXTENSION <- isTRUE(getOption("mmm.run_systems_extension", TRUE))
@@ -92,7 +93,7 @@ local({
       message("Skipping ", row$script, " (", row$optional_flag, " = FALSE)")
       next
     }
-    # Stages 01 and 28 guard themselves; every other stage is checked here (Stage 09 is refused on the live root).
+    # Stages 01, 08 and 28 guard themselves; every other stage is checked here (Stage 09 is refused on the live root).
     snapshot <- if (row$stage %in% MMM_SELF_GUARDED_STAGES) NULL else mmm_frozen_guard_before(row$stage)
     stage_error <- tryCatch({ run_script(row$script); NULL }, error = function(e) e)
     mmm_frozen_guard_after(snapshot)

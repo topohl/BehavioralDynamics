@@ -54,6 +54,12 @@ if (setequal(hmm_run_bin_levels, c("10min_based", "5min_based"))) {
     c("hmm_states_10min", "hmm_states_5min"), project_root,
     "Stage 08 HMM")
 }
+# Frozen-output guard: on the live root every HMM output is pinned (docs/frozen_output_pins/stage08_hmm_states_20260922.csv);
+# the stage stops here, before any write, unless options(mmm.allow_pinned_overwrite = "08") allows it. Other roots are not guarded.
+hmm_output_roots <- vapply(hmm_run_bin_levels, function(bin_level) mmm_behavior_guard_numbered_output_path(
+  mmm_hmm_resolution_root(bin_level, project_root), project_root), character(1))
+source_mmm_helper("frozen_input_guard.R")
+frozen_guard_snapshot <- mmm_frozen_guard_before("08", project_root, output_roots = hmm_output_roots)
 hmm_fit_seeds <- as.integer(getOption("mmm.hmm.fit_seeds", c(1L, 11L, 101L)))
 hmm_em_tolerance <- as.numeric(getOption("mmm.hmm.em_tolerance", 1e-6))
 hmm_em_max_iterations <- as.integer(getOption("mmm.hmm.em_max_iterations", 500L))
@@ -171,8 +177,7 @@ run_hmm_resolution <- function(bin_level) {
     bin_level,
     "all_behavior_metrics.csv"
   )
-  output_dir <- mmm_behavior_guard_numbered_output_path(
-    mmm_hmm_resolution_root(bin_level, project_root), project_root)
+  output_dir <- hmm_output_roots[[bin_level]]   # the folder the frozen-output guard checked
   ensure_dir(output_dir)
   ensure_dir(file.path(output_dir, "tables"))
   ensure_dir(file.path(output_dir, "figures"))
@@ -630,7 +635,8 @@ run_hmm_resolution <- function(bin_level) {
   invisible(hmm_qc)
 }
 
-hmm_run_qc <- map_dfr(hmm_run_bin_levels, run_hmm_resolution)
+hmm_run_qc <- withCallingHandlers(map_dfr(hmm_run_bin_levels, run_hmm_resolution), error = function(e) try(mmm_frozen_guard_after(frozen_guard_snapshot)))
+mmm_frozen_guard_after(frozen_guard_snapshot)
 message(
   "Completed explicit HMM resolution contract: primary=", hmm_primary_bin_level,
   "; sensitivity=", paste(hmm_sensitivity_bin_levels, collapse = ", "),

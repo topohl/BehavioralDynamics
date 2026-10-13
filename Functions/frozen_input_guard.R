@@ -8,19 +8,24 @@
 #   Stage 29c                analysis_ready/pipeline/29c_posthoc_movement_combz_fit/v1.0_fd61cd9/audit/input_hashes.csv
 #   Stage 30                 analysis_ready/pipeline/30_exploratory_screen/v1.0_be71e2f/audit/input_hashes.csv
 #   Stage 32 v1.1            analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.1_f4c7a31/audit/input_hashes.csv
+# Output pin lists in the repository (paths relative to the repository root) pin outputs that no run recorded:
+#   Stage 08 HMM outputs     docs/frozen_output_pins/stage08_hmm_states_20260922.csv (the 72 live files of
+#                            analysis_ready/analyses/hmm_states/{10min,5min}, written 2026-09-22; pinned 2026-10-13)
 # Some of those inputs are ordinary outputs that a producer stage rewrites in place:
 #   Stage 01  analysis_ready/foundations/behavior_metrics/10min_based/all_behavior_metrics.csv
+#   Stage 08  analysis_ready/analyses/hmm_states/{10min,5min}/... (every file)
 #   Stage 09  analysis_ready/pipeline/09_early_prediction/10min/tables/model_ladder_input.csv
 #   Stage 28  analysis_ready/pipeline/28_rfid_behavioral_domains/{5min,10min}/tables/acute_window_*.csv
 # A routine rerun would replace the bytes these runs were verified against. On the live project root the guard
-#   1. refuses to start a stage that writes a pinned file, unless options(mmm.allow_pinned_overwrite = TRUE) or the
-#      environment variable MMM_ALLOW_PINNED_OVERWRITE=1 is set; with that permission it first copies the pinned
+#   1. refuses to start a stage that writes a pinned file, unless options(mmm.allow_pinned_overwrite) allows it: TRUE
+#      (every stage) or the stage ids, e.g. "08" (environment variable MMM_ALLOW_PINNED_OVERWRITE: 1, or e.g. "08" or
+#      "08,28"); with that permission it first copies the pinned
 #      files the stage writes to analysis_ready/_migration_control/pinned_inputs_before_stage<id>_<time>/;
 #   2. after the stage, re-hashes every pinned file whose size or time stamp changed, and stops if its bytes no
 #      longer match the pin without that permission (a byte-identical rewrite passes).
 # A sandbox root holds copies, so the guard does nothing there: it applies only when the project root is the root the
 # pin lists record, that root under its UNC name (\\server\share\...\same\path), or a name listed in
-# options(mmm.live_root_aliases).
+# options(mmm.live_root_aliases) together with the recorded root (list both spellings, e.g. c(<recorded root>, <alias>)).
 #
 # Kept outside the frozen code sets and outside behavioral_dynamics_helpers.R on purpose. Needs base R and digest.
 # The CombZ producer (Analysis/build_later_outcome_combz.R) is pinned by its git blob and therefore cannot call it.
@@ -32,16 +37,21 @@ MMM_FROZEN_PIN_LISTS <- c(
   stage29c_v10 = "analysis_ready/pipeline/29c_posthoc_movement_combz_fit/v1.0_fd61cd9/audit/input_hashes.csv",
   stage30_v10 = "analysis_ready/pipeline/30_exploratory_screen/v1.0_be71e2f/audit/input_hashes.csv",
   stage32_v11 = "analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.1_f4c7a31/audit/input_hashes.csv")
+# Same format (input = absolute path on the recorded root, sha256), read from the repository: always present, so the
+# protection cannot be lost with a file on the data drive. Like every pin list, they apply only on the recorded root.
+MMM_REPO_PIN_LISTS <- c(
+  stage08_hmm_20260922 = "docs/frozen_output_pins/stage08_hmm_states_20260922.csv")
 
 # Output folders (relative to the project root) of the stages that write pinned files. A stage that knows its actual
 # output folder passes it instead (Stage 01 honours options(mmm.derived_metrics_dir), e.g. for the cookie data).
 MMM_PINNED_WRITER_ROOTS <- list(
   "01" = "analysis_ready/foundations/behavior_metrics",
+  "08" = "analysis_ready/analyses/hmm_states",
   "09" = "analysis_ready/pipeline/09_early_prediction",
   "28" = "analysis_ready/pipeline/28_rfid_behavioral_domains")
 # Stages whose scripts call the guard themselves (before their first write and at their end); the runner leaves them
 # to it. Stage 09 is treated as registered and is not edited: the runner guards it.
-MMM_SELF_GUARDED_STAGES <- c("01", "28")
+MMM_SELF_GUARDED_STAGES <- c("01", "08", "28")
 
 .mmm_fg_norm <- function(p) tolower(sub("/+$", "", gsub("\\\\", "/", p)))
 
@@ -53,10 +63,25 @@ MMM_SELF_GUARDED_STAGES <- c("01", "28")
   unc_of(a, b) || unc_of(b, a)
 }
 
-#' TRUE when the caller allowed pinned files to be replaced.
-mmm_pinned_overwrite_allowed <- function() {
-  isTRUE(getOption("mmm.allow_pinned_overwrite", FALSE)) ||
-    identical(Sys.getenv("MMM_ALLOW_PINNED_OVERWRITE", unset = ""), "1")
+#' TRUE when the caller allowed pinned files to be replaced: options(mmm.allow_pinned_overwrite = TRUE) or the
+#' environment variable MMM_ALLOW_PINNED_OVERWRITE=1 for every stage; a stage id such as "08" (option: a character
+#' vector; variable: comma-separated) for that stage only.
+mmm_pinned_overwrite_allowed <- function(stage = NULL) {
+  opt <- getOption("mmm.allow_pinned_overwrite", FALSE)
+  env <- Sys.getenv("MMM_ALLOW_PINNED_OVERWRITE", unset = "")
+  if (isTRUE(opt) || identical(env, "1")) return(TRUE)
+  if (is.null(stage)) return(FALSE)
+  ids <- c(if (is.character(opt)) opt, if (nzchar(env)) trimws(strsplit(env, ",", fixed = TRUE)[[1]]))
+  stage %in% ids
+}
+
+# Absolute paths of the repository pin lists; a missing one stops the guard (fails closed).
+.mmm_fg_repo_lists <- function(repo_pin_lists = MMM_REPO_PIN_LISTS) {
+  if (!length(repo_pin_lists)) return(character(0))
+  repo <- if (exists("MMM_REPO_ROOT", envir = globalenv(), inherits = FALSE)) get("MMM_REPO_ROOT", envir = globalenv()) else getwd()
+  p <- file.path(repo, repo_pin_lists); names(p) <- names(repo_pin_lists)
+  if (!all(file.exists(p))) stop("Repository pin list missing (run from the repository root): ", paste(p[!file.exists(p)], collapse = ", "), call. = FALSE)
+  p
 }
 
 #' Pinned derived files (under analysis_ready/) of the frozen runs, mapped onto project_root.
@@ -64,14 +89,15 @@ mmm_pinned_overwrite_allowed <- function() {
 #' NULL when project_root is not the root that the pin lists record (a sandbox or test root holds copies) or when no
 #' pin list exists under it. One row per file: rel, path, sha256 and the pin lists naming it.
 mmm_frozen_guard_pins <- function(project_root, pin_lists = MMM_FROZEN_PIN_LISTS,
-                                  aliases = getOption("mmm.live_root_aliases", character(0))) {
-  lists <- file.path(project_root, pin_lists)
+                                  aliases = getOption("mmm.live_root_aliases", character(0)), repo_pin_lists = MMM_REPO_PIN_LISTS) {
+  lists <- c(file.path(project_root, pin_lists), .mmm_fg_repo_lists(repo_pin_lists))
+  list_names <- c(names(pin_lists), names(repo_pin_lists))
   have <- file.exists(lists)
   if (!any(have)) return(NULL)
   rows <- lapply(which(have), function(i) {
     x <- utils::read.csv(lists[i], stringsAsFactors = FALSE, check.names = FALSE, colClasses = "character")
     if (!all(c("input", "sha256") %in% names(x))) stop("Pin list without input/sha256 columns: ", lists[i], call. = FALSE)
-    data.frame(pin_list = names(pin_lists)[i], input = x$input, sha256 = tolower(x$sha256), stringsAsFactors = FALSE)
+    data.frame(pin_list = list_names[i], input = x$input, sha256 = tolower(x$sha256), stringsAsFactors = FALSE)
   })
   pins <- do.call(rbind, rows)
   root <- .mmm_fg_norm(project_root)
@@ -115,21 +141,26 @@ mmm_frozen_guard_before <- function(stage, project_root = mmm_project_root(), ou
   if (is.null(output_roots) && !is.null(MMM_PINNED_WRITER_ROOTS[[stage]]))
     output_roots <- file.path(project_root, MMM_PINNED_WRITER_ROOTS[[stage]])
   hit <- pins[.mmm_fg_under(pins$path, output_roots), , drop = FALSE]
-  allowed <- mmm_pinned_overwrite_allowed()
+  allowed <- mmm_pinned_overwrite_allowed(stage)
   if (nrow(hit) && !allowed) {
-    stop("Stage ", stage, " rewrites ", nrow(hit), " file(s) that frozen runs pinned by sha256:\n  ",
-         paste0(hit$rel, " [", hit$pin_lists, "]", collapse = "\n  "),
-         "\nRun it in a sandbox root (MMM_BEHAVIOR_PROJECT_ROOT), or set options(mmm.allow_pinned_overwrite = TRUE) ",
-         "after deciding to replace the pinned bytes (the guard then backs them up first).", call. = FALSE)
+    # The remedy comes first: R truncates a printed error message after getOption("warning.length") (1000) bytes.
+    stop("Stage ", stage, " rewrites ", nrow(hit), " file(s) that frozen runs pinned by sha256. Run it in a sandbox root ",
+         "(MMM_BEHAVIOR_PROJECT_ROOT), or set options(mmm.allow_pinned_overwrite = \"", stage, "\") after deciding to replace ",
+         "the pinned bytes (the guard then backs them up first). Files:\n  ",
+         paste0(hit$rel, " [", hit$pin_lists, "]", collapse = "\n  "), call. = FALSE)
   }
   if (nrow(hit)) {
     backup <- file.path(project_root, "analysis_ready", "_migration_control",
                         sprintf("pinned_inputs_before_stage%s_%s", stage, format(Sys.time(), "%Y%m%d_%H%M%S")))
     present <- hit[file.exists(hit$path), , drop = FALSE]
+    dest <- file.path(backup, present$rel)
+    # R cannot write paths of 260+ characters on this host (folders: 248+); refuse before copying anything (e.g. a UNC root).
+    if (.Platform$OS.type == "windows" && length(dest) && (max(nchar(dest)) >= 260L || max(nchar(dirname(dest))) >= 248L))
+      stop("Backup paths exceed the Windows path limit (", max(nchar(dest)), " characters); nothing was copied. ",
+           "Use the drive-letter form of the project root instead of its UNC name.", call. = FALSE)
     for (i in seq_len(nrow(present))) {
-      dest <- file.path(backup, present$rel[i])
-      dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
-      if (!file.copy(present$path[i], dest, copy.date = TRUE)) stop("Backup failed: ", present$path[i], call. = FALSE)
+      dir.create(dirname(dest[i]), recursive = TRUE, showWarnings = FALSE)
+      if (!file.copy(present$path[i], dest[i], copy.date = TRUE)) stop("Backup failed: ", present$path[i], call. = FALSE)
     }
     present$sha256_backup <- vapply(file.path(backup, present$rel), .mmm_fg_sha, "", USE.NAMES = FALSE)
     if (nrow(present)) utils::write.csv(present[, c("rel", "sha256", "sha256_backup", "pin_lists")],
@@ -157,13 +188,13 @@ mmm_frozen_guard_after <- function(snapshot) {
   stage <- attr(snapshot, "stage")
   if (any(same)) message("frozen-input guard: stage ", stage, " rewrote ", sum(same), " pinned file(s) with identical bytes")
   if (any(!same)) {
-    msg <- paste0("Stage ", stage, " changed ", sum(!same), " pinned file(s); the frozen runs no longer match them:\n  ",
-                  paste0(t$rel[!same], " [", t$pin_lists[!same], "] pinned ", substr(t$sha256[!same], 1, 8), ", now ",
-                         ifelse(is.na(t$sha_now[!same]), "missing", substr(t$sha_now[!same], 1, 8)), collapse = "\n  "))
+    head <- paste0("Stage ", stage, " changed ", sum(!same), " pinned file(s); the frozen runs no longer match them.")
+    lst <- paste0(t$rel[!same], " [", t$pin_lists[!same], "] pinned ", substr(t$sha256[!same], 1, 8), ", now ",
+                  ifelse(is.na(t$sha_now[!same]), "missing", substr(t$sha_now[!same], 1, 8)), collapse = "\n  ")
     if (isTRUE(attr(snapshot, "allowed"))) {
-      warning(msg, "\nRecord the replacement in docs/BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md.", call. = FALSE)
+      warning(head, " Record the replacement in docs/BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md. Files:\n  ", lst, call. = FALSE)
     } else {
-      stop(msg, "\nRestore the pinned bytes before any frozen run is verified again.", call. = FALSE)
+      stop(head, " Restore the pinned bytes before any frozen run is verified again. Files:\n  ", lst, call. = FALSE)
     }
   }
   invisible(!any(!same))
