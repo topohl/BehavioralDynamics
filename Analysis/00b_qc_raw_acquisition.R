@@ -20,7 +20,11 @@ RAQC_CODE <- c("Analysis/00b_qc_raw_acquisition.R", "Functions/antenna_acquisiti
                "Functions/animalpos_preprocessing_helpers.R", "Functions/project_paths.R", "Functions/tracking_qc_run_config.R",
                "Analysis/_pipeline_setup.R", "Functions/behavioral_dynamics_helpers.R", "Functions/manuscript_palette.R")
 RAQC_TABLES <- c("recording_qc", "board_qc", "reader_qc", "reader_block_qc", "stretches", "animal_qc", "animal_block_qc",
-                 "animal_reader_block", "basis_crosstab", "coassign_by_reader", "nonroster_tags", "silences", "system_messages", "blocks")
+                 "animal_reader_block", "basis_crosstab", "coassign_by_reader", "nonroster_tags", "silences", "system_messages", "blocks",
+                 "stretch_calibration", "inputs")
+# Longest file names written under the run folder (tmp and final), for the path budget.
+RAQC_LONGEST_RELATIVE <- c(file.path("rec", "B6_CC4", "animal_reader_block.csv"), file.path("figures", "qc", "qc05_column_sensitivity.png"),
+                           file.path("tables", "coassign_by_reader_summary.csv"), file.path("manifest", "qc_proposed_exclusions.csv"))
 
 raqc_git <- function(args) suppressWarnings(system2("git", c("-C", MMM_REPO_ROOT, args), stdout = TRUE, stderr = TRUE))
 
@@ -31,27 +35,36 @@ raqc_code_hashes <- function() {
              stringsAsFactors = FALSE)
 }
 
-# One recording: the QC tables, written to <tmp>/rec/<id>/ with a DONE marker naming the code hashes.
+# One recording: the QC tables, written to <tmp>/rec/<id>/ with a DONE marker naming the code and input hashes.
 raqc_recording <- function(vf, cfg, tag_dir, marker, tmp) {
   id <- sub("^E9_SIS_(B[0-9]+)_(CC[0-9]+)_.*$", "\\1_\\2", basename(vf))
   batch <- sub("_.*$", "", id); cc <- sub("^.*_", "", id)
   d <- file.path(tmp, "rec", id)
   done <- file.path(d, "DONE.txt")
-  if (file.exists(done) && identical(readLines(done), marker)) { message(id, ": done, kept"); return(invisible(id)) }
-  t0 <- Sys.time()
-  vendor <- data.table::fread(vf, colClasses = "character")
-  tags <- rfid_animalpos_tag_map(file.path(tag_dir, batch, sprintf("E9_SIS_%s_%s_AnimalPos.csv", batch, cc)))
-  rec <- rfid_read_recording(cfg$raw_root, batch, cc, keep_read_offsets = TRUE)
-  sm <- amv_system_messages(rec$path)
   b <- as.integer(sub("B", "", batch)); k <- as.integer(sub("CC", "", cc))
   scan <- function(kk) list.files(file.path(cfg$raw_root, batch, "raw"), pattern = sprintf("Batch%d_change_%d_.*initScan[.]csv$", b, kk), full.names = TRUE)
   before <- scan(k); after <- if (k < 4) scan(k + 1L) else character()
+  tag_file <- file.path(tag_dir, batch, sprintf("E9_SIS_%s_%s_AnimalPos.csv", batch, cc))
+  logs <- rfid_raw_log_candidates(cfg$raw_root, batch, cc)
+  inputs <- c(vf, tag_file, logs, before, after)
+  input_tab <- data.frame(SourceFile = basename(vf),
+                          role = c("v2 preprocessed", "tag map", rep("raw log candidate", length(logs)), rep("placement scan before", length(before)),
+                                   rep("placement scan after", length(after))),
+                          input = inputs, sha256 = mmm_file_sha256(inputs), bytes = file.size(inputs), stringsAsFactors = FALSE)
+  marker <- c(marker, paste(input_tab$sha256, basename(input_tab$input)))
+  if (file.exists(done) && identical(readLines(done), marker)) { message(id, ": done, kept"); return(invisible(id)) }
+  t0 <- Sys.time()
+  vendor <- data.table::fread(vf, colClasses = "character")
+  tags <- rfid_animalpos_tag_map(tag_file)
+  rec <- rfid_read_recording(cfg$raw_root, batch, cc, keep_read_offsets = TRUE)
+  sm <- amv_system_messages(rec$path)
   ib <- aqc_initscan_antenna_reads(before); ia <- aqc_initscan_antenna_reads(after)
   initscan <- merge(ib[, .(board, PositionID, reads_before = if (length(before)) reads else NA_integer_)],
                     ia[, .(board, PositionID, reads_after = if (length(after)) reads else NA_integer_)], by = c("board", "PositionID"))
   initb <- data.table::rbindlist(lapply(before, antenna_dv_initscan_boards))
   if (nrow(initb)) initb <- initb[order(tag, -initscan_reads)][, .SD[1], by = tag]
   res <- aqc_process_recording(vendor, rec, tags, sm, initscan, initb, batch, cc, basename(vf))
+  res$inputs <- data.table::as.data.table(input_tab)
   dir.create(d, recursive = TRUE, showWarnings = FALSE)
   for (nm in names(res)) data.table::fwrite(res[[nm]], file.path(d, paste0(nm, ".csv")))
   writeLines(marker, done)
@@ -84,7 +97,7 @@ raqc_summaries <- function(tab, ev) {
   col_sens <- data.table::melt(col, id.vars = c("Phase", "column"), variable.name = "reconstruction", value.name = "seconds")
   col_sens[, share := seconds / sum(seconds), by = .(Phase, reconstruction)]
   # event-start vs single-read basis: reassignment by event reader, support age, phase; and where it comes from
-  bx <- tab$basis_crosstab
+  bx <- live(tab$basis_crosstab)
   basis_reader <- bx[, .(seconds = sum(seconds), reassigned = sum(seconds[read_pos != event_pos]),
                          other_column = sum(seconds[L$column[read_pos] != L$column[event_pos]])), by = .(Phase, event_pos, age_class)]
   basis_reader[, `:=`(reassigned_share = reassigned / seconds, other_column_share = other_column / seconds)]
@@ -98,13 +111,13 @@ raqc_summaries <- function(tab, ev) {
   co[, obs_exp := observed / expected]
   co <- merge(co, L, by = "PositionID")[order(Phase, seconds, PositionID)]
   # changes before and after switching correction, per hour (animal-block medians)
-  ab <- tab$animal_block_qc
+  ab <- live(tab$animal_block_qc)
   sw <- ab[, .(animal_blocks = .N, raw_events_per_h = stats::median(changes_raw / (block_s / 3600)),
                event_tau2_per_h = stats::median(changes_event_tau2 / (block_s / 3600)),
                read_tau0_per_h = stats::median(changes_read_tau0 / (block_s / 3600)), read_tau2_per_h = stats::median(changes_read_tau2 / (block_s / 3600)),
                returns_lt2s_share = sum(returns_lt2s) / sum(changes_raw)), by = Phase]
   # completeness of spatial measures per board-recording
-  comp <- ab[, .(animal_seconds = sum(block_s), supported_le60 = sum((1 - age_gt60s_share) * block_s), supported_le300 = sum((1 - age_gt300s_share) * block_s)),
+  comp <- tab$animal_block_qc[, .(animal_seconds = sum(block_s), supported_le60 = sum((1 - age_gt60s_share) * block_s), supported_le300 = sum((1 - age_gt300s_share) * block_s)),
              by = .(SourceFile, Batch, CC, board, Phase)]
   comp[, `:=`(supported_le60_share = supported_le60 / animal_seconds, supported_le300_share = supported_le300 / animal_seconds)]
   comp[, dead_channel := paste(SourceFile, board) %in% paste(dead$SourceFile, dead$board)]
@@ -112,7 +125,9 @@ raqc_summaries <- function(tab, ev) {
   comp <- merge(comp, tail, by = c("SourceFile", "board"), all.x = TRUE)
   list(reader_summary = reader_summary, reader_spread = reader_spread, column_sensitivity = col_sens, basis_by_reader = basis_reader,
        basis_by_recording = basis_recording, basis_flow = basis_flow, coassign_by_reader_summary = co, switching_summary = sw,
-       spatial_completeness = comp)
+       spatial_completeness = comp,
+       stretch_calibration_summary = tab$stretch_calibration[, .(minutes = sum(minutes), predicted_rate = sum(predicted) / sum(minutes),
+                                                                observed_rate = sum(observed) / sum(minutes)), by = .(Phase, bin)][order(Phase, bin)])
 }
 
 raqc_figures <- function(tab, ev, sm, fig_dir) {
@@ -136,14 +151,14 @@ raqc_figures <- function(tab, ev, sm, fig_dir) {
   # 2. reader health: session co-read ratio per board-recording and reader
   q <- data.table::copy(tab$reader_qc)
   q[, rec := paste(Batch, CC)]
-  q[, ratio := pmin(pmax(crosstalk_in_ratio, 1 / 64), 64)]
+  q[, ratio := pmin(pmax(ifelse(zero_read_session, 0, session_best_ratio), 1 / 64), 64)]
   q[, reader_lab := factor(lab(PositionID), levels = lab(c(5:8, 1:4)))]
   p <- ggplot2::ggplot(q, ggplot2::aes(reader_lab, rec, fill = log2(ratio))) + ggplot2::geom_tile(colour = "white") +
     ggplot2::geom_point(data = q[zero_read_session == TRUE], shape = 4, size = 2.5, stroke = 1) +
-    ggplot2::scale_fill_gradient2(low = MMM_PALETTE_DIVERGING[["low"]], mid = "white", high = MMM_PALETTE_DIVERGING[["high"]], midpoint = 0, name = "log2 co-reads observed / expected") +
+    ggplot2::scale_fill_gradient2(low = MMM_PALETTE_DIVERGING[["low"]], mid = "white", high = MMM_PALETTE_DIVERGING[["high"]], midpoint = 0, name = "log2 best-neighbour co-read ratio") +
     ggplot2::facet_wrap(~ paste("board", board), nrow = 1) + th +
     ggplot2::theme(axis.text.x = ggplot2::element_text(size = 6), axis.text.y = ggplot2::element_text(size = 6)) +
-    ggplot2::labs(x = NULL, y = NULL, title = "Reader health: co-reads at each reader against its homologous expectation (whole session)",
+    ggplot2::labs(x = NULL, y = NULL, title = "Reader health: best-neighbour co-read ratio of each reader against its homologous expectation (whole session)",
                   subtitle = "x = no read in the session (H06). Expectations come from the same reader pair on the other boards; occupancy is not assumed uniform.")
   sv(p, "qc02_reader_health", 11, 6.5)
   # 3. board signatures across recordings
@@ -194,12 +209,12 @@ raqc_figures <- function(tab, ev, sm, fig_dir) {
   # 8. silent stretches: expected co-read minutes, with the whole-session dropouts for comparison
   st <- data.table::copy(tab$stretches)
   if (nrow(st)) {
-    dd <- tab$reader_qc[zero_read_session == TRUE]
-    p <- ggplot2::ggplot(st, ggplot2::aes(pmax(E_active_minutes, 0.01))) + ggplot2::geom_histogram(bins = 60, fill = "grey60") +
+    dd <- st[dropout_session == TRUE]
+    p <- ggplot2::ggplot(st, ggplot2::aes(pmax(E_active_minutes, 0.01))) + ggplot2::geom_histogram(data = st[dropout_session == FALSE], bins = 60, fill = "grey60") +
       ggplot2::geom_vline(xintercept = AQC_STRETCH_WARN_E, linetype = "dashed") +
-      ggplot2::geom_vline(data = dd, ggplot2::aes(xintercept = E_session), colour = "#d03b3b") +
+      ggplot2::geom_vline(data = dd, ggplot2::aes(xintercept = E_active_minutes), colour = "#d03b3b") +
       ggplot2::scale_x_log10() + th +
-      ggplot2::labs(x = "expected active minutes with a co-read (log scale); red: expected co-reads of the whole-session dropouts", y = "silent stretches >= 60 min",
+      ggplot2::labs(x = "expected active minutes with a co-read (log scale); red: the whole-session dropouts on the same scale", y = "silent stretches >= 60 min",
                     title = "Intermittent-failure scan: silent stretches against neighbour traffic", subtitle = "dashed: W08 warning threshold")
     sv(p, "qc08_silent_stretches", 7, 4)
   }
@@ -223,9 +238,7 @@ if (sys.nframe() == 0L) {
   ids <- sub("^E9_SIS_(B[0-9]+)_(CC[0-9]+)_.*$", "\\1_\\2", basename(vendor_files))
   if (!is.na(cfg$recordings)) { keep <- grepl(cfg$recordings, ids); vendor_files <- vendor_files[keep]; ids <- ids[keep] }
   if (!length(ids)) stop("--recordings matches no recording.", call. = FALSE)
-  planned <- c(file.path(cfg$tmp_dir, "rec", ids, "animal_reader_block.csv"),
-               file.path(cfg$output_dir, "rec", ids, "animal_reader_block.csv"),
-               file.path(cfg$output_dir, "manifest", "output_files_sha256.csv"), file.path(cfg$output_dir, "tables", "coassign_by_reader_summary.csv"))
+  planned <- c(file.path(cfg$tmp_dir, RAQC_LONGEST_RELATIVE), file.path(cfg$output_dir, RAQC_LONGEST_RELATIVE))
   mmm_assert_output_path_budget(planned, source_label = "Stage 00b")
   dir.create(cfg$tmp_dir, recursive = TRUE, showWarnings = FALSE)
   code <- raqc_code_hashes()
@@ -252,13 +265,10 @@ if (sys.nframe() == 0L) {
   data.table::fwrite(aqc_rules(), file.path(out_man, "qc_rules.csv"))
   data.table::fwrite(code, file.path(out_man, "code_hashes.csv"))
   raqc_figures(tab, ev, sm, out_fig)
-  batches <- sub("_CC[0-9]+$", "", ids)
-  inputs <- c(vendor_files, file.path(tag_dir, batches, paste0("E9_SIS_", ids, "_AnimalPos.csv")),
-              file.path(cfg$raw_root, sub("_CC[0-9]+$", "", tab$recording_qc$Batch), "raw", tab$recording_qc$raw_log))
-  inputs <- unique(inputs[file.exists(inputs)])
-  data.table::fwrite(data.frame(input = inputs, sha256 = mmm_file_sha256(inputs), bytes = file.size(inputs)), file.path(out_man, "input_hashes.csv"))
+  data.table::fwrite(unique(tab$inputs[, .(input, role, sha256, bytes)]), file.path(out_man, "input_hashes.csv"))
+  # the run status: hard failures, then warnings other than the relative review ranks W14 and W15
   status <- if (any(ev$manifest$severity == "hard_failure" & ev$manifest$status == "flagged")) "FAIL" else
-    if (any(ev$manifest$status == "flagged")) "WARN" else "PASS"
+    if (any(ev$manifest$status == "flagged" & !ev$manifest$check_id %in% c("W14", "W15"))) "WARN" else "PASS"
   head_commit <- raqc_git(c("rev-parse", "HEAD"))[1]
   run <- data.frame(item = c("run_id", "qc_status", "rules_version", "git_commit", "code_clean", "isolated", "recordings", "project_root", "raw_root",
                              "data_version", "started", "finished", "R"),

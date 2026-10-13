@@ -574,7 +574,8 @@ mmm_raw_antenna_root <- function(project_root = mmm_project_root()) {
 # root (in either drive or UNC spelling: any path component named like the
 # root's folder counts), in the raw data, in a data-version root or in the
 # measurement-validation outputs. Returns the normalized path.
-mmm_isolated_output_root_check <- function(path, project_root = mmm_project_root()) {
+mmm_isolated_output_root_check <- function(path, project_root = mmm_project_root(),
+                                           raw_root = mmm_raw_antenna_root(project_root)) {
   if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
     stop("An isolated output root must be one nonempty path.", call. = FALSE)
   }
@@ -583,7 +584,16 @@ mmm_isolated_output_root_check <- function(path, project_root = mmm_project_root
     stop("An isolated output root must be an absolute path: ", path, call. = FALSE)
   }
   norm <- normalizePath(p, winslash = "/", mustWork = FALSE)
-  parts <- toupper(strsplit(norm, "/", fixed = TRUE)[[1]])
+  # Windows ignores trailing dots and spaces in folder names ("RFID " is "RFID")
+  parts <- toupper(sub("[. ]+$", "", strsplit(norm, "/", fixed = TRUE)[[1]]))
+  within <- function(root) {
+    r <- tolower(sub("/+$", "", normalizePath(gsub("\\\\", "/", root), winslash = "/", mustWork = FALSE)))
+    n <- tolower(paste(sub("[. ]+$", "", strsplit(norm, "/", fixed = TRUE)[[1]]), collapse = "/"))
+    nzchar(r) && (identical(n, r) || startsWith(n, paste0(r, "/")))
+  }
+  if (any(vapply(c(project_root, MMM_PROJECT_ROOT_DEFAULT, raw_root), within, logical(1)))) {
+    stop("Refusing an output root inside the project root or the raw-log root: ", path, call. = FALSE)
+  }
   live_names <- toupper(unique(c(basename(normalizePath(project_root, winslash = "/", mustWork = FALSE)),
                                  basename(normalizePath(MMM_PROJECT_ROOT_DEFAULT, winslash = "/", mustWork = FALSE)))))
   refused <- c(live_names, "RANT", "RANU", "RANV", "RANA", "RAW DATA", "MMMDATA")

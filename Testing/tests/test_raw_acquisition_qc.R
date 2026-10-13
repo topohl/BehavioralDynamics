@@ -121,36 +121,50 @@ R <- rbind(cbind(k("r1"), data.table(devices = 40L, boards = "1|2|3|4|5", device
                                      clock_fold_rows_dropped = 5L)))
 R[, `:=`(reads_ne_offsets = 0L, single_read_dur_ne_75ms = 0L, roster_missing_tag = 0L, roster_undetected = 0L, board_label_mismatch = 0L,
          nonfinite_times = 0L, backward_jumps_gt1800s = 0L, multi_read_dur_ne_read_span = 0L, zero_gaps = 0L, max_within_event_gap_s = 1.0,
-         recording_silences_ge60 = 0L, recording_silence_s = 0, unpolled_pause_s_in_span = 0)]
+         recording_silences_ge60 = 0L, recording_silence_s = 0, unpolled_pause_s_in_span = 0,
+         span_covered_start = TRUE, span_covered_end = c(TRUE, FALSE), uncovered_s = c(0, 500))]
 B <- rbind(cbind(k(c("r1", "r2", "r3", "r4")), data.table(board = 1L, mean_gap_ms = c(380, 381, 379, 450), lattice_k1 = 0.25)),
            cbind(k(c("r1", "r2")), data.table(board = 2L, mean_gap_ms = 400, lattice_k1 = 0.2)))
 B[, `:=`(nonroster_tags_ge100 = 0L, nonroster_events = 0L, tail_silence_s = NA_real_, removal_signature = FALSE, last_read = 0, tags = 4L, last_read_spread_s = NA_real_)]
 B[SourceFile == "r1" & board == 2, `:=`(tail_silence_s = 5000, removal_signature = TRUE, last_read_spread_s = 60)]
 B[SourceFile == "r2" & board == 2, `:=`(tail_silence_s = 4000, removal_signature = FALSE, last_read_spread_s = 3000)]
-Q <- rbind(cbind(k("r1"), data.table(board = c(1L, 2L, 3L), PositionID = c(3L, 3L, 5L), zero_read_session = TRUE, E_session = c(500, 20, 300),
-                                     reads_before = c(50L, 9L, 0L), reads_after = c(NA, NA, 0L), session_best_ratio = 0, reads_rel_homologous = 0)),
-           cbind(k(c("r2", "r3", "r4")), data.table(board = 1L, PositionID = 3L, zero_read_session = FALSE, E_session = 400,
-                                                    reads_before = 10L, reads_after = 10L, session_best_ratio = 1.0, reads_rel_homologous = 1)))
+# r1 dropouts: board 1 R3 bracketed with a healthy history -> confirmed; board 2 R3 too little neighbour traffic -> undecidable;
+# board 3 R5 not bracketed (0 scan reads), no history -> probable; board 4 R3 no scans at all, healthy history -> probable;
+# board 5 R3 zero reads in the scan before, healthy history -> probable (bracketing alone decides)
+Q <- rbind(cbind(k("r1"), data.table(board = c(1L, 2L, 3L, 4L, 5L), PositionID = c(3L, 3L, 5L, 3L, 3L), zero_read_session = TRUE,
+                                     E_session = c(500, 20, 300, 300, 300), E_tagmin = c(500, 20, 300, 300, 300),
+                                     reads_before = c(50L, 9L, 0L, NA, 0L), reads_after = c(NA, NA, 0L, NA, NA), session_best_ratio = 0, reads_rel_homologous = 0)),
+           cbind(k(c("r2", "r3", "r4")), data.table(board = 1L, PositionID = 3L, zero_read_session = FALSE, E_session = 400, E_tagmin = 400,
+                                                    reads_before = 10L, reads_after = 10L, session_best_ratio = 1.0, reads_rel_homologous = 1)),
+           cbind(k(c("r2", "r3")), data.table(board = c(4L, 4L, 5L, 5L)[1:2], PositionID = 3L, zero_read_session = FALSE, E_session = 400, E_tagmin = 400,
+                                              reads_before = 10L, reads_after = 10L, session_best_ratio = 1.0, reads_rel_homologous = 1)),
+           cbind(k(c("r2", "r3")), data.table(board = 5L, PositionID = 3L, zero_read_session = FALSE, E_session = 400, E_tagmin = 400,
+                                              reads_before = 10L, reads_after = 10L, session_best_ratio = 1.0, reads_rel_homologous = 1)))
 QB <- cbind(k(c("r2", "r1", "r1")), data.table(board = 1L, PositionID = c(2L, 3L, 4L), block = 1, Phase = c("Active", "Active", "Inactive"),
                                                informative_pairs = 2L, best_ratio = c(0.01, 0, 0), reads = 5L))
-ST <- cbind(k("r1"), data.table(board = 1L, PositionID = 2L, E_active_minutes = c(250, 250, 50), light_locked = c(FALSE, TRUE, FALSE),
+ST <- cbind(k("r1"), data.table(board = 1L, PositionID = 2L, E_active_minutes = c(250, 250, 50), dropout_session = c(FALSE, TRUE, FALSE),
                                 minutes = 70L, active_minutes = 70L))
 A <- cbind(k("r1"), data.table(AnimalNum = c("OR112", "X2", "X3"), board = 1L, initscan_board = c(2L, 1L, NA), initscan_matches_board = c(FALSE, TRUE, NA),
                                log_label_matches_tag_map = c(NA, FALSE, TRUE), labels = c(NA, "Y_sys.1", "X3_sys.1"), events_off_board = c(0L, 0L, 3L)))
-AB <- cbind(k("r1"), data.table(AnimalNum = "X2", board = 1L, block = 1:100, Phase = "Active", reads = 100L, cagemate_median_reads = 100,
+AB <- cbind(k("r3"), data.table(AnimalNum = "X2", board = 1L, block = 1:100, Phase = "Active", reads = 100L, cagemate_median_reads = 100,
                                 reads_rel_cagemates = c(0.1, rep(1, 99)), age_gt300s_share = seq(0, 0.99, length.out = 100),
                                 share_seconds_differ_tau2 = seq(0, 0.99, length.out = 100), share_column_differs_tau2 = 0))
+AB <- rbind(AB, cbind(k("r2"), data.table(AnimalNum = "X9", board = 2L, block = 101:105, Phase = "Active", reads = 0L, cagemate_median_reads = NA_real_,
+                                          reads_rel_cagemates = NA_real_, age_gt300s_share = 1, share_seconds_differ_tau2 = 1, share_column_differs_tau2 = 1)))
 tab <- list(recording_qc = R, board_qc = B, reader_qc = Q, reader_block_qc = QB, stretches = ST, animal_qc = A, animal_block_qc = AB,
             basis_crosstab = data.table(x = 1:3), coassign_by_reader = data.table(x = 1:2))
 ev <- aqc_evaluate(tab)
 f <- ev$flags; m <- ev$manifest
 nf <- function(id) nrow(f[check_id == id])
-expected_n <- c(H01 = 1, H02 = 0, H03 = 1, H04 = 0, H05 = 0, H06 = 2, W02 = 1, W03 = 1, W07 = 2, W08 = 1, W09 = 1, W10 = 1, W11 = 1, W12 = 1,
-                W13 = 1, W14 = 1, W15 = 1, W16 = 1)
+expected_n <- c(H01 = 1, H02 = 0, H03 = 1, H04 = 0, H05 = 0, H06 = 4, W02 = 1, W03 = 1, W07 = 2, W08 = 1, W09 = 1, W10 = 1, W11 = 1, W12 = 1,
+                W13 = 1, W14 = 1, W15 = 1, W16 = 1, W17 = 1)
 for (id in names(expected_n)) check(nf(id) == expected_n[[id]], paste0("11: ", id, " flags ", nf(id), ", expected ", expected_n[[id]]))
 h6 <- f[check_id == "H06"][order(board)]
-check(identical(h6$classification, c("confirmed acquisition failure: whole-session channel dropout", "probable acquisition failure: whole-session channel dropout")) &&
-        identical(h6$confidence, c("high", "moderate")), "11: dropout classification (bracketed and healthy elsewhere -> confirmed)")
+check(identical(h6$board, c(1L, 3L, 4L, 5L)) && identical(h6$confidence, c("high", "moderate", "moderate", "moderate")) &&
+        h6$classification[1] == "confirmed acquisition failure: whole-session channel dropout" &&
+        all(h6$classification[-1] == "probable acquisition failure: whole-session channel dropout"),
+      "11: dropout classification (confirmed only when bracketed by scan reads and healthy elsewhere)")
+check(all(f[check_id %in% c("W14", "W15")]$board == 1L), "11: unobserved blocks are not ranked")
 check(grepl("r1 2 3", m[check_id == "H06"]$detail), "11: an untestable silent reader is named, not flagged")
 check(identical(f[check_id == "W07"][order(value)]$classification,
                 c("board silent to the span end (fault or animals off the antennas; undecidable)", "probable removal of the animals (all tags stop within 10 min)")),
@@ -158,9 +172,11 @@ check(identical(f[check_id == "W07"][order(value)]$classification,
 check(nrow(f[check_id == "W09" & SourceFile == "r1"]) == 0, "11: the dead reader's blocks are not repeated as W09")
 check(identical(names(f), c(AQC_FLAG_COLUMNS, "in_frozen_S13")) && identical(names(m), AQC_MANIFEST_COLUMNS), "11: schema")
 check(all(m$severity %in% c("hard_failure", "warning", "diagnostic")) && !anyDuplicated(m$check_id) &&
-        all(m$status %in% c("pass", "flagged", "not_evaluated", "info")), "11: manifest values")
+        all(m$status %in% c("pass", "flagged", "not_evaluated", "info", "undecidable")), "11: manifest values")
+tab_u <- tab; tab_u$reader_qc <- Q[board == 2 | zero_read_session == FALSE]
+check(aqc_evaluate(tab_u)$manifest[check_id == "H06"]$status == "undecidable", "11: only untestable silent readers -> H06 undecidable, not pass")
 check(identical(m[check_id %in% c("H02", "H06", "D01")]$status, c("pass", "flagged", "info")), "11: statuses")
-check(nrow(ev$exclusions) == 4 && all(ev$exclusions$status == "proposed; not applied; the frozen S13 list is unchanged"), "11: proposed exclusions")
+check(nrow(ev$exclusions) == 7 && all(ev$exclusions$status == "proposed; not applied; the frozen S13 list is unchanged"), "11: proposed exclusions")
 check(any(ev$exclusions$animals_in_frozen_S13 == "OR112"), "11: frozen S13 annotated")
 check(isTRUE(f[check_id == "W11"]$in_frozen_S13), "11: S13 annotation on flags")
 # group-blind: no group label, CombZ or outcome table is used by the QC code
@@ -184,8 +200,8 @@ E <- list()
 for (b in 1:2) {
   ta <- c("T1", "T3")[b]; tb <- c("T2", "T4")[b]
   E[[length(E) + 1]] <- evt(S0 - 100, ta, b, ant_of(2), 0); E[[length(E) + 1]] <- evt(S0 - 100, tb, b, ant_of(1), 0)
-  for (i in 1:100) {
-    t <- S0 + 30 * i
+  for (i in 1:200) {
+    t <- S0 + 5 + 70 * i                                                           # never at a minute boundary
     E[[length(E) + 1]] <- evt(t, ta, b, ant_of(2), c(0, 415))                     # R2, two reads
     if (b == 2) E[[length(E) + 1]] <- evt(t + 0.2, ta, b, ant_of(3), 0)           # R3 co-read on board 2 only (board 1: R3 dead)
   }
@@ -214,10 +230,13 @@ rq <- res$recording_qc
 check(rq$reads_ne_offsets == 0 && rq$single_read_dur_ne_75ms == 0 && rq$duplicate_events == 0 && rq$board_label_mismatch == 0 &&
         rq$roster_undetected == 0 && rq$backward_jumps_gt1s == 0 && rq$sessions == 1 && isTRUE(rq$devices_on_grid), "12: integrity of the synthetic log")
 q1 <- res$reader_qc[board == 1 & PositionID == 3]; q2 <- res$reader_qc[board == 2 & PositionID == 3]
-check(isTRUE(q1$zero_read_session) && q1$reads == 0 && !isTRUE(q2$zero_read_session) && q2$reads == 100, "12: the dead antenna is found")
-# board 2: every R2 read (200) has an R3 co-read within 1 s -> p = 1; board 1 has 200 R2 reads -> E = 200
-check(near(q1$E_session, 200) && q1$O_session == 0 && q1$reads_before == 7, "12: expected co-reads and placement-scan evidence")
-check(!nrow(res$stretches[board == 1 & PositionID == 3]), "12: the whole-session dropout is not repeated as a stretch")
+check(isTRUE(q1$zero_read_session) && q1$reads == 0 && !isTRUE(q2$zero_read_session) && q2$reads == 200, "12: the dead antenna is found")
+# board 2: every R2 read (400) and every R2 tag-minute (200: one event per minute, 70 s apart) has an R3 co-read within 1 s,
+# so p = q = 1; board 1 has 400 R2 reads in 200 tag-minutes -> E = 400 co-reads, 200 co-read tag-minutes
+check(near(q1$E_session, 400) && near(q1$E_tagmin, 200) && q1$O_session == 0 && q1$reads_before == 7, "12: expected co-reads and placement-scan evidence")
+check(nrow(res$stretches[board == 1 & PositionID == 3]) == 1 && isTRUE(res$stretches[board == 1 & PositionID == 3]$dropout_session),
+      "12: the whole-session dropout is reported once, as a dropout row")
+check(nrow(res$stretch_calibration) > 0 && all(res$animal_qc$seed_age_s > 0), "12: calibration table; seed ages positive")
 ab <- res$animal_block_qc[AnimalNum == "OR2"][order(block)]
 # OR2: seed read 100 s before the span; reads every 60 s (R1, R5 0.3 s later) from S0 + 15 to S0 + 79995.3, last at S0 + 86000.
 # block 1: cells 0-14 have age > 60 (100.5 ... 114.5) -> 15 / 43200; block 2 (cells 43200 ... 85999): age > 300 from cell 80295

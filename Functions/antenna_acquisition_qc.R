@@ -22,7 +22,7 @@
 #    or significance. Thresholds come from acquisition distributions and are listed with their basis in aqc_rules().
 # ================================================================
 
-AQC_RULES_VERSION <- "aqc_rules_v0.1_provisional"
+AQC_RULES_VERSION <- "aqc_rules_v0.2_provisional"
 
 # Reader layout: grid coordinates and the lab-reported resources.
 AQC_LAYOUT <- data.frame(
@@ -38,7 +38,8 @@ AQC_LAYOUT <- data.frame(
 AQC_AGE_BREAKS <- c(2, 10, 60, 300)        # support-age classes (s since the last read)
 AQC_COREAD_WINDOW_S <- 1                   # a co-read: the same tag read at the neighbour within 1 s
 AQC_MIN_PAIR_EXPECTATION <- 30             # an informative neighbour pair: >= 30 expected co-reads
-AQC_DEAD_CHANNEL_MIN_E <- 100              # whole-session silence with >= 100 expected co-reads: failure
+AQC_DEAD_CHANNEL_MIN_E <- 100              # whole-session silence with >= 100 expected co-read tag-minutes: testable
+AQC_HEALTHY_ELSEWHERE <- 0.25              # median best co-read ratio of the same antenna in other recordings (healthy 1st percentile 0.27)
 AQC_BEST_RATIO_WARN <- 0.02                # best-neighbour co-read ratio below this in an active block: warning
 AQC_STRETCH_MIN_MINUTES <- 60              # silent stretches scanned for intermittent failure
 AQC_STRETCH_WARN_E <- 200                  # expected active minutes with a co-read during a silent stretch
@@ -67,9 +68,9 @@ aqc_neighbours <- function() {
   g[, .(k, j, type)][]
 }
 
-# For each reader k, the two readers a, b whose direct change "goes around" k: the row neighbours on both sides for a
-# middle column; the column partner and the row neighbour for an end column.
-AQC_SKIP_PAIRS <- data.frame(PositionID = 1:8, a = c(5, 1, 2, 8, 1, 5, 6, 4), b = c(2, 3, 4, 3, 6, 7, 8, 7))
+# For each middle-column reader k, the row neighbours on both sides: a direct change between them skips k. End-column
+# readers have no such pair that skips only them (a diagonal change also bypasses the middle reader), so they get none.
+AQC_SKIP_PAIRS <- data.frame(PositionID = c(2, 3, 6, 7), a = c(1, 2, 5, 6), b = c(3, 4, 7, 8))
 
 #' Checks of a raw log's antenna table (rfid_read_raw_log()$devices): 40 devices, boards 1-5, every antenna at its
 #' documented grid position. Returns a one-row data.frame.
@@ -261,10 +262,12 @@ aqc_rules <- function() {
     r("H05", "hard_failure", "recording", "times are usable: finite, and no backward jump of the logger clock larger than 1,800 s remains after the daylight-saving fold is removed",
       "nonfinite_times + backward_jumps_gt1800s", "==", 0, "events", "all time-based measures",
       "unrecoverable timestamp corruption; the DST fold itself is removed by the reader and reported as W03"),
-    r("H06", "hard_failure", "reader", "whole-session channel dropout: a reader with no read in the session while its board reads and its neighbours' reads predict >= 100 co-reads",
-      "reads == 0 & E_session", ">=", AQC_DEAD_CHANNEL_MIN_E, "expected co-reads",
+    r("H06", "hard_failure", "reader", "whole-session channel dropout: a reader with no read in the session while its board reads and its neighbours' traffic predicts >= 100 co-read tag-minutes",
+      "reads == 0 & E_tagmin", ">=", AQC_DEAD_CHANNEL_MIN_E, "expected co-read tag-minutes",
       "reader and row occupancy, column occupancy (its column), dispersion, dominant share, co-assignment, reader changes (bypass jumps inflate >= 2-column and vendor displacement counts), fragmentation, detection-based activity",
-      "in 24 recordings the three zero-read readers had 16,000-42,000 expected co-reads and every other reader-session had a co-read ratio >= 0.13; 100 is far below the failures and far above chance (scoping 2026-10-13)"),
+      paste("tag-minutes, not reads, are the unit because reads of a resting tag cluster; 'confirmed' needs reads of the antenna in a placement scan",
+            "next to the session and a median best co-read ratio >= 0.25 in its other recordings (healthy reader-sessions: 1st percentile 0.27).",
+            "Below 100 expected tag-minutes a silent reader is undecidable. Provisional until calibrated (docs/RFID_CALIBRATION_PROTOCOL.md)")),
     r("W01", "warning", "recording", "multi-read event duration differs from its read span", "multi_read_dur_ne_read_span", ">", 0, "events",
       "event durations", "format inconsistency without loss of read times"),
     r("W02", "warning", "recording", "acquisition stall: a within-event read gap > 1.1 s or a zero gap",
@@ -282,10 +285,12 @@ aqc_rules <- function() {
     r("W07", "warning", "board", "board silent from its last read to the span end for >= 1 h (removal signature: all tags stop within 10 min)",
       "tail_silence_s", ">=", AQC_TAIL_SILENCE_S, "s", "everything after the last read (carry-forward would fill it)",
       "a board fault cannot be told from removal of the animals; the time is unobserved either way"),
-    r("W08", "warning", "reader", "intermittent silence: a stretch >= 60 min without reads while neighbour reads predict >= 200 active minutes with a co-read",
+    r("W08", "warning", "reader", "intermittent silence: a stretch >= 60 min without reads while the tags present at the neighbours predict >= 200 active minutes with a co-read",
       "E_active_minutes", ">=", AQC_STRETCH_WARN_E, "minutes",
       "reader occupancy and transitions in the stretch",
-      "provisional: non-failure stretches in the scoping scan stayed below ~80 expected minutes, whole-session dropouts exceeded 1,000"),
+      paste("expected minutes from tag-minutes at the neighbours and homologous co-read rates per tag-minute; only active minutes count, so",
+            "silences inside light phases (resting) cannot trigger it. Provisional: compare the run's non-failure maximum and the whole-session",
+            "dropouts' values (stretches.csv, dropout_session) and the model calibration (stretch_calibration.csv)")),
     r("W09", "warning", "reader_block", "low best-neighbour co-read ratio in an active block with >= 2 informative neighbour pairs",
       "best_ratio", "<", AQC_BEST_RATIO_WARN, "ratio",
       "reader occupancy in the block",
@@ -296,15 +301,18 @@ aqc_rules <- function() {
       "cage assignment", "possible cage error or tag swap"),
     r("W12", "warning", "animal", "logged animal label differs from the tag map", "log_label_matches_tag_map", "==", "FALSE", "", "identity", "identity error"),
     r("W13", "warning", "animal", "detections on another board during the span", "events_off_board", ">", 0, "events", "cage assignment", "tag read outside its cage"),
-    r("W14", "warning", "animal_block", "poor detection support: share of time with the carried position older than 300 s is unusual",
+    r("W14", "warning", "animal_block", "poor detection support (review rank): share of time with the carried position older than 300 s is in the top 1% of observed animal-blocks of the same phase",
       "age_gt300s_share", ">", paste0("q", AQC_UNUSUAL_QUANTILE, " of the same phase"), "share",
-      "occupancy and co-assignment of that animal-block", "no external threshold exists; flags the top 1% for review, not exclusion"),
-    r("W15", "warning", "animal_block", "strong reconstruction sensitivity: share of seconds assigned to different readers by event-start and single-read carry-forward is unusual",
+      "occupancy and co-assignment of that animal-block",
+      "no external threshold exists; a relative rank for review (always about 1% of units; depends on the recordings in the run); unobserved blocks (after a board's last read, dropout boards) are left out; does not set the run status"),
+    r("W15", "warning", "animal_block", "strong reconstruction sensitivity (review rank): share of seconds assigned to different readers by event-start and single-read carry-forward is in the top 1% of observed animal-blocks",
       "share_seconds_differ", ">", paste0("q", AQC_UNUSUAL_QUANTILE, " of the same phase"), "share",
-      "reader-level occupancy of that animal-block", "no external threshold exists; flags the top 1% for review"),
+      "reader-level occupancy of that animal-block", "as W14: a relative rank for review; does not set the run status"),
     r("W16", "warning", "board", "board acquisition signature differs from its own history (mean within-event read gap or lattice k1 share, |z| > 3 over the board's recordings)",
       "abs(z)", ">", 3, "z", "read-count and detection comparisons of that board-recording",
       "boards differ in hardware (stable across batches); a change against the same board's history is unexplained"),
+    r("W17", "warning", "recording", "analysis span not covered by the raw log (first event later, or last read earlier, than the span bounds by more than 60 s)",
+      "uncovered_s", ">", 60, "s", "all measures in the uncovered time", "an early stop or late start would otherwise shorten the span silently"),
     r("D01", "diagnostic", "reader", "resource-related occupancy and read asymmetry (R1 food, R5 house, R8 water)", "shares", "", "", "", "",
       "expected biology and physics; reported, never flagged"),
     r("D02", "diagnostic", "board", "board read and crosstalk level relative to the homologous boards", "ratios", "", "", "", "read-based measures",
@@ -382,7 +390,8 @@ aqc_process_recording <- function(vendor, recording, tags, sysmsg, initscan, ini
   recording_qc <- cbind(key, dev, data.table::data.table(
     raw_log = basename(recording$path), raw_logs_ignored = paste(recording$ignored, collapse = "|"),
     span_start = S0, span_end = S1, vendor_span_end = cal$span_end, first_event = min(ev$t), last_read = max(ev$e),
-    span_covered = min(ev$t) <= S0 + 60 & max(ev$e_log) >= S1 - 60,
+    span_covered_start = min(ev$t) <= S0 + 60, span_covered_end = max(ev$e_log) >= cal$span_end - 60,
+    uncovered_s = max(0, min(ev$t) - S0) + max(0, cal$span_end - max(ev$e_log)),
     events = nrow(ev), events_in_span = nrow(sp), reads = sum(ev$reads),
     reads_ne_offsets = sum(ev$reads != n_off), single_read_dur_ne_75ms = sum(ev$reads == 1 & abs(ev$dur_sec - 0.075) > 1e-6),
     multi_read_dur_ne_read_span = sum(multi & abs(ev$dur_sec - (ev$e - ev$t)) > 0.002),
@@ -426,7 +435,11 @@ aqc_process_recording <- function(vendor, recording, tags, sysmsg, initscan, ini
   # co-reads, homologous expectations, best-neighbour ratios -----------------------------------------------------------
   flags <- aqc_coread_flags(rt_span[, .(tag, board, pid, t = t_read, block)])
   flags <- merge(flags, blocks[, .(block, Phase)], by = "block")
+  flags[, minute := floor((t - S0) / 60) + 1L]
   cnt <- aqc_coread_counts(flags, by = c("board", "block", "Phase"))
+  # tag-minutes: a tag read at reader j in a minute, and whether any of those reads was co-read at each neighbour. Reads
+  # of a resting tag come in long clusters, so the tag-minute (not the read) is the unit of evidence for silent-reader tests.
+  tm <- flags[, lapply(.SD, any), by = .(board, tag, minute, pid, Phase), .SDcols = paste0("co_R", 1:8)]
   rm(flags)
   allrd <- data.table::CJ(board = boards, PositionID = 1:8)
   allrd <- merge(allrd, rt_span[, .N, by = .(board, PositionID = pid)], by = c("board", "PositionID"), all.x = TRUE)[is.na(N), N := 0L]
@@ -442,41 +455,57 @@ aqc_process_recording <- function(vendor, recording, tags, sysmsg, initscan, ini
   sess_best <- aqc_best_neighbour(cnt[, .(O = sum(O), E = sum(E, na.rm = TRUE)), by = .(board, j, k)], by = "board")
   data.table::setnames(sess_best, c("k", "best_ratio", "informative_pairs"), c("PositionID", "session_best_ratio", "session_informative_pairs"))
   sess_best[, c("O_total", "E_total") := NULL]
+  phm <- aqc_coread_counts(tm, by = c("board", "Phase"))
+  phm <- aqc_homologous_expectation(phm, dead, group = "Phase")
+  sess_tm <- phm[, .(O_tagmin = sum(O), E_tagmin = sum(E, na.rm = TRUE)), by = .(board, PositionID = k)]
 
-  # minute grid: reads per reader and the probability of a co-read in each minute
+  # minute grid: reads per reader, tags present per reader, and the probability of a co-read in each minute
   M <- ceiling((S1 - S0) / 60)
   rt_span[, minute := floor((t_read - S0) / 60) + 1L]
   min_phase <- blocks$Phase[match(blk_of(S0 + (seq_len(M) - 0.5) * 60), blocks$block)]
   active_min <- min_phase %in% "Active"
-  p_tab <- ph[is.finite(p_hom), .(board, Phase, j, k, p_hom)]
+  q_tab <- phm[is.finite(p_hom), .(board, Phase, j, k, q = p_hom)]
+  calib <- list()
   stretches <- data.table::rbindlist(lapply(boards, function(b) {
-    nm <- matrix(0L, M, 8)
+    nm <- matrix(0L, M, 8); nt <- matrix(0L, M, 8); co_obs <- matrix(FALSE, M, 8)
     cnts <- rt_span[board == b, .N, by = .(minute, pid)]
     if (nrow(cnts)) nm[cbind(cnts$minute, cnts$pid)] <- cnts$N
+    tb <- tm[board == b]
+    tcnt <- tb[, .N, by = .(minute, pid)]
+    if (nrow(tcnt)) nt[cbind(tcnt$minute, tcnt$pid)] <- tcnt$N
+    for (kk in 1:8) co_obs[unique(tb[get(paste0("co_R", kk)) == TRUE]$minute), kk] <- TRUE
     data.table::rbindlist(lapply(1:8, function(kk) {
-      if (nrow(dead[board == b & PositionID == kk])) return(NULL)   # whole-session dropouts are judged by H06
       lq <- numeric(M)
       for (ph_name in c("Active", "Inactive")) {
-        pk <- p_tab[board == b & Phase == ph_name & k == kk]
+        qk <- q_tab[board == b & Phase == ph_name & k == kk]
         rows <- which(min_phase %in% ph_name)
-        for (q in seq_len(nrow(pk))) lq[rows] <- lq[rows] + nm[rows, pk$j[q]] * log1p(-min(pk$p_hom[q], 1 - 1e-9))
+        for (q in seq_len(nrow(qk))) lq[rows] <- lq[rows] + nt[rows, qk$j[q]] * log1p(-min(qk$q[q], 1 - 1e-9))
       }
+      is_dead <- nrow(dead[board == b & PositionID == kk]) > 0
+      if (is_dead) {
+        p_co <- 1 - exp(lq)
+        return(data.table::data.table(board = b, PositionID = kk, first = 1L, last = M, minutes = M, active_minutes = sum(active_min),
+                                      E_minutes = sum(p_co), E_active_minutes = sum(p_co[active_min]), dropout_session = TRUE))
+      }
+      cl <- data.table::data.table(Phase = min_phase, p = 1 - exp(lq), obs = co_obs[, kk])[!is.na(Phase)]
+      calib[[length(calib) + 1L]] <<- cl[, .(minutes = .N, predicted = sum(p), observed = sum(obs)),
+                                          by = .(Phase, bin = cut(p, c(-Inf, 0.1, 0.3, 0.5, 0.7, 0.9, 0.99, Inf)))][, `:=`(board = b, PositionID = kk)]
       s <- aqc_silent_stretches(nm[, kk], lq, active_min)
       if (!nrow(s)) return(NULL)
-      data.table::data.table(board = b, PositionID = kk, s)
+      data.table::data.table(board = b, PositionID = kk, s, dropout_session = FALSE)
     }))
   }), fill = TRUE)
   if (nrow(stretches)) {
     stretches[, `:=`(start = S0 + (first - 1) * 60, end = S0 + last * 60)]
-    hh <- function(t) { p <- as.POSIXlt(t, origin = "1970-01-01", tz = "UTC"); p$hour + p$min / 60 }
-    stretches[, light_locked := abs(hh(start) - 6.5) <= 0.5 & (abs(hh(end) - 18.5) <= 0.5 | end >= S1 - 60)]
+    stretches[, light_only := active_minutes == 0]   # entirely inside light phases
   }
+  stretch_calibration <- data.table::rbindlist(calib)
 
   # reader level --------------------------------------------------------------------------------------------------------
   ev_reader <- sp[, .(events = .N, single_read_share = mean(reads == 1), roster_events = sum(roster)), by = .(board, PositionID)]
   gaps_reader <- rt_span[!is.na(wg), .(mean_within_event_gap_ms = mean(wg) * 1000), by = .(board, PositionID = pid)]
   reader_qc <- Reduce(function(a, b) merge(a, b, by = c("board", "PositionID"), all.x = TRUE),
-                      list(allrd[, .(board, PositionID, reads = N)], ev_reader, gaps_reader, sess, sess_best,
+                      list(allrd[, .(board, PositionID, reads = N)], ev_reader, gaps_reader, sess, sess_tm, sess_best,
                            data.table::as.data.table(initscan)))
   reader_qc[, zero_read_session := reads == 0 & board %in% board_reads[board_reads > 0]$board]
   reader_qc[, crosstalk_in_ratio := ifelse(E_session > 0, O_session / E_session, NA_real_)]
@@ -551,11 +580,11 @@ aqc_process_recording <- function(vendor, recording, tags, sysmsg, initscan, ini
   # changes that go around each reader, relative to the homologous boards
   trans <- data.table::rbindlist(trans)
   tot <- trans[, .(changes = sum(N)), by = .(board, block)]
-  sk <- data.table::rbindlist(lapply(1:8, function(kk) {
-    a <- AQC_SKIP_PAIRS$a[kk]; b <- AQC_SKIP_PAIRS$b[kk]
+  sk <- data.table::rbindlist(lapply(seq_len(nrow(AQC_SKIP_PAIRS)), function(q) {
+    kk <- AQC_SKIP_PAIRS$PositionID[q]; a <- AQC_SKIP_PAIRS$a[q]; b <- AQC_SKIP_PAIRS$b[q]
     trans[(from == a & to == b) | (from == b & to == a), .(skip = sum(N)), by = .(board, block)][, PositionID := kk]
   }))
-  sk <- merge(data.table::CJ(board = boards, block = blocks$block, PositionID = 1:8), sk, by = c("board", "block", "PositionID"), all.x = TRUE)
+  sk <- merge(data.table::CJ(board = boards, block = blocks$block, PositionID = AQC_SKIP_PAIRS$PositionID), sk, by = c("board", "block", "PositionID"), all.x = TRUE)
   sk[is.na(skip), skip := 0]
   sk <- merge(sk, tot, by = c("board", "block"), all.x = TRUE)
   sk[, skip_share := ifelse(!is.na(changes) & changes > 0, skip / changes, NA_real_)]
@@ -606,7 +635,7 @@ aqc_process_recording <- function(vendor, recording, tags, sysmsg, initscan, ini
     all(strip_or(rfid_label_animal(strsplit(labels[i], "|", fixed = TRUE)[[1]])) == strip_or(AnimalNum[i])), logical(1))]
   animal_qc[, `:=`(board_matches_label = !is.na(board) & paste0("sys.", board) == System,
                    initscan_matches_board = ifelse(is.na(initscan_board), NA, initscan_board == board))]
-  seed <- ev[roster == TRUE & on_board == TRUE & t < S0, .(last_before_span = max(e)), by = AnimalNum]
+  seed <- rt[roster == TRUE & on_board == TRUE & t_read < S0, .(last_before_span = max(t_read)), by = AnimalNum]
   animal_qc <- merge(animal_qc, seed, by = "AnimalNum", all.x = TRUE)
   animal_qc[, seed_age_s := S0 - last_before_span][, last_before_span := NULL]
 
@@ -618,6 +647,7 @@ aqc_process_recording <- function(vendor, recording, tags, sysmsg, initscan, ini
   list(recording_qc = recording_qc, board_qc = addkey(board_qc), reader_qc = addkey(reader_qc), reader_block_qc = addkey(reader_block_qc),
        stretches = addkey(stretches), animal_qc = addkey(animal_qc), animal_block_qc = animal_block, animal_reader_block = animal_reader_block,
        basis_crosstab = basis_crosstab, coassign_by_reader = coassign, nonroster_tags = addkey(nonroster), silences = addkey(silences),
+       stretch_calibration = addkey(stretch_calibration),
        system_messages = addkey(sm), blocks = addkey(blocks))
 }
 
@@ -690,26 +720,27 @@ aqc_evaluate <- function(tab, rules = aqc_rules()) {
   if (nrow(dead)) {
     hist <- Q[zero_read_session == FALSE, .(other_recordings = .N,
                                             other_best_ratio_min = if (all(is.na(session_best_ratio))) NA_real_ else min(session_best_ratio, na.rm = TRUE),
+                                            other_best_ratio_median = if (all(is.na(session_best_ratio))) NA_real_ else stats::median(session_best_ratio, na.rm = TRUE),
                                             other_reads_rel_hom_median = stats::median(reads_rel_homologous, na.rm = TRUE)), by = .(board, PositionID)]
     dead <- merge(dead, hist, by = c("board", "PositionID"), all.x = TRUE)
     animals <- A[, .(animals = paste(sort(AnimalNum), collapse = ",")), by = .(SourceFile, board)]
     dead <- merge(dead, animals, by = c("SourceFile", "board"), all.x = TRUE)
-    dead[, testable := E_session >= AQC_DEAD_CHANNEL_MIN_E]
+    dead[, testable := E_tagmin >= AQC_DEAD_CHANNEL_MIN_E]
     dead[, bracketed := (reads_before %in% NA | reads_before > 0) & (reads_after %in% NA | reads_after > 0) & !(reads_before %in% NA & reads_after %in% NA)]
     # confirmed: the antenna read in a placement scan next to the session and co-read normally in other recordings
-    dead[, healthy_elsewhere := (other_best_ratio_min >= 0.13) %in% TRUE]
+    dead[, healthy_elsewhere := (other_best_ratio_median >= AQC_HEALTHY_ELSEWHERE) %in% TRUE]
     dead[, classification := ifelse(!testable, "silent reader, undecidable (neighbour traffic too low to expect co-reads)",
       ifelse(bracketed & healthy_elsewhere, "confirmed acquisition failure: whole-session channel dropout",
              "probable acquisition failure: whole-session channel dropout"))]
     dead[, confidence := ifelse(!testable, "low", ifelse(bracketed & healthy_elsewhere, "high", "moderate"))]
-    dead[, evidence := sprintf(paste("0 reads in the session while the board read; neighbours' reads predict %.0f co-reads (homologous rates);",
-      "placement scan before: %s reads, next placement scan: %s reads; the same antenna in %s other recordings: best co-read ratio >= %.2f,",
-      "reads %.2f x the homologous median; animals on the board: %s"),
-      E_session, ifelse(is.na(reads_before), "none", reads_before), ifelse(is.na(reads_after), "none", reads_after),
-      ifelse(is.na(other_recordings), 0L, other_recordings), other_best_ratio_min, other_reads_rel_hom_median, animals)]
+    dead[, evidence := sprintf(paste("0 reads in the session while the board read; neighbours predict %.0f co-read tag-minutes (%.0f co-reads) at",
+      "homologous rates; placement scan before: %s reads, next placement scan: %s; the same antenna in %s other recordings: best co-read",
+      "ratio median %.2f (min %.2f), reads %.2f x the homologous median; animals on the board: %s"),
+      E_tagmin, E_session, ifelse(is.na(reads_before), "none", reads_before), ifelse(is.na(reads_after), "none", paste(reads_after, "reads")),
+      ifelse(is.na(other_recordings), 0L, other_recordings), other_best_ratio_median, other_best_ratio_min, other_reads_rel_hom_median, animals)]
     dead[, action := ifelse(testable, paste("exclude the board-recording from spatial measures needing complete reader coverage;",
       "keep non-spatial and detection-independent measures; frozen S13 unchanged"), none)]
-    mk(dead[testable == TRUE], "H06", round(dead[testable == TRUE]$E_session), AQC_DEAD_CHANNEL_MIN_E,
+    mk(dead[testable == TRUE], "H06", round(dead[testable == TRUE]$E_tagmin), AQC_DEAD_CHANNEL_MIN_E,
        dead[testable == TRUE]$classification, dead[testable == TRUE]$confidence, dead[testable == TRUE]$evidence, dead[testable == TRUE]$action)
   }
 
@@ -726,6 +757,11 @@ aqc_evaluate <- function(tab, rules = aqc_rules()) {
   mk(d, "W04", round(d$recording_silence_s), 60, "recording-wide silence", "low", "no tag read on any board", "none: review")
   d <- R[unpolled_pause_s_in_span > 0]
   mk(d, "W05", round(d$unpolled_pause_s_in_span), 0, "unpolled pause between sessions", "high", "stop/start rows", "treat the pause as unobserved")
+  if ("span_covered_start" %in% names(R)) {
+    d <- R[!(span_covered_start & span_covered_end)]
+    mk(d, "W17", round(d$uncovered_s), 60, "analysis span not covered by the raw log", "high",
+       "first event after the span start or last read before the span end (more than 60 s)", "treat the uncovered time as unobserved")
+  }
   d <- B[nonroster_tags_ge100 > 0]
   mk(d, "W06", d$nonroster_events, AQC_NONROSTER_MIN_EVENTS, "untracked tag present", "high", "tags read in the cage that are not in the roster",
      "report cage density; co-assignment and read competition include an unseen animal")
@@ -737,7 +773,7 @@ aqc_evaluate <- function(tab, rules = aqc_rules()) {
              d$tags, d$last_read_spread_s),
      "treat the time after the last read as unobserved (no carry-forward)")
   if (nrow(ST)) {
-    d <- ST[E_active_minutes >= AQC_STRETCH_WARN_E & light_locked == FALSE]
+    d <- ST[dropout_session == FALSE & E_active_minutes >= AQC_STRETCH_WARN_E]
     mk(d, "W08", round(d$E_active_minutes), AQC_STRETCH_WARN_E, "intermittent silence", "moderate",
        sprintf("%d min without reads (%d active)", d$minutes, d$active_minutes), "review; exclude the stretch from reader-level measures if confirmed")
   }
@@ -754,12 +790,24 @@ aqc_evaluate <- function(tab, rules = aqc_rules()) {
   mk(d, "W12", d$labels, d$AnimalNum, "label differs from tag map", "high", "IdLabel vs AnimalPos tag map", "review identity")
   d <- A[events_off_board > 0]
   mk(d, "W13", d$events_off_board, 0, "reads off the home board", "moderate", "events on another board in the span", "review")
-  q14 <- AB[, .(q = stats::quantile(age_gt300s_share, AQC_UNUSUAL_QUANTILE, na.rm = TRUE)), by = Phase]
-  d <- merge(AB, q14, by = "Phase")[age_gt300s_share > q]
+  # W14 and W15 rank observed animal-blocks only: blocks reaching past a board's last read (tail >= 1 h) and boards with a
+  # whole-session dropout are known to be unobserved or incomplete and are left out of the reference distribution
+  AB <- data.table::copy(AB)
+  tails <- B[!is.na(tail_silence_s) & tail_silence_s >= AQC_TAIL_SILENCE_S, .(SourceFile, board, last_read)]
+  AB[, observed := TRUE]
+  if (nrow(tails)) {
+    AB <- merge(AB, tails, by = c("SourceFile", "board"), all.x = TRUE)
+    AB[!is.na(last_read) & ((block + 1) * ANIMALPOS_PHASE_LENGTH_SEC + ANIMALPOS_INACTIVE_START_SEC) > last_read, observed := FALSE]
+    AB[, last_read := NULL]
+  }
+  h6 <- if (length(fl)) data.table::rbindlist(fl, use.names = TRUE)[check_id == "H06"] else data.table::data.table(SourceFile = character(), board = integer())
+  AB[paste(SourceFile, board) %in% paste(h6$SourceFile, h6$board), observed := FALSE]
+  q14 <- AB[observed == TRUE, .(q = stats::quantile(age_gt300s_share, AQC_UNUSUAL_QUANTILE, na.rm = TRUE)), by = Phase]
+  d <- merge(AB[observed == TRUE], q14, by = "Phase")[age_gt300s_share > q]
   mk(d, "W14", signif(d$age_gt300s_share, 3), signif(d$q, 3), "poor detection support", "low",
      sprintf("share of time with the position older than 300 s; %d reads in the block", d$reads), "report the support; sensitivity with bounded carry-forward")
-  q15 <- AB[, .(q = stats::quantile(share_seconds_differ_tau2, AQC_UNUSUAL_QUANTILE, na.rm = TRUE)), by = Phase]
-  d <- merge(AB, q15, by = "Phase")[!is.na(share_seconds_differ_tau2) & share_seconds_differ_tau2 > q]
+  q15 <- AB[observed == TRUE, .(q = stats::quantile(share_seconds_differ_tau2, AQC_UNUSUAL_QUANTILE, na.rm = TRUE)), by = Phase]
+  d <- merge(AB[observed == TRUE], q15, by = "Phase")[!is.na(share_seconds_differ_tau2) & share_seconds_differ_tau2 > q]
   mk(d, "W15", signif(d$share_seconds_differ_tau2, 3), signif(d$q, 3), "strong reconstruction sensitivity", "low",
      sprintf("column differs in %.3f of seconds", d$share_column_differs_tau2), "report both reconstructions")
 
@@ -778,9 +826,10 @@ aqc_evaluate <- function(tab, rules = aqc_rules()) {
   # manifest: one row per check
   n_checked <- c(H01 = nrow(R), H02 = nrow(R), H03 = nrow(R), H04 = nrow(R), H05 = nrow(R), H06 = nrow(Q),
                  W01 = nrow(R), W02 = nrow(R), W03 = nrow(R), W04 = nrow(R), W05 = nrow(R), W06 = nrow(B), W07 = nrow(B),
-                 W08 = nrow(ST), W09 = nrow(QB[Phase == "Active" & informative_pairs >= 2]), W10 = sum(!is.na(AB$reads_rel_cagemates)),
+                 W08 = if (nrow(ST)) sum(!ST$dropout_session) else 0L, W09 = nrow(QB[Phase == "Active" & informative_pairs >= 2]), W10 = sum(!is.na(AB$reads_rel_cagemates)),
                  W11 = sum(!is.na(A$initscan_matches_board)), W12 = sum(!is.na(A$log_label_matches_tag_map)), W13 = nrow(A),
-                 W14 = nrow(AB), W15 = sum(!is.na(AB$share_seconds_differ_tau2)), W16 = nrow(B),
+                 W14 = sum(AB$observed), W15 = sum(AB$observed & !is.na(AB$share_seconds_differ_tau2)), W16 = nrow(B),
+                 W17 = if ("span_covered_start" %in% names(R)) nrow(R) else 0L,
                  D01 = nrow(Q), D02 = nrow(B), D03 = nrow(AB), D04 = nrow(AB), D05 = nrow(tab$basis_crosstab), D06 = nrow(tab$coassign_by_reader))
   man <- data.table::as.data.table(rules)
   man[, n_checked := as.integer(n_checked[check_id])]
@@ -788,14 +837,20 @@ aqc_evaluate <- function(tab, rules = aqc_rules()) {
   man[, n_flagged := ifelse(check_id %in% nf$check_id, nf$N[match(check_id, nf$check_id)], 0L)]
   man[, status := ifelse(severity == "diagnostic", "info", ifelse(n_checked == 0, "not_evaluated", ifelse(n_flagged > 0, "flagged", "pass")))]
   man[, `:=`(rules_version = AQC_RULES_VERSION, detail = "")]
-  untestable <- Q[zero_read_session == TRUE & E_session < AQC_DEAD_CHANNEL_MIN_E]
-  if (nrow(untestable)) man[check_id == "H06", detail := paste("silent but undecidable:", paste(untestable$SourceFile, untestable$board, untestable$PositionID, collapse = "; "))]
+  untestable <- Q[zero_read_session == TRUE & E_tagmin < AQC_DEAD_CHANNEL_MIN_E]
+  if (nrow(untestable)) {
+    man[check_id == "H06", detail := paste("silent but undecidable:", paste(untestable$SourceFile, untestable$board, untestable$PositionID, collapse = "; "))]
+    man[check_id == "H06" & status == "pass", status := "undecidable"]
+  }
 
   # proposed exclusions (never applied by the QC)
   ex <- list()
   h6 <- flags[check_id == "H06"]
   if (nrow(h6)) ex[[1]] <- h6[, .(SourceFile, Batch, CC, board, scope = "spatial measures needing complete reader coverage (reader, row and column occupancy, dispersion, dominant share, co-assignment, reader changes, displacement counts)",
                                   from = "span start", to = "span end", reason = paste("H06", classification), confidence)]
+  w17 <- flags[check_id == "W17"]
+  if (nrow(w17)) ex[[3]] <- w17[, .(SourceFile, Batch, CC, board = NA_integer_, scope = "all measures in the uncovered time",
+                                    from = "span start or last read", to = "first event or span end", reason = "W17 span not covered", confidence)]
   w7 <- flags[check_id == "W07"]
   if (nrow(w7)) ex[[2]] <- w7[, .(SourceFile, Batch, CC, board, scope = "all position measures after the board's last read (no carry-forward)",
                                   from = "last read", to = "span end", reason = paste("W07", classification), confidence)]

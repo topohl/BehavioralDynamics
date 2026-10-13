@@ -6,7 +6,8 @@
 #  1. default root: analysis_ready/quality_control/raw_acquisition, distinct from the Stage 00 roots
 #  2. arguments: --run-id required (1-40 characters, no path), no unknown or repeated argument, --recordings only with
 #     --output-root and as a valid regular expression
-#  3. isolated roots: absolute only; refused inside the live root (drive and UNC spelling), the raw data, a data-version
+#  3. isolated roots: absolute only; refused inside the live root (drive and UNC spelling, trailing dots or spaces), the
+#     configured raw-log root, the raw data, a data-version
 #     root or the measurement-validation outputs; a temporary folder is accepted
 #  4. existing run folders are refused; a partial .tmp_ folder only with --resume; the configuration creates nothing
 #  5. raw-log root precedence: option, then environment variable, then the folder beside the analysis tree
@@ -60,6 +61,12 @@ for (bad in c(file.path(root, "qc"), "//mdc-berlin.net/fs/AG/Exp/Analysis/Behavi
 }
 check(!refused(mmm_raw_acquisition_qc_run_config(root, c("--run-id=a", paste0("--output-root=", file.path(fx, "Exp", "Analysis", "Behavior", "RANM", "raw_acquisition_qc"))))),
       "3: a sibling of the measurement-validation outputs is accepted")
+check(refused(mmm_raw_acquisition_qc_run_config(root, c("--run-id=a", paste0("--output-root=", file.path(fx, "Exp", "Analysis", "Behavior", "RFID "), "/qc")))),
+      "3: a trailing space does not hide the live root (Windows ignores it)")
+oo3 <- options(mmm.raw_antenna_dir = file.path(fx, "logs"))
+check(refused(mmm_raw_acquisition_qc_run_config(root, c("--run-id=a", paste0("--output-root=", file.path(fx, "logs", "qc"))))),
+      "3: the configured raw-log root is refused whatever its name")
+options(oo3)
 
 # 4
 check(!dir.exists(iso), "4: the configuration creates nothing")
@@ -79,11 +86,16 @@ options(mmm.raw_antenna_dir = "E:/opt_raw")
 check(identical(mmm_raw_antenna_root(root), "E:/opt_raw"), "5: option first")
 options(oo); if (nzchar(old)) Sys.setenv(MMM_RAW_ANTENNA_DIR = old) else Sys.unsetenv("MMM_RAW_ANTENNA_DIR")
 
-# 6. Longest planned path: <root>/analysis_ready/quality_control/raw_acquisition/runs/.tmp_<40>/rec/B6_CC4/animal_reader_block.csv
+# 6. The longest file names the runner writes (RAQC_LONGEST_RELATIVE in Analysis/00b_qc_raw_acquisition.R) under
+#    <root>/analysis_ready/quality_control/raw_acquisition/runs/.tmp_<40 characters>/
+longest <- c(file.path("rec", "B6_CC4", "animal_reader_block.csv"), file.path("figures", "qc", "qc05_column_sensitivity.png"),
+             file.path("tables", "coassign_by_reader_summary.csv"), file.path("manifest", "qc_proposed_exclusions.csv"))
+runner <- paste(readLines("Analysis/00b_qc_raw_acquisition.R", warn = FALSE), collapse = "
+")
+check(all(vapply(basename(longest), function(f) grepl(f, runner, fixed = TRUE), logical(1))), "6: the runner plans the same longest names")
 for (live in c(MMM_PROJECT_ROOT_DEFAULT, "//mdc-berlin.net/fs/AG_Hoernberg/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID")) {
-  p <- file.path(live, "analysis_ready", "quality_control", "raw_acquisition", "runs", paste0(".tmp_", strrep("a", 40)), "rec", "B6_CC4",
-                 "animal_reader_block.csv")
-  check(nchar(p) <= 240, paste("6: path budget", nchar(p)))
+  p <- file.path(live, "analysis_ready", "quality_control", "raw_acquisition", "runs", paste0(".tmp_", strrep("a", 40)), longest)
+  check(all(nchar(p) <= 240), paste("6: path budget", max(nchar(p))))
 }
 
 # 7
