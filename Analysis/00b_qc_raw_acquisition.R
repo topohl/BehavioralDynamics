@@ -1,8 +1,12 @@
 # Stage 00b -- raw RFID acquisition QC (manual diagnostic; not part of the runner).
 # Reads the raw MultiMouseMonitor logs, the v2 preprocessed files (roster, phase calendar), the vendor AnimalPos
 # exports (tag map) and the placement scans. Writes a new run-id folder only: <root>/runs/<run_id>/, built in
-# <root>/runs/.tmp_<run_id>/ and renamed at the end. <root> is analysis_ready/quality_control/raw_acquisition/ of the
+# <root>/runs/.tmp_<run_id>/ and published at the end. <root> is analysis_ready/quality_control/raw_acquisition/ of the
 # project root (a clean, committed code tree is then required) or an isolated --output-root.
+# Append-only (Functions/qc_run_protection.R): a run id is used once (runs_ledger.csv); the run is published only if the
+# protected locations -- its inputs, the Stage 00 and Stage 19 outputs, the Stage 08 outputs, the Stage 29 releases,
+# earlier QC runs and the registered exclusion definitions -- are unchanged, and the frozen-input guard confirms every
+# pinned file. Kept out of Analysis/run_all_analysis.R; run it by hand.
 #   Rscript Analysis/00b_qc_raw_acquisition.R --run-id=raqc_YYYYMMDD
 #   Rscript Analysis/00b_qc_raw_acquisition.R --run-id=dev01 --output-root=<absolute folder> [--recordings=B2_CC[34]] [--resume]
 # Group-blind (no group, CombZ or outcome is read). Flags are review items and proposed exclusions, never applied;
@@ -11,20 +15,35 @@
 
 source("Analysis/_pipeline_setup.R")
 for (helper in c("project_paths.R", "tracking_qc_run_config.R", "manuscript_palette.R", "animalpos_preprocessing_helpers.R", "antenna_log_helpers.R",
-                 "animalpos_reconstruction.R", "antenna_data_version.R", "antenna_measurement.R", "antenna_acquisition_qc.R")) {
+                 "animalpos_reconstruction.R", "antenna_data_version.R", "antenna_measurement.R", "antenna_acquisition_qc.R",
+                 "qc_run_protection.R", "frozen_input_guard.R")) {
   source_mmm_helper(helper)
 }
 
 RAQC_CODE <- c("Analysis/00b_qc_raw_acquisition.R", "Functions/antenna_acquisition_qc.R", "Functions/antenna_measurement.R",
                "Functions/antenna_log_helpers.R", "Functions/antenna_data_version.R", "Functions/animalpos_reconstruction.R",
                "Functions/animalpos_preprocessing_helpers.R", "Functions/project_paths.R", "Functions/tracking_qc_run_config.R",
-               "Analysis/_pipeline_setup.R", "Functions/behavioral_dynamics_helpers.R", "Functions/manuscript_palette.R")
+               "Analysis/_pipeline_setup.R", "Functions/behavioral_dynamics_helpers.R", "Functions/manuscript_palette.R",
+               "Functions/qc_run_protection.R", "Functions/frozen_input_guard.R")
 RAQC_TABLES <- c("recording_qc", "board_qc", "reader_qc", "reader_block_qc", "stretches", "animal_qc", "animal_block_qc",
                  "animal_reader_block", "basis_crosstab", "coassign_by_reader", "nonroster_tags", "silences", "system_messages", "blocks",
                  "stretch_calibration", "inputs")
 # Longest file names written under the run folder (tmp and final), for the path budget.
 RAQC_LONGEST_RELATIVE <- c(file.path("rec", "B6_CC4", "animal_reader_block.csv"), file.path("figures", "qc", "qc05_column_sensitivity.png"),
                            file.path("tables", "coassign_by_reader_summary.csv"), file.path("manifest", "qc_proposed_exclusions.csv"))
+
+# Locations a QC run must leave as they were, and the registered exclusion definitions hashed in full. Earlier runs of
+# the same root are protected too (append-only), but only they may lie inside the run's own root.
+raqc_protected <- function(project_root, cfg, vendor_dir, tag_dir) {
+  pa <- function(...) file.path(project_root, "analysis_ready", ...)
+  outputs <- c(mmm_tracking_qc_new_run_root(project_root), mmm_tracking_qc_historical_root(project_root),
+               pa("analyses", "hmm_states"), pa("analyses", "spatial_occupancy"), pa("pipeline", "29_canonical_behavior_releases"))
+  earlier <- list.dirs(file.path(cfg$base, "runs"), recursive = FALSE)
+  earlier <- earlier[!startsWith(basename(earlier), ".tmp_")]
+  hash <- c(file.path(tag_dir, "excluded_animals.csv"), file.path(MMM_REPO_ROOT, "Functions", "behavior_analysis_config.R"),
+            list.files(file.path(MMM_REPO_ROOT, "docs", "spatial_exclusions"), full.names = TRUE))
+  list(inputs = c(cfg$raw_root, vendor_dir, tag_dir), outputs = outputs, earlier = earlier, hash = hash)
+}
 
 raqc_git <- function(args) suppressWarnings(system2("git", c("-C", MMM_REPO_ROOT, args), stdout = TRUE, stderr = TRUE))
 
@@ -233,6 +252,13 @@ if (sys.nframe() == 0L) {
   vendor_dir <- file.path(project_root, "MMMSociability", "data_versions", "v2_cage_label_correction_2026-09-28", "preprocessed_data")
   tag_dir <- file.path(project_root, "MMMSociability", "raw_data")
   for (d in c(vendor_dir, tag_dir, cfg$raw_root)) if (!dir.exists(d)) stop("Missing input folder: ", d, call. = FALSE)
+  prot <- raqc_protected(project_root, cfg, vendor_dir, tag_dir)
+  mmm_qc_assert_target(cfg$base, c(prot$inputs, prot$outputs, file.path(project_root, "analysis_ready", c("pipeline", "canonical", "foundations")),
+                                   file.path(project_root, "MMMSociability")))
+  locations <- c(prot$inputs, prot$outputs, prot$earlier)
+  before <- mmm_qc_protection_snapshot(locations, prot$hash)
+  ledger_state <- mmm_qc_ledger_state(cfg$base)
+  guard <- mmm_frozen_guard_before("00b", project_root, output_roots = cfg$base)
   vendor_files <- sort(list.files(vendor_dir, pattern = "_CC[0-9]_AnimalPos_preprocessed[.]csv$", full.names = TRUE))
   if (length(vendor_files) != 24) stop("Expected 24 v2 preprocessed files, found ", length(vendor_files), call. = FALSE)
   ids <- sub("^E9_SIS_(B[0-9]+)_(CC[0-9]+)_.*$", "\\1_\\2", basename(vendor_files))
@@ -256,12 +282,14 @@ if (sys.nframe() == 0L) {
   sm <- raqc_summaries(tab, ev)
   out_tab <- file.path(cfg$tmp_dir, "tables"); out_man <- file.path(cfg$tmp_dir, "manifest"); out_fig <- file.path(cfg$tmp_dir, "figures", "qc")
   for (d in c(out_tab, out_man, out_fig)) dir.create(d, recursive = TRUE, showWarnings = FALSE)
-  for (nm in RAQC_TABLES) data.table::fwrite(tab[[nm]], file.path(out_tab, paste0(nm, ".csv")))
-  for (nm in names(sm)) data.table::fwrite(sm[[nm]], file.path(out_tab, paste0(nm, ".csv")))
-  data.table::fwrite(ev$board_history, file.path(out_tab, "board_history.csv"))
-  data.table::fwrite(ev$flags, file.path(out_man, "qc_flags.csv"))
+  # the cage-episode keys of Stage 29 and the revised measurement tables (System, CageEpisodeID) on every board-level table
+  keyed <- function(d) aqc_episode_keys(data.table::copy(data.table::as.data.table(d)))
+  for (nm in RAQC_TABLES) data.table::fwrite(keyed(tab[[nm]]), file.path(out_tab, paste0(nm, ".csv")))
+  for (nm in names(sm)) data.table::fwrite(keyed(sm[[nm]]), file.path(out_tab, paste0(nm, ".csv")))
+  data.table::fwrite(keyed(ev$board_history), file.path(out_tab, "board_history.csv"))
+  data.table::fwrite(keyed(ev$flags), file.path(out_man, "qc_flags.csv"))
   data.table::fwrite(ev$manifest, file.path(out_man, "qc_manifest.csv"))
-  data.table::fwrite(ev$exclusions, file.path(out_man, "qc_proposed_exclusions.csv"))
+  data.table::fwrite(keyed(ev$exclusions), file.path(out_man, "qc_proposed_exclusions.csv"))
   data.table::fwrite(aqc_rules(), file.path(out_man, "qc_rules.csv"))
   data.table::fwrite(code, file.path(out_man, "code_hashes.csv"))
   raqc_figures(tab, ev, sm, out_fig)
@@ -289,10 +317,20 @@ if (sys.nframe() == 0L) {
                "Files: manifest/qc_manifest.csv (one row per check), manifest/qc_flags.csv (one row per flagged unit),",
                "manifest/qc_proposed_exclusions.csv, manifest/qc_rules.csv, tables/ (QC tables and summaries), figures/qc/.",
                "Documentation: docs/RFID_ACQUISITION_QC.md in the MMMSociability repository."), file.path(cfg$tmp_dir, "README.txt"))
+  # a resumed run may hold the files of an earlier failed publication: they are rewritten, never listed stale
+  stale <- file.path("manifest", c("output_files_sha256.csv", "protection_check.csv", "protection_snapshot_after.csv", "protection_snapshot_before.csv"))
+  unlink(file.path(cfg$tmp_dir, stale))
   outs <- list.files(cfg$tmp_dir, recursive = TRUE)
   outs <- outs[!startsWith(outs, "rec/")]
+  utils::write.csv(before, file.path(out_man, "protection_snapshot_before.csv"), row.names = FALSE)
+  outs <- unique(c(outs, file.path("manifest", "protection_snapshot_before.csv")))
   data.table::fwrite(data.frame(file = outs, sha256 = mmm_file_sha256(file.path(cfg$tmp_dir, outs)), bytes = file.size(file.path(cfg$tmp_dir, outs))),
                      file.path(out_man, "output_files_sha256.csv"))
-  if (!file.rename(cfg$tmp_dir, cfg$output_dir)) stop("Could not rename ", cfg$tmp_dir, " to ", cfg$output_dir, call. = FALSE)
+  mmm_frozen_guard_after(guard)   # stops if a pinned file of a frozen run changed
+  ledger_row <- list(run_id = cfg$run_id, finished = format(Sys.time(), "%Y-%m-%d %H:%M:%S"), git_commit = head_commit,
+                     rules_version = AQC_RULES_VERSION, qc_status = status, isolated = cfg$isolated, recordings = paste(ids, collapse = " "),
+                     output_manifest_sha256 = unname(mmm_file_sha256(file.path(out_man, "output_files_sha256.csv"))),
+                     protected_files = NA, protection_changes = NA)
+  mmm_qc_publish(cfg$tmp_dir, cfg$output_dir, cfg$base, ledger_row, before, locations, prot$hash, ledger_state)
   message("Stage 00b ", status, ": ", cfg$output_dir)
 }

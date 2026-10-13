@@ -3,6 +3,9 @@
 **Status: proposal only (2026-10-13).** Nothing has been started. It requires access to the same boards (AM1-AM5), the
 same PhenoSoft version (1.0.8147.28429) and the configuration used in Exp9. It uses no animals except, optionally, step 6.
 
+**2026-10-14:** the minimal two-day pilot built from steps 1-5, with its endpoints, the precision of each duration and a
+resource estimate, is `docs/RFID_CALIBRATION_PILOT.md`. Nothing is booked.
+
 ## Why
 
 No independent ground truth exists for the Exp9 RFID positions; see `docs/ANTENNA_MEASUREMENT_VALIDATION.md`.

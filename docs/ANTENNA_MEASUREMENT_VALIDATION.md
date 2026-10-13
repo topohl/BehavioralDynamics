@@ -116,3 +116,7 @@ All outputs are in the isolated root `<Behavior>/RANM/measurement_validation/`.
 - **The single-read basis.** It reassigns 8.5% of active and 4.8% of light seconds, mostly fresh border reads at corridor readers. Few R5 seconds are reassigned away, but R5 gains border time (+7.7% active, +2.6% light), so house occupancy is basis-sensitive.
 - **The house end of the layout** (R5 house, R1 food, R8 water as reported by the lab) is supported by light-phase resting. The food and water rows are inferred.
 - **Calibration.** A proposed protocol is in `docs/RFID_CALIBRATION_PROTOCOL.md`.
+
+**Follow-up (2026-10-14): revised specification.** The decisions of 2026-10-14 (exclusions of the three dead-channel cage
+episodes, the B5 CC4 board 1 censoring, a single-read reconstruction, board handling, a calibration pilot) are worked
+out in `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.md`, which replaces the table above for review.

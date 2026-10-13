@@ -32,7 +32,8 @@ mmm_tracking_qc_run_config <- function(project_root, metric_root, args) {
 # characters), --output-root=<absolute isolated folder> (optional; checked by
 # mmm_isolated_output_root_check()), --recordings=<regex on "B3_CC1">
 # (only with --output-root) and --resume (continue an existing .tmp_<id>).
-# Output goes to <root>/runs/<id>, built in <root>/runs/.tmp_<id>.
+# Output goes to <root>/runs/<id>, built in <root>/runs/.tmp_<id>; an id listed
+# in <root>/runs_ledger.csv is refused even if its folder is gone.
 MMM_QC_RUN_ID_PATTERN <- "^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$"
 
 mmm_raw_acquisition_qc_run_config <- function(project_root, args) {
@@ -58,6 +59,13 @@ mmm_raw_acquisition_qc_run_config <- function(project_root, args) {
   tmp_dir <- file.path(base, "runs", paste0(".tmp_", run_id))
   resume <- "--resume" %in% args
   if (file.exists(output_dir)) stop("QC run directory already exists; choose a fresh --run-id: ", output_dir, call. = FALSE)
+  # a run id is used once, even if its folder was moved away (runs_ledger.csv, Functions/qc_run_protection.R)
+  ledger <- file.path(base, "runs_ledger.csv")
+  if (file.exists(ledger)) {
+    used <- tryCatch(utils::read.csv(ledger, colClasses = "character"), error = function(e) data.frame())
+    if (!"run_id" %in% names(used)) stop("Unreadable run ledger (no run_id column): ", ledger, call. = FALSE)
+    if (run_id %in% used$run_id) stop("Run id already used in ", ledger, "; choose a fresh --run-id.", call. = FALSE)
+  }
   if (file.exists(tmp_dir) && !resume) stop("A partial run exists; inspect it, or continue with --resume: ", tmp_dir, call. = FALSE)
   list(run_id = run_id, output_dir = output_dir, tmp_dir = tmp_dir, isolated = isolated, base = base,
        recordings = recordings, resume = resume, require_clean_code = !isolated, raw_root = mmm_raw_antenna_root(project_root))

@@ -256,7 +256,10 @@ Rscript Analysis/00_qc_tracking_integrity.R --input-scale=10sec_based --run-id=r
 ```
 
 Stage 00b, the raw-log acquisition QC, is a manual diagnostic as well. Into the project root it needs committed code and
-a fresh run ID; test runs and subsets go to an isolated `--output-root`:
+a fresh run ID; test runs and subsets go to an isolated `--output-root`. Runs are append-only: an ID is used once
+(`runs_ledger.csv`), and a run is published only if its inputs, the Stage 00, 08 and 19 outputs, the Stage 29 releases,
+earlier QC runs and the registered exclusion definitions are unchanged and the frozen-input guard passes
+(`Functions/qc_run_protection.R`; `docs/RFID_ACQUISITION_QC.md`):
 
 ```powershell
 Rscript Analysis/00b_qc_raw_acquisition.R --run-id=raqc_YYYYMMDD
@@ -285,7 +288,7 @@ identify the stage.**
 | Script | Writes into |
 |---|---|
 | `00_qc_tracking_integrity.R` | `analysis_ready/quality_control/tracking_integrity/runs/<new_run_id>/` for provisional single-resolution diagnostics; the May 2026 snapshot is read as an optional historical source from `history/tracking_integrity/10sec/` |
-| `00b_qc_raw_acquisition.R` | `analysis_ready/quality_control/raw_acquisition/runs/<new_run_id>/`, or `<--output-root>/runs/<new_run_id>/` for isolated runs; built in `.tmp_<run_id>/` and renamed at the end |
+| `00b_qc_raw_acquisition.R` | `analysis_ready/quality_control/raw_acquisition/runs/<new_run_id>/`, or `<--output-root>/runs/<new_run_id>/` for isolated runs; built in `.tmp_<run_id>/`, published only after the protection check, one line appended to `runs_ledger.csv` |
 | `01_build_multiscale_behavior_metrics.R` | `analysis_ready/foundations/behavior_metrics/` (numbered originals retained) |
 | `02_build_dyadic_rfid_contacts.R` | `analysis_ready/analyses/dyadic_contacts/` (historical source retained) |
 | `06_dynamic_social_networks.R` | `analysis_ready/analyses/dynamic_social_networks/5min/` (older-resolution copies under `history/social_networks/`; numbered originals retained) |

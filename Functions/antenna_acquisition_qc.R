@@ -651,6 +651,18 @@ aqc_process_recording <- function(vendor, recording, tags, sysmsg, initscan, ini
        system_messages = addkey(sm), blocks = addkey(blocks))
 }
 
+#' Adds the cage-episode keys of Stage 29 and the revised measurement tables to a QC table with Batch, CC and board:
+#' System = sys.<board> (unless the table carries the vendor System label already) and CageEpisodeID = Batch|sys.<board>|CC
+#' (the physical cage: the antenna board). NA where board is NA (recording-level rows). Other tables are returned as they are.
+aqc_episode_keys <- function(d) {
+  if (!nrow(d) || !all(c("Batch", "CC", "board") %in% names(d))) return(d)
+  d <- data.table::as.data.table(d)
+  sys_b <- ifelse(is.na(d$board), NA_character_, paste0("sys.", d$board))
+  if (!"System" %in% names(d)) d[, System := sys_b]
+  d[, CageEpisodeID := ifelse(is.na(board), NA_character_, paste(Batch, sys_b, CC, sep = "|"))]
+  d
+}
+
 #' Reads per board and reader in placement-scan (initScan) logs; zero for antennas without reads, nothing for files
 #' without detections. Returns data.table(board, PositionID, reads).
 aqc_initscan_antenna_reads <- function(paths) {

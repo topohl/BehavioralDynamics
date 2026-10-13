@@ -386,6 +386,18 @@ The measurement validation of 2026-10-13 was unregistered and descriptive
   - B5 CC4 board 1: all four animals;
   - B2 CC3 board 2: OR112 and OR141, not OR106 and OR131;
   - B2 CC4 board 5: none of its animals.
+- The vendor position stream depends on these antennas (knockout of 2026-10-14,
+  `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.md` section 3.1). Deleting R5 or
+  R3 from healthy boards shifts the active-phase crossing rate (R5: -3.0/h,
+  ratio 0.87; R3: +1.7/h), fragmentation, occupancy dispersion and
+  shared-position occupancy by 0.3-1.2 standardizer SD (median |shift|); the
+  light-phase crossing rate shifts little. S13's rule (an animal never at one
+  of the 8 vendor positions) catches a missing R5 in every window but a missing
+  R3 in 23%, which is why it covers the three episodes unevenly. New spatial
+  analyses exclude the three cage episodes (manifest
+  `docs/spatial_exclusions/spatial_analysis_exclusions_v1.0.csv`); B5 CC4
+  board 1 is unobserved after 2023-12-04 14:00:42.962 (censored). S13 and the
+  registered results are unchanged.
 
 **Forbids:**
 - calling same-reader co-assignment proximity, contact or social preference;

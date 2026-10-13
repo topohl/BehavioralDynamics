@@ -1,6 +1,7 @@
 # Raw RFID acquisition QC (Stage 00b)
 
-**Status:** manual diagnostic, with provisional rules (`aqc_rules_v0.2_provisional`), 2026-10-13.
+**Status:** manual diagnostic, with provisional rules (`aqc_rules_v0.2_provisional`), 2026-10-13; integrated into the live QC
+root with append-only runs and output protection on 2026-10-14 (section "Live QC root and output protection").
 
 - It is **group-blind**: no CON/RES/SUS label, CombZ or outcome is read, and no pass/fail decision depends on them.
 - Flags and proposed exclusions are **never applied**.
@@ -26,7 +27,9 @@ It follows the Stage 00 conventions:
 | `Functions/antenna_acquisition_qc.R` | checks, rules catalogue `aqc_rules()`, evaluation `aqc_evaluate()` |
 | `Functions/tracking_qc_run_config.R` | `mmm_raw_acquisition_qc_run_config()`: `--run-id` (1-40 characters), `--output-root` (isolated), `--recordings` (regex, isolated only), `--resume` |
 | `Functions/project_paths.R` | `mmm_raw_acquisition_qc_root()`, `mmm_raw_antenna_root()`, `mmm_isolated_output_root_check()` |
-| `Testing/tests/test_raw_acquisition_qc.R`, `test_raw_acquisition_qc_path_boundary.R` | portable tests: hand-worked functions, every rule on injected cases, a synthetic log with a dead antenna, run configuration and output boundaries. Five mutations of the key logic are caught |
+| `Functions/qc_run_protection.R` | append-only runs: run ledger, protected-location snapshots, output-root assertion, publish step |
+| `Functions/frozen_input_guard.R` | the frozen-input guard (pinned Stage 08 outputs and Stage 29-32 inputs), called before and after the run |
+| `Testing/tests/test_raw_acquisition_qc.R`, `test_raw_acquisition_qc_path_boundary.R`, `test_qc_run_protection.R` | portable tests: hand-worked functions, every rule on injected cases, a synthetic log with a dead antenna, run configuration and output boundaries, ledger, protection snapshot and publish refusals. Mutations of the key logic are caught |
 
 It reuses the raw reader (`Functions/antenna_log_helpers.R`), the read-time and reconstruction functions of the measurement validation (`Functions/antenna_measurement.R`) and the v2 roster and phase calendar.
 
@@ -46,6 +49,52 @@ Isolated roots are refused in four kinds of place:
 
 A full run takes about 20-25 minutes (0.5-1.4 min per recording, plus input hashing).
 
+## Live QC root and output protection
+
+Stage 00b writes into the live QC root `analysis_ready/quality_control/raw_acquisition/` like Stage 00 writes into
+`quality_control/tracking_integrity/`. It stays a manual diagnostic: it is not in `Analysis/run_all_analysis.R` and is run
+by hand. Its runs are append-only:
+- **Versioned run folders.** Each run gets a new folder `runs/<run_id>/`, built in `runs/.tmp_<run_id>/`. An existing folder
+  is refused at the start and again at publication. A partial `.tmp_` folder is continued only with `--resume`.
+- **Run ledger.** `runs_ledger.csv` at the root gets one line per published run: id, time, commit, rules version, status,
+  recordings, sha256 of the run's output manifest, and the number of protected files checked. An id in the ledger is
+  refused even if its folder was moved. A line is appended only if the ledger still starts with the bytes it had when the
+  run started (a peer run's appended line is allowed; a rewritten earlier line stops publication). Publication holds a
+  lock folder (`runs_ledger.lock`), checks the ledger before renaming the run folder, and moves the run back to its
+  `.tmp_` folder if the ledger line cannot be written.
+- **Output root.** The root must not lie in, equal or contain a protected location (`mmm_qc_assert_target()`): the raw
+  logs, the v2 data version, the vendor exports, the Stage 00 roots, the Stage 08 and Stage 19 outputs, the Stage 29
+  releases, `analysis_ready/pipeline`, `canonical` and `foundations`.
+- **Protection check.** At the start, a snapshot records size and time stamp of every file in the protected locations:
+  - the inputs (raw logs, v2 preprocessed files, vendor exports);
+  - the Stage 00 roots (tracking integrity, new and historical);
+  - the Stage 08 outputs (`analyses/hmm_states`) and the Stage 19 outputs (`analyses/spatial_occupancy`);
+  - the Stage 29 releases;
+  - every earlier run of the same root.
+
+  The registered exclusion definitions are hashed in full (sha256): `raw_data/excluded_animals.csv`,
+  `Functions/behavior_analysis_config.R` (the S13 sensitivity) and the spatial exclusion manifests
+  (`docs/spatial_exclusions/`). Before publication the snapshot is taken again. Any added, removed or changed file stops
+  the run: nothing is published, the ledger is untouched, and the `.tmp_` folder keeps `manifest/protection_check.csv` for
+  inspection.
+- **Frozen-input guard.** `mmm_frozen_guard_before("00b")` confirms that no pinned file lies under the QC root, and
+  `mmm_frozen_guard_after()` re-checks every pinned file (the 72 Stage 08 files and the Stage 29-32 inputs) before
+  publication.
+- **No silent change to registered exclusions.** The QC manifest and its proposed exclusions are review items. No
+  registered stage reads them (`Testing/tests/test_spatial_exclusion_manifest.R` checks the code). Exclusions adopted for
+  new spatial analyses are recorded separately in the versioned spatial manifest
+  (`docs/spatial_exclusions/spatial_analysis_exclusions_v1.0.csv`); the frozen S13 list is unchanged.
+- **Keys.** Every board-level table carries `System` (sys.<board>) and `CageEpisodeID` (Batch|System|CC), the keys of
+  Stage 29 and of the revised measurement tables.
+
+The protection check covers what a run could plausibly touch, not the whole drive, and compares the end of the run with
+its start, not with a registered baseline (the S13 text and the released spatial manifests are pinned by
+`Testing/tests/test_spatial_exclusion_manifest.R`). A `--resume` takes its snapshot when it resumes, so a change made while
+a run was interrupted is not seen. A peer session that edits a protected file during the 20-25 min of a run makes
+publication fail; the run then stays in `.tmp_` and can be published with `--resume`. `manifest/output_files_sha256.csv`
+does not list itself or the protection files written at publication (`protection_check.csv`,
+`protection_snapshot_after.csv`).
+
 ## Outputs (run folder)
 
 - `README.txt`: status (PASS / WARN / FAIL), counts by severity, rules version, commit.
@@ -57,7 +106,7 @@ A full run takes about 20-25 minutes (0.5-1.4 min per recording, plus input hash
 - `manifest/qc_flags.csv`: one row per flagged unit.
   - Columns: check_id, severity, level, SourceFile, Batch, CC, board, PositionID, reader, resource, AnimalNum, block, Phase, value, threshold, classification, confidence, evidence, metrics_compromised, proposed_action, in_frozen_S13.
 - `manifest/qc_proposed_exclusions.csv`: board-recording, scope, time range, reason, confidence, animals, the animals already in S13, and the status "proposed; not applied".
-- `manifest/`: also `qc_rules.csv`, `qc_run.csv`, `code_hashes.csv` (sha256 and git blob), `input_hashes.csv` (v2 file, tag map, raw-log candidates, placement scans), `output_files_sha256.csv` and `session_info.txt`.
+- `manifest/`: also `qc_rules.csv`, `qc_run.csv`, `code_hashes.csv` (sha256 and git blob), `input_hashes.csv` (v2 file, tag map, raw-log candidates, placement scans), `output_files_sha256.csv`, `session_info.txt`, and the protection files `protection_snapshot_before.csv`, `protection_snapshot_after.csv` and `protection_check.csv` (the last two written at publication).
 - `tables/`: the QC tables, with column names matching the rules.
   - recording_qc, board_qc, reader_qc, reader_block_qc, stretches, stretch_calibration, animal_qc, animal_block_qc, animal_reader_block, basis_crosstab, coassign_by_reader, silences, nonroster_tags, system_messages, blocks, inputs.
   - Summaries: reader_summary, reader_spread, column_sensitivity, basis_by_reader, basis_by_recording, basis_flow, coassign_by_reader_summary, switching_summary, spatial_completeness, stretch_calibration_summary, board_history.
