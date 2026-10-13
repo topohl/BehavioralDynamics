@@ -23,6 +23,12 @@
 # carry-forward rule as for vendor records, at full resolution), seeded by its last detection before the window.
 # A tag sitting on a border is read alternately by two antennas; a run at one antenna that lasts less than
 # `min_flip_sec` and returns to the antenna it came from is reassigned to that antenna (rfid_flip_filter()).
+#
+# Relocation rule (optional, rfid_move_rule()). The vendor AnimalPos stream records a new position only when the
+# tag's position estimate lies >= 200 grid units (Euclidean) from the last recorded position; its estimate is the
+# mean of the reads in a 500-ms window, so it can fall between antennas (reconstructed exactly from the raw reads on
+# 2026-10-13). rfid_move_threshold_filter() applies the same >= 200 rule to the antennas of the detections themselves:
+# a detection becomes the held position only if its antenna lies at least the threshold from the held position.
 # ================================================================
 
 # Excel serial day 25569 = 1970-01-01.
@@ -143,6 +149,46 @@ rfid_flip_filter <- function(t, pid, min_flip_sec) {
   pid
 }
 
+# Grid coordinates of the readers by PositionID (R1-R4 at y = 0, R5-R8 at y = 116; the inverse of
+# animalpos_position_id()).
+RFID_GRID_X <- c(0, 100, 200, 300, 0, 100, 200, 300)
+RFID_GRID_Y <- c(0, 0, 0, 0, 116, 116, 116, 116)
+
+#' A relocation rule: a detection replaces the held position only if its antenna lies `threshold` grid units or more
+#' (Euclidean; strictly more when inclusive = FALSE) from the held position. The vendor rule is threshold 200,
+#' inclusive. On the antenna grid this records moves of two or more columns and never a row change (116 units) or a
+#' move to a neighbouring column (100 or 153.2 units).
+rfid_move_rule <- function(threshold = 200, inclusive = TRUE) {
+  if (!is.numeric(threshold) || length(threshold) != 1 || !is.finite(threshold) || threshold <= 0)
+    stop("threshold must be one positive number.", call. = FALSE)
+  if (!is.logical(inclusive) || length(inclusive) != 1 || is.na(inclusive)) stop("inclusive must be TRUE or FALSE.", call. = FALSE)
+  structure(list(threshold = threshold, inclusive = inclusive), class = "rfid_move_rule")
+}
+
+#' One-line description of a relocation rule (README and audit).
+rfid_move_rule_label <- function(rule) {
+  sprintf("Euclidean distance %s %g grid units from the held position (antenna coordinates)", if (rule$inclusive) ">=" else ">", rule$threshold)
+}
+
+#' Euclidean grid distance between readers (PositionID vectors).
+rfid_grid_distance <- function(p, q) sqrt((RFID_GRID_X[p] - RFID_GRID_X[q])^2 + (RFID_GRID_Y[p] - RFID_GRID_Y[q])^2)
+
+#' Held position after each detection under a relocation rule. `pid` is one animal's time-sorted detection sequence;
+#' the first detection sets the held position; each later detection replaces it only if it lies at least the threshold
+#' from it (the reference is the held position, never the previous detection). Returns an integer vector like `pid`.
+rfid_move_threshold_filter <- function(pid, rule) {
+  if (!inherits(rule, "rfid_move_rule")) stop("rule must come from rfid_move_rule().", call. = FALSE)
+  if (!length(pid)) return(integer(0))
+  r <- rle(as.integer(pid))
+  held <- integer(length(r$values)); cur <- r$values[1]
+  for (k in seq_along(r$values)) {
+    d <- rfid_grid_distance(r$values[k], cur)
+    if (if (rule$inclusive) d >= rule$threshold - 1e-9 else d > rule$threshold + 1e-9) cur <- r$values[k]
+    held[k] <- cur
+  }
+  rep(held, r$lengths)
+}
+
 #' Carry-forward occupancy intervals of one animal in [span_start, span_end). `t` (sorted) and `pid` are its
 #' detections on its own board after the flip filter. Seeded by the last detection before span_start; without
 #' one, assignment starts at the first detection. Consecutive equal states are merged.
@@ -182,9 +228,16 @@ rfid_animalpos_tag_map <- function(path, canon = canonical_animal_id) {
 #' span_start, span_end  analysis span in POSIX seconds
 #' Each animal's cage is the board that holds most of its detections inside the span; detections on other boards
 #' are dropped and counted. Where the log carries animal labels, the audit checks them against the tag map.
+#' move_rule  NULL (default: every change of antenna counts) or rfid_move_rule(): the rule then runs over all of the
+#'   animal's on-board detections from its first one, so the position at span_start is the held position, not the
+#'   antenna of the last detection; detections in the same millisecond keep the last one first (positions are written
+#'   at millisecond resolution). The audit then gains reader_changes_after_move_rule (in-span changes, not counting the
+#'   step from the seed to the first in-span position), seed_detection_PositionID, seed_held_PositionID,
+#'   seed_emission_lag_seconds (age of the relocation that set the held position), seed_from_first_detection and
+#'   move_rule.
 #' Returns list(intervals, audit).
 rfid_raw_occupancy_intervals <- function(events, roster, tags, span_start, span_end, min_flip_sec,
-                                         canon = canonical_animal_id) {
+                                         canon = canonical_animal_id, move_rule = NULL) {
   missing_tag <- setdiff(roster$AnimalNum, tags$AnimalNum)
   if (length(missing_tag) > 0) {
     stop("No RFID tag for roster animal(s) ", paste(missing_tag, collapse = ", "), call. = FALSE)
@@ -201,14 +254,34 @@ rfid_raw_occupancy_intervals <- function(events, roster, tags, span_start, span_
     on <- !is.na(board) & x$board == board
     xs <- x[on, , drop = FALSE]
     filtered <- rfid_flip_filter(xs$t, xs$PositionID, min_flip_sec)
-    iv <- rfid_carry_forward_intervals(xs$t, filtered, span_start, span_end)
+    if (is.null(move_rule)) {
+      iv <- rfid_carry_forward_intervals(xs$t, filtered, span_start, span_end)
+    } else {
+      last_in_ms <- if (nrow(xs)) c(round(xs$t[-1] * 1000) != round(xs$t[-nrow(xs)] * 1000), TRUE) else logical(0)
+      th <- xs$t[last_in_ms]; fh <- filtered[last_in_ms]
+      held <- rfid_move_threshold_filter(fh, move_rule)
+      iv <- rfid_carry_forward_intervals(th, held, span_start, span_end)
+      pre <- which(th < span_start)
+      if (length(pre) && any(th >= span_start & round(th * 1000) == round(span_start * 1000)))   # never in the 24 recordings
+        stop("Animal ", a, ": a detection in the span-start millisecond would merge with the seed row.", call. = FALSE)
+      seed_i <- if (length(pre)) max(pre) else NA_integer_
+      changed_at <- which(c(TRUE, diff(held) != 0))           # detections at which the held position took a new value
+      set_i <- if (is.na(seed_i)) NA_integer_ else max(changed_at[changed_at <= seed_i])
+      move_audit <- tibble::tibble(
+        reader_changes_after_move_rule = sum(diff(held[th >= span_start & th < span_end]) != 0),
+        seed_detection_PositionID = if (is.na(seed_i)) NA_integer_ else as.integer(fh[seed_i]),
+        seed_held_PositionID = if (is.na(seed_i)) NA_integer_ else as.integer(held[seed_i]),
+        seed_emission_lag_seconds = if (is.na(seed_i)) NA_real_ else span_start - th[set_i],
+        seed_from_first_detection = if (is.na(seed_i)) NA else set_i == 1L,
+        move_rule = rfid_move_rule_label(move_rule))
+    }
     raw_changes <- sum(diff(xs$PositionID[xs$t >= span_start & xs$t < span_end]) != 0)
     kept_changes <- sum(diff(filtered[xs$t >= span_start & xs$t < span_end]) != 0)
     seed_t <- if (any(xs$t < span_start)) max(xs$t[xs$t < span_start]) else NA_real_
     det <- xs[xs$t >= span_start & xs$t < span_end, , drop = FALSE]
     labelled <- x$label[!(x$label %in% c("", "unknown"))]
     out[[i]] <- if (nrow(iv)) dplyr::mutate(iv, AnimalNum = a, Board = board) else NULL
-    aud[[i]] <- tibble::tibble(
+    base_audit <- tibble::tibble(
       AnimalNum = a, tag = tags$tag[tags$AnimalNum == a], System_label = roster$System_label[i], Board = board,
       board_matches_label = !is.na(board) && identical(paste0("sys.", board), roster$System_label[i]),
       log_labels = if (length(labelled)) paste(sort(unique(labelled)), collapse = "|") else "none",
@@ -220,6 +293,7 @@ rfid_raw_occupancy_intervals <- function(events, roster, tags, span_start, span_
       reader_changes_raw = raw_changes, reader_changes_after_flip_filter = kept_changes,
       seeded = !is.na(seed_t), seed_lag_seconds = span_start - seed_t,
       assigned_seconds = if (nrow(iv)) sum(iv$end - iv$start) else 0)
+    aud[[i]] <- if (is.null(move_rule)) base_audit else dplyr::bind_cols(base_audit, move_audit)
   }
   list(intervals = dplyr::bind_rows(out), audit = dplyr::bind_rows(aud))
 }

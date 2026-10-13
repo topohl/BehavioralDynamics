@@ -19,11 +19,65 @@
 #   - System = sys.<antenna board> (the cage that read the tag); AnimalID keeps the vendor file's spelling;
 #   - times are written to the millisecond like the vendor files; changes that fall in the same millisecond keep the
 #     later reader.
+# Optional relocation rule (move_rule = rfid_move_rule(); version ge200): a detection becomes the animal's position only
+# if its antenna lies >= 200 grid units from the position it holds, the vendor's emission threshold applied to the
+# antennas. The rule runs from the animal's first detection in the recording, so the seed is the position held at the
+# span start (synthetic_row_source = "raw_seed_held_position_at_span_start"); seed_detection_age_s stays the age of the
+# last detection before the span, which lies within 200 units of the held position, and seed_emission_age_s is the age
+# of the relocation that set it.
 # ================================================================
 
 ANTENNA_DV_COLUMNS <- c("DateTime", "AnimalID", "System", "PositionID", "CageChange", "Batch", "Phase", "ConsecActive",
                         "ConsecInactive", "HalfHoursElapsed", "is_synthetic_preprocessing_row", "synthetic_row_source")
 ANTENNA_DV_SEED_SOURCE <- "raw_seed_last_detection_before_span"
+ANTENNA_DV_SEED_SOURCE_HELD <- "raw_seed_held_position_at_span_start"
+
+# The raw-antenna data versions (decided 2026-10-12/13). root: the parallel project root the builder writes the version
+# into (noflip is built in RANT and copied, hash-checked, into RANU, the root it runs in).
+ANTENNA_DV_VERSIONS <- list(
+  flip2s = list(min_flip_sec = 2, move_rule = NULL, root = "RANT"),
+  noflip = list(min_flip_sec = 0, move_rule = NULL, root = "RANT"),
+  ge200 = list(min_flip_sec = 0, move_rule = rfid_move_rule(threshold = 200, inclusive = TRUE), root = "RANV"))
+
+#' README.txt lines of a version folder (written joined by CRLF). Versions without a relocation rule keep the text
+#' of their 2026-10-12 build byte for byte.
+antenna_dv_readme_lines <- function(dir_name, build_date, spec, git_commit = NULL) {
+  head <- c(sprintf("Exp9 RFID raw-antenna data version '%s' (built %s%s)", dir_name, build_date,
+                    if (is.null(git_commit)) "" else paste0("; code ", substr(git_commit, 1, 7))),
+            "",
+            "The raw MultiMouseMonitor antenna logs in the schema of the vendor preprocessed AnimalPos files (same 24 file names,",
+            "same 12 columns), so Stages 01/02 and the Stage 29 event stream read them unchanged. Built by",
+            "Formatting/build_raw_antenna_data_versions.R with Functions/antenna_data_version.R and antenna_log_helpers.R.")
+  tail <- c("Calendar: the vendor v2 file's phase blocks; Phase/ConsecActive/ConsecInactive copied per block; HalfHoursElapsed from",
+            "the shared helper. Inputs: vendor v2 preprocessed files (roster, spelling, calendar), raw_data AnimalPos exports (tag map),",
+            "raw logs. The repeated daylight-saving hour of B1 CC1 is dropped; empty software sessions are ignored (build_audit.csv).",
+            "Immutable: a change needs a new version folder.")
+  if (is.null(spec$move_rule)) {
+    return(c(head,
+      sprintf("Flip filter: %s.", if (spec$min_flip_sec > 0) sprintf("a run at one antenna shorter than %g s that returns to the antenna it came from is reassigned to it", spec$min_flip_sec) else "none (every antenna change counts)"),
+      "Rows: one row per change of antenna reader per animal (its first detection at the new reader); System = sys.<antenna board>.",
+      "Seeds: every animal has a row at the span start (18:30 of the cage-change day) with the reader of its last detection",
+      "before it, marked is_synthetic_preprocessing_row = TRUE, synthetic_row_source = raw_seed_last_detection_before_span;",
+      "seed_provenance.csv gives the age of that detection (seed_detection_age_s). No vendor position is ever used as a seed.",
+      tail))
+  }
+  c(head,
+    "Purpose: the vendor AnimalPos emission threshold applied to the raw detections, to separate the construct (relocations",
+    "of two or more antenna columns) from the data source. The vendor records a position when the mean of the tag's reads in a",
+    "500-ms window lies >= 200 grid units from its last recorded position (reconstructed exactly from the raw reads,",
+    "2026-10-13); this version applies the same threshold to the antenna of each detection, without the averaging.",
+    sprintf("Relocation rule: %s. Row changes (116 units) and moves to a neighbouring column (100 or 153.2 units) are never", rfid_move_rule_label(spec$move_rule)),
+    "recorded. The rule runs from each animal's first detection in the recording; detections in the same millisecond keep the last.",
+    sprintf("Flip filter: %s.", if (spec$min_flip_sec > 0) sprintf("%g s, before the relocation rule", spec$min_flip_sec) else "none (the threshold acts on every detection)"),
+    "Rows: one row per relocation per animal (its first detection at least the threshold from the held position);",
+    "System = sys.<antenna board>; consecutive rows of an animal are always at least the threshold apart.",
+    "Seeds: every animal has a row at the span start (18:30 of the cage-change day) with the position it holds then, marked",
+    "is_synthetic_preprocessing_row = TRUE, synthetic_row_source = raw_seed_held_position_at_span_start. seed_provenance.csv:",
+    "seed_detection_age_s = age of the last detection before the span (within the threshold of the held position; the same",
+    "evidence age as in the other raw versions), seed_emission_age_s = age of the relocation that set the held position,",
+    "seed_detection_PositionID, seed_from_first_detection. No vendor position is ever used as a seed.",
+    tail)
+}
 
 #' Vendor-file calendar: span bounds and the per-block phase labels to copy.
 antenna_dv_parse_time <- function(x) {
@@ -68,15 +122,16 @@ antenna_dv_change_rows <- function(start, pos) {
 
 #' Builds one recording. Returns list(rows (12 columns, vendor order), seeds, audit).
 #' vendor: the vendor-preprocessed file of the recording (data frame as read); recording: rfid_read_recording();
-#' tags: rfid_animalpos_tag_map(); min_flip_sec: 0 disables the flip filter.
-antenna_dv_build_recording <- function(vendor, recording, tags, min_flip_sec, canon = canonical_animal_id) {
+#' tags: rfid_animalpos_tag_map(); min_flip_sec: 0 disables the flip filter; move_rule: NULL or rfid_move_rule().
+antenna_dv_build_recording <- function(vendor, recording, tags, min_flip_sec, canon = canonical_animal_id, move_rule = NULL) {
   cal <- antenna_dv_vendor_calendar(vendor)
   recording_end <- max(recording$events$t + recording$events$dur_sec)
   span_end <- min(cal$span_end, recording_end)
   ids <- vendor %>% dplyr::distinct(AnimalID, System) %>% dplyr::mutate(AnimalNum = canon(AnimalID))
   if (anyDuplicated(ids$AnimalNum)) stop("An animal has two spellings or two System labels in the vendor file.", call. = FALSE)
   roster <- ids %>% dplyr::transmute(AnimalNum, System_label = System)
-  built <- rfid_raw_occupancy_intervals(recording$events, roster, tags, cal$span_start, span_end, min_flip_sec, canon = canon)
+  built <- rfid_raw_occupancy_intervals(recording$events, roster, tags, cal$span_start, span_end, min_flip_sec, canon = canon,
+                                        move_rule = move_rule)
   if (any(is.na(built$audit$Board))) {
     stop("No raw detections in the span for ", paste(built$audit$AnimalNum[is.na(built$audit$Board)], collapse = ", "), call. = FALSE)
   }
@@ -101,7 +156,15 @@ antenna_dv_build_recording <- function(vendor, recording, tags, min_flip_sec, ca
       ConsecActive = as.integer(ConsecActive), ConsecInactive = as.integer(ConsecInactive),
       HalfHoursElapsed = as.integer(animalpos_half_hours_elapsed(as.POSIXct(t, origin = "1970-01-01", tz = "UTC"))),
       is_synthetic_preprocessing_row = seed_row,
-      synthetic_row_source = ifelse(seed_row, ANTENNA_DV_SEED_SOURCE, NA_character_))
+      synthetic_row_source = ifelse(seed_row, if (is.null(move_rule)) ANTENNA_DV_SEED_SOURCE else ANTENNA_DV_SEED_SOURCE_HELD,
+                                    NA_character_))
+  if (!is.null(move_rule)) {
+    step <- rows %>% dplyr::arrange(AnimalNum, t_ms) %>% dplyr::group_by(AnimalNum) %>%
+      dplyr::summarise(below = { d <- rfid_grid_distance(PositionID[-1], PositionID[-dplyr::n()])
+                                 sum(if (move_rule$inclusive) d < move_rule$threshold - 1e-9 else d <= move_rule$threshold + 1e-9) },
+                       .groups = "drop")
+    if (any(step$below > 0)) stop("Consecutive rows closer than the relocation threshold for ", paste(step$AnimalNum[step$below > 0], collapse = ", "), call. = FALSE)
+  }
   seeds <- built$audit %>%
     dplyr::left_join(ids %>% dplyr::select(AnimalNum, AnimalID), by = "AnimalNum") %>%
     dplyr::transmute(AnimalID, AnimalNum, Board, seeded,
@@ -112,6 +175,11 @@ antenna_dv_build_recording <- function(vendor, recording, tags, min_flip_sec, ca
                      first_change_after_span_start_s = vapply(AnimalNum, function(a) {
                        r <- rows[rows$AnimalNum == a & !rows$seed_row, , drop = FALSE]
                        if (nrow(r)) min(r$t) - cal$span_start else NA_real_ }, numeric(1)))
+  if (!is.null(move_rule)) {
+    seeds <- seeds %>% dplyr::left_join(
+      built$audit %>% dplyr::transmute(AnimalNum, seed_detection_PositionID, seed_emission_age_s = seed_emission_lag_seconds,
+                                       seed_from_first_detection), by = "AnimalNum")
+  }
   audit <- built$audit %>%
     dplyr::mutate(span_start = cal$span_start, span_end = span_end, recording_end = recording_end,
                   vendor_span_end = cal$span_end, min_flip_sec = min_flip_sec,

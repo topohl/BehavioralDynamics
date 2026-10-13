@@ -7,12 +7,15 @@
 # with every output in a separate project root beside the live one:
 #   options(mmm.rant_version = "flip2s")  -> root <parent of live root>/RANT  (2-s flip filter; primary raw sensitivity)
 #   options(mmm.rant_version = "noflip")  -> root <parent of live root>/RANU  (no flip filter; filter-dependence audit)
+#   options(mmm.rant_version = "ge200")   -> root <parent of live root>/RANV  (only relocations of >= 200 grid units, the
+#                                            vendor emission threshold; construct vs data source)
 # Nothing runs unless mmm.rant_version is set. Optional: mmm.rant_stages (default: the descriptive tier below),
-# mmm.rant_dv_date (data-version date, default "20261012"), mmm.rant_continue_on_error (default FALSE).
+# mmm.rant_dv_date (data-version date, default RANT_DV_DATES), mmm.rant_continue_on_error (default FALSE).
 #
 # Isolation (decided 2026-10-12):
-#   - the target root must not be, or lie inside, the live data root; it holds its own data version (the builder writes
-#     both into RANT; the noflip version is copied into RANU, hash-checked) and the files must match its manifest;
+#   - the target root must not be, or lie inside, the live data root; it holds its own data version (flip2s and noflip
+#     were built into RANT and noflip copied, hash-checked, into RANU; ge200 is built into RANV) and the files must
+#     match its manifest;
 #   - MMM_BEHAVIOR_PROJECT_ROOT (read by Stage 09) and options(mmm.project_root) both point at the target root, the
 #     input is options(mmm.preprocessed_dir), vendor seeding is off (mmm.seed_from_vendor_raw = FALSE) and the vendor
 #     raw_data folder is unreachable; every setting is restored on exit;
@@ -32,10 +35,11 @@ RANT_DESCRIPTIVE_STAGES <- c("01_build_multiscale_behavior_metrics.R", "02_build
                              "11_behavioral_adaptation_kinetics.R", "12_sleep_like_quiescence_metrics.R",
                              "13_ethological_phase_organization.R", "20_first_night_gamm.R",
                              "22_repeated_cagechange_acute_gamm.R", "28_rfid_behavioral_domains.R")
-RANT_ROOT_NAMES <- c(flip2s = "RANT", noflip = "RANU")
+RANT_ROOT_NAMES <- c(flip2s = "RANT", noflip = "RANU", ge200 = "RANV")
+RANT_DV_DATES <- c(flip2s = "20261012", noflip = "20261012", ge200 = "20261013")
 
 if (is.null(RANT_VERSION)) {
-  message("run_raw_antenna_parallel.R: nothing to do; set options(mmm.rant_version = \"flip2s\" or \"noflip\").")
+  message("run_raw_antenna_parallel.R: nothing to do; set options(mmm.rant_version = \"flip2s\", \"noflip\" or \"ge200\").")
 } else local({
   if (!RANT_VERSION %in% names(RANT_ROOT_NAMES)) stop("mmm.rant_version must be one of ", paste(names(RANT_ROOT_NAMES), collapse = ", "), call. = FALSE)
   repo <- normalizePath(getwd(), winslash = "/")
@@ -48,7 +52,7 @@ if (is.null(RANT_VERSION)) {
   live_root <- norm(MMM_PROJECT_ROOT_DEFAULT)
   root <- norm(file.path(dirname(live_root), RANT_ROOT_NAMES[[RANT_VERSION]]))
   if (startsWith(tolower(paste0(root, "/")), tolower(paste0(live_root, "/")))) stop("The target root lies inside the live root.", call. = FALSE)
-  dv_date <- getOption("mmm.rant_dv_date", "20261012")
+  dv_date <- getOption("mmm.rant_dv_date", RANT_DV_DATES[[RANT_VERSION]])
   stages <- getOption("mmm.rant_stages", RANT_DESCRIPTIVE_STAGES)          # read before the mmm.* options are cleared below
   continue_on_error <- isTRUE(getOption("mmm.rant_continue_on_error", FALSE))
   if (!all(stages %in% RANT_DESCRIPTIVE_STAGES)) stop("mmm.rant_stages must be a subset of the descriptive tier.", call. = FALSE)
@@ -86,9 +90,9 @@ if (is.null(RANT_VERSION)) {
   }, add = TRUE)
   if (!identical(norm(mmm_project_root()), root)) stop("The project root did not switch to ", root, call. = FALSE)
 
-  # One Rscript process per stage, sourcing the stage at top level as a standalone run does: Stage 08 registers an S4 method
-  # for depmixS4's fit() through a global binding (it fails when sourced into a child environment), and a native crash ends
-  # only its own stage. The child inherits the environment variables set above; its options are set by a bootstrap file.
+  # One Rscript process per stage, sourcing the stage at top level as a standalone run does, so a native crash (recurring on
+  # this machine) ends only its own stage and no stage sees another stage's globals. The child inherits the environment
+  # variables set above; its options are set by a bootstrap file.
   log_file <- file.path(root, "raw_antenna_run_log.csv")
   log_dir <- file.path(root, "raw_antenna_logs"); dir.create(log_dir, showWarnings = FALSE)
   rscript <- file.path(R.home("bin"), "Rscript")

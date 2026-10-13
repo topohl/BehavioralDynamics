@@ -7,15 +7,21 @@
 # Writes: <parent of the data root>/RANT/MMMSociability/data_versions/<version>/ -- one folder per version, refused
 # if it exists (versions are immutable), and refused if it would lie inside the live data root.
 #
-# Versions (decided 2026-10-12):
-#   raw_antenna_flip2s_<date>  Stage 19 rules incl. the 2-s flip filter: the primary raw-derived sensitivity input;
-#   raw_antenna_noflip_<date>  the same without the flip filter: the audit of filter dependence.
+# Versions (ANTENNA_DV_VERSIONS in Functions/antenna_data_version.R; decided 2026-10-12/13):
+#   raw_antenna_flip2s_<date>  Stage 19 rules incl. the 2-s flip filter: the primary raw-derived sensitivity input (RANT);
+#   raw_antenna_noflip_<date>  the same without the flip filter: the audit of filter dependence (built in RANT, copied
+#                              hash-checked into RANU);
+#   raw_antenna_ge200_<date>   only relocations of >= 200 grid units, the vendor emission threshold (RANV).
+# options(mmm.antenna_dv_versions) selects the versions (default flip2s and noflip); every selected version must name
+# the target root, unless the root is not a sibling of the live root (test builds).
 # Each folder: preprocessed_data/ (24 files, vendor names and 12-column schema), MANIFEST_SHA256.csv,
 # seed_provenance.csv (age of the detection behind every 18:30 seed), build_audit.csv, README.txt.
-# The cage-to-antenna-board audit (all 4 cage changes x 6 batches) is written once, to
-# RANT/MMMSociability/data_versions/board_audit_<date>/.
+# The cage-to-antenna-board audit (all 4 cage changes x 6 batches) is written with every build, to
+# <root>/MMMSociability/data_versions/board_audit_<date>/. Folders are built as .tmp_<name> and renamed at the end.
 #
 # Run from the repository root:  Rscript Formatting/build_raw_antenna_data_versions.R
+#   ge200:  Rscript -e 'options(mmm.rant_root = "<parent of the live root>/RANV", mmm.antenna_dv_versions = "ge200");
+#                       source("Formatting/build_raw_antenna_data_versions.R")'
 # ================================================================
 
 suppressPackageStartupMessages({ library(dplyr); library(tibble); library(data.table) })
@@ -32,23 +38,52 @@ VENDOR_DIR <- file.path(LIVE_ROOT, "MMMSociability", "data_versions", "v2_cage_l
 VENDOR_V1_DIR <- file.path(LIVE_ROOT, "MMMSociability", "preprocessed_data")
 TAG_DIR <- file.path(LIVE_ROOT, "MMMSociability", "raw_data")
 RAW_DIR <- getOption("mmm.raw_antenna_dir", file.path(dirname(dirname(dirname(LIVE_ROOT))), "Raw Data", "Behavior", "RFID", "MMMdata"))
-VERSIONS <- c(flip2s = 2, noflip = 0)
+version_names <- getOption("mmm.antenna_dv_versions", c("flip2s", "noflip"))
+if (!length(version_names) || !all(version_names %in% names(ANTENNA_DV_VERSIONS)) || anyDuplicated(version_names))
+  stop("mmm.antenna_dv_versions must name distinct versions out of ", paste(names(ANTENNA_DV_VERSIONS), collapse = ", "), call. = FALSE)
+VERSIONS <- ANTENNA_DV_VERSIONS[version_names]
 
 norm <- function(p) normalizePath(p, winslash = "/", mustWork = FALSE)
-if (startsWith(tolower(norm(RANT_ROOT)), tolower(norm(LIVE_ROOT)))) stop("RANT_ROOT lies inside the live data root.", call. = FALSE)
+root_parts <- toupper(strsplit(norm(RANT_ROOT), "/", fixed = TRUE)[[1]])
+if (startsWith(tolower(norm(RANT_ROOT)), tolower(norm(LIVE_ROOT))) || toupper(basename(norm(LIVE_ROOT))) %in% root_parts)
+  stop("RANT_ROOT lies inside the live data root.", call. = FALSE)   # by path or by name (a UNC spelling of S: differs)
+version_roots <- toupper(c(vapply(ANTENNA_DV_VERSIONS, function(s) s$root, ""), "RANU"))
+sibling <- identical(tolower(dirname(norm(RANT_ROOT))), tolower(dirname(norm(LIVE_ROOT))))
+if (sibling || any(root_parts %in% version_roots)) {   # a version root, however its parent path is spelled
+  wrong <- names(VERSIONS)[vapply(VERSIONS, function(s) !identical(toupper(s$root), utils::tail(root_parts, 1)), logical(1))]
+  if (length(wrong)) stop("Version(s) ", paste(wrong, collapse = ", "), " belong in another root than ", RANT_ROOT, call. = FALSE)
+}
+ONLY <- getOption("mmm.antenna_dv_only", NULL)   # test builds only: files matching a pattern
+if (!is.null(ONLY) && (!is.character(ONLY) || length(ONLY) != 1 || !nzchar(ONLY) || sibling || any(root_parts %in% version_roots)))
+  stop("mmm.antenna_dv_only must be a non-empty pattern, and test builds must not write into a version root.", call. = FALSE)
 for (d in c(VENDOR_DIR, TAG_DIR, RAW_DIR)) if (!dir.exists(d)) stop("Missing input folder: ", d, call. = FALSE)
+GIT_COMMIT <- NULL
+if (is.null(ONLY)) {   # a real build: committed code only, and git must answer (fails closed)
+  code <- c("Formatting/build_raw_antenna_data_versions.R", "Functions/antenna_data_version.R", "Functions/antenna_log_helpers.R",
+            "Functions/project_paths.R", "Functions/animalpos_preprocessing_helpers.R", "Functions/behavioral_dynamics_helpers.R")
+  dirty <- suppressWarnings(system2("git", c("-C", getwd(), "status", "--porcelain", "--untracked-files=all", "--", code), stdout = TRUE))
+  if (!is.null(attr(dirty, "status"))) stop("git status failed: a real build needs a git work tree with committed code.", call. = FALSE)
+  if (length(dirty)) stop("Commit the build code first:\n", paste(dirty, collapse = "\n"), call. = FALSE)
+  GIT_COMMIT <- suppressWarnings(system2("git", c("-C", getwd(), "rev-parse", "HEAD"), stdout = TRUE))
+  if (!is.null(attr(GIT_COMMIT, "status")) || length(GIT_COMMIT) != 1 || !grepl("^[0-9a-f]{40}$", GIT_COMMIT))
+    stop("Cannot resolve the git commit of the build code.", call. = FALSE)
+}
 dv_root <- file.path(RANT_ROOT, "MMMSociability", "data_versions")
 out_dirs <- setNames(file.path(dv_root, paste0("raw_antenna_", names(VERSIONS), "_", BUILD_DATE)), names(VERSIONS))
 board_dir <- file.path(dv_root, paste0("board_audit_", BUILD_DATE))
-for (d in c(out_dirs, board_dir)) if (dir.exists(d)) stop("Version folder exists (immutable): ", d, call. = FALSE)
+final_dirs <- c(out_dirs, board = board_dir)
+tmp_dirs <- setNames(file.path(dirname(final_dirs), paste0(".tmp_", basename(final_dirs))), names(final_dirs))
+for (d in final_dirs) if (dir.exists(d)) stop("Version folder exists (immutable): ", d, call. = FALSE)
+for (d in tmp_dirs) if (dir.exists(d)) stop("A partial build exists; inspect and remove it first: ", d, call. = FALSE)
+out_dirs <- tmp_dirs[names(VERSIONS)]; board_dir <- tmp_dirs[["board"]]   # built here, renamed at the end
 for (d in out_dirs) dir.create(file.path(d, "preprocessed_data"), recursive = TRUE)
 dir.create(board_dir, recursive = TRUE)
 
 vendor_files <- sort(list.files(VENDOR_DIR, pattern = "_CC[0-9]_AnimalPos_preprocessed[.]csv$", full.names = TRUE))
 if (length(vendor_files) != 24) stop("Expected 24 vendor files, found ", length(vendor_files), call. = FALSE)
 # Test runs only: restrict to files matching a pattern (a real version must hold all 24).
-ONLY <- getOption("mmm.antenna_dv_only", NULL)
 if (!is.null(ONLY)) vendor_files <- vendor_files[grepl(ONLY, basename(vendor_files))]
+if (!length(vendor_files)) stop("mmm.antenna_dv_only matches no recording.", call. = FALSE)
 sha <- function(f) digest::digest(file = f, algo = "sha256")
 
 seeds_all <- list(); audit_all <- list(); manifest_all <- list(); board_animal <- list(); board_blocks <- list()
@@ -59,7 +94,7 @@ for (vf in vendor_files) {
   rec <- rfid_read_recording(RAW_DIR, batch, cc)
   tags <- rfid_animalpos_tag_map(file.path(TAG_DIR, batch, sprintf("E9_SIS_%s_%s_AnimalPos.csv", batch, cc)))
   for (v in names(VERSIONS)) {
-    b <- antenna_dv_build_recording(vendor, rec, tags, VERSIONS[[v]])
+    b <- antenna_dv_build_recording(vendor, rec, tags, VERSIONS[[v]]$min_flip_sec, move_rule = VERSIONS[[v]]$move_rule)
     target <- file.path(out_dirs[[v]], "preprocessed_data", basename(vf))
     fwrite(b$rows, target)
     manifest_all[[paste(v, basename(vf))]] <- data.frame(version = v, file = basename(vf), sha256 = sha(target),
@@ -67,7 +102,7 @@ for (vf in vendor_files) {
       vendor_v2_sha256 = sha(vf), raw_log = basename(rec$path))
     seeds_all[[paste(v, basename(vf))]] <- data.frame(version = v, SourceFile = basename(vf), Batch = batch, CageChange = cc, b$seeds)
     audit_all[[paste(v, basename(vf))]] <- data.frame(version = v, SourceFile = basename(vf), Batch = batch, CageChange = cc, b$audit)
-    if (v == "flip2s") {
+    if (v == names(VERSIONS)[1]) {   # the board audit does not depend on the version
       cal <- antenna_dv_vendor_calendar(vendor)
       init_files <- list.files(file.path(RAW_DIR, batch, "raw"),
                                pattern = sprintf("Batch%d_change_%d_.*initScan[.]csv$", as.integer(sub("B", "", batch)), as.integer(sub("CC", "", cc))),
@@ -96,32 +131,21 @@ for (vf in vendor_files) {
         as.data.frame()
     }
   }
-  message(sprintf("%s %s: %s -> %s rows (flip2s), %s rows (noflip)", batch, cc, basename(rec$path),
-                  manifest_all[[paste("flip2s", basename(vf))]]$rows, manifest_all[[paste("noflip", basename(vf))]]$rows))
+  message(sprintf("%s %s: %s -> %s", batch, cc, basename(rec$path),
+                  paste(sprintf("%s rows (%s)", vapply(names(VERSIONS), function(v) manifest_all[[paste(v, basename(vf))]]$rows, numeric(1)),
+                                names(VERSIONS)), collapse = ", ")))
   rm(rec)
 }
 
-manifest <- bind_rows(manifest_all); seeds <- bind_rows(seeds_all); audit <- bind_rows(audit_all)
+of_version <- function(lst, v) bind_rows(lst[startsWith(names(lst), paste0(v, " "))])   # per version: no foreign columns
 for (v in names(VERSIONS)) {
   d <- out_dirs[[v]]
-  fwrite(manifest[manifest$version == v, ], file.path(d, "MANIFEST_SHA256.csv"))
-  fwrite(seeds[seeds$version == v, ], file.path(d, "seed_provenance.csv"))
-  fwrite(audit[audit$version == v, ], file.path(d, "build_audit.csv"))
-  writeLines(c(
-    sprintf("Exp9 RFID raw-antenna data version '%s' (built %s)", basename(d), BUILD_DATE),
-    "",
-    "The raw MultiMouseMonitor antenna logs in the schema of the vendor preprocessed AnimalPos files (same 24 file names,",
-    "same 12 columns), so Stages 01/02 and the Stage 29 event stream read them unchanged. Built by",
-    "Formatting/build_raw_antenna_data_versions.R with Functions/antenna_data_version.R and antenna_log_helpers.R.",
-    sprintf("Flip filter: %s.", if (VERSIONS[[v]] > 0) sprintf("a run at one antenna shorter than %g s that returns to the antenna it came from is reassigned to it", VERSIONS[[v]]) else "none (every antenna change counts)"),
-    "Rows: one row per change of antenna reader per animal (its first detection at the new reader); System = sys.<antenna board>.",
-    "Seeds: every animal has a row at the span start (18:30 of the cage-change day) with the reader of its last detection",
-    "before it, marked is_synthetic_preprocessing_row = TRUE, synthetic_row_source = raw_seed_last_detection_before_span;",
-    "seed_provenance.csv gives the age of that detection (seed_detection_age_s). No vendor position is ever used as a seed.",
-    "Calendar: the vendor v2 file's phase blocks; Phase/ConsecActive/ConsecInactive copied per block; HalfHoursElapsed from",
-    "the shared helper. Inputs: vendor v2 preprocessed files (roster, spelling, calendar), raw_data AnimalPos exports (tag map),",
-    "raw logs. The repeated daylight-saving hour of B1 CC1 is dropped; empty software sessions are ignored (build_audit.csv).",
-    "Immutable: a change needs a new version folder."), file.path(d, "README.txt"))
+  fwrite(of_version(manifest_all, v), file.path(d, "MANIFEST_SHA256.csv"))
+  fwrite(of_version(seeds_all, v), file.path(d, "seed_provenance.csv"))
+  fwrite(of_version(audit_all, v), file.path(d, "build_audit.csv"))
+  writeLines(antenna_dv_readme_lines(basename(final_dirs[[v]]), BUILD_DATE, VERSIONS[[v]],
+                                     git_commit = if (is.null(VERSIONS[[v]]$move_rule)) NULL else GIT_COMMIT),
+             file.path(d, "README.txt"))
 }
 fwrite(bind_rows(board_animal), file.path(board_dir, "board_by_animal_recording.csv"))
 fwrite(bind_rows(board_blocks), file.path(board_dir, "board_by_animal_phase_block.csv"))
@@ -138,4 +162,5 @@ fwrite(summary_tbl, file.path(board_dir, "board_audit_summary.csv"))
 print(summary_tbl)
 print(ba %>% filter(!board_eq_v2_label | !board_eq_v1_label | (!is.na(initscan_board) & !board_eq_initscan) | n_blocks_other_board > 0) %>%
         select(Batch, CageChange, AnimalID, Board, System_v1, System_v2, initscan_board, initscan_board_share, n_blocks_other_board, min_block_board_share))
-message("Done: ", paste(out_dirs, collapse = ", "), " and ", board_dir)
+for (k in names(final_dirs)) if (!file.rename(tmp_dirs[[k]], final_dirs[[k]])) stop("Could not rename ", tmp_dirs[[k]], call. = FALSE)
+message("Done: ", paste(final_dirs, collapse = ", "))
