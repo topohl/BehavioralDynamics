@@ -3,7 +3,7 @@
 # MMMSociability -- Analysis/raw_antenna_stage29_sensitivity.R
 # ================================================================
 # Runs the frozen, registered Stage 29 (Analysis/29_canonical_behavior_characterization.R, unchanged) in its CONTROL mode on a
-# raw-antenna data version (Formatting/build_raw_antenna_data_versions.R), inside that version's parallel root (RANT or RANU),
+# raw-antenna data version (Formatting/build_raw_antenna_data_versions.R), inside that version's parallel root (RANT, RANU, RANV),
 # after Analysis/run_raw_antenna_parallel.R has built the root's Stage 01, 09 and 28 outputs. Decided 2026-10-12: an explicitly
 # unregistered, non-release raw-input sensitivity variant; the registered Stage 29 and its configuration stay frozen.
 #
@@ -12,9 +12,10 @@
 #   DV <- mmm_dv_resolve(...)              -> the raw data version declared below (RAW29_VERSIONS), resolved by the frozen
 #                                             mmm_dv_resolve() and verified by the frozen mmm_dv_verify() (manifest, files, hashes)
 #   RAW <- file.path(RFID_SRC, "raw_data") -> a folder that must not exist: the vendor AnimalPos export is never read
-#   seed guard                             -> every animal of a raw version is seeded from its own last antenna read (in the data
-#                                             version), so mmm_evs_seeds() finds no late animal; the guard returns its empty result
-#                                             with typed columns. A late animal would make it read the missing folder and stop.
+#   seed guard                             -> every animal of a raw version has an 18:30 seed row in the data version (the antenna
+#                                             of its last detection; in ge200 the position it holds under the >= 200 rule), so
+#                                             mmm_evs_seeds() finds no late animal; the guard returns its empty result with typed
+#                                             columns. A late animal would make it read the missing folder and stop.
 # Everything else is the frozen code: freeze gate (config hash), committed-code gate, analytic identity, every data gate, models,
 # multiplicity, robustness, diagnostics. The data gates read the declared facts of the raw version; they start from v2 (same
 # roster, same cages; board audit 444/444) with reseeded_windows = 0, and any departure is declared in RAW29_VERSIONS with its reason.
@@ -23,9 +24,10 @@
 #   raw_standardized_estimates.csv  every standardized frozen estimate also divided by an SD re-derived on the raw data with the
 #                                   frozen rule (SD of CC1 SIS residuals from lm(y ~ Batch), n - 1 divisor); estimates.csv keeps
 #                                   the frozen constants
-#   raw_seed_age_sensitivity.csv    Q1 and the Q2b components refitted without the animal-windows whose 18:30 seed is a read more than
-#                                   RAW29_STALE_SEED_S seconds old: a position carried forward from long before the window must not
-#                                   weigh like a recent detection
+#   raw_seed_age_sensitivity.csv    Q1 and the Q2b components refitted without the animal-windows whose last detection before 18:30
+#                                   (seed_detection_age_s) is more than RAW29_STALE_SEED_S seconds old: a position carried forward from
+#                                   long before the window must not weigh like a recent detection (the same windows in every version;
+#                                   in ge200 that detection lies within 200 units of the seed position)
 #   raw_seed_provenance.csv         the data version's seed table (seed age, first change after 18:30) with the window keys
 # Output: <root>/S29_raw_sensitivity_UNREGISTERED/<data version>_<commit7>/{tables,audit}/ plus UNREGISTERED.txt, written in a
 # .tmp_ folder and renamed after a complete run; outside analysis_ready, never bundled, never a release. The frozen
@@ -36,10 +38,11 @@
 # ================================================================
 
 RAW29_STAGE29 <- "Analysis/29_canonical_behavior_characterization.R"
-RAW29_ROOT_NAMES <- c(flip2s = "RANT", noflip = "RANU")
+RAW29_ROOT_NAMES <- c(flip2s = "RANT", noflip = "RANU", ge200 = "RANV")
 RAW29_STALE_SEED_S <- 600
 RAW29_V2 <- "v2_cage_label_correction_2026-09-28"
-# Declared facts of each raw data version. Hashes pinned when the versions were built (2026-10-12).
+# Declared facts of each raw data version. Hashes pinned when the versions were built (2026-10-12; ge200 2026-10-13, code
+# 63b2d04). A departure from v2's count facts beyond reseeded_windows = 0 needs facts_reason.
 RAW29_VERSIONS <- list(
   flip2s = list(id = "raw_antenna_flip2s_20261012", tag = "rawf2",
                 manifest_sha256 = "4dd9798533d624880408f157b962d762b14e1121cac35ce3c597b07236908d52",
@@ -52,7 +55,13 @@ RAW29_VERSIONS <- list(
                 supporting = c(README.txt = "8924580a83cc81814b05f06dc553c34616e098db8462a56e7fa7002c0bddb5a8",
                                seed_provenance.csv = "bdc7b4f44ad9364f6634bc0a90bef1c2bc1d0a86416b0ae10886741b1e917e50",
                                build_audit.csv = "927ddc2c0be8d3c22c8783328e27ea5ac52c69f8ec08200a69e59c5391a1151d"),
-                facts = list(runtime_gates = list(reseeded_windows = 0))))
+                facts = list(runtime_gates = list(reseeded_windows = 0))),
+  ge200 = list(id = "raw_antenna_ge200_20261013", tag = "rawge",
+               manifest_sha256 = "9d0f1f2d4e26f93d2ab70957cd39ec85f51187bb36dd728c54fa8793ff48556c",
+               supporting = c(README.txt = "2690096a1e085a885dde1b78ffacffe99aec11470a5b524f1340ccc680518c7c",
+                              seed_provenance.csv = "b51084b64ff7d8764ab4e386bbad63b1881d635651c0f0ee61b8ec0fe89f7136",
+                              build_audit.csv = "5ddd7ca35a783a58e13d0ab629aba418fa159cac891c3972718f6f45938a6362"),
+               facts = list(runtime_gates = list(reseeded_windows = 0))))
 RAW29_SUBSTITUTIONS <- c(
   "DV <- mmm_dv_resolve(CFG, ROOT, if (nzchar(dv_req)) dv_req else CFG$data_versions$release)" = "DV <- raw29_resolve(CFG, ROOT)",
   "RAW <- file.path(RFID_SRC, \"raw_data\")" = "RAW <- raw29_no_vendor_raw")
@@ -221,7 +230,7 @@ raw29_run <- function(version) {
 }
 
 if (is.null(getOption("mmm.rant_version", NULL))) {
-  message("raw_antenna_stage29_sensitivity.R: nothing to do; set options(mmm.rant_version = \"flip2s\" or \"noflip\").")
+  message("raw_antenna_stage29_sensitivity.R: nothing to do; set options(mmm.rant_version = \"flip2s\", \"noflip\" or \"ge200\").")
 } else {
   raw29_run(getOption("mmm.rant_version"))
 }

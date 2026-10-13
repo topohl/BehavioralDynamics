@@ -58,15 +58,36 @@ for (ver in names(W$RAW29_VERSIONS)) {
         paste("3:", ver, "supporting files are its own README, seed table and build audit"))
   s <- dv$spec
   check(s$runtime_gates$reseeded_windows == 0, paste("3:", ver, "declares no vendor-seeded window"))
-  check(identical(s$runtime_gates[c("active_windows", "anchor_sourcefiles")], v2$runtime_gates[c("active_windows", "anchor_sourcefiles")]) &&
-          identical(s$expected_counts, v2$expected_counts) && identical(s$complete_case_missing, v2$complete_case_missing) &&
-          identical(s$d2, v2$d2), paste("3:", ver, "keeps v2's count facts (same roster and cages)"))
+  declared <- function(key) if (is.null(v$facts[[key]])) v2[[key]] else if (is.list(v2[[key]]) && is.list(v$facts[[key]]))
+    utils::modifyList(v2[[key]], v$facts[[key]]) else v$facts[[key]]
+  check(all(vapply(c("runtime_gates", "expected_counts", "complete_case_missing", "d2"), function(k) identical(s[[k]], declared(k)), TRUE)),
+        paste("3:", ver, "keeps v2's count facts (same roster and cages) apart from its declared departures"))
+  departures <- setdiff(names(unlist(v$facts)), "runtime_gates.reseeded_windows")
+  check(!length(departures) || (is.character(v$facts_reason) && nzchar(v$facts_reason)), paste("3:", ver, "gives a reason for each departure from v2"))
   check(grepl("UNREGISTERED", s$status), paste("3:", ver, "status says UNREGISTERED"))
 }
 check(identical(mmm_behavior_config_sha256(CFG), sha0) && identical(sha0, mmm_behavior_config_sha256(MMM_BEHAVIOR_CONFIG)),
       "3: the frozen configuration is not modified")
-check(!identical(W$RAW29_VERSIONS$flip2s$manifest_sha256, W$RAW29_VERSIONS$noflip$manifest_sha256), "3: the two versions have different manifests")
-ok("both raw versions resolve as declared, non-release data versions; the frozen config hash is unchanged")
+vv <- W$RAW29_VERSIONS
+check(!anyDuplicated(vapply(vv, `[[`, "", "manifest_sha256")) && !anyDuplicated(vapply(vv, `[[`, "", "tag")), "3: manifests and tags differ between versions")
+ok("every raw version resolves as a declared, non-release data version; the frozen config hash is unchanged")
+
+# ---------------------------------------------------------------- 3b. one version table across wrapper, runner and builder
+rr <- W$RAW29_ROOT_NAMES
+check(identical(names(rr), names(vv)) && !anyDuplicated(rr) && all(nchar(rr) <= 4) && !any(toupper(rr) == "RFID"),
+      "3b: every version has its own root of at most 4 characters, not the live RFID root")
+run_exprs <- parse("Analysis/run_raw_antenna_parallel.R")
+run_const <- new.env()
+for (e in run_exprs) if (is.call(e) && identical(e[[1]], as.name("<-")) && as.character(e[[2]]) %in% c("RANT_ROOT_NAMES", "RANT_DV_DATES"))
+  eval(e, run_const)   # constants only; the runner itself is never sourced here
+check(identical(run_const$RANT_ROOT_NAMES, rr), "3b: runner and wrapper use the same roots")
+check(identical(unname(vapply(names(vv), function(x) vv[[x]]$id, "")), unname(paste0("raw_antenna_", names(vv), "_", run_const$RANT_DV_DATES[names(vv)]))),
+      "3b: the wrapper's data-version ids match the runner's version dates")
+suppressPackageStartupMessages(library(dplyr))
+source("Functions/antenna_log_helpers.R"); source("Functions/antenna_data_version.R")
+check(identical(names(ANTENNA_DV_VERSIONS), names(vv)) && ANTENNA_DV_VERSIONS$ge200$root == rr[["ge200"]] && ANTENNA_DV_VERSIONS$flip2s$root == rr[["flip2s"]],
+      "3b: the builder's registry has the same versions and builds flip2s and ge200 into their run roots (noflip is copied to RANU)")
+ok("wrapper, runner and builder agree on versions, roots and dates")
 
 # ---------------------------------------------------------------- 4. seed guard
 t0 <- as.POSIXct("2023-04-24 18:30:00", tz = "UTC")
