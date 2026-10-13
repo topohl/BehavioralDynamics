@@ -85,6 +85,12 @@ an isolated scientific revalidation route. Both audits were rerun once on
 2026-09-24 into `analysis_ready/analyses/hmm_revalidation_runs/current_stage08_review_20260924/`;
 the results are unpromoted and require review before any registry or
 release decision.
+- **Raw antenna logs (2026-10-13, unregistered)** — `audit_phenosys_reconstruction.R` (the vendor AnimalPos
+  stream reconstructed from the reads), `audit_stage09_section7_by_input.R` and
+  `audit_movement_measurement_mechanism.R` (movement: averaging x displacement threshold), and
+  `audit_antenna_measurement_validation.R` with `report_antenna_measurement_validation.R` (measurement
+  validation of the spatial and social measures; isolated root `RANM/measurement_validation/`;
+  `docs/ANTENNA_MEASUREMENT_VALIDATION.md`).
 - **Phase classification impact** — `audit_phase_bug_impact.R`.
 - **Inactive-phase QC redesign** — `audit_inactive_phase_qc_redesign.R`.
 - **Stage 09 artifact hygiene** — `audit_stage09_stale_artifacts.R`.

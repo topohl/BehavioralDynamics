@@ -115,7 +115,8 @@ two animals independently occupying the same feeder.
 **Forbids:** describing proximity, dyadic contacts or network measures as direct
 measures of sociability, social preference or social interaction. The
 corresponding domain is labelled "social spatial organization" for this reason
-and that framing should be preserved.
+and that framing should be preserved. Measured against its chance expectation,
+same-position co-location is below chance and largely chance-explained (§14).
 
 ---
 
@@ -338,6 +339,42 @@ Stages 21 and 23-26 were retired on 2026-10-05
 **Forbids:** showing GAMM p-values beside the frozen results, describing the
 CC1-to-CC4 change as adaptation, and citing any contrast of the retired Stages
 23-25.
+
+---
+
+## 14. RFID spatial and social measures rest on sparse, density-dependent detection
+
+The measurement validation of 2026-10-13 was unregistered and descriptive
+(`docs/ANTENNA_MEASUREMENT_VALIDATION.md`; report and tables in
+`<Behavior>/RANM/measurement_validation/`). It covered all 24 raw recordings.
+
+**Detection.**
+- The logs record reads only, with no poll or error records. A stretch without
+  rows is "no recorded detection", not observed absence.
+- Tags are read in 26% of active-phase and 12% of light-phase time.
+- Carry-forward positions are more than 60 s old for 18.5% and 47% of that
+  time.
+- A reader delivers one tag at a time. An animal's reads drop roughly as
+  1/(k+1) with k cage-mates on its reader, so detection density depends on
+  co-location.
+- Read density also differs between systems: boards 3 and 4 read about 0.8×
+  as much as the batch mean.
+
+**Co-assignment.**
+- Same-reader co-assignment (`shared_zone_use`, Stage 01 Proximity, Stage 02
+  contact) is below its time-shift chance expectation in 81-92% of
+  animal-windows, in both phases.
+- Chance overlap explains 86-97% of its between-animal variance.
+- No independent ground truth exists.
+
+**Forbids:**
+- calling same-reader co-assignment proximity, contact or social preference;
+- interpreting a carried-forward position as an observed location;
+- treating differences in raw reader-change rates between CON and SIS cages as
+  behaviour. The male CON deficit coincides with fewer reads, more shared
+  readers and the board allocation, and in the active phase it disappears per
+  read and when matched by board.
+- using the 39.4-s bout criterion on raw-antenna streams.
 
 ---
 
