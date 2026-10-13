@@ -110,3 +110,9 @@ All outputs are in the isolated root `<Behavior>/RANM/measurement_validation/`.
 3. **shared_zone_use.** It is a registered primary construct. Should a limitation or erratum entry state that it is chance-dominated co-assignment and not proximity (`docs/KNOWN_LIMITATIONS.md` §14 carries the measurement facts now)?
 4. **Stage 19 resolution.** Should Stage 19 maps and contrasts move to column resolution, with reader level as a supplement?
 5. **Independent validation.** Should one be commissioned (S8)?
+
+**Follow-up (2026-10-13): Stage 00b acquisition QC** (`docs/RFID_ACQUISITION_QC.md`).
+- **The three silent antennas.** They are confirmed whole-session channel dropouts: each worked in the placement scans next to the session and in the 23 other recordings. The frozen S13 list covers only OR112 and OR141 of the B2 CC3 board 2 cage, not OR106 and OR131.
+- **The single-read basis.** It reassigns 8.5% of active and 4.8% of light seconds, mostly fresh border reads at corridor readers. Few R5 seconds are reassigned away, but R5 gains border time (+7.7% active, +2.6% light), so house occupancy is basis-sensitive.
+- **The house end of the layout** (R5 house, R1 food, R8 water as reported by the lab) is supported by light-phase resting. The food and water rows are inferred.
+- **Calibration.** A proposed protocol is in `docs/RFID_CALIBRATION_PROTOCOL.md`.

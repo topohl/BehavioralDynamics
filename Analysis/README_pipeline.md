@@ -70,6 +70,7 @@ See [`docs/CC4_PHENOTYPE_STATISTICS.md`](../docs/CC4_PHENOTYPE_STATISTICS.md).
 | Stage | Script | Role | Inputs | Main outputs |
 |---:|---|---|---|---|
 | 00 (manual diagnostic) | `00_qc_tracking_integrity.R` | Provisional RFID/tracking integrity QC; requires an explicit single resolution and new run ID | Stage 01 10-second metrics | QC tables, Excel report, QC figures; no exclusion decision |
+| 00b (manual diagnostic) | `00b_qc_raw_acquisition.R` | Raw-log acquisition QC: integrity, reader health by co-read expectation, detection support, reconstruction sensitivity; group-blind; provisional rules `aqc_rules_v0.2` (`docs/RFID_ACQUISITION_QC.md`) | raw MultiMouseMonitor logs, v2 roster and calendar, placement scans | QC manifest (hard failures, warnings, diagnostics), flags, proposed exclusions (never applied), tables, figures |
 | 01 | `01_build_multiscale_behavior_metrics.R` | Canonical multiscale behavior metrics | Preprocessed RFID position data | `all_behavior_metrics.csv` at multiple bin levels |
 | 02 | `02_build_dyadic_rfid_contacts.R` | Dyadic RFID contact table | Preprocessed position data | Dyadic contact tables and network-ready edge table |
 | 03 | `03_primary_raw_movement_phase_stats.R` | Secondary phenotype/group characterization using broad raw movement | Stage 01 metrics | Raw movement endpoints, planned pairwise statistics, publication panels |
@@ -254,6 +255,14 @@ criteria. It now requires a single resolution and a fresh run ID, for example:
 Rscript Analysis/00_qc_tracking_integrity.R --input-scale=10sec_based --run-id=review_YYYYMMDD
 ```
 
+Stage 00b, the raw-log acquisition QC, is a manual diagnostic as well. Into the project root it needs committed code and
+a fresh run ID; test runs and subsets go to an isolated `--output-root`:
+
+```powershell
+Rscript Analysis/00b_qc_raw_acquisition.R --run-id=raqc_YYYYMMDD
+Rscript Analysis/00b_qc_raw_acquisition.R --run-id=dev01 --output-root=<absolute folder> --recordings=B2_CC4
+```
+
 Stages 19, 20, 22 and 28 and the endpoint producer are run **deliberately and individually**; the frozen Stages 29-32 ran once each behind identity gates.
 
 This is a declaration, not a backlog. `Testing/tests/test_stage_inventory.R`
@@ -276,6 +285,7 @@ identify the stage.**
 | Script | Writes into |
 |---|---|
 | `00_qc_tracking_integrity.R` | `analysis_ready/quality_control/tracking_integrity/runs/<new_run_id>/` for provisional single-resolution diagnostics; the May 2026 snapshot is read as an optional historical source from `history/tracking_integrity/10sec/` |
+| `00b_qc_raw_acquisition.R` | `analysis_ready/quality_control/raw_acquisition/runs/<new_run_id>/`, or `<--output-root>/runs/<new_run_id>/` for isolated runs; built in `.tmp_<run_id>/` and renamed at the end |
 | `01_build_multiscale_behavior_metrics.R` | `analysis_ready/foundations/behavior_metrics/` (numbered originals retained) |
 | `02_build_dyadic_rfid_contacts.R` | `analysis_ready/analyses/dyadic_contacts/` (historical source retained) |
 | `06_dynamic_social_networks.R` | `analysis_ready/analyses/dynamic_social_networks/5min/` (older-resolution copies under `history/social_networks/`; numbered originals retained) |

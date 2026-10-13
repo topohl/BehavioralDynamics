@@ -33,6 +33,7 @@ The portable checks include:
 | Stage 19 / Stage 06 | `test_stage19_group_sex_labels.R`, `test_stage19_identity_and_stage06_schema.R` |
 | Preprocessing / boundaries | `test_animalpos_preprocessing_helpers.R`, `test_downstream_boundary_and_gap_contract.R` |
 | Output/write infrastructure | `test_output_path_length.R`, `test_write_registry_rerun_behavior.R` |
+| Raw RFID logs and acquisition QC | `test_antenna_log_helpers.R`, `test_antenna_data_version.R`, `test_antenna_move_rule.R`, `test_animalpos_reconstruction.R`, `test_antenna_measurement.R`, `test_raw_acquisition_qc.R` (Stage 00b checks on hand-worked data, injected failures and a synthetic log with a dead antenna), `test_raw_acquisition_qc_path_boundary.R` (Stage 00b run configuration and output boundaries) |
 | Frozen lineage and test safety | `test_frozen_code_identity.R` (pinned code bytes, line endings, code sets of the registered runs), `test_frozen_input_guard.R` (the runner and the frozen-input guard), `test_sourced_scripts_guarded.R` (every script a test sources only defines things) |
 
 Several of these scripts *opportunistically* read the canonical E9 tables when

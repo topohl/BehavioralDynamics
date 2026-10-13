@@ -317,6 +317,15 @@ under `analysis_ready/quality_control/tracking_integrity/`, with review notes
 beside the output tables. Validation requires independent raw-tracking review
 and a scientifically specified threshold or discriminator.
 
+Stage 00b (`Analysis/00b_qc_raw_acquisition.R`, `docs/RFID_ACQUISITION_QC.md`)
+supplies the raw-tracking review for acquisition. It judges a reader by its
+neighbours' co-read traffic rather than by its own read rate. Its hard failures
+are demonstrable acquisition defects, for example whole-session channel
+dropouts confirmed by placement scans and by other recordings. Its warnings and
+proposed exclusions are review items, and its rules (`aqc_rules_v0.2`) are
+provisional until a calibration (`docs/RFID_CALIBRATION_PROTOCOL.md`) replaces
+the data-derived thresholds.
+
 ---
 
 ## 13. Within-night GAMM profiles (Stages 20 and 22) carry no group inference
@@ -366,6 +375,17 @@ The measurement validation of 2026-10-13 was unregistered and descriptive
   animal-windows, in both phases.
 - Chance overlap explains 86-97% of its between-animal variance.
 - No independent ground truth exists.
+
+**Acquisition failures** (Stage 00b, `docs/RFID_ACQUISITION_QC.md`).
+- Three antennas read nothing for a whole recording while their neighbours'
+  traffic predicted thousands of co-read tag-minutes: B2 CC3 board 2 R3, B2 CC4
+  board 5 R3 and B5 CC4 board 1 R5 (the house reader).
+- Each read in the placement scan just before its session and co-read normally
+  in the other recordings.
+- The frozen S13 exclusion covers only part of this:
+  - B5 CC4 board 1: all four animals;
+  - B2 CC3 board 2: OR112 and OR141, not OR106 and OR131;
+  - B2 CC4 board 5: none of its animals.
 
 **Forbids:**
 - calling same-reader co-assignment proximity, contact or social preference;
