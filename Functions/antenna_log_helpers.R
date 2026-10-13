@@ -65,7 +65,7 @@ rfid_read_recording <- function(raw_root, batch, cage_change, keep_read_offsets 
 #' Reads one raw log. Returns list(events, devices): events with t (POSIX seconds of the event start), dur_sec,
 #' reads, tag, label, board, antenna, gx, gy, PositionID; devices with board, antenna, gx, gy, PositionID.
 #' keep_read_offsets = TRUE (opt-in) adds two event columns: read_offsets_ms, the MsgValue1 field as written (the
-#'   comma-separated times of the event's reads in ms after the event start; the first is 0), and file_order, the
+#'   comma-separated gaps in ms between consecutive reads of the event; the first is 0), and file_order, the
 #'   event's row in the log. The read-level times are what the PhenoSys position estimate averages (see
 #'   Functions/animalpos_reconstruction.R).
 #' drop_clock_fold = FALSE (diagnostics only) keeps the rows logged while the clock repeated an hour (see below).
