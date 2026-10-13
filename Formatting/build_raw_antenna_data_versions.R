@@ -11,7 +11,8 @@
 #   raw_antenna_flip2s_<date>  Stage 19 rules incl. the 2-s flip filter: the primary raw-derived sensitivity input (RANT);
 #   raw_antenna_noflip_<date>  the same without the flip filter: the audit of filter dependence (built in RANT, copied
 #                              hash-checked into RANU);
-#   raw_antenna_ge200_<date>   only relocations of >= 200 grid units, the vendor emission threshold (RANV).
+#   raw_antenna_ge200_<date>   only relocations of >= 200 grid units, the vendor emission threshold (RANV);
+#   raw_antenna_avg500_<date>  the reconstructed PhenoSys 500-ms window mean of the reads without its 200-unit gate (RANA).
 # options(mmm.antenna_dv_versions) selects the versions (default flip2s and noflip); every selected version must name
 # the target root, unless the root is not a sibling of the live root (test builds).
 # Each folder: preprocessed_data/ (24 files, vendor names and 12-column schema), MANIFEST_SHA256.csv,
@@ -29,6 +30,7 @@ source("Functions/project_paths.R")
 source("Functions/animalpos_preprocessing_helpers.R")
 source("Functions/behavioral_dynamics_helpers.R")
 source("Functions/antenna_log_helpers.R")
+source("Functions/animalpos_reconstruction.R")
 source("Functions/antenna_data_version.R")
 
 BUILD_DATE <- getOption("mmm.antenna_dv_date", format(Sys.Date(), "%Y%m%d"))
@@ -60,7 +62,8 @@ for (d in c(VENDOR_DIR, TAG_DIR, RAW_DIR)) if (!dir.exists(d)) stop("Missing inp
 GIT_COMMIT <- NULL
 if (is.null(ONLY)) {   # a real build: committed code only, and git must answer (fails closed)
   code <- c("Formatting/build_raw_antenna_data_versions.R", "Functions/antenna_data_version.R", "Functions/antenna_log_helpers.R",
-            "Functions/project_paths.R", "Functions/animalpos_preprocessing_helpers.R", "Functions/behavioral_dynamics_helpers.R")
+            "Functions/animalpos_reconstruction.R", "Functions/project_paths.R", "Functions/animalpos_preprocessing_helpers.R",
+            "Functions/behavioral_dynamics_helpers.R")
   dirty <- suppressWarnings(system2("git", c("-C", getwd(), "status", "--porcelain", "--untracked-files=all", "--", code), stdout = TRUE))
   if (!is.null(attr(dirty, "status"))) stop("git status failed: a real build needs a git work tree with committed code.", call. = FALSE)
   if (length(dirty)) stop("Commit the build code first:\n", paste(dirty, collapse = "\n"), call. = FALSE)
@@ -91,10 +94,14 @@ for (vf in vendor_files) {
   batch <- sub("^E9_SIS_(B[0-9]+)_.*$", "\\1", basename(vf)); cc <- sub("^.*_(CC[0-9]+)_.*$", "\\1", basename(vf))
   vendor <- fread(vf, colClasses = "character")
   v1 <- fread(file.path(VENDOR_V1_DIR, basename(vf)), colClasses = "character", select = c("AnimalID", "System"))
-  rec <- rfid_read_recording(RAW_DIR, batch, cc)
+  with_reads <- any(vapply(VERSIONS, function(s) !is.null(s$estimator), logical(1)))   # read-level times only when needed
+  rec_reads <- rfid_read_recording(RAW_DIR, batch, cc, keep_read_offsets = with_reads)
+  rec <- rec_reads; rec$events <- rec$events[, setdiff(names(rec$events), c("read_offsets_ms", "file_order"))]   # = default read
   tags <- rfid_animalpos_tag_map(file.path(TAG_DIR, batch, sprintf("E9_SIS_%s_%s_AnimalPos.csv", batch, cc)))
   for (v in names(VERSIONS)) {
-    b <- antenna_dv_build_recording(vendor, rec, tags, VERSIONS[[v]]$min_flip_sec, move_rule = VERSIONS[[v]]$move_rule)
+    b <- if (is.null(VERSIONS[[v]]$estimator)) {
+      antenna_dv_build_recording(vendor, rec, tags, VERSIONS[[v]]$min_flip_sec, move_rule = VERSIONS[[v]]$move_rule)
+    } else antenna_dv_build_recording_window(vendor, rec_reads, tags, window_ms = VERSIONS[[v]]$estimator$window_ms)
     target <- file.path(out_dirs[[v]], "preprocessed_data", basename(vf))
     fwrite(b$rows, target)
     manifest_all[[paste(v, basename(vf))]] <- data.frame(version = v, file = basename(vf), sha256 = sha(target),
@@ -144,7 +151,7 @@ for (v in names(VERSIONS)) {
   fwrite(of_version(seeds_all, v), file.path(d, "seed_provenance.csv"))
   fwrite(of_version(audit_all, v), file.path(d, "build_audit.csv"))
   writeLines(antenna_dv_readme_lines(basename(final_dirs[[v]]), BUILD_DATE, VERSIONS[[v]],
-                                     git_commit = if (is.null(VERSIONS[[v]]$move_rule)) NULL else GIT_COMMIT),
+                                     git_commit = if (is.null(VERSIONS[[v]]$move_rule) && is.null(VERSIONS[[v]]$estimator)) NULL else GIT_COMMIT),
              file.path(d, "README.txt"))
 }
 fwrite(bind_rows(board_animal), file.path(board_dir, "board_by_animal_recording.csv"))

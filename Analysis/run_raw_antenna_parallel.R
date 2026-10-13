@@ -9,6 +9,8 @@
 #   options(mmm.rant_version = "noflip")  -> root <parent of live root>/RANU  (no flip filter; filter-dependence audit)
 #   options(mmm.rant_version = "ge200")   -> root <parent of live root>/RANV  (only relocations of >= 200 grid units, the
 #                                            vendor emission threshold; construct vs data source)
+#   options(mmm.rant_version = "avg500")  -> root <parent of live root>/RANA  (the PhenoSys 500-ms window mean without its
+#                                            displacement gate; run with mmm.rant_stages = Stages 01 and 09 first)
 # Nothing runs unless mmm.rant_version is set. Optional: mmm.rant_stages (default: the descriptive tier below),
 # mmm.rant_dv_date (data-version date, default RANT_DV_DATES), mmm.rant_continue_on_error (default FALSE).
 #
@@ -35,11 +37,11 @@ RANT_DESCRIPTIVE_STAGES <- c("01_build_multiscale_behavior_metrics.R", "02_build
                              "11_behavioral_adaptation_kinetics.R", "12_sleep_like_quiescence_metrics.R",
                              "13_ethological_phase_organization.R", "20_first_night_gamm.R",
                              "22_repeated_cagechange_acute_gamm.R", "28_rfid_behavioral_domains.R")
-RANT_ROOT_NAMES <- c(flip2s = "RANT", noflip = "RANU", ge200 = "RANV")
-RANT_DV_DATES <- c(flip2s = "20261012", noflip = "20261012", ge200 = "20261013")
+RANT_ROOT_NAMES <- c(flip2s = "RANT", noflip = "RANU", ge200 = "RANV", avg500 = "RANA")
+RANT_DV_DATES <- c(flip2s = "20261012", noflip = "20261012", ge200 = "20261013", avg500 = "20261013")
 
 if (is.null(RANT_VERSION)) {
-  message("run_raw_antenna_parallel.R: nothing to do; set options(mmm.rant_version = \"flip2s\", \"noflip\" or \"ge200\").")
+  message("run_raw_antenna_parallel.R: nothing to do; set options(mmm.rant_version = \"flip2s\", \"noflip\", \"ge200\" or \"avg500\").")
 } else local({
   if (!RANT_VERSION %in% names(RANT_ROOT_NAMES)) stop("mmm.rant_version must be one of ", paste(names(RANT_ROOT_NAMES), collapse = ", "), call. = FALSE)
   repo <- normalizePath(getwd(), winslash = "/")

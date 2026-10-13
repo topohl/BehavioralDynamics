@@ -137,10 +137,12 @@ check(readme_sha("flip2s") == "49f34194070952e4b987edee5c8567a5af46eba334a835678
         readme_sha("noflip") == "8924580a83cc81814b05f06dc553c34616e098db8462a56e7fa7002c0bddb5a8",
       "4: the flip2s and noflip README bytes equal their 2026-10-12 builds")
 g <- ANTENNA_DV_VERSIONS$ge200
-check(identical(names(ANTENNA_DV_VERSIONS), c("flip2s", "noflip", "ge200")) && ANTENNA_DV_VERSIONS$flip2s$min_flip_sec == 2 &&
+a5 <- ANTENNA_DV_VERSIONS$avg500
+check(identical(names(ANTENNA_DV_VERSIONS), c("flip2s", "noflip", "ge200", "avg500")) && ANTENNA_DV_VERSIONS$flip2s$min_flip_sec == 2 &&
         ANTENNA_DV_VERSIONS$noflip$min_flip_sec == 0 && is.null(ANTENNA_DV_VERSIONS$flip2s$move_rule) && is.null(ANTENNA_DV_VERSIONS$noflip$move_rule) &&
-        g$min_flip_sec == 0 && g$move_rule$threshold == 200 && isTRUE(g$move_rule$inclusive) && g$root == "RANV",
-      "4: registry: flip2s 2 s, noflip 0 s, ge200 >= 200 inclusive without a flip filter, in RANV")
+        g$min_flip_sec == 0 && g$move_rule$threshold == 200 && isTRUE(g$move_rule$inclusive) && g$root == "RANV" && is.null(g$estimator) &&
+        is.null(a5$move_rule) && a5$min_flip_sec == 0 && a5$estimator$window_ms == 500 && a5$estimator$gate == "none" && a5$root == "RANA",
+      "4: registry: flip2s 2 s, noflip 0 s, ge200 >= 200 inclusive (RANV), avg500 500-ms mean without the gate (RANA), no flip filters")
 rd <- antenna_dv_readme_lines("raw_antenna_ge200_20261013", "20261013", g, git_commit = "0123456789abcdef")
 check(any(grepl(rfid_move_rule_label(g$move_rule), rd, fixed = TRUE)) && any(grepl("seed_emission_age_s", rd)) && grepl("code 0123456", rd[1]),
       "4: the ge200 README states the rule, the seed ages and the code commit")

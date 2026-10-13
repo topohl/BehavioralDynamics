@@ -48,11 +48,12 @@ rfid_raw_log_candidates <- function(raw_root, batch, cage_change) {
 #' The one recording of a batch and cage change, read. Candidate files without any detection event are sessions in
 #' which the software was only opened (e.g. MultiMouseMonitor-25.01.07-Batch6_change_4_19Apr24.csv, start and end
 #' markers only); they are ignored and named in `ignored`. Fails unless exactly one candidate holds detections.
-#' Returns list(path, ignored, events, devices).
-rfid_read_recording <- function(raw_root, batch, cage_change) {
+#' Returns list(path, ignored, events, devices). keep_read_offsets and drop_clock_fold are passed to rfid_read_raw_log().
+rfid_read_recording <- function(raw_root, batch, cage_change, keep_read_offsets = FALSE, drop_clock_fold = TRUE) {
   paths <- rfid_raw_log_candidates(raw_root, batch, cage_change)
   # a candidate that cannot be read counts as holding no detections; the count check below still applies
-  logs <- lapply(paths, function(p) tryCatch(rfid_read_raw_log(p), error = function(e) list(events = tibble::tibble(), devices = NULL)))
+  logs <- lapply(paths, function(p) tryCatch(rfid_read_raw_log(p, keep_read_offsets = keep_read_offsets, drop_clock_fold = drop_clock_fold),
+                                             error = function(e) list(events = tibble::tibble(), devices = NULL)))
   has_events <- vapply(logs, function(l) nrow(l$events) > 0, logical(1))
   if (sum(has_events) != 1) {
     stop("Expected exactly one raw recording with detections for ", batch, " ", cage_change, "; found ",
@@ -63,7 +64,13 @@ rfid_read_recording <- function(raw_root, batch, cage_change) {
 
 #' Reads one raw log. Returns list(events, devices): events with t (POSIX seconds of the event start), dur_sec,
 #' reads, tag, label, board, antenna, gx, gy, PositionID; devices with board, antenna, gx, gy, PositionID.
-rfid_read_raw_log <- function(path) {
+#' keep_read_offsets = TRUE (opt-in) adds two event columns: read_offsets_ms, the MsgValue1 field as written (the
+#'   comma-separated times of the event's reads in ms after the event start; the first is 0), and file_order, the
+#'   event's row in the log. The read-level times are what the PhenoSys position estimate averages (see
+#'   Functions/animalpos_reconstruction.R).
+#' drop_clock_fold = FALSE (diagnostics only) keeps the rows logged while the clock repeated an hour (see below).
+#' With the defaults the result is exactly that of the earlier one-argument version.
+rfid_read_raw_log <- function(path, keep_read_offsets = FALSE, drop_clock_fold = TRUE) {
   bytes <- readBin(path, "raw", file.info(path)$size)
   txt <- iconv(list(bytes), from = "UTF-16LE", to = "UTF-8")
   if (is.na(txt)) stop("Cannot decode ", path, " as UTF-16LE.", call. = FALSE)
@@ -87,17 +94,22 @@ rfid_read_raw_log <- function(path) {
 
   body <- lines[-1]
   body <- body[nzchar(body) & !startsWith(body, "#")]
-  d <- data.table::fread(text = c(paste(header, collapse = ";"), body), sep = ";", select = need,
+  if (keep_read_offsets && !("MsgValue1" %in% header)) stop("Raw log ", basename(path), " has no MsgValue1 column.", call. = FALSE)
+  d <- data.table::fread(text = c(paste(header, collapse = ";"), body), sep = ";", select = c(need, if (keep_read_offsets) "MsgValue1"),
                          colClasses = "character", fill = TRUE, showProgress = FALSE)
+  if (keep_read_offsets) d$file_order <- seq_len(nrow(d))
   d <- tibble::as_tibble(d) %>%
-    dplyr::filter(nzchar(IdRFID), grepl("^AM[0-9]+-[1-8]$", unitLabel)) %>%
+    dplyr::filter(nzchar(IdRFID), grepl("^AM[0-9]+-[1-8]$", unitLabel))
+  extra <- if (keep_read_offsets) d[, c("MsgValue1", "file_order")] else NULL
+  d <- d %>%
     dplyr::transmute(t = (as.numeric(DateTime) - RFID_EXCEL_EPOCH_DAYS) * 86400,
                      raw_dur_sec = as.numeric(eventDuration) / 1000,
                      reads = as.integer(senseRFIDrecords), tag = IdRFID, label = IdLabel, unit = unitLabel)
+  if (keep_read_offsets) { d$read_offsets_ms <- extra$MsgValue1; d$file_order <- extra$file_order }
   if (any(!is.finite(d$t))) stop("Raw log ", basename(path), " has unreadable event times.", call. = FALSE)
   # Clock fall-back: the pipeline keeps the logger's wall clock, so the hour logged twice when daylight saving ends
   # (B1 CC1, 2022-10-30 02:00-03:00) is dropped rather than interleaved with the first pass (rfid_clock_fold_rows()).
-  fold <- rfid_clock_fold_rows(d$t + d$raw_dur_sec)
+  fold <- if (drop_clock_fold) rfid_clock_fold_rows(d$t + d$raw_dur_sec) else logical(nrow(d))
   d <- d[!fold, , drop = FALSE] %>%
     dplyr::mutate(dur_sec = pmax(raw_dur_sec, 0)) %>%
     dplyr::select(-raw_dur_sec) %>%

@@ -80,14 +80,17 @@ run_exprs <- parse("Analysis/run_raw_antenna_parallel.R")
 run_const <- new.env()
 for (e in run_exprs) if (is.call(e) && identical(e[[1]], as.name("<-")) && as.character(e[[2]]) %in% c("RANT_ROOT_NAMES", "RANT_DV_DATES"))
   eval(e, run_const)   # constants only; the runner itself is never sourced here
-check(identical(run_const$RANT_ROOT_NAMES, rr), "3b: runner and wrapper use the same roots")
+NOT_IN_STAGE29 <- "avg500"   # decided 2026-10-13: Stage 09 and measurement diagnostics first, Stage 29 only after review
+check(identical(run_const$RANT_ROOT_NAMES[names(rr)], rr) && identical(setdiff(names(run_const$RANT_ROOT_NAMES), names(rr)), NOT_IN_STAGE29) &&
+        !anyDuplicated(run_const$RANT_ROOT_NAMES), "3b: runner and wrapper use the same roots; only avg500 has no Stage 29 entry")
 check(identical(unname(vapply(names(vv), function(x) vv[[x]]$id, "")), unname(paste0("raw_antenna_", names(vv), "_", run_const$RANT_DV_DATES[names(vv)]))),
       "3b: the wrapper's data-version ids match the runner's version dates")
 suppressPackageStartupMessages(library(dplyr))
 source("Functions/antenna_log_helpers.R"); source("Functions/antenna_data_version.R")
-check(identical(names(ANTENNA_DV_VERSIONS), names(vv)) && ANTENNA_DV_VERSIONS$ge200$root == rr[["ge200"]] && ANTENNA_DV_VERSIONS$flip2s$root == rr[["flip2s"]],
-      "3b: the builder's registry has the same versions and builds flip2s and ge200 into their run roots (noflip is copied to RANU)")
-ok("wrapper, runner and builder agree on versions, roots and dates")
+check(identical(names(ANTENNA_DV_VERSIONS), names(run_const$RANT_ROOT_NAMES)) && ANTENNA_DV_VERSIONS$ge200$root == rr[["ge200"]] &&
+        ANTENNA_DV_VERSIONS$flip2s$root == rr[["flip2s"]] && ANTENNA_DV_VERSIONS$avg500$root == run_const$RANT_ROOT_NAMES[["avg500"]],
+      "3b: the builder's registry has the runner's versions and builds flip2s, ge200 and avg500 into their run roots (noflip is copied to RANU)")
+ok("wrapper, runner and builder agree on versions, roots and dates; avg500 is not declared for Stage 29")
 
 # ---------------------------------------------------------------- 4. seed guard
 t0 <- as.POSIXct("2023-04-24 18:30:00", tz = "UTC")
@@ -110,7 +113,8 @@ late <- rbind(pre, data.table(DateTime = t0 + 300, AnimalID = "OR9", System = "s
 check(!is.na(err(guarded(late, missing_raw))), "4: a late animal still makes the frozen function read the missing vendor folder and stop")
 seeded <- data.table(DateTime = t0, AnimalID = "OR9", System = "sys.1", PositionID = 3L, Batch = "B3", CageChange = "CC1",
                      SourceFile = pre$SourceFile[1], AnimalNum = "OR9", is_seed = TRUE, SeedReadTime = t0 - 5, raw_file = "x.csv")
-check(identical(W$raw29_guard_seeds(function(pre, raw_dir, parser) seeded)(pre, missing_raw), seeded), "4: a frozen result passes through unchanged")
+pass_through <- W$raw29_guard_seeds(function(pre, raw_dir, parser) seeded)
+check(identical(pass_through(pre, missing_raw), seeded), "4: a frozen result passes through unchanged")
 # installed as in a run: the guard replaces the binding it wraps (a lazily bound wrapper would recurse forever)
 G <- new.env(); G$mmm_evs_seeds <- mmm_evs_seeds
 W$raw29_install_seed_guard(G)
