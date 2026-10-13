@@ -551,6 +551,52 @@ mmm_tracking_qc_new_run_root <- function(project_root = mmm_project_root()) {
             "tracking_integrity")
 }
 
+# Stage 00b raw-acquisition QC: new run-id folders under this root, or under an
+# isolated root (mmm_isolated_output_root_check()).
+mmm_raw_acquisition_qc_root <- function(project_root = mmm_project_root()) {
+  file.path(project_root, "analysis_ready", "quality_control",
+            "raw_acquisition")
+}
+
+# Raw MultiMouseMonitor logs: option mmm.raw_antenna_dir, then the environment
+# variable MMM_RAW_ANTENNA_DIR, then the Raw Data folder of the experiment that
+# holds the project root (<experiment>/Analysis/Behavior/RFID).
+mmm_raw_antenna_root <- function(project_root = mmm_project_root()) {
+  opt <- getOption("mmm.raw_antenna_dir", "")
+  env <- Sys.getenv("MMM_RAW_ANTENNA_DIR", unset = "")
+  if (is.character(opt) && length(opt) == 1L && nzchar(opt)) return(opt)
+  if (nzchar(env)) return(env)
+  file.path(dirname(dirname(dirname(project_root))), "Raw Data", "Behavior",
+            "RFID", "MMMdata")
+}
+
+# An isolated output root must be absolute and must not lie in the live project
+# root (in either drive or UNC spelling: any path component named like the
+# root's folder counts), in the raw data, in a data-version root or in the
+# measurement-validation outputs. Returns the normalized path.
+mmm_isolated_output_root_check <- function(path, project_root = mmm_project_root()) {
+  if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
+    stop("An isolated output root must be one nonempty path.", call. = FALSE)
+  }
+  p <- gsub("\\\\", "/", path)
+  if (!grepl("^([A-Za-z]:/|//)", p)) {
+    stop("An isolated output root must be an absolute path: ", path, call. = FALSE)
+  }
+  norm <- normalizePath(p, winslash = "/", mustWork = FALSE)
+  parts <- toupper(strsplit(norm, "/", fixed = TRUE)[[1]])
+  live_names <- toupper(unique(c(basename(normalizePath(project_root, winslash = "/", mustWork = FALSE)),
+                                 basename(normalizePath(MMM_PROJECT_ROOT_DEFAULT, winslash = "/", mustWork = FALSE)))))
+  refused <- c(live_names, "RANT", "RANU", "RANV", "RANA", "RAW DATA", "MMMDATA")
+  if (any(parts %in% refused)) {
+    stop("Refusing an output root inside the live project root, the raw data or a data-version root: ", path,
+         call. = FALSE)
+  }
+  if (grepl("/RANM/measurement_validation(/|$)", norm, ignore.case = TRUE)) {
+    stop("Refusing an output root inside the measurement-validation outputs: ", path, call. = FALSE)
+  }
+  norm
+}
+
 mmm_source_relative_path <- function(path, project_root = mmm_project_root()) {
   root <- normalizePath(file.path(project_root, "analysis_ready"),
                         winslash = "/", mustWork = FALSE)
