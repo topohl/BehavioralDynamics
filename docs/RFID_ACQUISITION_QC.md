@@ -87,6 +87,11 @@ by hand. Its runs are append-only:
 - **Keys.** Every board-level table carries `System` (sys.<board>) and `CageEpisodeID` (Batch|System|CC), the keys of
   Stage 29 and of the revised measurement tables.
 
+**First live run (2026-10-14):** `runs/raqc_20261014_6165adf/` (commit 6165adf). The protection check covered 578 files with
+0 changes, the frozen-input guard passed (an independent re-hash matched all 118 pinned files), and the ledger holds its
+line. Its findings equal the review run `raqc_20261013_b1783bf` (identical manifest and 84 flags, plus the new keys). Its
+status is FAIL because of the three confirmed channel dropouts.
+
 The protection check covers what a run could plausibly touch, not the whole drive, and compares the end of the run with
 its start, not with a registered baseline (the S13 text and the released spatial manifests are pinned by
 `Testing/tests/test_spatial_exclusion_manifest.R`). A `--resume` takes its snapshot when it resumes, so a change made while
