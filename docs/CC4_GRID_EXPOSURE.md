@@ -180,14 +180,18 @@ Rscript --vanilla 'Testing/tests/test_preprocessing_function_ownership.R'
 Opt-in censoring. `MMM_GRID31_CENSOR_MANIFEST=<version>` names a released spatial
 exclusion manifest (`docs/spatial_exclusions/`, read with `sxm_read()` against its
 pinned content hash); the driver applies its `censor` records for CC4 in the batches
-run. Unset, the outputs are those of earlier runs (fixture outputs byte-identical to the
-previous code; only code hashes in the manifests differ). `MMM_GRID31_OUTPUT_ROOT=<absolute
-root>` writes `<root>/<run ID>` instead of `analysis_ready/analyses/cc4_grid_exposure/<run ID>`;
-the root must pass `mmm_isolated_output_root_check()`. The manifest file and its loader join
+run. Unset, the legacy schema and values are unchanged (checked by the test; a one-off
+comparison of fixture outputs with the previous code was byte-identical apart from the code
+hashes in the manifests). `MMM_GRID31_OUTPUT_ROOT=<absolute root>` writes `<root>/<run ID>`
+instead of `analysis_ready/analyses/cc4_grid_exposure/<run ID>`; the root must pass
+`mmm_isolated_output_root_check()`, and a censored run requires it. The manifest file and its loader join
 the hashed inputs. The run stops before writing if a censor record's cage episode is not in
 the data, a cage correction moves animals into or out of it, its animals differ from the
-manifest, its time lies outside the session, or any vendor row of the cage lies after that
-time (millisecond resolution). No row is dropped.
+manifest, its time lies outside the session, any vendor row of the cage lies after that
+time, or the cage's last vendor record is earlier than that time by more than 5 ms
+(millisecond resolution). No row is dropped. `audit/censoring_applied.csv` keeps the
+manifest's time string (`ManifestFrom`); POSIX columns show it with float noise in the
+sixth decimal (14:00:42.961999 is 14:00:42.962).
 
 ```powershell
 $env:MMM_GRID31_RUN_ID = 'whole_inactive_sx04v11_20261014'

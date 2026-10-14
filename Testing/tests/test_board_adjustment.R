@@ -7,6 +7,9 @@
 #     contrast carries the board difference
 #  3. the offsets' extra variance (a' V a) equals the variance over simulated offsets
 #  4. SUS - RES within cages removes cage (and board) effects; cluster-robust standard error by cage
+#  5. a recording without a SIS cage is left out and listed; its board weights do not enter the offsets' variance
+#  6. CR1 against sandwich::vcovCL; the within-estimator small-sample factor; the adjusted SUS - RES adds a' V a
+#  7. leave-one-batch-out re-estimates the offsets for the adjusted version
 # ===========================================================================
 suppressPackageStartupMessages(library(data.table))
 repo <- Sys.getenv("MMM_REPO_DIR", unset = NA_character_)
@@ -42,7 +45,7 @@ adj <- badj_con_contrast(ce, off); un <- badj_con_contrast(ce)
 check(all(abs(adj$per_recording$d - 3) < 0.05), "2: the adjusted CON - SIS contrast recovers the CON effect in every recording")
 expect_un <- ce[, .(d = 3 + bfx[board[cage_type == "CON"]] - mean(bfx[board[cage_type == "SIS"]])), by = .(Batch, CC)]
 check(all(abs(merge(un$per_recording, expect_un, by = c("Batch", "CC"))[, d.x - d.y]) < 0.05), "2: the unadjusted contrast carries the board difference")
-check(nrow(adj$contrasts) == 5 && abs(adj$contrasts[CC == "pooled (batch means over CC)"]$estimate - 3) < 0.05 && nrow(adj$leave_one_batch_out) == 6,
+check(nrow(adj$contrasts) == 5 && abs(adj$contrasts[CC == "pooled (batch means over CC)"]$estimate - 3) < 0.05 && nrow(badj_con_lobo(ce)) == 6,
       "2: per CC, pooled over batch means, leave-one-batch-out")
 
 # 3. exact extra variance against simulated offsets
@@ -67,5 +70,36 @@ an[, y := cage_fx + 2 * SUS + rnorm(.N, 0, 0.01)]
 wc <- badj_sus_contrast(an, within_cage = TRUE); uc <- badj_sus_contrast(an)
 check(abs(wc$estimate - 2) < 0.05 && wc$n_cages == 8 && is.finite(wc$se), "4: within-cage SUS - RES recovers the effect")
 check(abs(uc$estimate - 2) > 0.5, "4: the unadjusted contrast is confounded by cage effects here")
+
+# 5. a recording without a SIS cage in the population is left out and listed, and its board weights do not enter a' V a
+ce5 <- ce[!(Batch == "B1" & CC == "CC2" & cage_type == "SIS")]
+r5 <- badj_con_contrast(ce5, off2)
+check(identical(r5$dropped$Batch, "B1") && identical(r5$dropped$CC, "CC2") && r5$contrasts[CC == "CC2"]$n == 5L &&
+        !nrow(r5$board_weights[Batch == "B1" & CC == "CC2"]), "5: the incomplete recording is dropped, listed, and has no weights")
+dd5 <- r5$per_recording[CC == "CC2"]$d; w5 <- colMeans(as.matrix(r5$board_weights[CC == "CC2", .(w2, w3, w4, w5)]))
+check(abs(r5$contrasts[CC == "CC2"]$se^2 - (stats::var(dd5) / 5 + as.numeric(t(w5) %*% V %*% w5))) < 1e-10, "5: a' V a from the recordings in the estimate only")
+check(abs(r5$contrasts[CC == "pooled (batch means over CC)"]$estimate - mean(r5$per_recording[, .(m = mean(d)), by = Batch]$m)) < 1e-12,
+      "5: a batch keeps its available cage changes in the pooled value")
+
+# 6. CR1 against sandwich::vcovCL (HC1), and the within-estimator convention; SUS - RES adjusted adds a' V a
+an[, board := rep(c(1:5, 2, 3, 4), each = 4)]
+fit <- stats::lm(y ~ SUS, an)
+check(abs(badj_cr1(fit, an$CageEpisodeID)[2, 2] - sandwich::vcovCL(fit, cluster = ~CageEpisodeID, type = "HC1")[2, 2]) < 1e-12, "6: CR1 equals vcovCL HC1")
+fe <- stats::lm(y ~ SUS + factor(CageEpisodeID), an)
+n6 <- nrow(an); kf <- length(stats::coef(fe))
+check(abs(badj_cr1(fe, an$CageEpisodeID, k_small = 2)[2, 2] - sandwich::vcovCL(fe, cluster = ~CageEpisodeID, type = "HC1")[2, 2] * (n6 - kf) / (n6 - 2)) < 1e-12,
+      "6: within-cage CR1 counts only the non-fixed-effect coefficients")
+ua <- badj_sus_contrast(an); aa <- badj_sus_contrast(an, off = off2)
+a6 <- vapply(2:5, function(b) mean(an$board[an$SUS == 1] == b) - mean(an$board[an$SUS == 0] == b), numeric(1))
+check(abs(aa$estimate - (ua$estimate - sum(a6 * off2$coef[as.character(2:5)]))) < 1e-10, "6: the adjusted SUS - RES subtracts the offsets")
+yv <- copy(an)[, y := y - off2$coef[as.character(board)]]
+check(abs(aa$se^2 - (badj_cr1(stats::lm(y ~ SUS, yv), yv$CageEpisodeID)[2, 2] + as.numeric(t(a6) %*% V %*% a6))) < 1e-10, "6: and adds a' V a")
+
+# 7. leave-one-batch-out: the adjusted version re-estimates the offsets without the batch
+lo <- badj_con_lobo(ce, adjust = TRUE)
+x7 <- ce[Batch != "B1"]
+check(nrow(lo) == 6L && abs(lo[left_out == "B1"]$estimate -
+        badj_con_contrast(x7, badj_board_offsets(x7[cage_type == "SIS"]))$contrasts[CC == "pooled (batch means over CC)"]$estimate) < 1e-12,
+      "7: leave-one-batch-out with offsets re-estimated")
 
 cat("test_board_adjustment: all checks passed\n")

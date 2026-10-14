@@ -303,7 +303,10 @@ srs_summaries_v11 <- function(tab, man) {
                                                            diff_supported_median = stats::median(diff_supported, na.rm = TRUE)), by = .(Phase, CC)][order(Phase, CC)]
   # support: share of observed time with a read <= 60 s (and <= 300 s) old, by phase, cage change, board, cage episode, animal
   sp <- occ[basis == "read", .(sup60 = sum(sup_60), sup300 = sum(sup_300)), by = .(SourceFile, Batch, CC, board, CageEpisodeID, AnimalNum, block, Phase)]
-  sp <- merge(ab[, .(SourceFile, AnimalNum, block, observed_s)], sp, by = c("SourceFile", "AnimalNum", "block"))
+  # every observed animal-block stays in the denominator (an unassigned or unsupported one adds observed time, no support)
+  sp <- merge(ab[, .(SourceFile, Batch, CC, board, CageEpisodeID, AnimalNum, block, Phase, observed_s)],
+              sp[, .(SourceFile, AnimalNum, block, sup60, sup300)], by = c("SourceFile", "AnimalNum", "block"), all.x = TRUE)
+  sp[is.na(sup60), `:=`(sup60 = 0, sup300 = 0)]
   agg <- function(by) sp[, .(observed_h = sum(observed_s) / 3600, supported_le60_share = sum(sup60) / sum(observed_s),
                              supported_le300_share = sum(sup300) / sum(observed_s)), by = by]
   out$support_by_phase <- agg("Phase")
@@ -341,10 +344,13 @@ srs_summaries_v11 <- function(tab, man) {
   # movement exclusions (manifest exclude_movement): the Stage 29 animal-windows left out of new primary analyses
   if (!is.null(tab$knockout_metrics)) {
     w <- unique(tab$knockout_metrics[variant == "baseline", .(Batch, CC, board, CageEpisodeID, AnimalNum, window)])
-    w[, `:=`(movement_excluded = sxm_movement_excluded(man, Batch, CC, board))]
-    w[, primary_use := ifelse(window == "active", "left out of new primary analyses of crossing rate and fragmentation; kept in the sensitivity analysis",
-                              "light-phase crossing rate kept; evaluated separately")]
-    out$movement_exclusion_windows <- w[movement_excluded == TRUE][order(CageEpisodeID, AnimalNum, window)]
+    # window-specific: only the ACTIVE windows of an exclude_movement cage episode leave new primary analyses of the crossing
+    # rate and fragmentation; its light windows stay (the light-phase rate is evaluated separately)
+    w[, episode_movement_excluded := sxm_movement_excluded(man, Batch, CC, board)]
+    w[, movement_excluded := episode_movement_excluded & window == "active"]
+    w[, primary_use := ifelse(movement_excluded, "left out of new primary analyses of crossing rate and fragmentation; kept in the sensitivity analysis",
+                              "kept (light-phase crossing rate evaluated separately)")]
+    out$movement_exclusion_windows <- w[episode_movement_excluded == TRUE][order(CageEpisodeID, AnimalNum, window)]
   }
   out
 }
@@ -509,7 +515,7 @@ if (sys.nframe() == 0L) {
                "tables/knockout_*.csv                   vendor-stream metrics with one reader deleted on healthy boards",
                "tables/parity_*.csv                     event basis against Stage 19; knockout baseline against Stage 29",
                "tables/metadata_consistency*.csv        board, system and cage-episode keys against Stage 00b, 19 and 29",
-               "No group label, CombZ or outcome was read. Specification: docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.md."),
+               "No group label, CombZ or outcome was read. Specification: docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.1.md."),
              file.path(tmp, "README.txt"))
   outs <- list.files(tmp, recursive = TRUE)
   data.table::fwrite(data.table::data.table(file = outs, sha256 = mmm_file_sha256(file.path(tmp, outs)), bytes = file.size(file.path(tmp, outs))),

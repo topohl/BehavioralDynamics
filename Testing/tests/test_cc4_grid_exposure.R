@@ -195,17 +195,22 @@ check(any(grepl("span_end is the end of the full CC4 recording, 2023-12-07 12:00
 check(any(grepl("spatial_analysis_exclusions_v1.1.csv", rd(out_c, "audit/input_manifest.csv")$Path, fixed = TRUE)) &&
       !any(grepl("spatial", rd(out_l, "audit/input_manifest.csv")$Path)), "manifest and loader hashed only when censoring")
 # Fail closed, before any output: a vendor row after T, an unknown cage episode,
-# other animals, a time outside the session, an unreleased manifest version.
+# other animals, a time outside the session, a censor time later than the cage's
+# last vendor record, an unreleased manifest version.
 bad <- list(list(make_b5(last = "04.12.2023 14:00:43.000"), "vendor rows after the censor time"),
             list(make_b5(sys1 = "sys.3"), "cage episode not in the data"),
             list(make_b5(ids = c("00314", "00318", "OR620", "OR631")), "animals differ"),
             list(make_b5(end = "2023-12-04 12:00:00", last = "04.12.2023 11:00:01.000"), "outside the session"),
+            list(make_b5(last = "04.12.2023 14:00:30.000"), "not the cage's last vendor record"),
             list(fx5, "not a released version", "v9.9"))
 for (b in bad) {
   o <- file.path(fixture, basename(tempfile("b5_fail_")))
   fails(run_cc4_grid_exposure(b[[1]], o, correction_file, sha, "B5", FALSE, censor_manifest = if (length(b) > 2) b[[3]] else "v1.1"), b[[2]])
   check(!dir.exists(o), paste("failed censoring check writes nothing:", b[[2]]))
 }
+# A censored run goes to an isolated root only (main block).
+main31 <- readLines("Analysis/31_cc4_grid_exposure.R", warn = FALSE)
+check(any(grepl("MMM_GRID31_CENSOR_MANIFEST needs MMM_GRID31_OUTPUT_ROOT", main31, fixed = TRUE)), "censoring requires an isolated output root")
 # Malformed raw timestamps fail closed in the full-recording path.
 raw$DateTime[1] <- "not a timestamp"; readr::write_delim(raw, raw_path, delim = ";")
 fails(preprocess_animalpos_file("B1", "CC4", character(), raw_dir, "unused", write_output = FALSE, phase_policy = "full_recording"), "Invalid raw DateTime")

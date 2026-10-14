@@ -2,9 +2,10 @@
 # Audit: animals present in every Exp9 RFID cage episode (design records, antenna reads, tracked roster)
 # MMMSociability -- Testing/audits/audit_cage_episode_presence.R
 # ================================================================
-# UNREGISTERED design audit (2026-10-14). GROUP-BLIND: no RES/SUS label, CombZ, outcome or body-weight column is read.
-# The only group information used is the planned fixed cage (the four animals the plan never regroups). It is derived
-# without reading any group column: the fixed animals are the batch's planned animals that carry no regrouping letter.
+# UNREGISTERED design audit (2026-10-14). No RES/SUS label, CombZ, outcome or body-weight column is read. The planning
+# sheets are read as whole sheets and also contain CON/SIS condition labels; those cells are not used. The only group
+# information used is the planned fixed cage (the four animals the plan never regroups), which is the CON cage; it is
+# derived without reading a group column: the fixed animals are the batch's planned animals without a regrouping letter.
 #
 # Unit: the cage episode = Batch x CC x antenna board (120 = 24 recordings x 5 boards). For every cage episode:
 #   n_animals_present  animals housed according to detection-independent records: the planned group of the CC (letter
@@ -784,10 +785,10 @@ if (sys.nframe() == 0L) {
   run <- data.table(
     item = c("run_id", "version", "status", "git_commit", "script", "script_sha256", "script_git_status", "qc_run", "min_events", "project_root",
              "experiment_root", "raw_root", "output_root", "inputs", "columns_read_from_workbooks", "started", "finished", "R", "data.table", "readxl"),
-    value = c(run_id, CEP_VERSION, "UNREGISTERED design audit; group-blind: no RES/SUS label, CombZ, outcome or body-weight column read", head_commit,
+    value = c(run_id, CEP_VERSION, "UNREGISTERED design audit; no RES/SUS label, CombZ, outcome or body-weight column read; fixed_cage = the planned CON cage", head_commit,
               CEP_SCRIPT, mmm_file_sha256(file.path(MMM_REPO_ROOT, CEP_SCRIPT)), script_status, qc_run, CEP_MIN_EVENTS, project_root, experiment,
               raw_root, base, sprintf("manifest/inputs.csv (%d files with SHA-256)", nrow(inputs)),
-              "Animals: ID, Cage, Batch, Mark date, End date, Method, Notes; sucrosePreference: A (ID), C:D (Cage, Batch); Kill_List: A:C (Run, ID, Cage); planning sheets and B1 configuration: whole sheets (no outcome column)",
+              "Animals: ID, Cage, Batch, Mark date, End date, Method, Notes; sucrosePreference: A (ID), C:D (Cage, Batch); Kill_List: A:C (Run, ID, Cage); planning sheets and B1 configuration: whole sheets (no outcome column; their CON/SIS condition cells are not used)",
               started, format(Sys.time(), "%Y-%m-%d %H:%M:%S"), R.version.string, as.character(utils::packageVersion("data.table")),
               as.character(utils::packageVersion("readxl"))))
   fwrite(run, file.path(tmp, "manifest", "run.csv"))
@@ -796,8 +797,9 @@ if (sys.nframe() == 0L) {
   writeLines(c("ANIMALS PRESENT IN EVERY EXP9 RFID CAGE EPISODE (UNREGISTERED design audit)", "",
                paste("run:", run_id, "| commit:", head_commit, "| script:", CEP_SCRIPT, paste0("(", script_status, ")")),
                paste("roster and spans: Stage 00b QC run", qc_run, "| raw logs:", raw_root), "",
-               "GROUP-BLIND: no RES/SUS label, CombZ, outcome or body-weight column was read. The planned fixed cage is the batch's",
-               "planned animals without a regrouping letter. Unit: the cage episode (Batch x CC x board, 120). Definitions: the",
+               "No RES/SUS label, CombZ, outcome or body-weight column was read; the planning sheets' CON/SIS cells are not used.",
+               "The planned fixed cage (= the CON cage) is the batch's planned animals without a regrouping letter.",
+               "Unit: the cage episode (Batch x CC x board, 120). Definitions: the",
                "header of the script. Inputs with SHA-256: manifest/inputs.csv. Checks: tables/checks.csv.", "",
                sprintf("n_animals_present: %s", paste(ce[, .N, by = n_animals_present][order(n_animals_present), sprintf("%d in %d", n_animals_present, N)], collapse = ", ")),
                sprintf("n_tracked < n_animals_present: %d; n_tags_present != n_tracked: %d; classification: %s", ce[n_tracked < n_animals_present, .N],

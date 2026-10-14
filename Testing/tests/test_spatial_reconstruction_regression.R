@@ -12,6 +12,9 @@
 #  4. censoring: no occupancy and no observation after the censoring time; the censored seconds are counted
 #  5. exclusions: an excluded cage episode is computed and flagged but left out of every summary; movement exclusions
 #  6. the 1-s grid's unknown time agrees with the exact computation; co-location counts on the grid
+#  7. an unseeded animal: unassigned time before its first read is unknown even under LOCF
+#  8. position changes per block by hand, at reader and column resolution, none after the censoring time
+#  9. movement exclusions are window-specific (active left out, light kept); every summary table leaves the excluded board out
 # ===========================================================================
 suppressPackageStartupMessages({ library(data.table); library(dplyr); library(tibble); library(ggplot2) })
 repo <- Sys.getenv("MMM_REPO_DIR", unset = NA_character_)
@@ -63,6 +66,9 @@ add(S0 - 100, "T2", 1, 5)
 for (k in 1:71) add(S0 + 600 * k, "T2", 1, 5)
 add(S0 + 7000, "T2", 1, 2); add(S0 + 7000, "T2", 1, 3)
 add(S0 + 86000, "T2", 1, 5)
+# OR5: no read before the span (unseeded); R8 reads from S0 + 3000 every 600 s to S0 + 42600, a last read
+for (k in 0:66) add(S0 + 3000 + 600 * k, "T5", 1, 8)
+add(S0 + 86000, "T5", 1, 8)
 # board 2 (excluded from spatial summaries in the manifest below)
 for (tg in c("T3", "T4")) { add(S0 - 50, tg, 2, 1); for (k in 1:20) add(S0 + 2000 * k, tg, 2, if (k %% 2) 1 else 8); add(S0 + 86000, tg, 2, 8) }
 E <- do.call(rbind, E); E <- E[order(E$end, E$t), ]
@@ -74,11 +80,12 @@ path <- file.path(tmp, "B3", "raw", "MultiMouseMonitor-23.04.24-Batch3_change_1_
 writeBin(c(as.raw(c(0xFF, 0xFE)), iconv(paste(c(hdr, devrows, sysrows, E$row, sprintf("%s;;;Control;;;;;;;end;;;", excel(S0 + 86001))), collapse = "\r\n"),
                                         "UTF-8", "UTF-16LE", toRaw = TRUE)[[1]]), path)
 rec <- rfid_read_recording(tmp, "B3", "CC1", keep_read_offsets = TRUE)
-tags <- data.table(AnimalNum = c("OR1", "OR2", "OR3", "OR4"), tag = c("T1", "T2", "T3", "T4"))
+tags <- data.table(AnimalNum = c("OR1", "OR2", "OR3", "OR4", "OR5"), tag = c("T1", "T2", "T3", "T4", "T5"))
 vendor <- data.frame(DateTime = c("2023-04-24T18:31:00.000Z", "2023-04-25T07:00:00.000Z"), AnimalID = "OR1", System = "sys.1", PositionID = "1",
                      CageChange = "CC1", Batch = "B3", Phase = c("Active", "Inactive"), ConsecActive = c("1", "0"), ConsecInactive = c("0", "1"),
                      HalfHoursElapsed = "0", is_synthetic_preprocessing_row = "FALSE", synthetic_row_source = "")
-vendor <- rbind(vendor, transform(vendor, AnimalID = "OR2"), transform(vendor, AnimalID = "OR3", System = "sys.2"), transform(vendor, AnimalID = "OR4", System = "sys.2"))
+vendor <- rbind(vendor, transform(vendor, AnimalID = "OR2"), transform(vendor, AnimalID = "OR3", System = "sys.2"), transform(vendor, AnimalID = "OR4", System = "sys.2"),
+                transform(vendor, AnimalID = "OR5"))
 cfrom <- S0 + 50000
 man <- data.table(manifest_version = "vt", record_id = c("T1", "T2", "T3"), action = c("exclude_spatial", "censor", "exclude_movement"),
                   Batch = "B3", CC = "CC1", board = c("2", "1", "2"), System = c("sys.2", "sys.1", "sys.2"),
@@ -113,7 +120,7 @@ check(near(b1$observed_s, c(43200, cfrom - S0 - 43200)) && all(near(ab[AnimalNum
       "3: observed time = block time before the censoring time")
 oc <- res$occupancy[basis == "read", .(locf = sum(seconds), sup60 = sum(sup_60)), by = .(AnimalNum, block)]
 m <- merge(ab, oc, by = c("AnimalNum", "block"), all.x = TRUE)
-check(all(near(m$locf, m$observed_s)), "3: LOCF assigns every observed second (all animals seeded)")
+check(near(m[AnimalNum != "OR5"]$locf, m[AnimalNum != "OR5"]$observed_s), "3: LOCF assigns every observed second of the seeded animals")
 # OR2 block 1: supported (age <= 60 s) = 71 reads x 60 s + the tie read's 60 s (S0 + 7000, not overlapping S0 + 7200) = 4320
 check(near(m[AnimalNum == "OR2" & block == min(block)]$sup60, 4320), "3: supported seconds at 60 s, by hand")
 sh <- asr_shares_with_unknown(res$occupancy[basis == "read"][, column := amv_column(PositionID)], ab[, .(AnimalNum, block, observed_s)],
@@ -130,8 +137,8 @@ check(nrow(res$runs[board == 1 & start >= cfrom]) == 0 && sum(ra$observations) =
       "4: no run and no counted observation after the censoring time (seed, post-censoring and last read left out)")
 
 # 5. exclusions
-check(identical(res$animals[order(AnimalNum)]$spatial_excluded, c(FALSE, FALSE, TRUE, TRUE)) &&
-        identical(res$animals[order(AnimalNum)]$movement_excluded, c(FALSE, FALSE, TRUE, TRUE)), "5: excluded cage episode flagged")
+check(identical(res$animals[order(AnimalNum)]$spatial_excluded, c(FALSE, FALSE, TRUE, TRUE, FALSE)) &&
+        identical(res$animals[order(AnimalNum)]$movement_excluded, c(FALSE, FALSE, TRUE, TRUE, FALSE)), "5: excluded cage episode flagged")
 sm <- srs_summaries_v11(res, man)
 check(!any(grepl("sys.2", sm$shares_unknown_column_by_episode$CageEpisodeID)) && any(grepl("sys.1", sm$shares_unknown_column_by_episode$CageEpisodeID)),
       "5: the excluded cage episode is left out of the summaries")
@@ -145,7 +152,33 @@ gu <- res$colocation[bound_s == 60 & state == "unknown", .(grid = sum(seconds)),
 m <- merge(m, gu, by = c("AnimalNum", "block"), all.x = TRUE)[is.na(grid), grid := 0]
 check(all(abs(m$grid - (m$observed_s - m$sup60)) <= 3), "6: the 1-s grid's unknown time is within 3 s of the exact value per animal-block")
 co <- res$colocation[bound_s == 60 & AnimalNum == "OR1"]
-check(all(co$mates == 1) && all(co$mate_same_reader <= co$seconds), "6: co-location counts on the grid")
+check(all(co$mates == 2) && all(co$mate_same_reader <= co$seconds), "6: co-location counts on the grid (two cage-mates on board 1)")
+
+# 7. OR5 has no read before the span: under LOCF its first 3000 s are unassigned, hence unknown
+b5 <- ab[AnimalNum == "OR5" & block == min(ab$block)]
+s5 <- asr_shares_with_unknown(res$occupancy[basis == "read" & AnimalNum == "OR5"][, column := amv_column(PositionID)],
+                              b5[, .(AnimalNum, block, observed_s)], by = c("AnimalNum", "block"), unit = "column")
+check(abs(s5[bound == "LOCF" & unit == "unknown"]$s - 3000) < 1e-3 && !an[AnimalNum == "OR5"]$read_seeded, "7: LOCF unknown time before the first read")
+check(abs(sum(res$occupancy[basis == "read" & AnimalNum == "OR5" & block == min(ab$block)]$seconds) - (43200 - 3000)) < 1e-3, "7: assigned time from the first read on")
+
+# 8. OR1 block 1: event basis R1 -> R5 (t1 + 0.5) -> R1 (t1 + 100): 2 reader changes, 0 column changes (R1 and R5 share
+#    column 1); read basis: the R5 flip is filtered, 0 changes. Block 2: no read before the censoring time; the reads at
+#    S0 + 60000 (R2) and S0 + 86000 (R1) lie after it and add no change.
+o1 <- ab[AnimalNum == "OR1"][order(block)]
+check(identical(o1$changes_event_reader, c(2L, 0L)) && identical(o1$changes_event_column, c(0L, 0L)) &&
+        identical(o1$changes_read_reader, c(0L, 0L)) && identical(o1$changes_read_column, c(0L, 0L)), "8: changes by hand; none after the censoring time")
+
+# 9. movement exclusions and every summary table
+km <- CJ(AnimalNum = c("OR1", "OR3"), window = c("active", "light"))[, `:=`(variant = "baseline", CC = "CC1", Batch = "B3",
+         board = ifelse(AnimalNum == "OR1", 1L, 2L))][, CageEpisodeID := asr_cage_episode(Batch, board, CC)]
+sm9 <- srs_summaries_v11(c(res, list(knockout_metrics = km)), man)
+mw <- sm9$movement_exclusion_windows[order(window)]
+check(nrow(mw) == 2L && all(mw$AnimalNum == "OR3") && identical(mw$movement_excluded, c(TRUE, FALSE)) && all(mw$episode_movement_excluded),
+      "9: only the active window of the excluded cage episode leaves the primary movement analyses")
+spatial <- setdiff(names(sm9), "movement_exclusion_windows")
+check(all(vapply(spatial, function(nm) { x <- sm9[[nm]]; !("board" %in% names(x)) || !any(x$board %in% 2L) }, logical(1))) &&
+        all(vapply(spatial, function(nm) { x <- sm9[[nm]]; !("CageEpisodeID" %in% names(x)) || !any(grepl("sys.2", x$CageEpisodeID)) }, logical(1))),
+      "9: no summary table holds the excluded board")
 
 unlink(tmp, recursive = TRUE)
 cat("test_spatial_reconstruction_regression: all checks passed\n")

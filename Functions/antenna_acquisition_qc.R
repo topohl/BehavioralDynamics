@@ -654,7 +654,9 @@ aqc_process_recording <- function(vendor, recording, tags, sysmsg, initscan, ini
 #' QC status of every board-recording (cage episode): FAIL with a hard failure on its board or a recording-wide hard
 #' failure (board NA), WARN with a warning other than the relative review ranks (W14, W15) on its board or its recording,
 #' PASS otherwise. units: one row per board-recording checked (SourceFile, Batch, CC, board). A FAIL concerns that unit
-#' only; it does not invalidate the other boards of the recording or the other recordings.
+#' only; it does not invalidate the other boards of the recording or the other recordings. Recording-level checks (board
+#' NA: H01-H05, W01-W04) count for every board of their recording; H04, which concerns individual animals, is raised at
+#' recording level and therefore fails every board of that recording (it passed in 24 of 24 recordings).
 aqc_unit_status <- function(flags, units, review_ranks = c("W14", "W15")) {
   f <- data.table::as.data.table(flags)[severity %in% c("hard_failure", "warning") & !check_id %in% review_ranks]
   u <- unique(data.table::as.data.table(units)[, .(SourceFile, Batch, CC, board)])

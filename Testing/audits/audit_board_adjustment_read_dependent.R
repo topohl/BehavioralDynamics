@@ -18,11 +18,14 @@
 #   CON - SIS   per recording: the CON cage minus the mean of its SIS cages; per CC the mean over the batches (t interval);
 #               pooled: per batch the mean over CC (the CON cage is persistent), then the mean over the 6 batches (t, df 5).
 #               Adjusted: board offsets subtracted; their uncertainty added exactly (a' V a). One-stage check:
-#               lm(y ~ recording + board + CON) (assumes the same board effect in CON and SIS cages).
-#   SUS - RES   SIS animals: unadjusted, board-adjusted, and within-cage (cage-episode fixed effects; board-free by
-#               construction, mixed cages only); per CC with cage-clustered (CR1) standard errors.
-#   Sensitivity leave-one-batch-out ranges; cage episodes in which 4 animals were housed and 4 tags were read (presence
-#               table: the tracked-tag count is not presence; Testing/audits/audit_cage_episode_presence.R).
+#               lm(y ~ recording + board + CON) (assumes the same board effect in CON and SIS cages) with batch-clustered CR1
+#               standard errors (the CON cage persists within a batch). Leave-one-batch-out: for the adjusted version the
+#               offsets are re-estimated without the batch.
+#   SUS - RES   SIS animals: unadjusted, board-adjusted (offsets' uncertainty added), and within-cage (cage-episode fixed
+#               effects; board-free by construction, mixed cages only); per CC with cage-clustered (CR1) standard errors.
+#   Sensitivity leave-one-batch-out ranges; cage episodes in which 4 animals were housed, read and tracked (presence
+#               table: the tracked-tag count is not presence; Testing/audits/audit_cage_episode_presence.R); recordings
+#               without a CON or SIS cage in that population are left out and listed in tables/dropped_recordings.csv.
 #
 # Run from the repository root (light):
 #   Rscript Testing/audits/audit_board_adjustment_read_dependent.R --srs-run=<srs run folder> --presence=<csv> [--run-id=<id>]
@@ -74,12 +77,27 @@ badj_t <- function(x, extra_var = 0) {
   data.table::data.table(n = n, estimate = mean(x), se = se, lower = mean(x) - q * se, upper = mean(x) + q * se)
 }
 
-#' CON - SIS contrasts from cage-episode values (columns Batch, CC, board, cage_type, y): per CC and pooled (per-batch
-#' means over CC first). With board offsets `off` (coef, vcov) the values are adjusted, and the offsets' uncertainty is
-#' added exactly: a contrast is linear in the offsets, so its extra variance is a' V a for the contrast's board weights a.
+#' Cluster-robust (CR1) covariance of an lm fit. k_small: the number of coefficients in the small-sample factor (all of
+#' them by default; for fixed effects nested in the clusters only the others, as in the usual within-estimator convention).
+badj_cr1 <- function(fit, cluster, k_small = length(stats::coef(fit))) {
+  X <- stats::model.matrix(fit); e <- stats::residuals(fit)
+  XtXi <- solve(crossprod(X))
+  meat <- Reduce(`+`, lapply(split(seq_len(nrow(X)), cluster), function(i) { s <- crossprod(X[i, , drop = FALSE], e[i]); s %*% t(s) }))
+  g <- length(unique(cluster)); n <- nrow(X)
+  XtXi %*% meat %*% XtXi * (g / (g - 1)) * ((n - 1) / (n - k_small))
+}
+
+#' CON - SIS contrasts from cage-episode values (columns Batch, CC, board, cage_type, y): per CC and pooled (per batch the
+#' mean over its available CCs, then the mean over batches). A recording without a CON or a SIS cage in the population has
+#' no contrast; it is left out and listed (`dropped`). With board offsets `off` (coef, vcov) the values are adjusted, and the
+#' offsets' uncertainty is added exactly: a contrast is linear in the offsets, so its extra variance is a' V a for the board
+#' weights a of the recordings that enter it.
 badj_con_contrast <- function(ce, off = NULL) {
   d <- data.table::copy(data.table::as.data.table(ce))
   if (!is.null(off)) d[, y := y - off$coef[as.character(board)]]
+  rec <- d[, .(has = any(cage_type == "CON") && any(cage_type == "SIS")), by = .(Batch, CC)]
+  dropped <- rec[has == FALSE, .(Batch, CC)]
+  d <- d[rec[has == TRUE, .(Batch, CC)], on = .(Batch, CC)]
   pr <- d[, .(d = mean(y[cage_type == "CON"]) - mean(y[cage_type == "SIS"])), by = .(Batch, CC)]
   # weight of each board offset (boards 2-5; board 1 is the reference) in each recording's contrast
   w <- d[, { v <- numeric(4); con <- board[cage_type == "CON"]; sis <- board[cage_type == "SIS"]
@@ -92,15 +110,26 @@ badj_con_contrast <- function(ce, off = NULL) {
     badj_t(pr[CC == cc]$d, extra(colMeans(as.matrix(w[CC == cc, ..wc]))))[, CC := cc]))
   wb <- w[, lapply(.SD, mean), by = Batch, .SDcols = wc]
   pooled <- badj_t(pr[, .(m = mean(d)), by = Batch]$m, extra(colMeans(as.matrix(wb[, ..wc]))))[, CC := "pooled (batch means over CC)"]
-  lobo <- data.table::rbindlist(lapply(sort(unique(pr$Batch)), function(b) data.table::data.table(left_out = b,
-            estimate = mean(pr[Batch != b, .(m = mean(d)), by = Batch]$m))))
-  list(contrasts = rbind(by_cc, pooled), per_recording = pr, leave_one_batch_out = lobo, board_weights = w)
+  list(contrasts = rbind(by_cc, pooled), per_recording = pr, board_weights = w, dropped = dropped)
 }
 
-#' SUS - RES among SIS animals of one CC (columns y, SUS (0/1), CageEpisodeID): unadjusted, or within-cage (cage-episode
-#' fixed effects, mixed cages only); cage-clustered CR1 standard errors.
-badj_sus_contrast <- function(an, within_cage = FALSE) {
+#' Leave-one-batch-out estimates of the pooled CON - SIS contrast; with adjust = TRUE the board offsets are re-estimated
+#' without the left-out batch (its SIS cages no longer shape the adjustment).
+badj_con_lobo <- function(ce, adjust = FALSE) {
+  data.table::rbindlist(lapply(sort(unique(ce$Batch)), function(b) {
+    x <- ce[Batch != b]
+    off <- if (adjust) badj_board_offsets(x[cage_type == "SIS"]) else NULL
+    data.table::data.table(left_out = b, estimate = badj_con_contrast(x, off)$contrasts[CC == "pooled (batch means over CC)"]$estimate)
+  }))
+}
+
+#' SUS - RES among SIS animals of one CC (columns y, SUS (0/1), CageEpisodeID, board): unadjusted, board-adjusted (pass
+#' `off`: y minus the board offsets, whose uncertainty a' V a is added, a = board shares of SUS animals minus those of RES
+#' animals) or within-cage (cage-episode fixed effects, mixed cages only; board-free by construction). Cage-clustered CR1
+#' standard errors; for the within-cage model the small-sample factor counts the non-fixed-effect coefficients only.
+badj_sus_contrast <- function(an, within_cage = FALSE, off = NULL) {
   d <- data.table::copy(data.table::as.data.table(an))[is.finite(y)]
+  if (!is.null(off)) d[, y := y - off$coef[as.character(board)]]
   if (within_cage) {
     mixed <- d[, .(m = data.table::uniqueN(SUS)), by = CageEpisodeID][m == 2]$CageEpisodeID
     d <- d[CageEpisodeID %in% mixed]
@@ -109,13 +138,15 @@ badj_sus_contrast <- function(an, within_cage = FALSE) {
                                                                                     estimate = NA_real_, se = NA_real_, lower = NA_real_, upper = NA_real_))
   f <- if (within_cage) y ~ SUS + factor(CageEpisodeID) else y ~ SUS
   fit <- stats::lm(f, d)
-  X <- stats::model.matrix(fit); e <- stats::residuals(fit); G <- d$CageEpisodeID
-  XtXi <- solve(crossprod(X))
-  meat <- Reduce(`+`, lapply(split(seq_len(nrow(X)), G), function(i) { s <- crossprod(X[i, , drop = FALSE], e[i]); s %*% t(s) }))
-  g <- data.table::uniqueN(G); k <- ncol(X); n <- nrow(X)
-  V <- XtXi %*% meat %*% XtXi * (g / (g - 1)) * ((n - 1) / (n - k))
-  est <- stats::coef(fit)[["SUS"]]; se <- sqrt(V["SUS", "SUS"]); q <- stats::qt(0.975, g - 1)
-  data.table::data.table(n_animals = n, n_cages = g, estimate = est, se = se, lower = est - q * se, upper = est + q * se)
+  V <- badj_cr1(fit, d$CageEpisodeID, k_small = if (within_cage) 2L else length(stats::coef(fit)))
+  extra <- 0
+  if (!is.null(off)) {
+    a <- vapply(2:5, function(b) mean(d$board[d$SUS == 1] == b) - mean(d$board[d$SUS == 0] == b), numeric(1))
+    extra <- as.numeric(t(a) %*% off$vcov %*% a)
+  }
+  g <- data.table::uniqueN(d$CageEpisodeID)
+  est <- stats::coef(fit)[["SUS"]]; se <- sqrt(V["SUS", "SUS"] + extra); q <- stats::qt(0.975, g - 1)
+  data.table::data.table(n_animals = nrow(d), n_cages = g, estimate = est, se = se, lower = est - q * se, upper = est + q * se)
 }
 
 if (sys.nframe() == 0L) {
@@ -152,10 +183,10 @@ if (sys.nframe() == 0L) {
   an <- merge(an, pres[, .(CageEpisodeID, n_animals_present, n_tags_present, n_tracked)], by = "CageEpisodeID", all.x = TRUE)
   if (anyNA(an$n_animals_present)) stop("Cage episodes missing from the presence table.", call. = FALSE)
 
-  res <- list(); offs <- list(); ident <- list()
+  res <- list(); offs <- list(); ident <- list(); dropped <- list()
   for (o in BADJ_OUTCOMES) for (ph in c("Active", "Inactive")) {
     a1 <- an[Phase == ph][, y := get(o)]
-    ce <- a1[, .(y = mean(y), animals = .N, n_animals_present = n_animals_present[1], n_tags_present = n_tags_present[1]),
+    ce <- a1[, .(y = mean(y), animals = .N, n_animals_present = n_animals_present[1], n_tags_present = n_tags_present[1], n_tracked = n_tracked[1]),
              by = .(Batch, CC, board, CageEpisodeID, cage_type)]
     off <- badj_board_offsets(ce[cage_type == "SIS"])
     ident[[length(ident) + 1L]] <- data.table(outcome = o, Phase = ph, sis_cage_episodes = nrow(ce[cage_type == "SIS"]), design_rank = off$rank,
@@ -165,30 +196,32 @@ if (sys.nframe() == 0L) {
     for (adj in c("unadjusted", "board-adjusted")) {
       cc <- badj_con_contrast(ce, if (adj == "board-adjusted") off else NULL)
       res[[length(res) + 1L]] <- cc$contrasts[, `:=`(contrast = "CON - SIS", outcome = o, Phase = ph, version = adj, population = "all cage episodes")]
-      lo <- cc$leave_one_batch_out
-      res[[length(res) + 1L]] <- data.table(n = nrow(lo), estimate = mean(lo$estimate), se = NA_real_, lower = min(lo$estimate), upper = max(lo$estimate),
+      lo <- badj_con_lobo(ce, adjust = adj == "board-adjusted")
+      res[[length(res) + 1L]] <- data.table(n = nrow(lo), estimate = NA_real_, se = NA_real_, lower = min(lo$estimate), upper = max(lo$estimate),
                                             CC = "pooled, leave-one-batch-out range", contrast = "CON - SIS", outcome = o, Phase = ph, version = adj,
                                             population = "all cage episodes")
-      ce4 <- ce[n_animals_present == 4 & n_tags_present == 4]
+      ce4 <- ce[n_animals_present == 4 & n_tags_present == 4 & n_tracked == 4]
       if (nrow(ce4[cage_type == "CON"]) && nrow(ce4[cage_type == "SIS"])) {
         cc4 <- badj_con_contrast(ce4, if (adj == "board-adjusted") off else NULL)
         res[[length(res) + 1L]] <- cc4$contrasts[, `:=`(contrast = "CON - SIS", outcome = o, Phase = ph, version = adj,
-                                                        population = "cage episodes with 4 animals housed and 4 tags read")]
+                                                        population = "cage episodes with 4 animals housed, read and tracked")]
+        if (adj == "unadjusted" && nrow(cc4$dropped))
+          dropped[[length(dropped) + 1L]] <- cc4$dropped[, `:=`(outcome = o, Phase = ph, population = "cage episodes with 4 animals housed, read and tracked",
+                                                                reason = "no CON or no SIS cage episode in the population")]
       }
     }
     one <- stats::lm(y ~ factor(paste(Batch, CC)) + factor(board) + I(cage_type == "CON"), ce)
-    cf <- summary(one)$coefficients["I(cage_type == \"CON\")TRUE", ]
-    res[[length(res) + 1L]] <- data.table(n = nrow(ce), estimate = cf[["Estimate"]], se = cf[["Std. Error"]],
-                                          lower = cf[["Estimate"]] - stats::qt(0.975, one$df.residual) * cf[["Std. Error"]],
-                                          upper = cf[["Estimate"]] + stats::qt(0.975, one$df.residual) * cf[["Std. Error"]],
-                                          CC = "pooled, one-stage lm(y ~ recording + board + CON)", contrast = "CON - SIS", outcome = o, Phase = ph,
-                                          version = "board-adjusted (one-stage; same board effect in CON and SIS)", population = "all cage episodes")
+    nm <- "I(cage_type == \"CON\")TRUE"
+    Vb <- badj_cr1(one, ce$Batch)   # the CON cage persists within a batch: batches are the clusters
+    est1 <- stats::coef(one)[[nm]]; se1 <- sqrt(Vb[nm, nm]); q1 <- stats::qt(0.975, data.table::uniqueN(ce$Batch) - 1)
+    res[[length(res) + 1L]] <- data.table(n = nrow(ce), estimate = est1, se = se1, lower = est1 - q1 * se1, upper = est1 + q1 * se1,
+                                          CC = "pooled, one-stage lm(y ~ recording + board + CON), batch-clustered CR1", contrast = "CON - SIS", outcome = o,
+                                          Phase = ph, version = "board-adjusted (one-stage; same board effect in CON and SIS)", population = "all cage episodes")
     sis <- a1[cage_type == "SIS"][, SUS := as.integer(outcome_group == "SUS")]
-    sis[, y_adj := y - off$coef[as.character(board)]]
     for (cc in c(sort(unique(sis$CC)))) {
       x <- sis[CC == cc]
       for (v in c("unadjusted", "board-adjusted", "within-cage")) {
-        r <- badj_sus_contrast(if (v == "board-adjusted") x[, .(y = y_adj, SUS, CageEpisodeID)] else x[, .(y, SUS, CageEpisodeID)], within_cage = v == "within-cage")
+        r <- badj_sus_contrast(x[, .(y, SUS, CageEpisodeID, board)], within_cage = v == "within-cage", off = if (v == "board-adjusted") off else NULL)
         res[[length(res) + 1L]] <- r[, `:=`(n = n_animals, CC = cc, contrast = "SUS - RES", outcome = o, Phase = ph, version = v,
                                             population = "SIS animals")][, c("n_animals") := NULL]
       }
@@ -198,6 +231,7 @@ if (sys.nframe() == 0L) {
   dir.create(file.path(tmp, "tables"), recursive = TRUE); dir.create(file.path(tmp, "manifest"))
   fwrite(contrasts[, .(contrast, outcome, Phase, CC, version, population, n, n_cages, estimate, se, lower, upper)], file.path(tmp, "tables", "contrasts.csv"))
   fwrite(rbindlist(offs), file.path(tmp, "tables", "board_offsets.csv"))
+  fwrite(if (length(dropped)) rbindlist(dropped) else data.table(Batch = character(), CC = character()), file.path(tmp, "tables", "dropped_recordings.csv"))
   fwrite(rbindlist(ident), file.path(tmp, "tables", "identifiability.csv"))
   fwrite(an[, .(cage_episodes = uniqueN(CageEpisodeID), animals = uniqueN(AnimalNum)), by = .(Phase, cage_type)], file.path(tmp, "tables", "population.csv"))
   fwrite(unique(an[, .(CageEpisodeID, Batch, CC, board, cage_type, n_animals_present, n_tags_present, n_tracked)]), file.path(tmp, "tables", "cage_episodes.csv"))

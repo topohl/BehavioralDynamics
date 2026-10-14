@@ -61,8 +61,9 @@ run_cc4_grid_exposure <- function(data_dir, output_dir, corrections_file,
     alias <- d %>% dplyr::distinct(AnimalID, AnimalNum) %>% dplyr::count(AnimalNum)
     if (any(alias$n != 1)) stop("Ambiguous raw identity aliases in ", batch, call. = FALSE)
     # Fail closed: a censor record must name an uncorrected cage episode of this
-    # recording, with the manifest's animals, a time inside the session and no
-    # vendor row after that time. Rows are never dropped.
+    # recording, with the manifest's animals, a time inside the session, no vendor
+    # row after that time, and the cage's last vendor record at that time (within
+    # 5 ms: the vendor export closes each tag at its last read). Rows are never dropped.
     for (i in which(censor$Batch == batch)) {
       label <- paste0("Censor record ", censor$CensorRecord[i], " (", censor$CageEpisodeID[i], "): ")
       ix <- d$CageChange == censor$CageChange[i] & d$System == censor$System[i]
@@ -74,6 +75,8 @@ run_cc4_grid_exposure <- function(data_dir, output_dir, corrections_file,
       if (!(ms(censor$CensorFrom[i]) > ms(min(d$DateTime)) && ms(censor$CensorFrom[i]) < ms(max(d$DateTime))))
         stop(label, "censor time lies outside the session.", call. = FALSE)
       if (any(ms(d$DateTime[ix]) > ms(censor$CensorFrom[i]))) stop(label, "vendor rows after the censor time.", call. = FALSE)
+      if (ms(censor$CensorFrom[i]) - max(ms(d$DateTime[ix])) > 5)
+        stop(label, "the censor time is not the cage's last vendor record (", format(max(d$DateTime[ix]), "%Y-%m-%d %H:%M:%OS3", tz = "UTC"), ").", call. = FALSE)
     }
     d$Sex <- if (batch %in% c("B1", "B2", "B5")) "Male" else "Female"
     d$SourceFile <- basename(raw_files[match(batch, batches)])
@@ -246,6 +249,9 @@ if (sys.nframe() == 0L) {
   if (is.null(spec)) stop("Configured data version lacks a cage-correction registry.", call. = FALSE)
   censor_manifest <- Sys.getenv("MMM_GRID31_CENSOR_MANIFEST")
   output_root <- Sys.getenv("MMM_GRID31_OUTPUT_ROOT")
+  # A censored run is a new analysis variant: it goes to an isolated root only.
+  if (nzchar(censor_manifest) && !nzchar(output_root))
+    stop("MMM_GRID31_CENSOR_MANIFEST needs MMM_GRID31_OUTPUT_ROOT (an isolated root).", call. = FALSE)
   runs <- if (nzchar(output_root)) mmm_isolated_output_root_check(output_root, project) else
     file.path(project, "analysis_ready", "analyses", "cc4_grid_exposure")
   run_cc4_grid_exposure(file.path(project, "MMMSociability"), file.path(runs, run_id),
