@@ -1,7 +1,7 @@
 # Stage 31b: fixed-clock group summaries. All uncertainty is calculated here,
 # upstream of the manuscript renderer. No inferred grid windows enter this path.
 
-grid31_group_phases <- function(bins, outcomes) {
+grid31_group_phases <- function(bins, outcomes, eligibility = NULL) {
   grid31_required(outcomes, c("AnimalNum", "Sex", "Batch", "outcome_group", "experimental_condition"), "Canonical outcomes")
   if (anyNA(outcomes$AnimalNum) || anyDuplicated(outcomes$AnimalNum)) stop("Duplicate/missing outcome identity.", call. = FALSE)
   outcomes <- outcomes %>% dplyr::transmute(AnimalNum = as.character(AnimalNum), OutcomeSex = Sex,
@@ -15,11 +15,30 @@ grid31_group_phases <- function(bins, outcomes) {
   identity <- a %>% dplyr::group_by(AnimalKey) %>% dplyr::summarise(NinePhases = n() == 9L,
     OneCage = n_distinct(CageID) == 1L, .groups = "drop")
   if (any(!identity$NinePhases | !identity$OneCage)) stop("Animal roster/cage differs between phase families.", call. = FALSE)
-  # Common roster across all nine displayed phases, including A1 context.
-  roster <- a %>% dplyr::group_by(CageID) %>%
-    dplyr::summarise(CommonCage = all(IncludedInPrimary), .groups = "drop")
-  a <- a %>% dplyr::rename(IncludedInFamily = IncludedInPrimary) %>% dplyr::left_join(roster, by = "CageID") %>%
+  grid31_group_summaries(a, eligibility)
+}
+
+# Roster of the joined animal-phase table. Legacy: a common roster across all nine displayed phases, including A1
+# context. With an outcome-eligibility table (Functions/cc4_outcome_eligibility.R; opt-in): a common complete-cage
+# roster per phase family, so a family with an excluded or censored cell leaves that family only.
+grid31_group_roster <- function(a, eligibility = NULL) {
+  if (is.null(eligibility)) {
+    roster <- a %>% dplyr::group_by(CageID) %>%
+      dplyr::summarise(CommonCage = all(IncludedInPrimary), .groups = "drop")
+    return(a %>% dplyr::rename(IncludedInFamily = IncludedInPrimary) %>% dplyr::left_join(roster, by = "CageID") %>%
+      dplyr::mutate(IncludedInPrimary = CommonCage))
+  }
+  a <- cc4e_join(a, eligibility)
+  roster <- a %>% dplyr::group_by(CageID, Phase) %>%
+    dplyr::summarise(CommonCage = all(IncludedInPrimary) && !any(FamilyExcluded), .groups = "drop")
+  a %>% dplyr::rename(IncludedInFamily = IncludedInPrimary) %>% dplyr::left_join(roster, by = c("CageID", "Phase")) %>%
     dplyr::mutate(IncludedInPrimary = CommonCage)
+}
+
+# Roster, paired changes, weighted summaries and contrasts of the joined animal-phase table (also applied by
+# Testing/audits/audit_cc4_outcome_eligibility.R to a frozen run's table, so its counts are the ones a rerun uses).
+grid31_group_summaries <- function(a, eligibility = NULL) {
+  a <- grid31_group_roster(a, eligibility)
   base <- a %>% dplyr::filter(PhaseLabel == Reference) %>%
     dplyr::select(AnimalKey, Phase, BaselineRate = CrossingsPerHour)
   a <- a %>% dplyr::left_join(base, by = c("AnimalKey", "Phase")) %>%
@@ -37,6 +56,11 @@ grid31_group_phases <- function(bins, outcomes) {
   pop <- a %>% dplyr::group_by(Sex, Batch, Group, Phase, PhaseLabel) %>%
     dplyr::summarise(RecordedAnimals = n(), EligibleAnimals = sum(EligiblePhase), PrimaryAnimals = sum(IncludedInPrimary),
       PrimaryCages = n_distinct(CageID[IncludedInPrimary]), .groups = "drop")
+  if (!is.null(eligibility)) {
+    # Opt-in eligibility: the reason of each animal outside the roster; the eligibility columns go last.
+    pop <- cc4e_append_reason(pop, a, c("Sex", "Batch", "Group", "Phase", "PhaseLabel"), "IncludedInPrimary")
+    a <- dplyr::relocate(a, dplyr::all_of(CC4E_COLUMNS), .after = dplyr::last_col())
+  }
   # Paired group differences are formed WITHIN the same batch before combining.
   contrasts <- lapply(list(c("RES", "CON"), c("SUS", "CON"), c("SUS", "RES")), function(pair) {
     x <- batch %>% dplyr::filter(Group == pair[1])

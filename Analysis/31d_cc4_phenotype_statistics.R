@@ -1,25 +1,28 @@
 # Explicit CC4 phenotype module. Historical Stage31c results are immutable.
+# Optional: MMM_CC4_OUTCOME_ELIGIBILITY as in Stage 31c (outcome eligibility rule; isolated output root only).
 source("Analysis/31c_cc4_phase_statistics.R")
 source_mmm_helper("cc4_phenotype_statistics_helpers.R")
 
-run_cc4_phenotype_statistics <- function(source_dir,output_dir,draws=4999L,workers=24L,seed=20260930L,validation_only=FALSE) {
+run_cc4_phenotype_statistics <- function(source_dir,output_dir,draws=4999L,workers=24L,seed=20260930L,validation_only=FALSE,
+                                         eligibility_file=Sys.getenv("MMM_CC4_OUTCOME_ELIGIBILITY")) {
   if(file.exists(output_dir))stop("Output already exists; choose a new run ID.",call.=FALSE)
   if(length(draws)!=1L || !is.finite(draws) || draws!=floor(draws) || draws<1 || (!validation_only && draws<4999))stop("Final inference requires at least 4999 successful draws.",call.=FALSE)
   if(length(workers)!=1L || !is.finite(workers) || workers<1 || workers!=floor(workers) ||
     length(seed)!=1L || !is.finite(seed) || seed!=floor(seed) || seed<1 || seed>2e9)stop("Invalid workers/seed.",call.=FALSE)
   if(!requireNamespace("glmmTMB",quietly=TRUE))stop("glmmTMB required.",call.=FALSE)
+  eligibility<-if(nzchar(eligibility_file)) cc4e_opt_in(eligibility_file,output_dir) else NULL
   manifest<-grid31_verify_manifest(source_dir,"manifest.csv")
   if(!"animal_phase_activity.csv" %in% manifest$File)stop("Animal-phase table not manifested.",call.=FALSE)
   paths<-c(file.path(source_dir,c("manifest.csv",manifest$File)),file.path(MMM_REPO_ROOT,c(
     "Analysis/31d_cc4_phenotype_statistics.R","Functions/cc4_phenotype_statistics_helpers.R",
     "Analysis/31c_cc4_phase_statistics.R","Functions/cc4_phase_statistics_helpers.R",
     "Functions/cc4_phase_group_helpers.R","Functions/cc4_grid_exposure_helpers.R",
-    "Functions/project_paths.R","Functions/behavioral_dynamics_helpers.R","Analysis/_pipeline_setup.R")))
+    "Functions/project_paths.R","Functions/behavioral_dynamics_helpers.R","Analysis/_pipeline_setup.R")),cc4e_input_files(eligibility))
   before<-mmm_file_sha256(paths)
   a<-readr::read_csv(file.path(source_dir,"animal_phase_activity.csv"),col_types=readr::cols(.default=readr::col_guess(),
     AnimalNum=readr::col_character(),AnimalID=readr::col_character()),show_col_types=FALSE)
   if(nrow(readr::problems(a)))stop("Phase parse failure.",call.=FALSE)
-  inputs<-grid31_stats_data(a)
+  inputs<-grid31_stats_data(a,eligibility)
   expected<-tidyr::crossing(inputs$animals %>% dplyr::distinct(Sex,Phase,Batch),Group=c("CON","RES","SUS"))
   if(nrow(dplyr::anti_join(expected,inputs$animals,by=c("Sex","Phase","Batch","Group"))))stop("Missing phenotype within batch.",call.=FALSE)
   dir.create(output_dir,recursive=TRUE);dir.create(file.path(output_dir,"bootstrap"));dir.create(file.path(output_dir,"models"))
@@ -27,6 +30,10 @@ run_cc4_phenotype_statistics <- function(source_dir,output_dir,draws=4999L,worke
   readr::write_csv(inputs$roster,file.path(output_dir,"cage_roster.csv"))
   population<-inputs$animals %>% dplyr::group_by(Sex,Phase,Group) %>%
     dplyr::summarise(Animals=dplyr::n_distinct(AnimalKey),Cages=dplyr::n_distinct(CageID),Batches=dplyr::n_distinct(Batch),.groups="drop")
+  if(!is.null(eligibility)) {
+    population<-cc4e_append_reason(population,inputs$eligibility,c("Sex","Phase","Group"),"CompleteCage")
+    readr::write_csv(inputs$eligibility,file.path(output_dir,"eligibility_input.csv"))
+  }
   readr::write_csv(population,file.path(output_dir,"population.csv"))
   writeLines(c("Stage31d: CON/RES/SUS phenotype-associated CC4 whole-phase response; exploratory plan revised after inspecting descriptive and condition results.",
     "I2 vs pooled I3-I5; A2 vs pooled A3-A5; fixed complete cage roster per family. A1 does not determine eligibility.",
@@ -43,7 +50,7 @@ run_cc4_phenotype_statistics <- function(source_dir,output_dir,draws=4999L,worke
     "Sensitivity: leave one batch out; dispersion~Group+Period; mixed-cage SUS/RES. Sensitivity estimates only, no extra P values.",
     "Unknown grid times; CON also received grid. Not a causal grid effect, prospective prediction, sleep assay, or test of adaptation across sessions.",
     "RES/SUS labels are fixed canonical outcomes; sucrose preference contributes to classification. No reclassification or independent validation claim.",
-    paste("Draws",draws,"Workers",workers,"Seed",seed,"ValidationOnly",validation_only)),file.path(output_dir,"protocol.txt"))
+    paste("Draws",draws,"Workers",workers,"Seed",seed,"ValidationOnly",validation_only),cc4e_protocol_lines(eligibility)),file.path(output_dir,"protocol.txt"))
   cl<-if(workers>1)parallel::makePSOCKcluster(workers) else NULL
   if(!is.null(cl)) {
     on.exit(parallel::stopCluster(cl),add=TRUE)

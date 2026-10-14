@@ -1,6 +1,9 @@
 # Stage 31c: upstream count models. No exposure timing is inferred here.
 
-grid31_stats_data <- function(a) {
+# eligibility (opt-in; Functions/cc4_outcome_eligibility.R): a complete cage of a family additionally has no
+# excluded_hardware or censored cell in that family; the roster gains EligibilityStatus and ExclusionReason, the
+# model inputs their eligibility, and $eligibility holds the cells used. NULL = the legacy path.
+grid31_stats_data <- function(a, eligibility = NULL) {
   keys <- c("Sex", "Phase", "Batch", "CageID", "AnimalKey", "AnimalNum", "Group", "Condition")
   grid31_required(a, c(keys, "PhaseLabel", "RecordedCrossings", "NominalHours", "EligiblePhase"), "Phase data")
   if (anyNA(a[c(keys, "PhaseLabel", "RecordedCrossings", "NominalHours", "EligiblePhase")]) ||
@@ -14,12 +17,17 @@ grid31_stats_data <- function(a) {
   if (any(as.matrix(id[-1]) != 1)) stop("Unstable animal identity.", call. = FALSE)
   cage <- a %>% dplyr::group_by(CageID) %>% dplyr::summarise(dplyr::across(c(Sex, Batch, Condition), dplyr::n_distinct), .groups="drop")
   if (any(as.matrix(cage[-1]) != 1)) stop("Mixed cage condition/sex/batch.", call. = FALSE)
+  if (is.null(eligibility) && any(c("FamilyExcluded", "EligibilityStatus") %in% names(a)))
+    stop("The phase table carries outcome eligibility; set MMM_CC4_OUTCOME_ELIGIBILITY to its eligibility file.", call. = FALSE)
+  if (!is.null(eligibility)) a <- cc4e_join(a %>% dplyr::select(-dplyr::any_of(CC4E_COLUMNS)), eligibility)
   # A1 does not determine the primary population. Recompute from phase eligibility.
   d <- a %>% dplyr::filter(PhaseLabel %in% c(paste0("I", 2:5), paste0("A", 2:5)))
   expected <- tidyr::crossing(AnimalKey=unique(a$AnimalKey), PhaseLabel=c(paste0("I",2:5),paste0("A",2:5)))
   if (nrow(dplyr::anti_join(expected,d,by=c("AnimalKey","PhaseLabel"))) ||
       any(substr(d$PhaseLabel,1,1) != substr(d$Phase,1,1))) stop("Missing or inconsistent required phase rows.", call. = FALSE)
   d <- d %>% dplyr::group_by(Phase,CageID) %>% dplyr::mutate(CompleteCage=all(EligiblePhase)) %>% dplyr::ungroup()
+  if (!is.null(eligibility))
+    d <- d %>% dplyr::group_by(Phase,CageID) %>% dplyr::mutate(CompleteCage=CompleteCage & !any(FamilyExcluded)) %>% dplyr::ungroup()
   roster <- d %>% dplyr::group_by(Sex,Phase,Batch,CageID,Condition) %>%
     dplyr::summarise(Animals=dplyr::n_distinct(AnimalKey), Included=all(CompleteCage), .groups="drop")
   animals <- d %>% dplyr::filter(CompleteCage) %>%
@@ -32,7 +40,12 @@ grid31_stats_data <- function(a) {
   coverage <- cages %>% dplyr::distinct(Sex,Phase,Batch,Condition)
   required <- tidyr::crossing(a %>% dplyr::distinct(Sex,Batch),Phase=c("Inactive","Active"),Condition=c("CON","SIS"))
   if (nrow(dplyr::anti_join(required,coverage,by=c("Sex","Batch","Phase","Condition")))) stop("Missing complete condition in a batch.", call. = FALSE)
-  list(animals=animals,cages=cages,roster=roster)
+  if (is.null(eligibility)) return(list(animals=animals,cages=cages,roster=roster))
+  cells <- d %>% dplyr::select(dplyr::all_of(c(keys,"PhaseLabel","EligiblePhase","RecordedCrossings","CompleteCage",CC4E_COLUMNS)))
+  roster <- cc4e_append_reason(cc4e_append_status(roster,cells,c("Phase","CageID")),cells,c("Phase","CageID"),"CompleteCage") %>%
+    dplyr::select(-EligibilityRecord,-EligibilityVersion)
+  list(animals=cc4e_append_status(animals,cells,c("Phase","AnimalKey")),cages=cc4e_append_status(cages,cells,c("Phase","CageID")),
+       roster=roster,eligibility=cells)
 }
 
 grid31_stats_factors <- function(d) {

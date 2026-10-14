@@ -8,7 +8,8 @@
 #  3. validation refuses malformed records
 #  4. an edited released version is refused (a change needs a new version file)
 #  5. separation from the registered exclusions: the frozen S13 definition is unchanged; no registered stage reads the
-#     spatial manifest or the Stage 00b proposed exclusions (the unregistered Stage 31 may read it, opt-in)
+#     spatial manifest or the Stage 00b proposed exclusions (the unregistered Stage 31 and the CC4 outcome-eligibility
+#     rule may read it, opt-in)
 #  6. v1.1: the movement decision as exclude_movement records for the same three cage episodes; spatial exclusions and the
 #     censoring time unchanged from v1.0; SX04 states what span_end means per analysis
 # ===========================================================================
@@ -84,8 +85,9 @@ code <- c(list.files("Analysis", pattern = "[.][Rr]$", recursive = TRUE, full.na
 code <- code[!grepl("_archive", code)]
 reads <- function(pattern) code[vapply(code, function(f) any(grepl(pattern, readLines(f, warn = FALSE))), logical(1))]
 readers <- reads("spatial_exclusion_manifest|spatial_analysis_exclusions|sxm_read")
-check(all(readers %in% c("Functions/spatial_exclusion_manifest.R", "Functions/antenna_spatial_reconstruction.R", "Analysis/31_cc4_grid_exposure.R")),
-      "5: only the loader, the isolated reconstruction module and the unregistered, opt-in Stage 31 read the spatial manifest")
+check(all(readers %in% c("Functions/spatial_exclusion_manifest.R", "Functions/antenna_spatial_reconstruction.R", "Analysis/31_cc4_grid_exposure.R",
+                         "Functions/cc4_outcome_eligibility.R")),
+      "5: only the loader, the isolated reconstruction module, the unregistered, opt-in Stage 31 and the CC4 outcome-eligibility rule read the spatial manifest")
 registered <- code[grepl("^Analysis/(0[0-9]|1[0-9]|2[0-9]|30|32|33)[a-z]?_", code)]
 check(!any(registered %in% readers), "5: no registered stage (00-29, 30, 32, 33) reads the spatial manifest")
 check(!any(vapply(registered, function(f) any(grepl("antenna_spatial_reconstruction", readLines(f, warn = FALSE))), logical(1))),

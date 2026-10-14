@@ -42,6 +42,13 @@ bad <- bins;bad$AnimalSpansWholeBlock[bad$AnimalNum=="00121" & bad$PhaseLabel=="
 lost <- grid31_group_phases(bad,outcomes)
 check(all(!lost$animals$IncludedInPrimary[lost$animals$CageID=="B1|sys.2|CC4"]),"lost A5 excludes full cage on all nine phases")
 check(all(lost$animals$IncludedInFamily[lost$animals$CageID=="B1|sys.2|CC4" & lost$animals$Phase=="Inactive"]),"family coverage retained separately")
+# Opt-in outcome eligibility (Functions/cc4_outcome_eligibility.R): NULL is the legacy path; with an eligibility table
+# (here without CC4 records) the roster is per family, so a lost A5 leaves the active family only.
+check(identical(grid31_group_phases(bad,outcomes,eligibility=NULL),lost),"no eligibility table is the legacy nine-phase roster")
+lost_e <- grid31_group_phases(bad,outcomes,cc4e_status(lost$animals,cc4e_manifest()[CC != "CC4"]))
+check(all(!lost_e$animals$IncludedInPrimary[lost_e$animals$CageID=="B1|sys.2|CC4" & lost_e$animals$Phase=="Active"]) &&
+      all(lost_e$animals$IncludedInPrimary[lost_e$animals$CageID=="B1|sys.2|CC4" & lost_e$animals$Phase=="Inactive"]) &&
+      identical(lost_e$animals$CrossingsPerHour,lost$animals$CrossingsPerHour),"with outcome eligibility a lost A5 leaves the active family only")
 bad <- bins;bad$AnimalSpansWholeBlock[bad$Batch=="B1" & bad$System=="sys.1"]<-FALSE
 fails(grid31_group_phases(bad,outcomes),"Missing complete group")
 bad <- bins;bad$PhaseLabel[1]<-"I5";fails(grid31_group_phases(bad,outcomes),"Duplicate|144 unique|mismatch")
@@ -50,12 +57,15 @@ check(all(is.na(grid31_batch_intervals(two,"Group")$Lower95)),"two batches are e
 set.seed(13); shuffled <- grid31_group_phases(bins[sample(nrow(bins)),],outcomes[nrow(outcomes):1,])
 check(isTRUE(all.equal(r$summary,shuffled$summary)),"input row-order invariant")
 # Exercise the actual driver, input verification, output manifest and overwrite guards.
+Sys.unsetenv("MMM_CC4_OUTCOME_ELIGIBILITY")   # the legacy driver path
 tmp <- tempfile("cc4_groups_");dir.create(tmp);dir.create(file.path(tmp,"source"));dir.create(file.path(tmp,"source","tables"));dir.create(file.path(tmp,"source","audit"))
 readr::write_csv(bins,file.path(tmp,"source","tables","animal_clock_profiles_5min.csv"))
 readr::write_csv(tibble::tibble(File="tables/animal_clock_profiles_5min.csv",SHA256=mmm_file_sha256(file.path(tmp,"source","tables","animal_clock_profiles_5min.csv"))),file.path(tmp,"source","audit","output_manifest.csv"))
 readr::write_csv(outcomes,file.path(tmp,"outcomes.csv"))
 actual <- run_cc4_phase_groups(file.path(tmp,"source"),file.path(tmp,"outcomes.csv"),file.path(tmp,"out"))
 check(isTRUE(all.equal(r$summary,actual$summary)),"actual driver preserves leading-zero identities and results")
+check(!any(c("FamilyExcluded","EligibilityStatus") %in% strsplit(readLines(file.path(tmp,"out","animal_phase_activity.csv"),n=1),",")[[1]]) &&
+      !"ExclusionReason" %in% names(actual$population),"without MMM_CC4_OUTCOME_ELIGIBILITY the driver writes the legacy schema")
 grid31_verify_manifest(file.path(tmp,"out"),"manifest.csv")
 fails(run_cc4_phase_groups(file.path(tmp,"source"),file.path(tmp,"outcomes.csv"),file.path(tmp,"out")),"already exists")
 cat("\n",file=file.path(tmp,"source","tables","animal_clock_profiles_5min.csv"),append=TRUE)

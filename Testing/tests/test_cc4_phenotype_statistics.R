@@ -32,6 +32,13 @@ fails(grid31g_formula("bad"),"Unknown")
 fails(run_cc4_phenotype_statistics("missing","new",draws=100),"4999")
 context<-subset(input$animals,Sex=="Female"&Phase=="Inactive")
 check(isTRUE(all.equal(grid31g_data(context),grid31g_data(context[sample(nrow(context)),]))),"stable row ordering within a model context")
+# Opt-in outcome eligibility: the driver reads MMM_CC4_OUTCOME_ELIGIBILITY and stops on a missing file before any output.
+check(identical(formals(run_cc4_phenotype_statistics)$eligibility_file,quote(Sys.getenv("MMM_CC4_OUTCOME_ELIGIBILITY"))),"driver reads the eligibility env var")
+if(requireNamespace("glmmTMB",quietly=TRUE)) {
+  op<-options(mmm.project_root=file.path(tempdir(),"RFID"));o<-file.path(tempdir(),"cc4phen_elig")
+  fails(run_cc4_phenotype_statistics("missing",o,eligibility_file=file.path(tempdir(),"none.csv")),"existing")
+  check(!dir.exists(o),"a missing eligibility file stops the driver before any output");options(op)
+}
 cat("PASS: phenotype fixed design, nested omnibus/pairwise nulls and contracts\n")
 
 if(identical(Sys.getenv("MMM_TEST_CC4_MODELS"),"1")) {

@@ -8,8 +8,9 @@ whether a second rack day would materially change a conclusion; the full two-day
 automatically.
 
 Static tags and tags moved on a sled test the hardware and the reconstruction rules. They cannot establish the exact
-movement or the physical proximity of freely behaving mice; results transfer to the Exp9 data as bounds, priors and
-sensitivity ranges only. No group label, CombZ or outcome is involved.
+movement or the physical proximity of freely behaving mice. Calibration with static tags bounds bench hardware behaviour
+only; its results enter the Exp9 analysis as priors, parameter choices and sensitivity analyses, never as bounds on true
+physical occupancy or as validated locations. No group label, CombZ or outcome is involved.
 
 | part | where |
 |---|---|
@@ -70,7 +71,7 @@ sensitivity ranges only. No group label, CombZ or outcome is involved.
    - Substitutes, unchanged from v1: board 3 for board 4, board 1 for board 2.
 2. **ABBA by halves.**
    - The static (P), movement (M) and house-in/out (H) programmes are each split into halves by a seeded split, stratified by class.
-   - Half 1 runs board 2 then board 4; half 2 runs board 4 then board 2.
+   - P and H: half 1 runs board 2 then board 4, half 2 board 4 then board 2 (ABBA). M is counterbalanced the other way round: M1 runs board 4 first (V2, 102.5 min) and board 2 second (V3, 127.8 min); M2 runs board 2 first (V3, 133.1 min) and board 4 second (V4, 161.8 min). The schedule file is correct; the design comment of the pinned generator (make_schedule_one_day_v1.R, line 16) states the P/H order for every programme and is left unchanged.
    - Visit sequence:
      - V1 b2: REF, T0, P1
      - V2 b4: REF, P1, P2, M1, REF
@@ -78,7 +79,7 @@ sensitivity ranges only. No group label, CombZ or outcome is involved.
      - break
      - V4 b4: M2, H1, C, H2, REF
      - V5 b2: C, H2, REF
-3. **The one block that is not counterbalanced: the competition run C.** It is one continuous run per board, board 4 at 175-189 min and board 2 at 199-213 min (fixed, 23 min apart). Each run is bracketed by its own sentinel baselines (C0, CE) and by REF placements. Its board comparison is reported with this caveat.
+3. **The one block that is not counterbalanced: the competition run C.** It is one continuous run per board, board 4 at 175-189 min and board 2 at 199-213 min (fixed, 23 min apart). Each run is bracketed by its own sentinel baselines (C0, CE); the nearest REF placements bracket it only loosely (board 4: 107 and 194 min; board 2: 111 and 218 min), and the last REF of each board is taken with bedding in the R5 well. Its board comparison is reported with this caveat.
 4. **Randomised order.** Each of the following is an independent seeded permutation:
    - the placement order within every board-block;
    - the order of the house-on and house-off sets;
@@ -345,7 +346,7 @@ Never drop a block on one board only.
 - column passes; R3/R7 centres; the junction;
 - a second session (day-to-day repeatability).
 
-Static and sled-moved tags bound the hardware. They do not validate positions of freely moving implanted mice, and their results transfer to the Exp9 data only as bounds, priors and sensitivity ranges.
+Static and sled-moved tags calibrate bench hardware behaviour only (boards 2 and 4). They do not validate positions of freely moving implanted mice; their results enter the Exp9 analysis only as priors, parameter choices and sensitivity analyses, never as bounds on true physical occupancy.
 
 ## 2. Pre-specified decision criteria (acp_criteria_v1.0)
 
@@ -385,8 +386,8 @@ Static and sled-moved tags bound the hardware. They do not validate positions of
 | margin | m = 0.05. In Exp9 the bases disagree in 15.8% of active seconds within 2 s of a read, so this is about a third of that. Non-inferiority margin: 0.02. |
 | **READ favoured** | D_col ≥ +0.05, **and** the lower CI bound > 0, **and** D_col(b2) > 0 and D_col(b4) > 0, **and** the lower CI bound of D_ctr ≥ −0.02. |
 | **EVENT favoured** | D_col ≤ −0.05, **and** the upper CI bound < 0, **and** both board estimates < 0, **and** the upper CI bound of D_ctr ≤ +0.02. |
-| **TIE: equivalent** | The 95% CI of D_col lies inside (−0.05, +0.05). Both bases are reported as sensitivity bounds for every basis-sensitive measure (column occupancy, R5 share, reader changes). No accuracy claim is made for either. |
-| **TIE: inconclusive** | Any other result, including boards with opposite signs. Both are reported as bounds, as above. This goes to the day-2 rule (D1). |
+| **TIE: equivalent** | The 95% CI of D_col lies inside (−0.05, +0.05). Both bases are retained and reported side by side as sensitivity analyses for every basis-sensitive measure (column occupancy, R5 share, reader changes); their estimates are not bounds on true physical occupancy. No accuracy claim is made for either. (The frozen feeds text of A40/A41 in acp_criteria_v1.0 is unchanged; the post-pilot report prints the corrected consequence from docs/rfid_calibration/acp_report_status_v1.0.csv.) |
+| **TIE: inconclusive** | Any other result, including boards with opposite signs. Both bases are retained side by side as sensitivity analyses, as above (not bounds on true physical occupancy); single-read stays the provisional candidate and event-based the historical reference, and no basis is chosen by biological effects. (Frozen A42 feeds text unchanged; see above.) This goes to the day-2 rule (D1). |
 | reader level | D_rdr is defined the same way, with P12 and P13 (unique true reader) added to the static units. It decides only which basis the reader-level sensitivity analyses use. |
 | secondary, no decision | The tau = 0 pair; the competition and house seconds per tag; the comparison at the calibrated tau*. |
 
@@ -400,11 +401,11 @@ Static and sled-moved tags bound the hardware. They do not validate positions of
 |---|---|---|---|---|---|
 | B1 | detection footprint | P, REF, H (single tag) | P1s at the true reader per placement | reliable: P1s ≥ 0.95; border: in between; unread: P1s ≤ 0.05 | what "assigned to reader k" means physically (S3, S6 text) |
 | B2 | localisation at known positions | centres, P12, P13 | correct-reader share of the assigned time (adopted basis; both bases on a tie) | **Reader level is primary only if** both of the following hold on both boards: (1) ≥ 0.95 at every tested centre placement assigned for ≥ 50% of its window; (2) correct row ≥ 0.90 at P12 and P13. **Otherwise** column level is primary. | resolution (decision 3; S3, S4) |
-| B3 | missed reads, short gaps | reliable single-tag placements | Gmax = longest gap within a placement; q99 gap; share of missed polling windows (lattice k ≥ 6; `aqc_lattice`); event splits per min | **Gmax ≤ 2 s on both boards:** an age ≤ 2 s means "read as continuously as a static reliable tag", and longer gaps in reliable zones are not hardware. **Otherwise:** the "fresh" age class becomes the smallest of {2, 10} s above Gmax. | age classes of srs_v1.1; interpretation of the supported share |
+| B3 | missed reads, short gaps | reliable single-tag placements | Gmax = longest gap within a placement; q99 gap; share of missed polling windows (lattice k ≥ 6; `aqc_lattice`); event splits per min | **Gmax ≤ 2 s on both boards:** an age ≤ 2 s means "read as continuously as a static reliable tag" on the bench (a detection property: a recently detected position is not a validated location, and the bench does not say what causes longer Exp9 gaps). **Otherwise:** the "fresh" age class becomes the smallest of {2, 10} s above Gmax. | age classes of srs_v1.1; interpretation of the supported share |
 | B4 | competition in one field | C1 vs C4 (z tags, house) | TR = throughput C4 / C1; MS = largest tag share in C4; starvation = any tag gap ≥ 60 s; CI by 10-s block bootstrap | time-sharing: TR in [0.85, 1.15] and MS ≤ 0.35. collision: TR < 0.70. capture or starvation: MS ≥ 0.5 or any starvation. Otherwise intermediate. | denominator for read-density measures; if capture, unread house time is not absence; co-assignment stays excluded (S6) |
 | B5 | competition across neighbouring fields | CS vs C4 | per-tag rate ratio CS/C4 (2 expected if sharing is per antenna) | ≥ 1.5: sharing is per antenna. ≤ 1.15: sharing spans R5/R6, i.e. phase or board level. | co-location vs tracked-tag covariate (S7) |
 | B6 | board/group load | sentinels T5 (R8, group A) and T6 (R4, group B) | SR = sentinel rate in C4 / in C0 + CE | SR ≤ 0.85 with upper CI < 1: board-level competition. CI inside [0.85, 1.15]: none. | the tracked-tags-per-board covariate becomes physically justified (B1 boards held 2.9 tags) |
-| B7 | carry-forward bound delta | C4 on board 4; reliable placements | delta* = the smallest of {10, 30, 60, 300} s above both the per-tag q99 gap in C4 on board 4 and Gmax | as defined; board 2 reported alongside | S3 bounded reconstructions (60/300 s); supported-share bound |
+| B7 | carry-forward age cap delta | C4 on board 4; reliable placements | delta* = the smallest of {10, 30, 60, 300} s above both the per-tag q99 gap in C4 on board 4 and Gmax | as defined; board 2 reported alongside | S3 carry-forward age caps (60/300 s): which cap is consistent with bench detection; an age cap, not a limit on occupancy (frozen B7a feeds text unchanged) |
 | B8 | house shielding | pairs H01-H04 | house ratio = exp(mean log(rate on / rate off)) at R5, over HCx and HCz on both boards; pairs unread in both states are excluded | **no shielding:** ratio ≥ 0.90, lower CI ≥ 0.80, and P1s(on, HCz) ≥ 0.95 on both boards. **shielding:** ratio < 0.70 and upper CI < 0.90. Otherwise partial. | R5 read densities (QC D01, W10); bias statement for house occupancy |
 | B9 | height (roof) | H05, H06, H02 | roof vs foam stack (roof material); foam stack vs HCx off (height) | classes as in B1 | whether unread house time can be roof time |
 | B10 | board sensitivity | 21 static pairs (P, H) plus REF means | R_board = exp(mean log(r4 / r2)) at the true reader over informative pairs (not saturated on both boards, e ≥ 0.9; not unread on both); co-read ratio; REF repeatability (excess SD of log REF-x rates beyond counting noise; late/early ratio) | **hardware difference:** (R_board ≤ 0.90 with upper CI < 1, or co-read ratio ≤ 0.70 with upper CI < 1), **and** REF excess SD ≤ 0.10, **and** the call is unchanged after REF drift adjustment. **No difference on the bench:** R_board CI ⊂ [0.90, 1.11] and co-read CI ⊂ [0.70, 1.43]. **Otherwise** undecided. House-end readers (R1, R2, R5, R6) vs R4, R8 are descriptive. | S7 board main effect; board-specific detection and crosstalk parameters; whether the Exp9 board 3/4 signature is hardware or cage/occupancy |
@@ -644,7 +645,17 @@ New code is limited to the joiner (sheet, clapper, windows, truth, annotation), 
 
 The programme below was the first proposal. Its endpoint definitions (E0-E9) are used by the one-day pilot; its second day is run only if the day-2 rule recommends it and Tobias decides so.
 
-**Status: proposal, not started.** Nothing is booked, no tag is placed and no animal is involved. It turns steps 1-5 of `docs/RFID_CALIBRATION_PROTOCOL.md` into a two-day bench pilot (a one-day minimal version is in Resources) with the validation endpoints fixed before any hardware time is booked. Statements marked *inferred* come from desk checks of the Exp9 logs and the configuration workbook (2026-10-14) and must be confirmed by PhenoSys or by the pilot itself.
+**Superseded decision texts (note of 2026-10-14).** Where a decision paragraph below differs from the frozen criteria, acp_criteria_v1.0 (section 2) governs and the text here is superseded, as follows:
+- E2 resolution ("at every centre and orientation"): replaced by B2 (every tested centre placement assigned for at least 50% of its window has a correct-reader share of at least 0.95; P12 and P13 have a correct-row share of at least 0.90; on both boards under the adopted basis).
+- E4 board/group rule (C3 runs; "T1's rate falls by more than 15%"): replaced by B6 (sentinel ratio SR ≤ 0.85 with upper CI < 1).
+- E4 house-occupancy wording: replaced by specification v1.1 section 5 (reported with its unknown share).
+- E5 house rule (ratio ≥ 0.9 and P1s ≥ 0.95): replaced by B8 (pooled ratio ≥ 0.90 with lower CI ≥ 0.80, and P1s(on, HCz) ≥ 0.95 on both boards).
+- E6 tau rule (11 of 12 visits): replaced by B11 (at least 7 of 8 five-second visits, per basis).
+- E6 basis rule: replaced by criterion (a).
+- E1 support-age rule ("ever unread for more than 1 s"): replaced by B3 (Gmax, the longest gap within a reliable single-tag placement, <= 2 s on both boards; otherwise the smallest candidate of {2, 10} s above Gmax).
+- E7 hardware-difference rule ("any of" reads ratio <= 0.9, co-read ratio <= 0.7 or a smaller footprint): replaced by B10 (R_board <= 0.90 with upper CI < 1, or co-read ratio <= 0.70 with upper CI < 1; REF excess SD <= 0.10 on both boards; the call unchanged after REF drift adjustment; no-difference and undecided as in B10). The footprint comparison is descriptive.
+
+**Status: proposal, not started.** Nothing is booked, no tag is placed and no animal is involved. It turns steps 1-5 of `docs/RFID_CALIBRATION_PROTOCOL.md` into a two-day bench pilot (a one-day minimal version is in Resources) with the calibration endpoints fixed before any hardware time is booked. Statements marked *inferred* come from desk checks of the Exp9 logs and the configuration workbook (2026-10-14) and must be confirmed by PhenoSys or by the pilot itself.
 
 Goal: estimate location-classification errors, missed reads and detection competition on the Exp9 hardware, so that the open choices of the spatial specification (`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.md`: reconstruction basis, flip-filter tau, carry-forward bound, reader or column resolution, board handling) rest on measured values. A static-tag calibration bounds the hardware; it does not validate positions of freely moving implanted mice (section "Limitations").
 
@@ -964,7 +975,7 @@ The three-class call does not need more than 60 s.
 
 **Decision it informs.**
 - The detection footprint per antenna and orientation in cm: what "assigned to reader k" means physically (specification S3/S6).
-- Whether a present, uncontested tag in the reliable zone is ever unread for more than 1 s. If not, home-cage gaps there come from posture, height or competition, not from the hardware. This sets the minimum meaningful support age.
+- *(Superseded by B3 of acp_criteria_v1.0; see the note at the top of section 5.)* Whether a present, uncontested tag in the reliable zone is ever unread for more than 1 s. If not, longer home-cage gaps there are not explained by the bench hardware; posture, height, competition or absence remain possible, and the bench cannot separate them. This sets the shortest meaningful 'recently detected' age class; it does not validate a location.
 - An input to delta (E5).
 
 #### E2 Localization confusion
@@ -986,7 +997,7 @@ Each is compared with the truth, per board x position class (centre, quarter poi
 - Per board, 1,440 centre seconds (24 placements): ±0.005 at 0.99 (D = 1).
 - At placement level: if all 24 centre placements are ≥0.95 correct, the share of failing placements is ≤ 3/24 = 0.125.
 
-**Decision it informs: column or reader resolution (S3).** Reader level only if both hold on both boards:
+**Decision it informs: column or reader resolution (S3).** *Superseded by B2 of acp_criteria_v1.0 (see the note at the top of section 5).* Reader level only if both hold on both boards:
 - correct-reader share ≥ 0.95 at every centre and orientation;
 - correct-row share ≥ 0.9 at the column quarter points (0,29) and (0,87).
 
@@ -1045,13 +1056,13 @@ Plus:
 - Total throughput at n = 4 is about 735 reads, ±7%.
 - Under even sharing, the maximum share is about 0.25-0.28. Capture would give ≥ 0.5.
 
-**Decision rules.**
+**Decision rules.** *The board- or group-level rule is superseded by B6 of acp_criteria_v1.0, and the house-occupancy wording by specification v1.1 section 5 (see the note at the top of section 5).*
 - **Time-sharing:** throughput at n = 4 within ±15% of n = 1 and maximum share ≤ 0.35. Read-density measures then need a co-location denominator.
 - **Collision:** throughput below 0.7 x n = 1.
 - **Capture or starvation:** maximum share ≥ 0.5, or any present tag unread for ≥ 60 s. Then:
   - unread time at the house is not interpretable as absence;
   - co-assignment stays excluded (S6);
-  - house occupancy is reported with its supported share only.
+  - house occupancy is reported with its unknown share (specification v1.1 section 5), never as a precise measure of time in the nest.
 - **Board- or group-level competition:** T1's rate falls by more than 15% in C3. The number of tags per board then becomes a covariate for read-based measures (B1 boards held 2.9 tags and had more reads per animal).
 
 **Delta (carry-forward bound).** The smallest of {10, 30, 60, 300} s that exceeds both:
@@ -1072,7 +1083,7 @@ Reported: the ratio of read rates and the difference in P1s; also C1 against C2 
 - hopper and bottle: 4 pairs each, ±0.12.
 
 **Decision it informs.**
-- **House ratio ≥ 0.9 and P1s ≥ 0.95:** the house does not shield. Low R5 support in Exp9 is then competition, posture or nest height, which bench data cannot separate further.
+- *(Superseded by B8 of acp_criteria_v1.0; see the note at the top of section 5.)* **House ratio ≥ 0.9 and P1s ≥ 0.95:** the house does not shield. Low R5 support in Exp9 is then competition, posture or nest height, which bench data cannot separate further.
 - **House ratio < 0.7:** shielding. R5 read densities are then not comparable with other readers, and house occupancy rests on carry-forward with a stated bias.
 - Hopper and bottle are read the same way for the R1 and R8 densities (QC D01; W10 interpretation).
 
@@ -1097,8 +1108,8 @@ Reported: the ratio of read rates and the difference in P1s; also C1 against C2 
 - Genuine visits: 12 per dwell on board 2. If all 12 are kept, the lower bound is 0.74.
 
 **Decision it informs.**
-- **tau** = the smallest value that removes ≥ 99% of static midpoint flicker runs on both boards and keeps at least 11 of 12 genuine 5-s visits. If that value is above 2 s, the frozen flip2s version leaves crosstalk in reader-change counts, and the reader-change rate stays descriptive and at column level.
-- **Basis:** adopt single-read LOCF (QC decision 2) if its correct-reader share around crossings exceeds event-start LOCF beyond the CI, and it does not lose at static placements.
+- *(Superseded by B11 of acp_criteria_v1.0: at least 7 of 8 five-second visits, per basis; see the note at the top of section 5.)* **tau** = the smallest value that removes ≥ 99% of static midpoint flicker runs on both boards and keeps at least 11 of 12 genuine 5-s visits. If that value is above 2 s, the frozen flip2s version leaves crosstalk in reader-change counts, and the reader-change rate stays descriptive and at column level.
+- *(Superseded by criterion (a) of acp_criteria_v1.0.)* **Basis:** adopt single-read LOCF (QC decision 2) if its correct-reader share around crossings exceeds event-start LOCF beyond the CI, and it does not lose at static placements.
 
 #### E7 Board 3/4 against other boards (sensitivity ratio)
 
@@ -1118,7 +1129,7 @@ The bridge block gives the day-to-day repeatability of board 2.
 - At antenna centres the read rate may saturate, so differences are expected at boundaries and at 3-cm height.
 
 **Decision it informs.**
-- **A hardware sensitivity difference** shows as any of the following, outside the bridge repeatability:
+- *(Superseded by B10 of acp_criteria_v1.0; see the note at the top of section 5.)* **A hardware sensitivity difference** shows as any of the following, outside the bridge repeatability:
   - reads ratio ≤ 0.9;
   - co-read ratio ≤ 0.7;
   - a smaller footprint at R1, R2, R5 and R6.
@@ -1271,7 +1282,7 @@ Two people on site: an operator who places tags, and a recorder who handles the 
 
 #### What static and phantom tags cannot validate for freely moving implanted mice
 
-The pilot measures the hardware and bounds the error of the reconstruction rules under controlled conditions. It does not validate positions or measures of freely moving implanted mice. Results apply to the Exp9 data only as bounds, priors and sensitivity ranges, never as corrections of individual animals' positions.
+The pilot measures bench hardware behaviour and the error of the reconstruction rules under controlled conditions (boards 2 and 4; static or sled-moved tags). It does not validate positions or measures of freely moving implanted mice. Results enter the Exp9 analysis only as priors, parameter choices and sensitivity analyses, never as bounds on true physical occupancy and never as corrections of individual animals' positions.
 
 1. **Coupling and height.**
    - An implanted tag sits in tissue at a depth and height set by the implant site, body size and posture: lying, curled, walking, rearing, climbing.

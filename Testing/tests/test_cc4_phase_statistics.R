@@ -29,6 +29,17 @@ fails(grid31_stats_data(rbind(a,a[1,])),"Duplicate")
 bad<-a;bad$RecordedCrossings[1]<-.5;fails(grid31_stats_data(bad),"Invalid")
 bad<-a;bad$Condition[1]<-"SIS";fails(grid31_stats_data(bad),"Invalid")
 check(isTRUE(all.equal(r,grid31_stats_data(a[sample(nrow(a)),]))),"row-order invariance")
+# Opt-in outcome eligibility (Functions/cc4_outcome_eligibility.R): NULL is the legacy path; a table carrying
+# eligibility columns needs the eligibility file; an excluded active family leaves the cage's inactive family in.
+check(identical(grid31_stats_data(a,NULL),r),"no eligibility table is the legacy path")
+bad<-a;bad$FamilyExcluded<-FALSE;fails(grid31_stats_data(bad),"carries outcome eligibility")
+e<-data.table::data.table(AnimalNum=a$AnimalNum,AnimalKey=a$AnimalKey,CageID=a$CageID,Batch=a$Batch,Sex=a$Sex,Group=a$Group,family=a$Phase,
+  PhaseLabel=a$PhaseLabel,EligiblePhase=a$EligiblePhase,status=ifelse(a$CageID=="B3|2" & a$Phase=="Active","excluded_hardware","included"),
+  records="",primary_use="",dead_reader="",knockout_check="",note="",rule_version=CC4E_VERSION)
+x<-grid31_stats_data(a,e)
+check(!x$roster$Included[x$roster$CageID=="B3|2" & x$roster$Phase=="Active"] && x$roster$Included[x$roster$CageID=="B3|2" & x$roster$Phase=="Inactive"] &&
+      nrow(x$animals)==nrow(r$animals)-8 && x$roster$ExclusionReason[x$roster$CageID=="B3|2" & x$roster$Phase=="Active"]=="excluded_hardware:B3|2",
+      "an excluded active family leaves the cage's inactive family in")
 fails(run_cc4_statistics("missing","new",draws=100),"4999")
 fails(run_cc4_statistics("missing","new",draws=5000,workers=0),"workers")
 cat("PASS: CC4 statistical aggregation, identity, eligibility, offsets and fail-closed contracts\n")

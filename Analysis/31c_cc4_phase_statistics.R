@@ -1,22 +1,27 @@
 # Explicit upstream inferential extension; new output directory required.
+# Optional: MMM_CC4_OUTCOME_ELIGIBILITY=<audit run>/tables/outcome_episode_eligibility.csv applies the outcome
+# eligibility rule to the complete-cage roster per family (isolated output root only); unset = legacy.
 source("Analysis/_pipeline_setup.R")
-for(helper in c("project_paths.R","cc4_grid_exposure_helpers.R","cc4_phase_group_helpers.R","cc4_phase_statistics_helpers.R")) source_mmm_helper(helper)
+for(helper in c("project_paths.R","cc4_grid_exposure_helpers.R","cc4_phase_group_helpers.R","cc4_phase_statistics_helpers.R","cc4_outcome_eligibility.R")) source_mmm_helper(helper)
 
-run_cc4_statistics <- function(source_dir,output_dir,draws=4999L,workers=8L,seed=20260929L,validation_only=FALSE) {
+run_cc4_statistics <- function(source_dir,output_dir,draws=4999L,workers=8L,seed=20260929L,validation_only=FALSE,
+                               eligibility_file=Sys.getenv("MMM_CC4_OUTCOME_ELIGIBILITY")) {
   if(file.exists(output_dir)) stop("Output already exists; choose a new run ID.",call.=FALSE)
   if(length(draws)!=1L || !is.finite(draws) || draws!=floor(draws) || draws<1 || (!validation_only && draws<4999)) stop("Final inference requires at least 4999 successful draws.",call.=FALSE)
   if(length(workers)!=1L || !is.finite(workers) || workers<1 || workers!=floor(workers) ||
      length(seed)!=1L || !is.finite(seed) || seed<1 || seed>2e9) stop("Invalid workers/seed.",call.=FALSE)
   if(!requireNamespace("glmmTMB",quietly=TRUE)) stop("glmmTMB is required.",call.=FALSE)
+  eligibility<-if(nzchar(eligibility_file)) cc4e_opt_in(eligibility_file,output_dir) else NULL
   source_manifest<-grid31_verify_manifest(source_dir,"manifest.csv")
   if(!"animal_phase_activity.csv" %in% source_manifest$File) stop("Animal phases are not manifested.",call.=FALSE)
   input_paths<-c(file.path(source_dir,c("manifest.csv",source_manifest$File)),file.path(MMM_REPO_ROOT,c(
     "Analysis/31c_cc4_phase_statistics.R","Functions/cc4_phase_statistics_helpers.R","Functions/cc4_phase_group_helpers.R",
-    "Functions/cc4_grid_exposure_helpers.R","Functions/project_paths.R","Functions/behavioral_dynamics_helpers.R","Analysis/_pipeline_setup.R")))
+    "Functions/cc4_grid_exposure_helpers.R","Functions/project_paths.R","Functions/behavioral_dynamics_helpers.R","Analysis/_pipeline_setup.R")),
+    cc4e_input_files(eligibility))
   hashes<-mmm_file_sha256(input_paths)
   a<-readr::read_csv(file.path(source_dir,"animal_phase_activity.csv"),col_types=readr::cols(.default=readr::col_guess(),AnimalNum=readr::col_character(),AnimalID=readr::col_character()),show_col_types=FALSE)
   if(nrow(readr::problems(a))) stop("Phase parse failure.",call.=FALSE)
-  inputs<-grid31_stats_data(a)
+  inputs<-grid31_stats_data(a,eligibility)
   dir.create(output_dir,recursive=TRUE);dir.create(file.path(output_dir,"bootstrap"));dir.create(file.path(output_dir,"models"))
   for(nm in names(inputs)) readr::write_csv(inputs[[nm]],file.path(output_dir,paste0(nm,"_model_input.csv")),na="")
   writeLines(c("CC4 Stage 31c protocol, fixed before bootstrap execution.",
@@ -34,7 +39,7 @@ run_cc4_statistics <- function(source_dir,output_dir,draws=4999L,workers=8L,seed
     "Secondary tests remain withheld in this implementation pending assessment of all four observed covariance fits.",
     "Sensitivity fits: leave-one-batch-out; NB2 dispersion by Condition+Period; RES/SUS mixed cages only. No sensitivity p-values.",
     paste("Successful draws:",draws,"; base seed:",seed,"; validation_only:",validation_only),
-    "Plan adopted after descriptive inspection; not preregistered. No randomization assumption verified."),file.path(output_dir,"protocol.txt"))
+    "Plan adopted after descriptive inspection; not preregistered. No randomization assumption verified.",cc4e_protocol_lines(eligibility)),file.path(output_dir,"protocol.txt"))
   capture.output(sessionInfo(),file=file.path(output_dir,"session_info.txt"))
   fits<-diagnostics<-secondary<-sensitivity<-predictive<-effects<-boot_status<-list()
   contexts<-expand.grid(Sex=c("Female","Male"),Phase=c("Inactive","Active"),stringsAsFactors=FALSE)
