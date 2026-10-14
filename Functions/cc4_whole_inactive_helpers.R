@@ -19,8 +19,12 @@ grid31_whole_phase <- function(bins, phase, numbers, reference) {
   keys <- c("Batch", "CageChange", "System", "AnimalID", "AnimalNum", "Sex", "PhaseLabel")
   grid31_required(bins, c(keys, "Phase", "PhaseNumber", "BlockStart", "BlockEnd", "BinIndex", "Crossings",
                           "SessionSpansWholeBlock", "AnimalSpansWholeBlock", "SpanOverlapSec"), "Animal clock bins")
+  # Opt-in Stage 31 censoring adds CensoredSec/CensorRecord to the bins; without them the schema is unchanged.
+  censored <- "CensoredSec" %in% names(bins)
+  if (censored) grid31_required(bins, "CensorRecord", "Censored animal clock bins")
   d <- bins %>% dplyr::filter(Phase == phase, PhaseNumber %in% numbers)
   if (!nrow(d)) stop("No requested whole-phase animal bins.", call. = FALSE)
+  if (censored && any(is.na(d$CensoredSec) | d$CensoredSec < 0 | d$CensoredSec > 300)) stop("Invalid censored seconds.", call. = FALSE)
   if (anyNA(d[c(keys, "Crossings", "BinIndex", "SpanOverlapSec", "SessionSpansWholeBlock", "AnimalSpansWholeBlock")]) ||
       any(!d$Sex %in% c("Male", "Female")) || any(!is.finite(d$Crossings)) ||
       any(d$Crossings < 0 | d$Crossings != floor(d$Crossings))) stop("Invalid whole-phase metadata/counts.", call. = FALSE)
@@ -40,6 +44,16 @@ grid31_whole_phase <- function(bins, phase, numbers, reference) {
       AnimalKey = paste(Batch, AnimalNum, sep = "|"),
       CrossingsPerHour = ifelse(EligiblePhase, RecordedCrossings / NominalHours, NA_real_),
       PhaseStatus = ifelse(EligiblePhase, "complete_clock_and_animal_span", "incomplete_clock_or_animal_span"))
+  if (censored) {
+    # A phase with time after its cage's censor time is labelled. It is already
+    # ineligible (no read after that time), so eligibility and rates are unchanged.
+    censor <- d %>% dplyr::group_by(dplyr::across(dplyr::all_of(keys))) %>%
+      dplyr::summarise(CensoredPhase = any(CensoredSec > 0), Record = dplyr::first(CensorRecord), .groups = "drop")
+    animals <- animals %>% dplyr::left_join(censor, by = keys)
+    if (any(animals$CensoredPhase & animals$EligiblePhase)) stop("A censored phase is eligible: reads after the censor time.", call. = FALSE)
+    animals <- animals %>% dplyr::mutate(PhaseStatus = ifelse(CensoredPhase, paste0("censored_after_last_read_", Record), PhaseStatus)) %>%
+      dplyr::select(-Record, -CensoredPhase)
+  }
   identity <- animals %>% dplyr::group_by(AnimalKey) %>%
     dplyr::summarise(nc = n_distinct(CageID), ns = n_distinct(Sex), .groups = "drop")
   if (any(identity$nc != 1L | identity$ns != 1L)) stop("Unstable cage/sex identity across whole phases.", call. = FALSE)
@@ -71,6 +85,13 @@ grid31_whole_phase <- function(bins, phase, numbers, reference) {
   population <- animals %>% dplyr::group_by(Sex, Batch, PhaseLabel) %>%
     dplyr::summarise(RecordedAnimals = n(), EligibleAnimals = sum(EligiblePhase), PrimaryAnimals = sum(IncludedInPrimary),
       RecordedCages = n_distinct(CageID), PrimaryCages = n_distinct(CageID[IncludedInPrimary]), .groups = "drop")
+  if (censored) {
+    # Cage tables count the censored animals per phase (appended last; values unchanged).
+    cage_censor <- censor %>% dplyr::mutate(CageID = paste(Batch, System, CageChange, sep = "|")) %>%
+      dplyr::group_by(CageID, PhaseLabel) %>% dplyr::summarise(CensoredAnimals = sum(CensoredPhase), .groups = "drop")
+    cages <- cages %>% dplyr::left_join(cage_censor, by = c("CageID", "PhaseLabel"))
+    cage_pairs <- cage_pairs %>% dplyr::left_join(cage_censor, by = c("CageID", "PhaseLabel"))
+  }
   list(animals = animals, cages = cages, animal_pairs = pairs, cage_pairs = cage_pairs, population = population)
 }
 

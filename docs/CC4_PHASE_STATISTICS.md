@@ -72,3 +72,5 @@ installed glmmTMB; no additional package installation is performed. Outputs
 include inputs, frozen protocol, models, refit checkpoints, diagnostics,
 sensitivities, estimates, session information and hashes. Existing directories
 are refused. Manuscript rendering must consume frozen outputs only.
+
+B5 sys.1 CC4 (spatial exclusion manifest v1.1, SX04: unobserved from 2023-12-04 14:00:42.962 to the recording end) has no complete I3-I5 or A3-A5 span and is already outside both primary cohorts through the complete-span rule, so the Stage 31 censoring option changes no input or estimate of Stage 31c and no rerun is needed.

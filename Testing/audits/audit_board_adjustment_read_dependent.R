@@ -21,13 +21,15 @@
 #               lm(y ~ recording + board + CON) (assumes the same board effect in CON and SIS cages).
 #   SUS - RES   SIS animals: unadjusted, board-adjusted, and within-cage (cage-episode fixed effects; board-free by
 #               construction, mixed cages only); per CC with cage-clustered (CR1) standard errors.
-#   Sensitivity leave-one-batch-out ranges; cage episodes with 4 animals present only (presence table).
+#   Sensitivity leave-one-batch-out ranges; cage episodes in which 4 animals were housed and 4 tags were read (presence
+#               table: the tracked-tag count is not presence; Testing/audits/audit_cage_episode_presence.R).
 #
 # Run from the repository root (light):
 #   Rscript Testing/audits/audit_board_adjustment_read_dependent.R --srs-run=<srs run folder> --presence=<csv> [--run-id=<id>]
 #           [--output-root=<absolute>]
-# presence csv: CageEpisodeID, n_present (animals in the cage, from the best available source), presence_source,
-# presence_classification. Default output root <Behavior>/RANM/board_adjustment (isolated; mmm_isolated_output_root_check()).
+# presence csv (audit_cage_episode_presence.R, tables/cage_episode_presence.csv): CageEpisodeID, n_animals_present (housed,
+# from detection-independent records), n_tags_present (tags with >= 100 in-span reads: the read-competition count),
+# n_tracked. Default output root <Behavior>/RANM/board_adjustment (isolated; mmm_isolated_output_root_check()).
 # Reads the group labels (AnimalNum, outcome_group, Sex) for the contrasts; no CombZ or other outcome.
 
 BADJ_OUTCOMES <- c("reads_per_h", "supported60_share", "colchg_per_h")
@@ -147,12 +149,14 @@ if (sys.nframe() == 0L) {
   an[, cage_type := ifelse(outcome_group == "CON", "CON", "SIS")]
   bad <- an[, .(types = uniqueN(cage_type)), by = CageEpisodeID][types > 1]
   if (nrow(bad)) stop("Cage episodes with CON and SIS animals: ", paste(bad$CageEpisodeID, collapse = ", "), call. = FALSE)
-  an <- merge(an, pres[, .(CageEpisodeID, n_present, presence_source, presence_classification)], by = "CageEpisodeID", all.x = TRUE)
+  an <- merge(an, pres[, .(CageEpisodeID, n_animals_present, n_tags_present, n_tracked)], by = "CageEpisodeID", all.x = TRUE)
+  if (anyNA(an$n_animals_present)) stop("Cage episodes missing from the presence table.", call. = FALSE)
 
   res <- list(); offs <- list(); ident <- list()
   for (o in BADJ_OUTCOMES) for (ph in c("Active", "Inactive")) {
     a1 <- an[Phase == ph][, y := get(o)]
-    ce <- a1[, .(y = mean(y), animals = .N, n_present = n_present[1]), by = .(Batch, CC, board, CageEpisodeID, cage_type)]
+    ce <- a1[, .(y = mean(y), animals = .N, n_animals_present = n_animals_present[1], n_tags_present = n_tags_present[1]),
+             by = .(Batch, CC, board, CageEpisodeID, cage_type)]
     off <- badj_board_offsets(ce[cage_type == "SIS"])
     ident[[length(ident) + 1L]] <- data.table(outcome = o, Phase = ph, sis_cage_episodes = nrow(ce[cage_type == "SIS"]), design_rank = off$rank,
                                               design_columns = off$p, residual_df = off$df, residual_sd = off$sigma)
@@ -165,10 +169,11 @@ if (sys.nframe() == 0L) {
       res[[length(res) + 1L]] <- data.table(n = nrow(lo), estimate = mean(lo$estimate), se = NA_real_, lower = min(lo$estimate), upper = max(lo$estimate),
                                             CC = "pooled, leave-one-batch-out range", contrast = "CON - SIS", outcome = o, Phase = ph, version = adj,
                                             population = "all cage episodes")
-      ce4 <- ce[n_present %in% 4]
+      ce4 <- ce[n_animals_present == 4 & n_tags_present == 4]
       if (nrow(ce4[cage_type == "CON"]) && nrow(ce4[cage_type == "SIS"])) {
         cc4 <- badj_con_contrast(ce4, if (adj == "board-adjusted") off else NULL)
-        res[[length(res) + 1L]] <- cc4$contrasts[, `:=`(contrast = "CON - SIS", outcome = o, Phase = ph, version = adj, population = "cage episodes with 4 animals present")]
+        res[[length(res) + 1L]] <- cc4$contrasts[, `:=`(contrast = "CON - SIS", outcome = o, Phase = ph, version = adj,
+                                                        population = "cage episodes with 4 animals housed and 4 tags read")]
       }
     }
     one <- stats::lm(y ~ factor(paste(Batch, CC)) + factor(board) + I(cage_type == "CON"), ce)
@@ -195,7 +200,7 @@ if (sys.nframe() == 0L) {
   fwrite(rbindlist(offs), file.path(tmp, "tables", "board_offsets.csv"))
   fwrite(rbindlist(ident), file.path(tmp, "tables", "identifiability.csv"))
   fwrite(an[, .(cage_episodes = uniqueN(CageEpisodeID), animals = uniqueN(AnimalNum)), by = .(Phase, cage_type)], file.path(tmp, "tables", "population.csv"))
-  fwrite(unique(an[, .(CageEpisodeID, Batch, CC, board, cage_type, n_present, presence_source, presence_classification)]), file.path(tmp, "tables", "cage_episodes.csv"))
+  fwrite(unique(an[, .(CageEpisodeID, Batch, CC, board, cage_type, n_animals_present, n_tags_present, n_tracked)]), file.path(tmp, "tables", "cage_episodes.csv"))
   fwrite(inputs, file.path(tmp, "manifest", "input_hashes.csv"))
   fwrite(data.table(item = c("run_id", "git_commit", "srs_run", "R"), value = c(run_id, head_commit, a$srs_run, R.version.string)),
          file.path(tmp, "manifest", "run.csv"))

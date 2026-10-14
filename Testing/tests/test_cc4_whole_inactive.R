@@ -47,9 +47,31 @@ check(is.finite(wl$animals$CrossingsPerHour[wl$animals$AnimalID=="2_2_2" & wl$an
 zero <- bins;zero$Crossings[zero$AnimalID=="1_1_1" & zero$PhaseLabel=="I3"] <- 0
 wz <- grid31_whole_inactive(zero)
 check(wz$animals$CrossingsPerHour[wz$animals$AnimalID=="1_1_1" & wz$animals$PhaseLabel=="I3"]==0,"complete observed zero retained")
+# Opt-in Stage 31 censoring: cage B2|sys.2 is unobserved from I4 on. Against the
+# same lost phases without censor columns, only the labels and the appended cage
+# counts differ; eligibility, rates, cohorts and estimates are unchanged.
+check(identical(names(w$cages),c("Sex","Batch","CageChange","System","CageID","PhaseLabel","ExpectedAnimals","EligibleAnimals",
+  "RecordedCrossings","CompleteRosterPhase","IncludedInPrimary","CageMeanCrossingsPerHour")) && !"CensoredAnimals" %in% names(w$cage_pairs),
+  "legacy cage schema without censor columns")
+off <- bins$Batch=="B2" & bins$System=="sys.2" & bins$PhaseLabel %in% c("I4","I5")
+uncens <- bins; uncens$AnimalSpansWholeBlock[off] <- FALSE; uncens$SpanOverlapSec[off] <- 0; uncens$Crossings[off] <- 0
+cens <- uncens; cens$CensoredSec <- ifelse(off,300,0); cens$CensorRecord <- ifelse(bins$Batch=="B2" & bins$System=="sys.2","SX04",NA_character_)
+wu <- grid31_whole_inactive(uncens); wc <- grid31_whole_inactive(cens)
+lab <- wc$animals$CageID=="B2|sys.2|CC4" & wc$animals$PhaseLabel %in% c("I4","I5")
+same <- function(x,y,cols=names(y)) identical(as.data.frame(x[cols]),as.data.frame(y[cols]))
+check(sum(lab)==4 && all(wc$animals$PhaseStatus[lab]=="censored_after_last_read_SX04") && identical(wc$animals$PhaseStatus[!lab],wu$animals$PhaseStatus[!lab]) &&
+      identical(names(wc$animals),names(wu$animals)) && same(wc$animals,wu$animals,setdiff(names(wu$animals),"PhaseStatus")),"censored phases labelled; eligibility and rates unchanged")
+check(same(wc$animal_pairs,wu$animal_pairs,setdiff(names(wu$animal_pairs),"PhaseStatus")) && same(wc$population,wu$population),"pairs and population unchanged")
+check(identical(names(wc$cages),c(names(wu$cages),"CensoredAnimals")) && same(wc$cages,wu$cages) && same(wc$cage_pairs,wu$cage_pairs) &&
+      identical(wc$cages$CensoredAnimals,ifelse(wc$cages$CageID=="B2|sys.2|CC4" & wc$cages$PhaseLabel %in% c("I4","I5"),2L,0L)),"cage tables count censored animals, values unchanged")
+check(identical(grid31_whole_inactive_uncertainty(wc$cages,draws=200,seed=17),grid31_whole_inactive_uncertainty(wu$cages,draws=200,seed=17)),"estimates unchanged")
+eligible <- bins; eligible$CensoredSec <- ifelse(off,300,0); eligible$CensorRecord <- "SX04"
+fails(grid31_whole_inactive(eligible),"censored phase is eligible")
+fails(grid31_whole_inactive(dplyr::select(cens,-CensorRecord)),"CensorRecord")
+fails(grid31_whole_inactive(dplyr::mutate(cens,CensoredSec=ifelse(off,301,0))),"Invalid censored seconds")
 fails(grid31_whole_inactive(dplyr::bind_rows(bins,bins[1,])),"Duplicate")
 fails(grid31_whole_inactive(bins[-1,]),"144 unique")
 fails(grid31_whole_inactive(bins[bins$PhaseLabel!="I2",]),"Missing I2-I5")
 fails(grid31_whole_inactive_uncertainty(w$cages,draws=2),"Invalid bootstrap")
 check(!any(grepl("p_value|p.value",names(u$summary))),"descriptive uncertainty never labelled as a hypothesis test")
-cat("PASS: whole-inactive fixed windows, complete cohorts, equal batch/cage weights, paired reproducible bootstrap, zero vs missing, malformed-bin guards\n")
+cat("PASS: whole-inactive fixed windows, complete cohorts, equal batch/cage weights, paired reproducible bootstrap, zero vs missing, censoring labels, malformed-bin guards\n")

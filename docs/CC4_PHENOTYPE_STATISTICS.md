@@ -76,3 +76,5 @@ Short integration runs set `validation_only=TRUE` through the function API and
 cannot emit inferential P values or intervals. The CLI requires final draw counts.
 Existing output directories are refused. No reclassification, new package
 installation, source-data overwrite or canonical manuscript promotion occurs.
+
+B5 sys.1 CC4 (manifest v1.1, SX04, censored from 2023-12-04 14:00:42.962) is already outside both fixed cage rosters (no complete I3-I5 or A3-A5 span), so the Stage 31 censoring option changes no Stage 31d input or estimate and no rerun is needed.

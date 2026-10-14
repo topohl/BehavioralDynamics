@@ -1,7 +1,10 @@
 # Stage 31 -- CC4 grid-associated period, descriptive and manually invoked.
 # Actual insertion/removal times were not recorded. The activity scan produces
 # unverified candidates only; it never produces exposure labels or effect tests.
-# Run from repo root with MMM_GRID31_RUN_ID set to a NEW run name.
+# Run from repo root with MMM_GRID31_RUN_ID set to a NEW run name. Optional:
+# MMM_GRID31_CENSOR_MANIFEST=<released spatial exclusion manifest version> applies
+# its CC4 censor records (opt-in recording-duration censoring; unset = no censoring);
+# MMM_GRID31_OUTPUT_ROOT=<absolute isolated root> writes <root>/<run ID> instead.
 
 source("Analysis/_pipeline_setup.R")
 for (helper in c("project_paths.R", "E9_SIS_AnimalPos-functions.R",
@@ -9,7 +12,8 @@ for (helper in c("project_paths.R", "E9_SIS_AnimalPos-functions.R",
                  "cc4_whole_inactive_helpers.R")) source_mmm_helper(helper)
 
 run_cc4_grid_exposure <- function(data_dir, output_dir, corrections_file,
-                                 corrections_sha256, batches = paste0("B", 1:6), make_plots = TRUE) {
+                                 corrections_sha256, batches = paste0("B", 1:6), make_plots = TRUE,
+                                 censor_manifest = NULL) {
   if (file.exists(output_dir)) stop("Output already exists; choose a new run ID: ", output_dir, call. = FALSE)
   if (!length(batches) || anyDuplicated(batches) || !all(batches %in% paste0("B", 1:6))) stop("Invalid batches.", call. = FALSE)
   excluded_file <- file.path(data_dir, "raw_data", "excluded_animals.csv")
@@ -19,15 +23,34 @@ run_cc4_grid_exposure <- function(data_dir, output_dir, corrections_file,
     "Functions/animalpos_preprocessing_helpers.R", "Functions/E9_SIS_AnimalPos-functions.R",
     "Functions/behavioral_dynamics_helpers.R", "Functions/project_paths.R", "Functions/behavior_analysis_config.R",
     "Analysis/_pipeline_setup.R"))
-  inputs <- c(raw_files, excluded_file, corrections_file, code_files)
+  # Opt-in censoring reads a released manifest version only (pinned content hash).
+  censor_files <- character()
+  if (!is.null(censor_manifest)) {
+    if (!is.character(censor_manifest) || length(censor_manifest) != 1L || is.na(censor_manifest) || !nzchar(censor_manifest))
+      stop("censor_manifest must be one manifest version.", call. = FALSE)
+    source_mmm_helper("spatial_exclusion_manifest.R")
+    if (!censor_manifest %in% names(SXM_RELEASED) || identical(unname(SXM_RELEASED[censor_manifest]), "PENDING"))
+      stop("Censor manifest ", censor_manifest, " is not a released version.", call. = FALSE)
+    censor_files <- c(sxm_path(censor_manifest), file.path(MMM_REPO_ROOT, "Functions/spatial_exclusion_manifest.R"))
+  }
+  inputs <- c(raw_files, excluded_file, corrections_file, code_files, censor_files)
   if (!all(file.exists(inputs))) stop("Missing required input: ", paste(inputs[!file.exists(inputs)], collapse = ", "), call. = FALSE)
   hashes <- mmm_file_sha256(inputs)
   if (anyNA(hashes)) stop("SHA256 hashing requires the existing digest package.", call. = FALSE)
   if (length(corrections_sha256) != 1 || is.na(corrections_sha256) ||
       !identical(unname(mmm_file_sha256(corrections_file)), corrections_sha256)) stop("Cage correction hash mismatch.", call. = FALSE)
+  censor <- NULL
+  if (!is.null(censor_manifest)) {
+    m <- sxm_read(censor_manifest)
+    m <- m[m$action == "censor" & m$CC == "CC4" & m$Batch %in% batches, ]
+    censor <- tibble::tibble(Batch = m$Batch, CageChange = m$CC, System = m$System, CageEpisodeID = m$CageEpisodeID,
+      CensorFrom = as.POSIXct(sxm_time(m$from), origin = "1970-01-01", tz = "UTC"), CensorRecord = m$record_id,
+      ManifestFrom = m$from, Animals = m$animals)
+  }
   corrections <- readr::read_csv(corrections_file, col_types = readr::cols(.default = readr::col_character()))
   excluded <- trimws(readLines(excluded_file, warn = FALSE)); excluded <- excluded[nzchar(excluded)]
-  recordings <- coverage <- profiles <- accounting <- list()
+  recordings <- coverage <- profiles <- accounting <- applied <- list()
+  ms <- function(x) round(as.numeric(x) * 1000)   # logger clock resolution
   for (batch in batches) {
     result <- preprocess_animalpos_file(batch, "CC4", excluded, file.path(data_dir, "raw_data"), output_dir,
                                        write_output = FALSE, phase_policy = "full_recording")
@@ -37,13 +60,52 @@ run_cc4_grid_exposure <- function(data_dir, output_dir, corrections_file,
     if (anyNA(d$AnimalNum) || any(!nzchar(d$AnimalNum))) stop("Invalid canonical identity.", call. = FALSE)
     alias <- d %>% dplyr::distinct(AnimalID, AnimalNum) %>% dplyr::count(AnimalNum)
     if (any(alias$n != 1)) stop("Ambiguous raw identity aliases in ", batch, call. = FALSE)
+    # Fail closed: a censor record must name an uncorrected cage episode of this
+    # recording, with the manifest's animals, a time inside the session and no
+    # vendor row after that time. Rows are never dropped.
+    for (i in which(censor$Batch == batch)) {
+      label <- paste0("Censor record ", censor$CensorRecord[i], " (", censor$CageEpisodeID[i], "): ")
+      ix <- d$CageChange == censor$CageChange[i] & d$System == censor$System[i]
+      if (!any(ix)) stop(label, "cage episode not in the data.", call. = FALSE)
+      if (!identical(ix, d$CageChange == censor$CageChange[i] & d$System_raw == censor$System[i]))
+        stop(label, "a cage correction moves animals into or out of the cage episode.", call. = FALSE)
+      if (!setequal(unique(d$AnimalNum[ix]), canonical_animal_id(strsplit(censor$Animals[i], ";", fixed = TRUE)[[1]])))
+        stop(label, "animals differ from the manifest.", call. = FALSE)
+      if (!(ms(censor$CensorFrom[i]) > ms(min(d$DateTime)) && ms(censor$CensorFrom[i]) < ms(max(d$DateTime))))
+        stop(label, "censor time lies outside the session.", call. = FALSE)
+      if (any(ms(d$DateTime[ix]) > ms(censor$CensorFrom[i]))) stop(label, "vendor rows after the censor time.", call. = FALSE)
+    }
     d$Sex <- if (batch %in% c("B1", "B2", "B5")) "Male" else "Female"
     d$SourceFile <- basename(raw_files[match(batch, batches)])
-    cov <- grid31_phase_coverage(d)
-    prof <- grid31_clock_profiles(d, cov)
+    cov <- grid31_phase_coverage(d, censor)
+    prof <- grid31_clock_profiles(d, cov, censor)
     cov <- cov %>% dplyr::left_join(dplyr::distinct(d, AnimalID, AnimalNum, Sex), by = "AnimalID")
     prof$animals <- prof$animals %>% dplyr::left_join(dplyr::distinct(d, AnimalID, AnimalNum, Sex), by = "AnimalID")
     prof$cages$Sex <- d$Sex[1]
+    if (!is.null(censor)) {
+      # New columns last, so every legacy column keeps its position.
+      cov <- dplyr::relocate(cov, dplyr::any_of(GRID31_CENSOR_COLUMNS), .after = dplyr::last_col())
+      prof$animals <- dplyr::relocate(prof$animals, dplyr::any_of(GRID31_CENSOR_COLUMNS), .after = dplyr::last_col())
+      prof$cages <- dplyr::relocate(prof$cages, dplyr::any_of(GRID31_CENSOR_COLUMNS), .after = dplyr::last_col())
+      end <- max(d$DateTime)
+      for (i in which(censor$Batch == batch)) {
+        from <- censor$CensorFrom[i]
+        a <- prof$animals %>% dplyr::filter(CageChange == censor$CageChange[i], System == censor$System[i], CensoredSec > 0)
+        g <- prof$cages %>% dplyr::filter(CageChange == censor$CageChange[i], System == censor$System[i], CensoredAnimals > 0)
+        hours <- sum(pmax(0, pmin(as.numeric(a$BinEnd), as.numeric(end)) - pmax(as.numeric(a$BinStart), as.numeric(from)))) / 3600
+        animals_n <- dplyr::n_distinct(a$AnimalID)
+        if (!isTRUE(all.equal(hours, animals_n * (as.numeric(end) - as.numeric(from)) / 3600)))
+          stop("Censored bins do not tile the censored span of ", censor$CageEpisodeID[i], call. = FALSE)
+        i5 <- unique(cov$BlockEnd[cov$System == censor$System[i] & cov$PhaseLabel == "I5"])
+        applied[[length(applied)+1L]] <- tibble::tibble(RecordId = censor$CensorRecord[i], CageEpisodeID = censor$CageEpisodeID[i],
+          ManifestVersion = censor_manifest, ManifestFrom = censor$ManifestFrom[i], From = from, RecordingEnd = end,
+          Animals = animals_n, CensoredAnimalBinsInRecording = sum(a$BinStart < end),
+          CensoredCageBinsInRecording = sum(g$BinStart < end), CensoredAnimalHours = hours,
+          CensoredHoursPerAnimal = (as.numeric(end) - as.numeric(from)) / 3600,
+          VendorRowsAfterFrom = sum(ms(d$DateTime[d$CageChange == censor$CageChange[i] & d$System == censor$System[i]]) > ms(from)),
+          PhaseTrimmedSpanEnd = if (length(i5) == 1L) i5 else as.POSIXct(NA, tz = "UTC"))
+      }
+    }
     recordings[[batch]] <- d; coverage[[batch]] <- cov; profiles[[batch]] <- prof
     result$data <- NULL
     accounting[[batch]] <- tibble::as_tibble(result)
@@ -87,6 +149,17 @@ run_cc4_grid_exposure <- function(data_dir, output_dir, corrections_file,
     dplyr::distinct(Batch, CageChange, System, PhaseLabel, BlockStart, BlockEnd) %>%
     dplyr::mutate(GridInsertedAt = NA_character_, GridRemovedAt = NA_character_, TimingStatus = "not_recorded",
                   TimingEvidence = NA_character_, ExposureAnalysisAllowed = FALSE)
+  if (!is.null(censor)) {
+    # CensoredFrom: the cage's censor time, for each phase that ends after it.
+    timing <- timing %>% dplyr::left_join(censor[c("Batch", "CageChange", "System", "CensorFrom")], by = c("Batch", "CageChange", "System")) %>%
+      dplyr::mutate(CensoredFrom = dplyr::if_else(CensorFrom < BlockEnd, CensorFrom, as.POSIXct(NA, tz = "UTC"))) %>% dplyr::select(-CensorFrom)
+    applied <- dplyr::bind_rows(applied)
+    if (!nrow(applied)) applied <- tibble::tibble(RecordId = character(), CageEpisodeID = character(), ManifestVersion = character(),
+      ManifestFrom = character(), From = as.POSIXct(character(), tz = "UTC"), RecordingEnd = From, Animals = integer(),
+      CensoredAnimalBinsInRecording = integer(), CensoredCageBinsInRecording = integer(), CensoredAnimalHours = numeric(),
+      CensoredHoursPerAnimal = numeric(), VendorRowsAfterFrom = integer(), PhaseTrimmedSpanEnd = From)
+    write_table(applied, "censoring_applied.csv", "audit")
+  }
   write_table(timing, "grid_timing_review.csv")
   if (isTRUE(make_plots)) {
     wa <- whole$animals %>% dplyr::filter(IncludedInPrimary)
@@ -146,6 +219,17 @@ run_cc4_grid_exposure <- function(data_dir, output_dir, corrections_file,
     "Counts are RFID position changes, not distance, sleep, or validated sociability.",
     "Five-minute scan; fixed two-hour candidate duration from user protocol; top three positive non-overlapping candidates per cage/day.",
     "Existing canonical preprocessed data, Stage 01 metrics, and Stage 29/30 releases are unchanged.")
+  if (!is.null(censor)) {
+    clock <- function(x) { s <- ms(x); paste0(format(as.POSIXct(s %/% 1000, origin = "1970-01-01", tz = "UTC"), "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+                                              ifelse(s %% 1000 == 0, "", sprintf(".%03d", as.integer(s %% 1000)))) }
+    status <- c(status, paste0("Censoring (opt-in, spatial exclusion manifest ", censor_manifest, "): ",
+      if (nrow(applied)) "unobserved time after a cage episode's censor time keeps its zero-filled counts and every row, but its cage rate (CrossingsPerExpectedAnimalHour) is NA where CensoredAnimals > 0; whole phases are labelled censored_after_last_read_<record>; eligibility and estimates are unchanged (audit/censoring_applied.csv)."
+      else "no censor record for the batches run."))
+    for (i in seq_len(nrow(applied))) status <- c(status, sprintf(paste0("Censoring %s: %s is unobserved from %s (its last read) to span_end. ",
+      "Here span_end is the end of the full CC4 recording, %s (%.1f h censored per animal), not Stage 00b's %s (end of I5, the phase-trimmed span; %.1f h)."),
+      applied$RecordId[i], applied$CageEpisodeID[i], applied$ManifestFrom[i], clock(applied$RecordingEnd[i]), applied$CensoredHoursPerAnimal[i],
+      clock(applied$PhaseTrimmedSpanEnd[i]), (as.numeric(applied$PhaseTrimmedSpanEnd[i]) - as.numeric(applied$From[i])) / 3600))
+  }
   writeLines(status, file.path(output_dir, "README.txt"))
   files <- list.files(output_dir, recursive = TRUE, full.names = TRUE)
   write_table(tibble::tibble(File = substring(files, nchar(output_dir) + 2), SHA256 = mmm_file_sha256(files)), "output_manifest.csv", "audit")
@@ -160,7 +244,10 @@ if (sys.nframe() == 0L) {
   project <- mmm_project_root()
   spec <- MMM_BEHAVIOR_CONFIG$data_versions[[MMM_BEHAVIOR_CONFIG$data_versions$release]]$supporting_files$cage_label_corrections
   if (is.null(spec)) stop("Configured data version lacks a cage-correction registry.", call. = FALSE)
-  run_cc4_grid_exposure(file.path(project, "MMMSociability"),
-    file.path(project, "analysis_ready", "analyses", "cc4_grid_exposure", run_id),
-    file.path(project, spec$file), spec$sha256)
+  censor_manifest <- Sys.getenv("MMM_GRID31_CENSOR_MANIFEST")
+  output_root <- Sys.getenv("MMM_GRID31_OUTPUT_ROOT")
+  runs <- if (nzchar(output_root)) mmm_isolated_output_root_check(output_root, project) else
+    file.path(project, "analysis_ready", "analyses", "cc4_grid_exposure")
+  run_cc4_grid_exposure(file.path(project, "MMMSociability"), file.path(runs, run_id),
+    file.path(project, spec$file), spec$sha256, censor_manifest = if (nzchar(censor_manifest)) censor_manifest else NULL)
 }

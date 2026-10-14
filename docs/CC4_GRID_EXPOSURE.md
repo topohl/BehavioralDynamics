@@ -127,10 +127,42 @@ an input to these whole-phase calculations.
 
 I2 is a descriptive reference, not a matched experimental control. Handling,
 SuPH, clock time and time since cage change can all influence activity. Sensor
-read patterns may also change during exposure. B5 sys.1 loses all four animals'
-records during I3; later zeros are not interpretable as inactivity, and those
-phases fail candidate eligibility. Social/proximity and occupancy-based effects
-need a separate measurement-validity decision before analysis.
+read patterns may also change during exposure. Social/proximity and occupancy-based
+effects need a separate measurement-validity decision before analysis.
+
+B5 sys.1 (board 1; animals 314, 318, OR620, OR630) is unobserved from its last read,
+2023-12-04 14:00:42.962 (logger clock, during I3), to the end of the recording,
+2023-12-07 13:12:01.988: all four tags stop within 85 s while the other four B5
+boards read to the end (Stage 00b W07; spatial exclusion manifest v1.1, record SX04,
+action `censor`). What happened to the animals was not recorded. Because Stage 31
+reads the whole CC4 recording, SX04's span end here is the recording end (71.2 h
+censored per animal), not the 2023-12-06 18:30 span end (end of I5; 52.5 h) of
+Stage 00b, Stage 19 and the single-read reconstruction. Without censoring, the
+zero-filled five-minute bins after that time get a cage rate of 0 in
+`cage_clock_profiles_5min.csv` (918 cage-bins, 855 inside the recording). These zeros
+are unobserved time, not inactivity. The whole-phase tables already mark I3-I5
+ineligible (rates NA), the cage is outside the primary roster on all four days, and
+those phases fail candidate eligibility, so no Stage 31 estimate depends on them.
+
+With `MMM_GRID31_CENSOR_MANIFEST=v1.1` the driver applies SX04:
+- animal-bin and coverage rows gain `CensorFrom`, `CensorRecord` and `CensoredSec`
+  (seconds of the bin or phase after the censor time);
+- cage-bins gain `CensoredAnimals`, and `CrossingsPerExpectedAnimalHour` is NA where
+  `CensoredAnimals > 0`; counts stay zero-filled and finite, and no row is dropped;
+- the cage's I3-I5 whole-phase rows read `PhaseStatus = censored_after_last_read_SX04`,
+  with eligibility and rates unchanged; the whole-phase cage tables count
+  `CensoredAnimals`; the candidate eligibility reason is `censored_SX04`;
+  `grid_timing_review.csv` gains `CensoredFrom`;
+- `audit/censoring_applied.csv` records 3,420 censored animal-bins and 855 cage-bins
+  inside the recording, 284.75 animal-hours, and 0 vendor rows after the censor time.
+
+Run whole_inactive_sx04v11_20261014 (isolated root
+`Analysis/Behavior/RANM/cc4_grid_exposure_censored/`, 2026-10-14) was compared with
+whole_inactive_20260929_v1. The full-recording files, row accounting, population, sex
+summary, bootstrap tables, candidate scores, candidates and all 14 figures are
+byte-identical; in the changed tables every row outside B5|sys.1|CC4 after the censor
+time is identical. Stages 31b-31d already leave the cage out through their
+complete-span rule, so no estimate changes and they were not rerun.
 
 ## Run and test (PowerShell, repository root)
 
@@ -145,7 +177,33 @@ Rscript --vanilla 'Testing/tests/test_animalpos_preprocessing_helpers.R'
 Rscript --vanilla 'Testing/tests/test_preprocessing_function_ownership.R'
 ```
 
-Test record: on 2026-10-05, at commit 5a3e4e9 with R 4.5.1, `test_cc4_grid_exposure.R`,
+Opt-in censoring. `MMM_GRID31_CENSOR_MANIFEST=<version>` names a released spatial
+exclusion manifest (`docs/spatial_exclusions/`, read with `sxm_read()` against its
+pinned content hash); the driver applies its `censor` records for CC4 in the batches
+run. Unset, the outputs are those of earlier runs (fixture outputs byte-identical to the
+previous code; only code hashes in the manifests differ). `MMM_GRID31_OUTPUT_ROOT=<absolute
+root>` writes `<root>/<run ID>` instead of `analysis_ready/analyses/cc4_grid_exposure/<run ID>`;
+the root must pass `mmm_isolated_output_root_check()`. The manifest file and its loader join
+the hashed inputs. The run stops before writing if a censor record's cage episode is not in
+the data, a cage correction moves animals into or out of it, its animals differ from the
+manifest, its time lies outside the session, or any vendor row of the cage lies after that
+time (millisecond resolution). No row is dropped.
+
+```powershell
+$env:MMM_GRID31_RUN_ID = 'whole_inactive_sx04v11_20261014'
+$env:MMM_GRID31_CENSOR_MANIFEST = 'v1.1'
+$env:MMM_GRID31_OUTPUT_ROOT = 'S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RANM/cc4_grid_exposure_censored'
+Rscript --vanilla 'Analysis/31_cc4_grid_exposure.R'
+Remove-Item Env:MMM_GRID31_RUN_ID, Env:MMM_GRID31_CENSOR_MANIFEST, Env:MMM_GRID31_OUTPUT_ROOT
+```
+
+Test record: on 2026-10-14 (commit 25804cb plus the censoring change, R 4.5.1)
+`test_cc4_grid_exposure.R`, `test_cc4_whole_inactive.R`, `test_cc4_phase_groups.R`,
+`test_cc4_phase_statistics.R`, `test_cc4_phenotype_statistics.R`,
+`test_sourced_scripts_guarded.R`, `test_data_root_literals.R`, `test_manuscript_palette.R`
+and `test_spatial_exclusion_manifest.R` passed.
+
+Earlier test record: on 2026-10-05, at commit 5a3e4e9 with R 4.5.1, `test_cc4_grid_exposure.R`,
 `test_cc4_whole_inactive.R` and `test_cc4_phase_groups.R` passed. They had not been run
 when Stage 31 was committed (383b25c). `Testing/tests/test_sourced_scripts_guarded.R`
 checks that sourcing the Stage 31 scripts only defines functions.
