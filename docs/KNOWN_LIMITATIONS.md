@@ -118,6 +118,15 @@ corresponding domain is labelled "social spatial organization" for this reason
 and that framing should be preserved. Measured against its chance expectation,
 same-position co-location is below chance and largely chance-explained (§14).
 
+**Decision of 2026-10-14.** `shared_zone_use` (Stage 29), Stage 01 `Proximity`,
+Stage 02 contacts and any reader- or column-level co-assignment are not
+validated measures of physical proximity or social affiliation, and are not
+retained as such. The registered results stay as they are, read as
+relational spatial-overlap indices. Any new spatial or social analysis needs
+its own operational interpretation, justified separately (for example a
+column-level co-assignment against its time-shift expectation, with read
+competition stated; `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.1.md`).
+
 ---
 
 ## 6. Stage 09 is prospective prediction, not causal inference

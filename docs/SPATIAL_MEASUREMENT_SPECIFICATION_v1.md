@@ -1,5 +1,8 @@
 # Revised spatial measurement specification v1 (for review, 2026-10-14)
 
+**Superseded by `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.1.md`** (decisions of 2026-10-14, second round). This file is the record of
+the first proposal and its numbers (release run srs_v1.0_6165adf).
+
 **Status: proposal for review.** It works out Tobias's decisions of 2026-10-14 on the Stage 00b findings. Nothing in it is
 applied to a registered analysis:
 - Stage 19 and its outputs are unchanged and not replaced;

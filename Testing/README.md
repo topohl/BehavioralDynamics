@@ -33,7 +33,7 @@ The portable checks include:
 | Stage 19 / Stage 06 | `test_stage19_group_sex_labels.R`, `test_stage19_identity_and_stage06_schema.R` |
 | Preprocessing / boundaries | `test_animalpos_preprocessing_helpers.R`, `test_downstream_boundary_and_gap_contract.R` |
 | Output/write infrastructure | `test_output_path_length.R`, `test_write_registry_rerun_behavior.R` |
-| Raw RFID logs and acquisition QC | `test_antenna_log_helpers.R`, `test_antenna_data_version.R`, `test_antenna_move_rule.R`, `test_animalpos_reconstruction.R`, `test_antenna_measurement.R`, `test_raw_acquisition_qc.R` (Stage 00b checks on hand-worked data, injected failures and a synthetic log with a dead antenna), `test_raw_acquisition_qc_path_boundary.R` (Stage 00b run configuration and output boundaries), `test_qc_run_protection.R` (append-only QC runs: ledger, protection snapshot, publish refusals, Stage 00b wiring), `test_antenna_spatial_reconstruction.R` (single-read reconstruction, observation age, knockout helpers), `test_spatial_exclusion_manifest.R` (versioned spatial exclusions; separation from the registered S13) |
+| Raw RFID logs and acquisition QC | `test_antenna_log_helpers.R`, `test_antenna_data_version.R`, `test_antenna_move_rule.R`, `test_animalpos_reconstruction.R`, `test_antenna_measurement.R`, `test_raw_acquisition_qc.R` (Stage 00b checks on hand-worked data, injected failures and a synthetic log with a dead antenna), `test_raw_acquisition_qc_path_boundary.R` (Stage 00b run configuration and output boundaries), `test_qc_run_protection.R` (append-only QC runs: ledger, protection snapshot, publish refusals, Stage 00b wiring), `test_antenna_spatial_reconstruction.R` (single-read reconstruction, observation age, knockout helpers, block changes, grid missingness, shares with the unknown category), `test_spatial_reconstruction_regression.R` (end to end on a synthetic raw log: timestamps, ties, denominators, censoring, exclusions), `test_spatial_exclusion_manifest.R` (versioned spatial exclusions v1.0/v1.1; separation from the registered S13), `test_board_adjustment.R` (board offsets from SIS cages, adjusted contrasts, exact offset variance), `test_antenna_calibration_pilot.R` (pre-registered calibration-pilot analysis: T1-T16 on hand-worked synthetic logs, criteria and schedule hash pins, output-root guard, one synthetic pilot day end to end) |
 | Frozen lineage and test safety | `test_frozen_code_identity.R` (pinned code bytes, line endings, code sets of the registered runs), `test_frozen_input_guard.R` (the runner and the frozen-input guard), `test_sourced_scripts_guarded.R` (every script a test sources only defines things) |
 
 Several of these scripts *opportunistically* read the canonical E9 tables when
@@ -93,8 +93,15 @@ release decision.
   validation of the spatial and social measures; isolated root `RANM/measurement_validation/`;
   `docs/ANTENNA_MEASUREMENT_VALIDATION.md`).
 - **Single-read spatial reconstruction (2026-10-14, unregistered)** — `build_single_read_spatial_reconstruction.R`
-  (srs_v1.0: event and single-read bases with observation age, vendor-stream knockout, parity with Stages 19 and 29;
-  isolated root `RANM/single_read_spatial/`; `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.md`).
+  (srs_v1.1: event and single-read bases with observation age and unknown time, vendor-stream knockout, parity with Stages 19 and 29;
+  isolated root `RANM/single_read_spatial/`; `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.1.md`),
+  `audit_board_group_identifiability.R` (design-only identifiability of group and board; `RANM/board_identifiability/`),
+  `audit_cage_episode_presence.R` (animals housed, tags read and tracked animals per cage episode from
+  detection-independent records; `RANM/cage_episode_presence/`) and `audit_board_adjustment_read_dependent.R`
+  (technical board adjustment of read-dependent measures; `RANM/board_adjustment/`).
+- **RFID calibration pilot (pre-registered, not yet run)** — `analyse_rfid_calibration_pilot.R --date=<YYYYMMDD>`
+  (criteria `docs/rfid_calibration/acp_criteria_v1.0.csv`, schedule `schedule_one_day_v1.csv`, both hash-pinned; isolated root
+  `RANM/calibration/`; `docs/RFID_CALIBRATION_PILOT.md`).
 - **Phase classification impact** — `audit_phase_bug_impact.R`.
 - **Inactive-phase QC redesign** — `audit_inactive_phase_qc_redesign.R`.
 - **Stage 09 artifact hygiene** — `audit_stage09_stale_artifacts.R`.

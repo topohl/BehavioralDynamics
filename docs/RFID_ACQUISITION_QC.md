@@ -92,6 +92,13 @@ by hand. Its runs are append-only:
 line. Its findings equal the review run `raqc_20261013_b1783bf` (identical manifest and 84 flags, plus the new keys). Its
 status is FAIL because of the three confirmed channel dropouts.
 
+**Status scope (2026-10-14).** A FAIL concerns the board-recordings that carry the hard failure, not the recording or the
+data set. `manifest/qc_status_by_unit.csv` gives PASS / WARN / FAIL per board-recording (cage episode); recording-level checks
+(board NA) count for every board of their recording; W14/W15 review ranks set no status. The README and `qc_run.csv`
+(`qc_scope`, `board_recordings_fail/warn/pass`) state the scope, and the ledger records e.g. "FAIL (3 of 120
+board-recordings)". Second live run `runs/raqc_20261014_25804cb`: FAIL for B2|sys.2|CC3, B2|sys.5|CC4 and B5|sys.1|CC4,
+WARN for 24, PASS for 93 board-recordings; protection check 1,035 files, 0 changes; findings identical to the first run.
+
 The protection check covers what a run could plausibly touch, not the whole drive, and compares the end of the run with
 its start, not with a registered baseline (the S13 text and the released spatial manifests are pinned by
 `Testing/tests/test_spatial_exclusion_manifest.R`). A `--resume` takes its snapshot when it resumes, so a change made while
