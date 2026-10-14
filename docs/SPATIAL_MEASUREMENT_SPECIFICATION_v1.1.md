@@ -1,5 +1,8 @@
 # Spatial measurement specification v1.1 (2026-10-14)
 
+**Superseded by `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.2.md`** (decisions of 2026-10-14, third round). This file is the
+record of the second round.
+
 **Status.** The decisions of 2026-10-14 (second round) are incorporated. The single-read reconstruction is the *provisional*
 candidate representation; the method and its parameters are frozen only after the one-day calibration pilot has been
 assessed. Nothing is applied to a registered analysis:

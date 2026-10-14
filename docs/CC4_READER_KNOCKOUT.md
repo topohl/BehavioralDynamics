@@ -78,12 +78,27 @@ Rscript Testing/audits/audit_cc4_reader_knockout.R [--run-id=<new id>] [--output
 - `README.txt`
 - `manifest/`: code_hashes, input_hashes, run.csv, session_info.txt, protection_snapshot_before.csv, protection_check.csv, output_files_sha256.csv.
 
+## Release result (ckr_v1.0_4aebc90, all six CC4 recordings)
+
+- **Units:** 103 healthy animals on 28 board-recordings (B2|sys.5|CC4 and B5|sys.1|CC4 left out as declared).
+- **Parity:** the baseline emulation reproduces Stage 31's crossings in 927 of 927 healthy animal-phases (195,427 crossings, 0 difference); the Stage 31 reference equals the frozen run whole_inactive_20260929_v1 in 999 of 999 animal-phases; 203,364 vendor records are reproduced record by record. The parity gate passed.
+- **Materiality** (median |shift| / 90th percentile, in scale SD):
+
+| reader | family | reference rate | post rate | log rate ratio | single phase (A1 / I2) |
+|---|---|---|---|---|---|
+| R3 | Active | 0.16 / 0.54 material | 0.12 / 0.35 | 0.20 / 0.62 material | A1 0.16 / 0.51 material |
+| R3 | Inactive | 0.04 / 0.18 | 0.17 / 0.43 | 0.11 / 0.29 | I2 0.04 / 0.18 |
+| R5 | Active | 0.48 / 0.88 material | 0.43 / 0.84 material | 0.32 / 0.92 material | A1 0.47 / 0.83 material |
+| R5 | Inactive | 0.04 / 0.27 | 0.32 / 0.64 material | 0.16 / 0.38 | I2 0.04 / 0.27 |
+
+- **Reading:** a whole-session silent R3 materially shifts the active crossing outcomes of a typical CC4 cage (median +1.2/h at A2, +1.3/h at A1), but none of the inactive ones; a silent R5 shifts the active outcomes (median -4.0/h at A2) and the inactive post rate on the grid days (-1.1/h). Under cc4e_v1.0 this keeps the B2|sys.5 inactive family as retained_flagged; B5|sys.1 is outside the inactive roster through the censoring.
+
 ## Development check (dev_ckr_b1, B1 CC4 only)
 
 - **Parity:** 126/126 animal-phases exact (28,691 crossings both ways), and the frozen Stage 31 run was reproduced exactly. 14/14 animal streams were identical to the vendor export record by record.
 - **Continuity:** rate_I2 equals srs's light-window rate. rate_A1 lies within 0.056/h of srs, and its knockout shifts within 0.085/h (R3) and 0.008/h (R5).
 - **Runtime:** 62 s for B1 CC4.
-- **No verdict yet:** the materiality figures of this dev run use a one-batch fallback scale and are not the declared verdict. The verdict comes from the release run over all six recordings.
+- **Not a verdict:** the materiality figures of this dev run use a one-batch fallback scale; the verdict is the release result above.
 
 ## Reading the result
 

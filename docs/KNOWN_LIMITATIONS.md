@@ -371,7 +371,9 @@ The measurement validation of 2026-10-13 was unregistered and descriptive
   rows is "no recorded detection", not observed absence.
 - Tags are read in 26% of active-phase and 12% of light-phase time.
 - Carry-forward positions are more than 60 s old for 18.5% and 47% of that
-  time.
+  time (event basis, validation of 2026-10-13). In the single-read
+  reconstruction of the specification (v1.2), 19.5% of active and 45.1% of
+  light observed time has no read in the last 60 s and is reported as unknown.
 - A reader delivers one tag at a time. An animal's reads drop roughly as
   1/(k+1) with k cage-mates on its reader, so detection density depends on
   co-location.
@@ -396,7 +398,7 @@ The measurement validation of 2026-10-13 was unregistered and descriptive
   - B2 CC3 board 2: OR112 and OR141, not OR106 and OR131;
   - B2 CC4 board 5: none of its animals.
 - The vendor position stream depends on these antennas (knockout of 2026-10-14,
-  `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.md` section 3.1). Deleting R5 or
+  `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.2.md` section 2). Deleting R5 or
   R3 from healthy boards shifts the active-phase crossing rate (R5: -3.0/h,
   ratio 0.87; R3: +1.7/h), fragmentation, occupancy dispersion and
   shared-position occupancy by 0.3-1.2 standardizer SD (median |shift|); the
@@ -404,9 +406,21 @@ The measurement validation of 2026-10-13 was unregistered and descriptive
   of the 8 vendor positions) catches a missing R5 in every window but a missing
   R3 in 23%, which is why it covers the three episodes unevenly. New spatial
   analyses exclude the three cage episodes (manifest
-  `docs/spatial_exclusions/spatial_analysis_exclusions_v1.0.csv`); B5 CC4
+  `docs/spatial_exclusions/spatial_analysis_exclusions_v1.1.csv`); B5 CC4
   board 1 is unobserved after 2023-12-04 14:00:42.962 (censored). S13 and the
-  registered results are unchanged.
+  registered results are unchanged. For Stages 31b-31d (CC4 crossing counts)
+  the exclusions apply per outcome and cage episode (rule cc4e_v1.0,
+  `docs/CC4_OUTCOME_ELIGIBILITY.md`): the active family of B2|sys.5|CC4 leaves
+  the primary analyses, its inactive (light) family is kept and flagged.
+
+**Decision of 2026-10-14 (third round).** The single-read reconstruction is
+the provisional candidate and the event-based reconstruction the historical
+reference; the choice rests on independent measurement validity (the
+calibration pilot), never on agreement with the latest read or on group
+effects. If the calibration is inconclusive, both are retained as sensitivity
+analyses; their estimates are not bounds on true physical occupancy. A
+"supported" position (a read no older than the age cap) is recently detected,
+not a validated location.
 
 **Forbids:**
 - calling same-reader co-assignment proximity, contact or social preference;
@@ -415,7 +429,9 @@ The measurement validation of 2026-10-13 was unregistered and descriptive
   behaviour. The male CON deficit coincides with fewer reads, more shared
   readers and the board allocation, and in the active phase it disappears per
   read and when matched by board.
-- using the 39.4-s bout criterion on raw-antenna streams.
+- using the 39.4-s bout criterion on raw-antenna streams;
+- describing event-based or single-read estimates as bounds on physical
+  occupancy, or supported (recently detected) time as validated location.
 
 ---
 

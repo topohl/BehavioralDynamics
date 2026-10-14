@@ -39,7 +39,7 @@ the audit README names it as a decision for Tobias; excluding them would need hi
 The full table, with rationales, is CC4E_RULES in Functions/cc4_outcome_eligibility.R and tables/rules_used.csv of every audit run.
 
 **Result for the two episodes:**
-- **B2|sys.5|CC4:** A1-A5 excluded_hardware (SX02;SX06). I2-I5 retained_unverified (no CC4 knockout yet).
+- **B2|sys.5|CC4:** A1-A5 excluded_hardware (SX02;SX06). I2-I5 retained_flagged: the release CC4 knockout (ckr_v1.0_4aebc90) is not material for R3 on any inactive outcome (without a knockout they would be retained_unverified).
 - **B5|sys.1|CC4:** A1-A2 excluded_hardware (SX03;SX07). A3-A5 and I3-I5 censored (SX04). I2 observed but cage_roster_incomplete (SX04), whatever the R5 CC4 knockout says.
 - **Every other CC4 cage:** included. All Female batches (B3, B4, B6) have no record.
 
@@ -115,7 +115,7 @@ The full table, with rationales, is CC4E_RULES in Functions/cc4_outcome_eligibil
   - B2|sys.2|CC3 (SX01, SX05) affects CC3 analyses only. OR106 is affected twice: CC3 by SX05 and CC4 by SX06.
   - The eligibility table is keyed by AnimalNum, AnimalKey and CageID (= CageEpisodeID), so a cross-CC longitudinal model can join it without dropping animals.
 
-## 7. Sample sizes (dev run dev_cc4e; no knockout)
+## 7. Sample sizes (release audit cc4e_v1.0_4aebc90, with the release knockout ckr_v1.0_4aebc90)
 
 Frozen -> rule-applied primary -> inactive sensitivity, as animals / cages:
 
@@ -125,7 +125,8 @@ Frozen -> rule-applied primary -> inactive sensitivity, as animals / cages:
 | 31, 31b, 31c, 31d | Male | Inactive | 49/14 -> 49/14 -> 45/13 | 22/9 -> 22/9 -> 19/8 | 15/8 -> 15/8 -> 14/7 | 12/3 | 3 | 3 | 6 -> 6 -> 5 |
 | all | Female | both | 58/15 unchanged | 28/11 | 18/9 | 12/3 | 3 | 3 | 8 |
 
-- Cells by status (999 = 111 animals x 9 phases): included 927, excluded_hardware 28, censored 24, retained_unverified 16, cage_roster_incomplete 4.
+- Cells by status (999 = 111 animals x 9 phases): included 927, excluded_hardware 28, censored 24, retained_flagged 16, cage_roster_incomplete 4; no cell is retained_material.
+- The inactive sensitivity is the audit run cc4e_v1.0_4aebc90_isens (B2|sys.5 inactive cells left out); the stages read its eligibility file like the primary one.
 - Every stage gate (31b group completeness, 31c condition completeness, 31d phenotype completeness) passes on all three rosters.
 - The B2 SUS active batch mean in 31b now rests on one animal (B2|sys.3|CC4).
 
@@ -145,7 +146,7 @@ No rule-applied 31b-31d run exists yet. It needs a release audit run, ideally wi
   - Testing/tests/test_cc4_outcome_eligibility.R covers the rule table; statuses with and without a knockout; fail-closed checks; legacy byte parity; the per-family roster; eligibility-file refusals; the drivers; sample sizes by hand; missing vs excluded; and the cross-CC table.
   - Added cases in test_cc4_phase_groups.R, test_cc4_phase_statistics.R and test_cc4_phenotype_statistics.R.
   - test_spatial_exclusion_manifest.R allows the helper as a manifest reader and still forbids the registered stages; 31b-31d read only the eligibility file.
-- **Protection:** each audit run records manifest/protection_check.csv. In the dev run it is empty: 5214 protected files unchanged.
+- **Protection:** each audit run records manifest/protection_check.csv; in both release runs it is empty (no protected file changed).
 
 ## 10. Decisions for Tobias
 

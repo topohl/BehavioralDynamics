@@ -104,3 +104,7 @@ per run. They include `RANM/measurement_validation`, RANM tool-level files, the 
 `ARCHIVE_*` files, Stage 00b `rec/` files, unpinned Stage 09/28 outputs, `canonical/behavior_config` and
 `canonical/later_outcome_combz`, tracking-integrity and foundations files, Exp9_manuscript provenance and non-imported source
 data, the raw logs (size and time stamp only) and repository pin files without a content pin.
+
+Reference runs of the third round (commit 4aebc90): `vpo_t1_20261014_2327_4aebc90` (first run: 13 of 13 checks PASS) and
+`vpo_t1_20261014_2333_4aebc90` (baseline comparison: 14 of 14 PASS; the only differences are the five new isolated runs:
+s19c_v0.1_4aebc90, ckr_v1.0_4aebc90, cc4e_v1.0_4aebc90, cc4e_v1.0_4aebc90_isens and the first check run).

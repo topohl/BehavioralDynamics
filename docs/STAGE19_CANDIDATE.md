@@ -130,7 +130,7 @@ Each input is pinned by sha256 in the builder, and each pin is cross-checked aga
 - G16-G21: layout, presence join, raw logs, censoring arithmetic, no negative unknown, phase labels.
 - Diagnostics: LOCF unknown time by basis; the 1-s grid against the exact unknown time (max 13.9 s per animal-block).
 
-**Dev run (`dev_s19c`, 2026-10-14): 24 of 24 gates passed.** The whole-span pooled numbers equal specification v1.1 section 3. On stage19_window, single-read (event-start), Active phase:
+**Release run (`s19c_v0.1_4aebc90`, 2026-10-14): 25 of 25 gates passed** (the numbers below equal those of the dev runs). The whole-span pooled numbers equal specification v1.1 section 3. On stage19_window, single-read (event-start), Active phase:
 
 - LOCF: C1 66.0% (63.1%).
 - 60-s cap: C1 51.4% of observed time, unknown 19.8%; C1 64.2% (60.7%) of supported time.
