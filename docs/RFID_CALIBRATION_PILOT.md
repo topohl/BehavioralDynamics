@@ -15,13 +15,32 @@ physical occupancy or as validated locations. No group label, CombZ or outcome i
 | part | where |
 |---|---|
 | one-day protocol (this document, section 1) | counterbalanced board order, seeded placement order, repeat reference placements |
-| seeded schedule | `docs/rfid_calibration/schedule_one_day_v1.csv` (generator `make_schedule_one_day_v1.R`, seed 20261014) |
-| decision criteria | section 2; machine-readable `docs/rfid_calibration/acp_criteria_v1.0.csv` |
+| seeded schedule | `docs/rfid_calibration/schedule_one_day_v2.csv` (generator `make_schedule_one_day_v2.R`, seed 20261014; amended 2026-10-15; v1 kept for provenance) |
+| decision criteria | section 2; machine-readable `docs/rfid_calibration/acp_criteria_v1.1.csv` (v1.0 kept for provenance) |
 | day-2 rule | section 3 |
 | pre-registered analysis | `Functions/antenna_calibration_pilot.R`, `Testing/audits/analyse_rfid_calibration_pilot.R`, `Testing/tests/test_antenna_calibration_pilot.R` (section 4) |
 | full two-day programme (reference; day 2 only under the day-2 rule) | section 5 |
 
-**Code status (2026-10-14).** The analysis is written and tested on synthetic logs only; nothing has been measured.
+**Amendment of 2026-10-15 (Tobias's decision; before any data).** The pilot is approved in principle; the schedule was amended
+before booking, and nothing is booked or acquired without Tobias's confirmation:
+- **Schedule v2** (`schedule_one_day_v2.csv`, 118 rows; content sha256 `165565b2...bed9cf` pinned as ACP_SCHEDULE_SHA256; file as
+  written by R on Windows `eb3dd681...ef975`). Every programme runs 4-2-2-4 by halves (v1: P and H 2-4-4-2, M 4-2-2-4), and
+  the competition run is run twice per board, Ca board 4 then board 2 and Cb board 2 then board 4 (v1: once per board,
+  board 4 always first). The placements, positions, orientations, tags, competitor arrangement, slot lengths, the seeded
+  split into halves and the endpoints are those of v1. About 4.6 h on site (v1 4.1 h). Why: board 4 was always measured
+  first in the competition run, and the programmes followed two different board orders.
+- **Analysis:** the two competition runs of a board are pooled per board (their 10-s blocks enter one count matrix and the
+  block bootstrap); no endpoint or threshold changes.
+- **Criteria v1.1** (content sha256 `18f34adf...e5b5b4`): v1.0 with two changes only, G07 (schedule v2) and the day-2
+  handling: day 2 is a separate confirmation experiment, analysed alone and never pooled with day 1 (DC1-DC3 replace the
+  pooling rows DB1-DB2).
+- **Board substitution** only through an explicit authorization (`board_substitution.csv`: board 3 for 4 or board 1 for 2,
+  with reason, authorized_by and authorized_on); otherwise the analysis stops: never substituted silently; abort and
+  reschedule.
+- Day plan and checklist: `docs/RFID_CALIBRATION_LOGISTICS.md`. Schedule v1 and criteria v1.0 stay in the repository for
+  provenance; the v1 timeline below is the record of the first version.
+
+**Code status (2026-10-14; amended 2026-10-15).** The analysis is written and tested on synthetic logs only; nothing has been measured.
 - `Functions/antenna_calibration_pilot.R` (prefix `acp_`) holds pure definitions and reuses the reconstruction,
   measurement and QC functions unchanged. Every threshold is read from the criteria file. `acp_criteria()` and
   `acp_read_schedule()` stop unless the content sha256 (line endings normalised to LF) equals the pinned value
@@ -44,7 +63,7 @@ physical occupancy or as validated locations. No group label, CombZ or outcome i
 - Static tags and tags moved on a sled test the hardware and the reconstruction rules. They cannot show how freely behaving mice move or how close they are to each other.
 
 **Schedule.**
-- Generator: `docs/rfid_calibration/make_schedule_one_day_v1.R`.
+- *(Schedule v1, superseded by v2 on 2026-10-15; see the amendment above.)* Generator: `docs/rfid_calibration/make_schedule_one_day_v1.R`.
 - Seed: **20261014**, with `RNGkind("Mersenne-Twister", "Inversion", "Rejection")`, R 4.5.1.
 - Output: `docs/rfid_calibration/schedule_one_day_v1.csv`, 106 rows, sha256 `7b7fda397638e69b1866befffb159c741e1b6d6ed69654911bc0928c713328dd` (file as written by R on Windows). A rerun gave the same hash.
 
@@ -72,6 +91,7 @@ physical occupancy or as validated locations. No group label, CombZ or outcome i
 2. **ABBA by halves.**
    - The static (P), movement (M) and house-in/out (H) programmes are each split into halves by a seeded split, stratified by class.
    - P and H: half 1 runs board 2 then board 4, half 2 board 4 then board 2 (ABBA). M is counterbalanced the other way round: M1 runs board 4 first (V2, 102.5 min) and board 2 second (V3, 127.8 min); M2 runs board 2 first (V3, 133.1 min) and board 4 second (V4, 161.8 min). The schedule file is correct; the design comment of the pinned generator (make_schedule_one_day_v1.R, line 16) states the P/H order for every programme and is left unchanged.
+   - *Schedule v2 (2026-10-15):* every programme runs 4-2-2-4 by halves, and the competition run twice per board (Ca 4-2, Cb 2-4); see the amendment at the top.
    - Visit sequence:
      - V1 b2: REF, T0, P1
      - V2 b4: REF, P1, P2, M1, REF
@@ -189,7 +209,7 @@ Tags sit in 1-cm foam cubes, so the tag centre is 0.5 cm above the surface.
    - the rack positions of the b2 and b4 cages (handling one cage must keep metal ≥ 30 cm from the other).
 4. **Book** one animal-free rack day, with an alternative date.
 
-### 5. Session timeline (minutes)
+### 5. Session timeline (minutes; schedule v1, superseded by v2: day plan in docs/RFID_CALIBRATION_LOGISTICS.md section 5)
 | clock (min) | step | board | min |
 |---|---|---|---|
 | 0-20 | Set-up: cages on boards 1-5; spacer boards with well inserts in b2 and b4; cameras; photos; start PhenoSoft once; archive the workbook | all | 20 |
@@ -432,7 +452,7 @@ Static and sled-moved tags calibrate bench hardware behaviour only (boards 2 and
 
 ## 3. Day-2 rule (pre-specified)
 
-The rule is fixed before the pilot, together with acp_criteria_v1.0.
+The rule is fixed before the pilot, together with the criteria (acp_criteria_v1.0; v1.1 of 2026-10-15 changes only the day-2 handling: a separate confirmation experiment, never pooled).
 
 **What runs, when.**
 - After day 1, `acp_decide_day2()` applies the rule to the decision table.
@@ -501,10 +521,13 @@ D5 does not apply if flicker and genuine visits simply overlap in duration. That
 - Only the triggered blocks, combined.
 - The day-1 design rules: one session start, both boards, ABBA by halves, seeded order (new seed 20261015, stated in advance), REF at every board visit, channel check, baselines, the same tags, house, bedding, operator and carriers.
 - At most about 4 h on site.
-- **Always:** a bridge of 4 day-1 pairs (P09, P11, P13, P06) plus REF on both boards.
-  - Day-2 data are pooled with day 1 only if the bridge log ratios lie within the day-1 REF tolerance (1.96·√2·excess SD, at least ±0.15).
-  - Otherwise day 2 is reported separately as a session effect.
-- **New criteria version.** The day-2 criteria are the v1.0 criteria. Only the unit counts change. They are committed before day 2.
+- **Always:** a bridge of 4 day-1 pairs (P09, P11, P13, P06) plus REF on both boards, as a description of the session effect.
+- **A separate confirmation experiment (criteria v1.1, DC1-DC3; decision of 2026-10-15).** Day 2 is analysed alone with the
+  same criteria and never pooled with day 1. A statistic a trigger names is decided from day 2 alone; if day 1 and day 2
+  reach different decisions, both are reported and the decision stays uncertain. (v1.0 had a pooling test, DB1-DB2; it is
+  withdrawn before any data.)
+- **Day-2 schedule.** The day-1 design rules with the triggered blocks only; its schedule and unit counts are committed and
+  hash-pinned before day 2.
 
 ## 4. Pre-registered analysis plan
 
@@ -516,9 +539,9 @@ Implemented before booking (pre-registration); see "Pre-registered analysis code
 | functions | `Functions/antenna_calibration_pilot.R` (prefix `acp_`; pure definitions) |
 | runner | `Testing/audits/analyse_rfid_calibration_pilot.R` |
 | portable tests | `Testing/tests/test_antenna_calibration_pilot.R` |
-| criteria | `docs/rfid_calibration/acp_criteria_v1.0.csv` (sha256 pinned in the test) |
-| schedule | `docs/rfid_calibration/schedule_one_day_v1.csv` |
-| schedule generator | `docs/rfid_calibration/make_schedule_one_day_v1.R` (seed 20261014) |
+| criteria | `docs/rfid_calibration/acp_criteria_v1.1.csv` (content sha256 pinned in the code; v1.0 kept) |
+| schedule | `docs/rfid_calibration/schedule_one_day_v2.csv` (v1 kept) |
+| schedule generator | `docs/rfid_calibration/make_schedule_one_day_v2.R` (seed 20261014; v1 kept) |
 
 **Running.**
 - One light R process; data.table threads 1.

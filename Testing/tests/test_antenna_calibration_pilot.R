@@ -1,6 +1,6 @@
 # ===========================================================================
 # Pre-registered analysis of the one-day RFID calibration pilot (Functions/antenna_calibration_pilot.R, criteria
-# acp_criteria_v1.0). Portable: synthetic UTF-16LE MultiMouseMonitor logs, sheets and annotations under tempdir(), written
+# acp_criteria_v1.1, schedule_one_day_v2). Portable: synthetic UTF-16LE MultiMouseMonitor logs, sheets and annotations under tempdir(), written
 # as test_raw_acquisition_qc.R section 12 does; nothing on the lab drive; the runner's main block is never sourced or run.
 # Expected values are worked out by hand in the comments. Sections follow T1-T16 of the analysis plan:
 #
@@ -22,6 +22,9 @@
 #  T15 group-blind: no group label, CombZ or outcome symbol in the parsed code
 #  T16 output-root guard refuses Raw Data, MMMdata and RANM/measurement_validation; a run folder is never reused
 #  E2E a synthetic pilot day (the pinned schedule; T1 on boards 2 and 4) through acp_analyse() with the designed outcomes
+#  V2  the amendment of 2026-10-15: schedule v2 runs every programme 4-2-2-4 and C twice per board (pooled per board by
+#      10-s blocks with ids unique per placement); criteria v1.1 differ from v1.0 only in G07, G08 and the day-2 handling;
+#      a board substitution needs an explicit authorization and the runner aborts on an unauthorized one
 # ===========================================================================
 suppressPackageStartupMessages({ library(data.table); library(dplyr); library(tibble) })
 data.table::setDTthreads(1L)
@@ -347,13 +350,14 @@ check(!acp_check_annotation(copy(ann11)[3, from_reader := "R6"])$ok && !acp_chec
       "T11: discontinuous or non-neighbour crossings are refused")
 
 # T12 --------------------------------------------------------------------------------------------------------------------
-check(identical(attr(sched, "sha256"), ACP_SCHEDULE_SHA256) && nrow(sched) == 106 && sum(sched$required) == 79, "T12: the pinned schedule (106 rows)")
+check(identical(attr(sched, "sha256"), ACP_SCHEDULE_SHA256) && nrow(sched) == 118 && sum(sched$required) == 89 &&
+        identical(sched[unit_type == "C", .N, by = .(board, block)][order(board, block)]$N, rep(5L, 4)), "T12: the pinned schedule v2 (118 rows; two C runs per board)")
 bytes <- readBin(ACP_SCHEDULE_FILE, "raw", file.size(ACP_SCHEDULE_FILE))
 if (any(bytes == as.raw(13L))) check(identical(digest::digest(ACP_SCHEDULE_FILE, algo = "sha256", file = TRUE), ACP_SCHEDULE_FILE_SHA256_CRLF),
-                                     "T12: a CRLF checkout has the bytes written by R on Windows (7b7fda39...)")
+                                     "T12: a CRLF checkout has the bytes written by R on Windows (ACP_SCHEDULE_FILE_SHA256_CRLF)")
 lf <- file.path(tmp, "schedule_lf.csv"); writeBin(charToRaw(paste0(paste(sub("\r$", "", readLines(ACP_SCHEDULE_FILE)), collapse = "\n"), "\n")), lf)
 check(identical(acp_content_sha256(lf), ACP_SCHEDULE_SHA256), "T12: the pin ignores line endings")
-bad <- file.path(tmp, "schedule_bad.csv"); x <- readLines(ACP_SCHEDULE_FILE); x[13] <- sub("\"P09\"", "\"P90\"", x[13], fixed = TRUE); writeLines(x, bad)
+bad <- file.path(tmp, "schedule_bad.csv"); x <- readLines(ACP_SCHEDULE_FILE); i13 <- grep("\"P09\"", x, fixed = TRUE)[1]; x[i13] <- sub("\"P09\"", "\"P90\"", x[i13], fixed = TRUE); writeLines(x, bad)
 check(inherits(try(acp_read_schedule(bad), silent = TRUE), "try-error"), "T12: an edited schedule is refused")
 mk_sheet <- function() {
   s <- sched[required == TRUE]
@@ -385,7 +389,7 @@ check("overlap" %in% acp_check_sheet(ov, sched)$problems$check, "T12: overlappin
 rp <- rbind(copy(sh12), copy(sh12)[pair_id == "P01"][1][, `:=`(placement_id = paste0(placement_id, "r"), pc_start = fmt(S0 + 20000), pc_end = fmt(S0 + 20070))])
 kr <- acp_check_sheet(rp, sched)
 check(kr$sheet[placement_id == sh12[pair_id == "P01"]$placement_id[1]]$superseded && kr$sheet[grepl("r$", placement_id)]$use, "T12: a repeat supersedes its original")
-check("board_mismatch" %in% acp_check_sheet(copy(sh12)[which(pair_id == "REFz")[1], board := "4"], sched)$problems$check, "T12: a placement on the wrong board is an error")
+check("board_mismatch" %in% acp_check_sheet(copy(sh12)[which(pair_id == "REFz")[1], board := ifelse(board == "4", "2", "4")], sched)$problems$check, "T12: a placement on the wrong board is an error")
 
 # T13 --------------------------------------------------------------------------------------------------------------------
 # D_col 0.03 [-0.01, 0.07]: h = 0.04, h / sqrt(2) = 0.0283; thresholds inside: 0 and 0.05 (-0.05 outside); |0.03 - 0| = 0.03
@@ -595,6 +599,56 @@ check(!any(dc$decision %in% "not_obtained") && !nrow(res$missing) && !res$day2[t
 check(nrow(res$movement_units[unit_type == "crossing"]) == 48 && nrow(res$movement_units[unit_type == "visit"]) == 24 &&
         data.table::uniqueN(res$movement_units[unit_type == "crossing"]$cluster) == 16, "E2E: 24 crossings in 8 passes and 12 visits per board")
 check(all(res$known_empty$events == 0) && near(sum(res$known_empty[!is.na(board)]$board_hours), res$known_empty[is.na(board)]$board_hours), "E2E: known-empty time")
+
+# V2 ---------------------------------------------------------------------------------------------------------------------
+# board order 4-2-2-4 by halves for every programme, and two identical C runs per board
+first <- function(prog) sched[grepl(prog, block) & board %in% c("2", "4"), .(t = min(order)), by = board][order(t)]$board
+check(identical(first("^P1$"), c("4", "2")) && identical(first("^P2$"), c("2", "4")) && identical(first("^M1$"), c("4", "2")) &&
+        identical(first("^M2$"), c("2", "4")) && identical(first("^H1-"), c("4", "2")) && identical(first("^H2-"), c("2", "4")) &&
+        identical(first("^Ca$"), c("4", "2")) && identical(first("^Cb$"), c("2", "4")), "V2: every programme half and C run is ordered 4-2-2-4")
+cr <- sched[unit_type == "C"]
+check(all(cr[, .(k = data.table::uniqueN(paste(pair_id, position, x, y, orientation, height, n_tags, tags, seconds))), by = pair_id]$k == 1L),
+      "V2: the C runs are identical in slots, orientations, tags and durations on both boards")
+# the two runs of a board are pooled: blocks unique per placement, per-tag rows per run
+cp <- res$competition
+check(all(cp$per_tag[period == "C4" & tag_label == "T1", .N, by = board]$N == 2L) &&
+        all(cp$blocks[, data.table::uniqueN(sub("_[0-9]+$", "", block)), by = .(board, period)]$V1 == 2L) &&
+        !anyDuplicated(cp$blocks[, .(board, period, tag_label, block)]), "V2: two C runs per board, their 10-s blocks kept apart and pooled")
+k0 <- acp_th(crit, "G06")
+tr_hand <- cp$per_tag[board == 4, .(r = sum(reads), d = sum(T)), by = .(period, tag_label)]
+tr4 <- ((tr_hand[period == "C4" & tag_label %in% c("T1", "T2", "T3", "T4"), sum(r)] + k0) / tr_hand[period == "C4" & tag_label == "T1"]$d) /
+  ((tr_hand[period == "C1" & tag_label == "T1"]$r + k0) / tr_hand[period == "C1" & tag_label == "T1"]$d)
+check(near(cp$stats[board == 4 & statistic == "TR"]$estimate, tr4, 1e-9), "V2: TR on board 4 pools the reads and durations of both runs")
+# criteria v1.1 against v1.0: only G07, G08 and the day-2 handling differ; every threshold of v1.0 is kept
+c10 <- data.table::fread(file.path(ACP_DIR, "acp_criteria_v1.0.csv"), colClasses = "character", na.strings = NULL)
+c11 <- data.table::fread(ACP_CRITERIA_FILE, colClasses = "character", na.strings = NULL)
+same <- merge(c10, c11, by = "rule_id", suffixes = c("_10", "_11"))
+diff_ids <- same[Reduce(`|`, lapply(setdiff(names(c10), "rule_id"), function(k) same[[paste0(k, "_10")]] != same[[paste0(k, "_11")]]))]$rule_id
+check(identical(sort(diff_ids), c("G07", "G08")) && identical(sort(setdiff(c10$rule_id, c11$rule_id)), c("DB1", "DB2")) &&
+        identical(sort(setdiff(c11$rule_id, c10$rule_id)), c("DC1", "DC2", "DC3")) && identical(ACP_VERSION, "acp_criteria_v1.1") &&
+        grepl("never pooled", c11[rule_id == "DC1"]$statistic) &&
+        (grepl("separate confirmation experiment", res$day2[trigger == "recommendation"]$reason) || !res$day2[trigger == "recommendation"]$triggered) &&
+        grepl("separate confirmation experiment", paste(deparse(acp_decide_day2), collapse = " "), fixed = TRUE), "V2: criteria v1.1 = v1.0 except G07, G08 and DB1-DB2 -> DC1-DC3 (day 2 never pooled)")
+# board substitution: only an explicit, allowed authorization
+sub_f <- function(rows, nm) { f <- file.path(tmp, nm); data.table::fwrite(rows, f); f }
+ok_sub <- data.table(role = "4", physical_board = "3", reason = "board 4 channel check failed twice", authorized_by = "Tobias Pohl", authorized_on = "2026-11-03")
+b3 <- acp_read_substitution(sub_f(ok_sub, "sub_ok.csv"))
+check(identical(unname(b3[c("2", "4")]), c(2L, 3L)) && nrow(attr(b3, "substitution")) == 1L, "V2: an authorized substitute (board 3 for role 4) maps the role")
+check(inherits(try(acp_read_substitution(sub_f(copy(ok_sub)[, physical_board := "1"], "sub_b1.csv")), silent = TRUE), "try-error") &&
+        inherits(try(acp_read_substitution(sub_f(copy(ok_sub)[, reason := ""], "sub_nr.csv")), silent = TRUE), "try-error") &&
+        inherits(try(acp_read_substitution(sub_f(copy(ok_sub)[, authorized_on := "03.11.2026"], "sub_nd.csv")), silent = TRUE), "try-error") &&
+        inherits(try(acp_read_substitution(sub_f(copy(ok_sub)[, role := "3"], "sub_r3.csv")), silent = TRUE), "try-error") &&
+        inherits(try(acp_read_substitution(sub_f(copy(ok_sub)[, extra := "x"], "sub_col.csv")), silent = TRUE), "try-error"),
+      "V2: a substitute other than the allowed one, without a reason or date, for an unknown role, or with other columns is refused")
+on3 <- copy(sh12)[board == "4", board := "3"]
+check("board_mismatch" %in% acp_check_sheet(on3, sched)$problems$check && !"board_mismatch" %in% acp_check_sheet(on3, sched, b3)$problems$check,
+      "V2: board 3 in the sheet is a mismatch unless the substitution is authorized")
+rmain <- paste(deparse(Filter(function(e) is.call(e) && identical(e[[1]], as.name("if")),
+                              as.list(parse("Testing/audits/analyse_rfid_calibration_pilot.R", keep.source = FALSE)))[[1]]), collapse = "\n")
+check(grepl("board_mismatch", rmain, fixed = TRUE) && grepl("never substituted silently", rmain, fixed = TRUE) &&
+        grepl("acp_read_substitution(subst_path)", rmain, fixed = TRUE) && grepl("boards = boards", rmain, fixed = TRUE) &&
+        regexpr("board_mismatch", rmain, fixed = TRUE) < regexpr("acp_analyse(", rmain, fixed = TRUE),
+      "V2: the runner aborts on an unauthorized board before the analysis and passes an authorized mapping on")
 
 unlink(tmp, recursive = TRUE)
 cat("test_antenna_calibration_pilot: all checks passed\n")

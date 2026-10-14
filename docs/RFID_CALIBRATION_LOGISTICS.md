@@ -1,14 +1,15 @@
 # RFID calibration pilot: logistics (one day, boards 2 and 4)
 
 **Written for:** Tobias and the two on-site operators.
-The pre-registered protocol, criteria (`acp_criteria_v1.0`), schedule (`schedule_one_day_v1`) and analysis code are in `docs/RFID_CALIBRATION_PILOT.md` and `docs/rfid_calibration/`. Nothing here changes them.
+The pre-registered protocol, criteria (`acp_criteria_v1.1`), schedule (`schedule_one_day_v2`) and analysis code are in `docs/RFID_CALIBRATION_PILOT.md` and `docs/rfid_calibration/`. Schedule v2 and criteria v1.1 amend v1 and v1.0 before any data (Tobias, 2026-10-15; section 6.2); v1 and v1.0 are kept for provenance.
 
 ## 1. Status
-- **Approved for preparation** (Tobias, 2026-10-14), subject to hardware and personnel.
-- **Nothing is booked, no tag is placed and nothing is acquired** until two things are done:
-  - every item of the checklist in section 2 is confirmed;
-  - Tobias has decided the open options in section 6.2.
-- The pilot is group-blind and involves no animal. It runs on the hash-pinned protocol, analysis code and pre-specified criteria, unchanged. Criteria are never changed after any data are seen; a change is a new version reported next to v1.0.
+- **Approved in principle** (Tobias, 2026-10-14 and 2026-10-15), subject to hardware and personnel; the schedule was
+  amended before any data (v2: 4-2-2-4 for every programme, two competition runs per board; explicit substitution
+  authorization; day 2 as a separate confirmation experiment).
+- **Nothing is booked, no tag is placed and nothing is acquired** until every item of the checklist in section 2 is
+  confirmed and Tobias has confirmed the booking.
+- The pilot is group-blind and involves no animal. It runs on the hash-pinned protocol, analysis code and criteria (acp_criteria_v1.1: the endpoints and decision thresholds of v1.0; only G07 and the day-2 handling changed). Criteria are never changed after any data are seen; a later change is a new version reported next to the earlier one.
 - **Scope of the results:**
   - They apply to boards 2 and 4 under bench conditions, with static or sled-moved tags.
   - Calibration with static tags bounds bench hardware behaviour only. No Exp9 location is validated by it.
@@ -23,7 +24,7 @@ The pre-registered protocol, criteria (`acp_criteria_v1.0`), schedule (`schedule
 - [ ] Five production cages (one per board) with lid, food hopper and filled bottle in production position. Same cage type, floor and lid as Exp9.
 - [ ] Rack positions of the b2 and b4 cages confirmed: handling one cage keeps hands and metal at least 30 cm from the other.
 - [ ] The clapper position (board 5, channel 7 = R4) can be reached without coming within 30 cm of b2 or b4.
-- [ ] Substitute boards (3 for 4, 1 for 2): see section 6.2, item G. The runner cannot use a substitute as it stands.
+- [ ] Substitute boards (3 for 4, 1 for 2): available only with an authorization file signed off before use (section 6.2 G); otherwise a failed board means the alternative date.
 
 **Configuration**
 - [ ] PhenoSys PC runs PhenoSoft 1.0.8147.28429 with the production workbook:
@@ -62,10 +63,10 @@ The pre-registered protocol, criteria (`acp_criteria_v1.0`), schedule (`schedule
 **Storage**
 - [ ] Raw folder `Raw Data/Behavior/RFID/calibration/<YYYYMMDD>/` beside MMMdata (it does not exist yet). A few GB free.
 - [ ] The analysis outputs are created by the scripts: `<Behavior>/RANM/calibration/` and `<Behavior>/RANM/calibration_reports/`.
-- [ ] Placement sheets pre-printed from `schedule_one_day_v1.csv`; digital templates with the required columns (section 8).
+- [ ] Placement sheets pre-printed from `schedule_one_day_v2.csv`; digital templates with the required columns (section 8).
 
 **People** (section 3)
-- [ ] Operator and recorder, both trained on PhenoSoft, on site for the whole session (about 4.1 h plus arrival).
+- [ ] Operator and recorder, both trained on PhenoSoft, on site for the whole session (about 4.6 h plus arrival).
 - [ ] Annotator named (about 2 h; recorder or analyst). Analyst (12-14 h; knows the repository). Tobias's review slot (2 h).
 
 **Date**
@@ -85,8 +86,8 @@ The pre-registered protocol, criteria (`acp_criteria_v1.0`), schedule (`schedule
 
 | role | who | tasks | hours |
 |---|---|---|---|
-| Operator | one person, the same all day and on any day 2 | places every tag on both boards; sled runs; house moves | 4.1 h on site |
-| Recorder | second person | placement sheet and timer; clapper (touch board 5 channel 7 for about 2 s at every placement start and end, twice at every block start and board switch); writes the PC-clock time of every touch; runs the cameras; backup | 4.1 h on site |
+| Operator | one person, the same all day and on any day 2 | places every tag on both boards; sled runs; house moves | 4.6 h on site |
+| Recorder | second person | placement sheet and timer; clapper (touch board 5 channel 7 for about 2 s at every placement start and end, twice at every block start and board switch); writes the PC-clock time of every touch; runs the cameras; backup | 4.6 h on site |
 | Preparation | operator and recorder | materials, camera and clock test, tag pre-check | about 5 person-hours |
 | Annotator | to be assigned | 48 crossings, 24 visits and the survey sweeps, entered in PC-clock time | about 2 h |
 | Analyst | knows the repository | pre-registered analysis, report, decision table | 12-14 h |
@@ -110,63 +111,65 @@ Total: about 29-31 person-hours.
 | D+3 to D+7 | Pre-registered analysis and report (section 9). | analyst |
 | D+7 to D+10 | Review and day-2 decision. | Tobias |
 
-## 5. The day (planned clock times for an 08:30 start)
+## 5. The day (planned clock times for an 08:30 start; schedule v2)
 
-Times are the planned slot starts of the 106 pinned schedule rows, condensed into blocks and rounded to the minute. The sheet records actual PC-clock times.
+Times are the planned slot starts of the 118 rows of `schedule_one_day_v2.csv`, condensed into blocks and rounded to the
+minute. The sheet records actual PC-clock times.
 
-| clock | min | block (schedule orders) | board | content |
+| clock | min | visit and block | board | content |
 |---|---|---|---|---|
-| 08:30-08:50 | 0-20 | SETUP (1) | all | Cages on boards 1-5; spacer boards with well inserts in b2 and b4; cameras and clock displays; photos; start PhenoSoft once; archive the workbook (sha256) and version row; film the clock offsets |
-| 08:50-09:00 | 20-30 | BASELINE (2) | all | No tags on any board (known-empty) |
-| 09:00-09:05 | 30-35 | CHECK (3) | 2, 4, 5 | Channel check: T1 5 s on each antenna of b2 and b4; clapper C on b5 channel 7 (stop rule 1) |
-| 09:05-09:15 | 35-45 | SURVEY (4) | 2, 4 | T1 (z) slid by hand at about 1 cm/s along both rows and the 4 columns, on video |
-| 09:15-09:18 | 45-47.8 | V1 REF-start (5-6) | 2 | REF-z, REF-x (board 2, REF 1) |
-| 09:18-09:23 | 47.8-53.3 | V1 T0 (7-11) | 2 | Tag QC: T2, T4, T5, T6, T3 at the REF-z spot |
-| 09:23-09:39 | 53.3-68.9 | V1 P half 1 (12-18) | 2 | P09, P06, P12, P14 (5-min R5\|R6 flicker 09:28-09:34), P05, P01, P04. **P half 1: board 2 first** |
-| 09:39-09:40 | 68.9-69.9 | SWITCH (19) | 2>4 | Carry T1 to b4; two clapper touches |
-| 09:40-09:43 | 69.9-72.8 | V2 REF-start (20-21) | 4 | REF-z, REF-x (board 4, REF 1) |
-| 09:43-09:58 | 72.8-88.4 | V2 P half 1 (22-28) | 4 | P06, P04, P12, P09, P01, P14 (flicker 09:51-09:57), P05. P half 1: board 4 second |
-| 09:58-10:12 | 88.4-101.8 | V2 P half 2 (29-36) | 4 | P08, P13, P03, P11, P02, P10, P15, P07. **P half 2: board 4 first** |
-| 10:12-10:17 | 101.8-107.1 | V2 M1 (37-40) | 4 | Rail on; slow passes R5>R8>R5 twice at about 5 cm/s (10:12); visits R5>R6>R5, dwell 1,2,5,1,5,2 s (10:15); rail off. **M half 1: board 4 first** |
-| 10:17-10:20 | 107.1-109.9 | V2 REF-end (41-42) | 4 | REF-z, REF-x (board 4, REF 2) |
-| 10:20-10:21 | 109.9-110.9 | SWITCH (43) | 4>2 | Carry T1 to b2; two clapper touches |
-| 10:21-10:24 | 110.9-113.7 | V3 REF-start (44-45) | 2 | REF-z, REF-x (board 2, REF 2) |
-| 10:24-10:37 | 113.7-127.1 | V3 P half 2 (46-53) | 2 | P11, P02, P13, P03, P15, P08, P07, P10. P half 2: board 2 second |
-| 10:37-10:42 | 127.1-132.4 | V3 M1 (54-57) | 2 | Slow passes (10:38); visits, dwell 5,2,1,5,1,2 s (10:40). M half 1: board 2 second |
-| 10:42-10:47 | 132.4-137.3 | V3 M2 (58-61) | 2 | Fast passes at about 20 cm/s (10:43); visits, dwell 1,2,1,2,5,5 s (10:45). **M half 2: board 2 first** |
-| 10:47-10:56 | 137.3-146 | V3 H half 1 (62-67) | 2 | Insert out, bedding tamped, house on. ON: H01, H05 (roof). Lift. OFF: H06 (foam stack), H02. **H half 1: board 2 first** |
-| 10:56-11:11 | 146-161 | BREAK (68) | - | House out of the cages; no tags anywhere; film the clock offsets |
-| 11:11-11:16 | 161-166 | V4 M2 (69-72) | 4 | Fast passes; visits, dwell 5,1,1,2,2,5 s. M half 2: board 4 second |
-| 11:16-11:25 | 166-174.7 | V4 H half 1 (73-78) | 4 | Bedding into the well, house on. ON: H01, H05. Lift. OFF: H06, H02. H half 1: board 4 second |
-| 11:25-11:40 | 174.7-189.5 | V4 C run (79-84) | 4 | House on. C0 sentinels T5 (R8) and T6 (R4) 11:25; C1 +T1 in the house 11:27; C4 +T2-T4 11:29; CS T3, T4 to R6 11:35; CE sentinels alone 11:38. **C: fixed order, board 4 first** |
-| 11:40-11:44 | 189.5-193.8 | V4 H half 2 (85-88) | 4 | Lift; H04 (HCz off); place the house; H03 (HCz on). **H half 2: board 4 first** |
-| 11:44-11:47 | 193.8-197.2 | V4 REF-end (89-91) | 4 | House out (bedding stays in the well); REF-z, REF-x (board 4, REF 3) |
-| 11:47-11:49 | 197.2-198.7 | SWITCH (92) | 4>2 | Carry the tags and the house to b2; house on its outline |
-| 11:49-12:03 | 198.7-213 | V5 C run (93-97) | 2 | C0 11:49, C1 11:50, C4 11:53, CS 11:58, CE 12:01. C: board 2 second |
-| 12:03-12:07 | 213-217.3 | V5 H half 2 (98-101) | 2 | Lift; H04; place the house; H03. H half 2: board 2 second |
-| 12:07-12:11 | 217.3-220.7 | V5 REF-end (102-104) | 2 | House out; REF-z, REF-x (board 2, REF 3) |
-| 12:11-12:21 | 220.7-230.7 | BASELINE (105) | all | No tags (known-empty) |
-| 12:21-12:36 | 230.7-245.7 | BACKUP (106) | - | Stop the session once; film the clock offsets; copy the logs, workbook, sheets, photos and videos; sha256 manifest |
+| 08:30-08:50 | 0-20 | SETUP | all | Cages on boards 1-5; spacer boards with well inserts in b2 and b4; cameras and clock displays; photos; start PhenoSoft once; archive the workbook (sha256) and version row; film the clock offsets |
+| 08:50-09:00 | 20-30 | BASELINE | all | No tags on any board (known-empty) |
+| 09:00-09:05 | 30-35 | CHECK | 2, 4, 5 | Channel check: T1 5 s on each antenna of b2 and b4; clapper C on b5 channel 7 (stop rule 1) |
+| 09:05-09:15 | 35-45 | SURVEY | 2, 4 | T1 (z) slid by hand at about 1 cm/s along both rows and the 4 columns, on video |
+| 09:15-09:18 | 45-47.8 | V1 REF-start | 4 | REF-z, REF-x (board 4, REF 1) |
+| 09:18-09:33 | 47.8-63.5 | V1 P half 1 | 4 | P09, P06, P12, P14 (5-min R5\|R6 flicker), P05, P01, P04. **P half 1: board 4 first** |
+| 09:34-09:39 | 63.5-68.8 | V1 M half 1 | 4 | Rail on; slow passes R5>R8>R5 twice at about 5 cm/s; short visits R5>R6>R5; rail off. **M half 1: board 4 first** |
+| 09:39-09:40 | 68.8-69.8 | SWITCH | 4>2 | Carry T1 to b2; two clapper touches |
+| 09:40-09:43 | 69.8-72.6 | V2 REF-start | 2 | REF-z, REF-x (board 2, REF 1) |
+| 09:43-09:48 | 72.6-78.1 | V2 T0 | 2 | Tag QC: T2, T4, T5, T6, T3 at the REF-z spot (T1 = this REF-z) |
+| 09:48-10:04 | 78.1-93.7 | V2 P half 1 | 2 | P09, P04, P06, P05, P12, P14, P01. P half 1: board 2 second |
+| 10:04-10:09 | 93.7-99.0 | V2 M half 1 | 2 | Slow passes; visits. M half 1: board 2 second |
+| 10:09-10:22 | 99.0-112.4 | V2 P half 2 | 2 | P08, P15, P02, P13, P03, P11, P07, P10. **P half 2: board 2 first** |
+| 10:22-10:27 | 112.4-117.3 | V2 M half 2 | 2 | Fast passes at about 20 cm/s; visits. **M half 2: board 2 first** |
+| 10:27-10:28 | 117.3-118.3 | SWITCH | 2>4 | Carry T1 to b4; two clapper touches |
+| 10:28-10:43 | 118.3-133.3 | BREAK | - | No tags anywhere; film the clock offsets |
+| 10:43-10:46 | 133.3-136.2 | V3 REF-start | 4 | REF-z, REF-x (board 4, REF 2) |
+| 10:46-10:59 | 136.2-149.5 | V3 P half 2 | 4 | P03, P13, P11, P15, P08, P02, P07, P10. P half 2: board 4 second |
+| 11:00-11:04 | 149.5-154.5 | V3 M half 2 | 4 | Fast passes; visits. M half 2: board 4 second |
+| 11:04-11:14 | 154.5-163.7 | V3 H half 1 | 4 | Insert out, bedding tamped, house on. ON: H01, H05 (roof). Lift. OFF: H06 (foam stack), H02. **H half 1: board 4 first** |
+| 11:14-11:28 | 163.7-177.9 | V3 C run a | 4 | House on. C0 sentinels T5 (R8), T6 (R4); C1 +T1 in the house; C4 +T2-T4; CS T3, T4 to R6; CE sentinels alone. **Ca: board 4 first** |
+| 11:28-11:30 | 177.9-179.5 | SWITCH | 4>2 | Carry the tags and the house to b2 |
+| 11:30-11:32 | 179.5-182.3 | V4 REF-start | 2 | REF-z, REF-x (board 2, REF 2), insert still in the well |
+| 11:32-11:42 | 182.3-191.5 | V4 H half 1 | 2 | Insert out, bedding tamped, house on. ON: H05, H01. Lift. OFF: H06, H02. H half 1: board 2 second |
+| 11:42-11:56 | 191.5-205.8 | V4 C run a | 2 | As on b4. Ca: board 2 second |
+| 11:56-12:10 | 205.8-220.2 | V4 C run b | 2 | The same run again. **Cb: board 2 first** |
+| 12:10-12:14 | 220.2-224.5 | V4 H half 2 | 2 | Lift; H04 (HCz off); place the house; H03 (HCz on). **H half 2: board 2 first** |
+| 12:14-12:18 | 224.5-227.8 | V4 REF-end | 2 | House out (bedding stays in the well); REF-z, REF-x (board 2, REF 3) |
+| 12:18-12:19 | 227.8-229.3 | SWITCH | 2>4 | Carry the tags and the house to b4; house on its outline |
+| 12:19-12:34 | 229.3-243.7 | V5 C run b | 4 | The same run. Cb: board 4 second |
+| 12:34-12:38 | 243.7-248.5 | V5 H half 2 | 4 | Lift; H04; place the house; H03. H half 2: board 4 second |
+| 12:38-12:41 | 248.5-251.3 | V5 REF-end | 4 | House out; REF-z, REF-x (board 4, REF 3) |
+| 12:41-12:51 | 251.3-261.3 | BASELINE | all | No tags (known-empty) |
+| 12:51-13:06 | 261.3-276.3 | BACKUP | - | Stop the session once; film the clock offsets; copy the logs, workbook, sheets, photos and videos; sha256 manifest |
 
-**Board order by halves.**
+**Board order.** Every programme runs 4-2-2-4 by halves, and the competition run twice per board:
 
-| programme | half 1 | half 2 | pattern |
+| programme | first half / run | second half / run | pattern |
 |---|---|---|---|
-| P (static) | b2 09:23, then b4 09:43 | b4 09:58, then b2 10:24 | ABBA |
-| M (movement) | b4 10:12, then b2 10:37 | b2 10:42, then b4 11:11 | BAAB (balanced; opposite to the documented rule) |
-| H (house) | b2 10:47, then b4 11:16 | b4 11:40, then b2 12:03 | ABBA |
-| C (competition) | one continuous run per board: b4 11:25, then b2 11:49 | | fixed, not counterbalanced |
+| P (static) | b4 09:18, then b2 09:48 | b2 10:09, then b4 10:46 | 4-2-2-4 |
+| M (movement) | b4 09:34, then b2 10:04 | b2 10:22, then b4 11:00 | 4-2-2-4 |
+| H (house) | b4 11:06, then b2 11:34 | b2 12:10, then b4 12:34 | 4-2-2-4 |
+| C (competition) | Ca: b4 11:14, then b2 11:42 | Cb: b2 11:56, then b4 12:19 | 4-2-2-4; the two runs of a board are pooled per board |
 
-**REF times.**
-- Board 2: 09:15, 10:21, 12:08.
-- Board 4: 09:40, 10:17, 11:44.
-- REF-x follows REF-z by 1-2 min.
-- The third REF of each board is taken with bedding in the R5 well (section 6.2, item E).
+Mean time of day of the measured rows (minutes from the start), board 2 / board 4: P 95.6 / 101.9; M 105.7 / 109.1;
+H 198.9 / 188.2; C 205.5 / 203.3 (both runs); REF 159.2 / 143.4. Over the 21 paired static placements, board-4 time minus
+board-2 time is +1.4 min on average (board 2 first in 10 of 21).
 
-**Totals.**
-- Board 2: 81.0 slot-min, 58.1 recorded-min.
-- Board 4: 76.1 slot-min, 54.0 recorded-min.
-- About 14.4 known-empty board-hours.
+**REF times.** Board 4: 09:15, 10:43, 12:38. Board 2: 09:40, 11:30, 12:14. REF-x follows REF-z by 1-2 min. The third REF
+of each board is taken with bedding in the R5 well (6.2 E).
+
+**Totals.** Board 2: 95.9 slot-min, 70.4 recorded-min. Board 4: 90.4 slot-min, 66.3 recorded-min. On site 4.6 h.
 
 ## 6. Approved priorities: coverage and gaps
 
@@ -174,63 +177,40 @@ Times are the planned slot starts of the 106 pinned schedule rows, condensed int
 
 | priority | where in the day | units and criteria |
 |---|---|---|
-| Single-read vs event reconstruction at known positions | P halves (09:23-10:37); REF-x 3 times per board; M passes and visits (10:12-11:16) | Criterion (a): D_col over P09, P10, P11 and REF-x (4 per board), 24 crossings and 12 short visits per board, tau 2 s. D_ctr non-inferiority at the centres. D_rdr adds P12, P13 (reader level only). |
+| Single-read vs event reconstruction at known positions | P halves (09:18-10:59); REF-x 3 times per board; M passes and visits (09:34-11:04) | Criterion (a): D_col over P09, P10, P11 and REF-x (4 per board), 24 crossings and 12 short visits per board, tau 2 s. D_ctr non-inferiority at the centres. D_rdr adds P12, P13 (reader level only). |
 | Antenna boundaries | Quarter points P09-P13; midpoints P14 (5-min R5\|R6 flicker) and P15; crossings R5\|R6, R6\|R7 and R7\|R8 at two speeds | B11 (tau), B12 (entry latency, exit tail), B13 (crosstalk) |
-| The house at R5 | H blocks on both boards; both C runs with the house on | B8 shielding (HCx and HCz, both boards); B9 roof vs foam stack |
-| Multiple-tag competition | C runs 11:25 (b4) and 11:49 (b2) | B4 (C1 vs C4), B5 (CS vs C4), B6 (sentinels), B7 (delta*) |
-| Boards 2 and 4 under comparable conditions | One session; the same T1, slots, sentinels, operator, house, bedding batch, spacer sheet and cameras; seeded order within blocks; ABBA by halves; REF 3 times per board | B10 board call with REF repeatability and drift adjustment. Over the 21 paired static placements, board-4 time minus board-2 time is -0.3 min on average. |
+| The house at R5 | H blocks on both boards; all four C runs with the house on | B8 shielding (HCx and HCz, both boards); B9 roof vs foam stack |
+| Multiple-tag competition | Ca and Cb on each board, 4-2-2-4 | B4 (C1 vs C4), B5 (CS vs C4), B6 (sentinels), B7 (delta*), each per board from both runs |
+| Boards 2 and 4 under comparable conditions | One session; the same T1, tags, slots, orientations and competitor arrangement on both boards; one operator, house, bedding batch, spacer sheet and camera model; seeded order within blocks; 4-2-2-4 for every programme; REF 3 times per board | B10 board call with REF repeatability and drift adjustment |
 
-### 6.2 Where the frozen schedule does not control order or coverage
+### 6.2 What the amended schedule changes, and what stays a limitation
 
-These are stated now; nothing is changed. Items marked **decide before booking** need Tobias's choice. Any change would be a pre-data new version (e.g. `schedule_one_day_v2`, a code change or `acp_criteria_v1.1`), committed and hash-pinned before booking. Otherwise the item stands as a reported limitation.
+Schedule v2 and criteria v1.1 (2026-10-15, before any data; `schedule_one_day_v1` and `acp_criteria_v1.0` kept for
+provenance) resolve these items of the v1 review:
+- **A. Competition run order:** now counterbalanced (Ca 4-2, Cb 2-4). The two runs per board are identical in tags,
+  slots, orientations and durations; the analysis pools their 10-s blocks per board. Cost: about +30 min on site.
+- **B. Movement order:** every programme now follows one documented pattern, 4-2-2-4.
+- **G. Substitute boards:** only through an explicit authorization, `board_substitution.csv` in the raw day folder
+  (role, physical_board, reason, authorized_by, authorized_on), listed in the sha256 manifest; only board 3 for 4 or board
+  1 for 2. Without it, any placement on another board stops the analysis: never substituted silently; abort and
+  reschedule.
+- **I. Day 2:** a separate confirmation experiment, analysed alone with the same criteria and never pooled with day 1
+  (criteria DC1-DC3 replace the pooling rows DB1-DB2). The bridge of four day-1 pairs plus REF is kept as a description
+  of the session effect.
 
-**A. Competition run order.**
-- C runs board 4 first (11:25), then board 2 (11:49). It is not counterbalanced.
-- The nearest REF placements before C are at 10:17 (b4) and 10:21 (b2), so the REF bracketing is loose.
-- Competition is tested only at n = 1 vs n = 4: one rotation, all tags in z, house only. Tag and slot cannot be separated from board unless D6 runs rotation b.
-- Limitation; reported with the board comparison of B4-B6.
-- Option: a second C run per board in ABBA order. That is about +30 min and needs a schedule and code change. Not recommended for day 1.
-
-**B. Movement order.** M is counterbalanced, but in the opposite direction to the documented rule ("half 1 board 2 first"). This is a documentation correction only; no decision is needed.
-
-**C. No column-boundary movement.**
-- There are no R1<->R5 or R2<->R6 crossings or visits, although R1->R5 is 11% of the reassigned active seconds.
-- D_col's static units are row-boundary quarter points only; P12/P13 enter at reader level only. The junction, the R3/R7 centres and the R1|R5 midpoint are untested.
-- Limitation.
-- Option (decide before booking): add column passes and visits. This changes the D_col units, so it needs a new criteria version before any data.
-
-**D. House positions are thin.**
-- Only the R5 centre inside the house (x, z) plus the roof is tested: no back corner, no entrance, fresh bedding only, no nest material.
-- P and M run with the house absent, so exits from a house in place are untested.
-- The roof pairs are step 1 of the drop order.
-- Limitation.
-
-**E. REF well-state confound (decide before booking).**
-- The third REF per board (11:44 b4, 12:08 b2) is taken with bedding in the R5 well; the earlier REFs had the foam insert in place.
-- This is balanced across boards, but late/early REF-x (D3b) is confounded with the well state. It could trigger D3 (a day-2 bridge block) for a reason that is not drift.
-- Options:
-  - (a) accept, and interpret D3b with this caveat;
-  - (b) a `schedule_one_day_v2` that restores the insert before REF-end (about +1-2 min per board), with the schedule hash re-pinned in the code before booking.
-
-**F. T0 tag QC runs on board 2 only.** Limitation (the same physical tags are used on both boards).
-
-**G. Substitute boards cannot be set (decide before booking).**
-- Stop rule 1 says: use board 3 for 4 or board 1 for 2. But the runner hard-codes boards 2 and 4 (`ACP_BOARDS`) and has no `--boards` argument.
-- A substitution would need a code change after the data.
-- Options:
-  - (a) add a substitute-board argument now, pre-data, tested and pinned;
-  - (b) treat a channel check that still fails after one restart as a stop, and move to the alternative date.
-
-**H. Unplanned session restart (decide before booking).**
-- The runner needs exactly one log with detections.
-- The per-session stratification of stop rule 5 is not implemented; only `n_sessions` is reported.
-- Options:
-  - (a) implement it pre-data;
-  - (b) treat an unplanned restart that writes a second log as a stop, and repeat on the alternative date.
-
-**I. Day-2 bridge pooling (DB1/DB2) is not implemented.** It appears only in the recommendation text. It must be coded and committed with the day-2 criteria before any day 2. This does not block booking day 1.
-
-**J. delta* of 30 s.** 30 s is a B7 candidate but not an srs_v1.1 age class (2, 10, 60, 300 s). That result would need a new reconstruction version. Noted for the conditional decisions (section 10).
+These stay limitations, reported with the results:
+- **C. No column-boundary movement.** No R1<->R5 or R2<->R6 crossings or visits; D_col's static units are row-boundary
+  quarter points; the junction, the R3/R7 centres and the R1|R5 midpoint are untested. Adding them would change the D_col
+  units (a new criteria version); not done, to keep the endpoints.
+- **D. House positions are thin.** Only the R5 centre inside the house (x, z) and the roof; fresh bedding, no nest
+  material; exits from a house in place are untested.
+- **E. REF well state.** The third REF of each board is taken with bedding in the R5 well; balanced across boards, but
+  late/early REF-x (D3b) is confounded with the well state and is interpreted with this caveat.
+- **F. Tag QC (T0) on board 2 only.** The same physical tags are used on both boards.
+- **H. Unplanned session restart.** The runner needs exactly one log with detections; an unplanned restart that writes a
+  second log stops the analysis, and the day is repeated on the alternative date (stop rule 5).
+- **J. delta* of 30 s.** A B7 candidate but not an srs_v1.1 age class; that result would need a new reconstruction
+  version.
 
 ## 7. On-day stop rules and bench rules
 
@@ -242,7 +222,7 @@ These are stated now; nothing is changed. Items marked **decide before booking**
 **Clapper.** At every placement start and end, and twice at every block start and board switch. The recorder notes each PC-clock time.
 
 **Stop rules:**
-1. **Channel check fails** (an antenna silent for 5 s with T1 on it): restart the session once, before any placement, and repeat the check. If it still fails, see 6.2 G (substitute board or alternative date, as decided before booking). Record a deviation.
+1. **Channel check fails** (an antenna silent for 5 s with T1 on it): restart the session once, before any placement, and repeat the check. If it still fails, use a substitute board only if an authorization (6.2 G) has been signed off; otherwise stop and move to the alternative date. Record a deviation.
 2. **Tag QC (T0):**
    - a tag outside +-20% of the tag median is not used in C (use the spare; it keeps the label);
    - if T1 is outside +-10%, swap T1 for the tag nearest the median and repeat the V1 REF.
@@ -251,7 +231,7 @@ These are stated now; nothing is changed. Items marked **decide before booking**
    - repeat the placement at the end of the same board-block as `<order>r`, once only;
    - never overwrite;
    - the paired placement on the other board is not repeated.
-5. **Unplanned session restart:** log the time and repeat the channel check. Then follow the choice made for 6.2 H.
+5. **Unplanned session restart:** log the time and stop: a second log with detections stops the analysis, and the day is repeated on the alternative date (6.2 H).
 
 **Drop order if the day is more than 20 min behind at the break** (always both boards):
 1. roof pairs H05/H06 (-6.7 min);
@@ -266,12 +246,13 @@ Never drop a block on one board only.
   - the workbook copy and its version row;
   - `placement_sheet.csv`, `annotation_movement.csv`, `annotation_survey.csv`, `tags.csv`;
   - photos and videos;
-  - `sha256_manifest.csv` (columns file, sha256). The runner checks every listed file against it.
+  - `sha256_manifest.csv` (columns file, sha256). The runner checks every listed file against it;
+  - only if a substitute board was authorized: `board_substitution.csv` (role, physical_board, reason, authorized_by, authorized_on), listed in the manifest.
 - **`placement_sheet.csv`:**
   - columns placement_id, order, board, pair_id, status (executed or dropped), pc_start, pc_end, clapper_ok, drop_step, deviation (optional: tags);
   - times on the PC clock as `%Y-%m-%d %H:%M:%OS`;
   - placement_id is the schedule order (plus `r` for the one allowed repeat);
-  - every row with a tag in a cage (orders 3-104 with tags, including CHECK and SURVEY) is recorded as executed or dropped;
+  - every row with a tag in a cage (orders 3-116 with tags, including CHECK and SURVEY) is recorded as executed or dropped;
   - include BASELINE and BREAK rows with their times.
 - **`annotation_movement.csv`** (placement_id, kind, t_pc, from_reader, to_reader) and **`annotation_survey.csv`** (board, sweep, t_pc, x, y): entered already on the PC clock, with the filmed display offsets applied while annotating.
 - **`tags.csv`:** label (T1-T6, C, spare) and tag. A replacement tag keeps its label.
@@ -283,7 +264,7 @@ Never drop a block on one board only.
 2. **Video annotation** (about 2 h, PC-clock time).
 3. **Pre-registered analysis** (committed, unchanged code; from the repository root):
    `Rscript Testing/audits/analyse_rfid_calibration_pilot.R --date=<YYYYMMDD>`
-   - Output: `<Behavior>/RANM/calibration/acp_v1.0_<date>_<commit>/`, with decisions.csv, day2_recommendation.csv, tables/ and manifest/.
+   - Output: `<Behavior>/RANM/calibration/acp_v1.1_<date>_<commit>/`, with decisions.csv, day2_recommendation.csv, tables/ and manifest/.
 4. **Report:**
    `Rscript Testing/audits/report_rfid_calibration_pilot.R --acp-run=<absolute path of the run from step 3>`
    - Output: `<Behavior>/RANM/calibration_reports/runs/<report_id>/`:
@@ -301,11 +282,13 @@ Never drop a block on one board only.
    - decisions not obtained;
    - the day-2 verdict as computed by the predefined rule (`acp_decide_day2`). It is a recommendation only; Tobias decides.
    - The frozen criteria are not changed on the basis of results.
-6. **If day 2 runs:**
-   - only the triggered blocks, under the day-1 rules;
+6. **If day 2 runs** (only on Tobias's decision):
+   - a separate confirmation experiment: only the triggered blocks, under the day-1 rules, analysed alone and never pooled
+     with day 1 (DC1-DC3); a statistic is decided from day 2 alone, and if day 1 and day 2 disagree both are reported and
+     the decision stays uncertain;
    - seed 20261015, at most 4 h on site;
-   - always the bridge P09, P11, P13, P06 plus REF on both boards;
-   - the day-2 criteria and the pooling test (DB1/DB2) are committed before day 2.
+   - always the descriptive bridge P09, P11, P13, P06 plus REF on both boards (session effect);
+   - the day-2 schedule and its unit counts are committed and hash-pinned before day 2.
 
 ## 10. Decisions that remain conditional on calibration
 

@@ -1,5 +1,5 @@
-# One-day RFID calibration pilot: post-pilot REPORT on a finished pre-registered analysis run (acp_criteria_v1.0 /
-# schedule_one_day_v1). Group-blind; isolated output; the acp run folder is read only, after its output manifest has been
+# One-day RFID calibration pilot: post-pilot REPORT on a finished pre-registered analysis run (acp_criteria_v1.1 /
+# schedule_one_day_v2). Group-blind; isolated output; the acp run folder is read only, after its output manifest has been
 # verified. Every decision row is classified with the hash-pinned status mapping docs/rfid_calibration/acp_report_status_v1.0.csv
 # (resolved / uncertain / not obtained / supporting, the specification v1.1 item and the consequence); the projection test
 # of the day-2 rule is traced per threshold; the day-2 verdict is printed as recorded by the pre-registered analysis, never
@@ -23,7 +23,7 @@ ACR_REPORT_CODE <- c("Testing/audits/report_rfid_calibration_pilot.R", "Function
                      "Functions/antenna_calibration_pilot.R", "Functions/project_paths.R", "Functions/behavioral_dynamics_helpers.R",
                      "Functions/frozen_input_guard.R", "Functions/qc_run_protection.R", "Functions/protected_outputs.R",
                      "Analysis/_pipeline_setup.R", "docs/rfid_calibration/acp_report_status_v1.0.csv",
-                     "docs/rfid_calibration/acp_criteria_v1.0.csv")
+                     "docs/rfid_calibration/acp_criteria_v1.1.csv")
 ACR_REPORT_FILES <- c("README.txt", "status_by_decision.csv", "spec_consequences.csv", "day2_trace.csv", "day2_trace_check.csv",
                       "uncertain_without_day2.csv")
 ACR_LONGEST_RELATIVE <- c("uncertain_without_day2.csv", file.path("manifest", "protection_snapshot_before.csv"),

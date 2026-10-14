@@ -203,12 +203,15 @@ check(near(pa$observed_time_s, 6 * 43200) && near(pa$share_of_observed_time, 732
 
 # 6. windows, block sets and phase labels
 w <- T$occupancy_animal_window_column[AnimalNum == "OR4" & window == "phase_class" & Phase == "Light" & basis == "read" & bound == "LOCF"]
-check(near(w[block_set == "whole_span" & unit == "C1"]$share_all, 10000 / 53200) && near(w[block_set == "whole_span" & unit == "C4"]$share_all, 43200 / 53200) &&
-        w[block_set == "whole_span" & unit == "C1"]$n_blocks == 2L, "6: whole-span light share pooled by seconds (not a mean of 0 and 1)")
+check(near(w[block_set == "cc4_grid_period" & unit == "C1"]$share_all, 1) && near(w[block_set == "cc4_grid_period" & unit == "C4"]$share_all, 0) &&
+        w[block_set == "cc4_grid_period" & unit == "C1"]$n_blocks == 1L, "6: the CC4 grid period is its own set: OR4's light I3 alone, not pooled with I2")
+check(!any(unlist(lapply(T, function(x) if ("block_set" %in% names(x)) x$block_set))  %in% "whole_span") &&
+        identical(sort(unique(T$occupancy_animal_window_column$block_set)), sort(SOC_BLOCK_SETS)) && identical(SOC_VERSION, "s19c_v0.2"),
+      "6: no output row pools the grid period with the primary window (no whole_span set)")
 check(near(w[block_set == "stage19_window" & unit == "C4"]$share_all, 1) && w[block_set == "stage19_window" & unit == "C4"]$n_blocks == 1L,
       "6: stage19_window leaves out CC4 I3")
 check(identical(unique(t1[SourceFile == F2, .(block_no, block_set)])[order(block_no)]$block_set,
-                c("stage19_window", "stage19_window", "stage19_window", "whole_span", "whole_span")), "6: CC4 A1, I2, A2 in stage19_window; I3, A3 whole span only")
+                c("stage19_window", "stage19_window", "stage19_window", "cc4_grid_period", "cc4_grid_period")), "6: CC4 A1, I2, A2 in stage19_window; I3, A3 in the grid period")
 pl <- unique(t1[, .(SourceFile, block_no, Phase, Phase_vendor, PhaseNumber, phase_index_in_class)])
 check(all(pl[Phase_vendor == "Inactive"]$Phase == "Light") && all(pl[Phase == "Light", phase_index_in_class == PhaseNumber - 1L]) &&
         all(pl[Phase == "Active", phase_index_in_class == PhaseNumber]), "6: Light = vendor Inactive; k-th light phase = vendor PhaseNumber k + 1")

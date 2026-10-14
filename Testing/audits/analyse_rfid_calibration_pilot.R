@@ -1,5 +1,5 @@
-# One-day RFID calibration pilot: the PRE-REGISTERED analysis (decision criteria acp_criteria_v1.0, seeded schedule
-# schedule_one_day_v1). Group-blind; isolated output. Definitions: Functions/antenna_calibration_pilot.R; protocol,
+# One-day RFID calibration pilot: the PRE-REGISTERED analysis (decision criteria acp_criteria_v1.1, seeded schedule
+# schedule_one_day_v2; amended 2026-10-15 before any acquisition). Group-blind; isolated output. Definitions: Functions/antenna_calibration_pilot.R; protocol,
 # criteria, day-2 rule and analysis plan: docs/RFID_CALIBRATION_PILOT.md sections 1-4; tests (synthetic logs only):
 # Testing/tests/test_antenna_calibration_pilot.R.
 #
@@ -14,13 +14,17 @@
 # .tmp_<run_id> and renamed at the end; an existing run or build folder is refused. The run refuses to start unless the
 # criteria file and the schedule have their pinned content hashes (acp_criteria(), acp_read_schedule()). A release run
 # (run id not starting with "dev") needs committed code, the default raw folder and the pinned board history; --raw-dir,
-# --board-history and uncommitted code are for dev runs. The default run id is acp_v1.0_<date>_<commit>.
+# --board-history and uncommitted code are for dev runs. The default run id is acp_v1.1_<date>_<commit>.
+# Board substitution: a tested board is replaced only through an explicit authorization, board_substitution.csv in the raw
+# day folder (acp_read_substitution(): only board 3 for role 4 or board 1 for role 2, with reason, authorized_by and
+# authorized_on), listed in sha256_manifest.csv when that exists. Without it, any placement on another physical board than
+# the schedule's stops the run: never substituted silently; abort and reschedule.
 
 ACP_RUN_CODE <- c("Testing/audits/analyse_rfid_calibration_pilot.R", "Functions/antenna_calibration_pilot.R",
                   "Functions/antenna_log_helpers.R", "Functions/animalpos_reconstruction.R", "Functions/antenna_measurement.R",
                   "Functions/antenna_spatial_reconstruction.R", "Functions/antenna_acquisition_qc.R",
                   "Functions/animalpos_preprocessing_helpers.R", "Functions/project_paths.R", "Analysis/_pipeline_setup.R",
-                  "docs/rfid_calibration/make_schedule_one_day_v1.R")
+                  "docs/rfid_calibration/make_schedule_one_day_v2.R")
 ACP_RAW_FILES <- c(sheet = "placement_sheet.csv", movement = "annotation_movement.csv", survey = "annotation_survey.csv", tags = "tags.csv")
 
 acp_runner_args <- function(args) {
@@ -68,7 +72,7 @@ if (sys.nframe() == 0L) {
   sched <- acp_read_schedule(file.path(MMM_REPO_ROOT, ACP_SCHEDULE_FILE))
   project_root <- mmm_project_root()
   head_commit <- acp_git(c("rev-parse", "HEAD"))[1]
-  run_id <- if (is.na(a$run_id)) paste0("acp_v1.0_", a$date, "_", substr(head_commit, 1, 7)) else a$run_id
+  run_id <- if (is.na(a$run_id)) paste0("acp_v1.1_", a$date, "_", substr(head_commit, 1, 7)) else a$run_id
   dev <- startsWith(run_id, "dev")
   dirty <- acp_git(c("status", "--porcelain", "--untracked-files=all", "--", ACP_RUN_CODE, ACP_CRITERIA_FILE, ACP_SCHEDULE_FILE))
   if (!dev && length(dirty)) stop("A release run needs committed code, criteria and schedule:\n", paste(dirty, collapse = "\n"), call. = FALSE)
@@ -84,24 +88,34 @@ if (sys.nframe() == 0L) {
   }
   dirs <- acp_run_dirs(if (is.na(a$output_root)) file.path(dirname(project_root), "RANM", "calibration") else a$output_root, run_id, project_root)
   log_path <- acp_day_log(raw_dir)
-  inputs <- data.table::data.table(role = c("raw log", names(ACP_RAW_FILES), "Stage 00b board history"),
-                                   file = c(log_path, file.path(raw_dir, ACP_RAW_FILES), bh_path))
+  subst_path <- file.path(raw_dir, ACP_SUBSTITUTION_FILE)
+  boards <- if (file.exists(subst_path)) acp_read_substitution(subst_path) else ACP_BOARDS
+  inputs <- data.table::data.table(role = c("raw log", names(ACP_RAW_FILES), "Stage 00b board history", if (file.exists(subst_path)) "board substitution"),
+                                   file = c(log_path, file.path(raw_dir, ACP_RAW_FILES), bh_path, if (file.exists(subst_path)) subst_path))
   inputs[, `:=`(sha256 = mmm_file_sha256(file), bytes = file.size(file))]
   man_path <- file.path(raw_dir, "sha256_manifest.csv")
   if (file.exists(man_path)) {
     rm_ <- data.table::fread(man_path, colClasses = "character")
     chk <- merge(inputs[, .(file = basename(file), sha256)], rm_[, .(file = basename(file), listed = tolower(sha256))], by = "file")
     if (any(chk$sha256 != chk$listed)) stop("Raw input differs from its sha256 manifest: ", paste(chk[sha256 != listed]$file, collapse = ", "), call. = FALSE)
+    if (file.exists(subst_path) && !ACP_SUBSTITUTION_FILE %in% basename(rm_$file)) {
+      stop("The board substitution file is not listed in sha256_manifest.csv; an authorization must be archived with the day's data.", call. = FALSE)
+    }
   }
 
   # the analysis (pure)
   tags <- acp_read_tags(file.path(raw_dir, ACP_RAW_FILES[["tags"]]))
   session <- acp_read_session(log_path, tags)
-  sheet <- acp_read_sheet(file.path(raw_dir, ACP_RAW_FILES[["sheet"]]), sched)
+  sheet <- acp_read_sheet(file.path(raw_dir, ACP_RAW_FILES[["sheet"]]), sched, boards)
+  if (any(sheet$problems$check == "board_mismatch")) {
+    stop("A placement was made on another physical board than the schedule", if (file.exists(subst_path)) " and the authorized substitution" else "",
+         " name (", paste(head(sheet$problems[check == "board_mismatch"]$placement_id, 10), collapse = ", "), "): never substituted silently. ",
+         "Abort and reschedule, or archive an authorized ", ACP_SUBSTITUTION_FILE, " (acp_read_substitution()).", call. = FALSE)
+  }
   ann <- acp_read_annotation(file.path(raw_dir, ACP_RAW_FILES[["movement"]]), sheet$sheet)
   survey <- acp_read_survey(file.path(raw_dir, ACP_RAW_FILES[["survey"]]))
   bh <- data.table::fread(bh_path, select = c("board", "mean_gap_ms", "lattice_k1"))   # acquisition columns only
-  res <- acp_analyse(sched, sheet, session, ann, survey, bh, crit)
+  res <- acp_analyse(sched, sheet, session, ann, survey, bh, crit, boards = boards)
   res$sheet_problems <- sheet$problems
   res$annotation_problems <- ann$problems
 
@@ -117,10 +131,12 @@ if (sys.nframe() == 0L) {
   data.table::fwrite(inputs, file.path(dirs$tmp, "manifest", "input_hashes.csv"))
   run <- data.table::data.table(item = c("run_id", "criteria_version", "criteria_content_sha256", "criteria_pinned_sha256", "schedule_version",
                                          "schedule_content_sha256", "schedule_pinned_sha256", "board_history_run", "board_history_content_sha256",
-                                         "board_history_pinned", "bootstrap_B", "bootstrap_seed", "git_commit", "code_clean", "dev_run", "raw_dir",
+                                         "board_history_pinned", "boards", "board_substitution", "bootstrap_B", "bootstrap_seed", "git_commit", "code_clean", "dev_run", "raw_dir",
                                          "raw_sha256_manifest", "started", "finished", "R"),
                                 value = c(run_id, ACP_VERSION, attr(crit, "sha256"), ACP_CRITERIA_SHA256, ACP_SCHEDULE_VERSION, attr(sched, "sha256"),
                                           ACP_SCHEDULE_SHA256, ACP_BOARD_HISTORY_RUN, bh_sha, as.character(identical(bh_sha, ACP_BOARD_HISTORY_SHA256)),
+                                          paste(sprintf("role %s -> board %d", names(boards), boards), collapse = "; "),
+                                          if (file.exists(subst_path)) paste(apply(attr(boards, "substitution"), 1, paste, collapse = " | "), collapse = "; ") else "none",
                                           format(acp_th(crit, "G02"), scientific = FALSE), format(acp_th(crit, "G03"), scientific = FALSE), head_commit,
                                           as.character(!length(dirty)), as.character(dev), raw_dir, as.character(file.exists(man_path)), started,
                                           format(Sys.time(), "%Y-%m-%d %H:%M:%S"), R.version.string))
@@ -135,7 +151,9 @@ if (sys.nframe() == 0L) {
                "                            visits, boundary timing, known-empty, cadence, vendor emulation), sheet and annotation checks",
                "manifest/                   criteria used, code, input and output hashes, run parameters, session info", "",
                paste("Day-2 rule:", rec),
-               "Criteria may not be changed after the data; a change is a new criteria version reported next to v1.0.",
+               paste("Boards:", paste(sprintf("role %s -> board %d", names(boards), boards), collapse = "; "),
+                     if (file.exists(subst_path)) "(authorized substitution; manifest/run.csv)" else "(no substitution)"),
+               "Criteria may not be changed after the data; a change is a new criteria version reported next to the earlier one.",
                "No group label or outcome was read; the only Exp9 input is the Stage 00b board history."),
              file.path(dirs$tmp, "README.txt"))
   outs <- list.files(dirs$tmp, recursive = TRUE)

@@ -1,10 +1,16 @@
-# Stage 19 candidate s19c_v0.1 (revised spatial occupancy, for review)
+# Stage 19 candidate s19c_v0.2 (revised spatial occupancy, for review)
 
 Written for: Tobias and reviewers.
 
 ## Purpose and status
 
 This candidate implements decision 4 of 2026-10-14: a **separate, versioned** revision of Stage 19 built from the pinned single-read spatial reconstruction release.
+
+**v0.2 (decision of 2026-10-15).** The existing Stage 19 block set is the primary window, for a like-for-like comparison of
+the original and the revised occupancy reconstruction. The CC4 blocks after it (I3 onward: the grid-exposure period) are
+reported separately as `cc4_grid_period` and are never pooled with the primary window, so no row mixes the intervention
+period with the pre-grid phases; the whole-span pooling of v0.1 (`whole_span`) is gone from the outputs and is computed only
+in memory for the gates that check against the srs release. Everything else is v0.1.
 
 - **Status:** candidate for review. It is UNREGISTERED, group-blind and isolated.
 - **Untouched:** Stage 19 (`Analysis/19_spatial_occupancy_maps.R`), its outputs under `analysis_ready/analyses/spatial_occupancy` and `publication_ready/.../spatial_occupancy`, the manuscript figures, S13 and every registered result. Nothing is replaced, and Stage 29 is not rerun.
@@ -23,7 +29,7 @@ This candidate implements decision 4 of 2026-10-14: a **separate, versioned** re
 Rscript Testing/audits/build_spatial_occupancy_candidate.R [--run-id=<new id>] [--output-root=<absolute>]
 ```
 
-- **Default output:** `<Behavior>/RANM/spatial_occupancy_candidate/runs/s19c_v0.1_<commit7>/`, built in `runs/.tmp_<id>/` and renamed at the end. An existing run or build folder is refused.
+- **Default output:** `<Behavior>/RANM/spatial_occupancy_candidate/runs/s19c_v0.2_<commit7>/`, built in `runs/.tmp_<id>/` and renamed at the end. An existing run or build folder is refused.
 - **Run ids:** a release id needs committed, clean code; ids starting with `dev` may run on uncommitted code.
 - **Protection:** the protected locations are snapshotted before the first write and compared before the rename (`Functions/protected_outputs.R`).
 - **Gates:** the run publishes only if every gate passes. A failed run leaves its `.tmp_` folder for inspection.
@@ -61,9 +67,9 @@ Each input is pinned by sha256 in the builder, and each pin is cross-checked aga
 **Phases and block sets**
 - **Phases:** `Phase` = Active | Light, with `Phase_vendor` = Active | Inactive kept. Active and light are never pooled. `phase_index_in_class` gives the k-th active or light phase (vendor light numbering starts at 2).
 - **`stage19_window` (primary):** Stage 19's blocks, so CC4 keeps A1, I2 and A2 only.
-- **`whole_span` (secondary):** every block, including the CC4 grid days.
-- **Per-block rows:** `block_set` names the narrowest set that holds the block, so the rows with `block_set == "stage19_window"` are the primary set and all rows together are the whole span. Per-block and pooled rows are never mixed in one table (`*_block` and `*_window` tables).
-- **Aggregated rows:** `block_set` names the set the row was pooled over, and both sets are computed.
+- **`cc4_grid_period` (separate):** the CC4 blocks after Stage 19's window (I3, A3, I4, A4, I5: the grid-exposure period), descriptive only and never pooled with the primary window. Acquisition quality there: B2|sys.5|CC4 is excluded (R3 silent), B5|sys.1|CC4 is censored from 2023-12-04 14:00:42 (during I3).
+- **Per-block rows:** the two sets are disjoint, so every block belongs to exactly one; per-block and pooled rows are never mixed in one table (`*_block` and `*_window` tables).
+- **Aggregated rows:** `block_set` names the set the row was pooled over; both sets are computed, each on its own.
 
 **Pooling.** Pooling is always by seconds; shares are never averaged. An equal-weight animal mean is shown beside the pooled share only in `cage_episode_block_column` and `cage_episode_window_column`.
 
@@ -108,7 +114,7 @@ Each input is pinned by sha256 in the builder, and each pin is cross-checked aga
 - **F1**: column shares with unknown, as a share of ALL observed time (single-read basis; LOCF / 300 s / 60 s), by phase and CC.
 - **F2**: event-start against single-read column shares per cage episode (LOCF share of observed time; 60 s share of supported time).
 - **F3**: reader cage maps per CC x phase (single-read, 60 s, share of supported time), with R1 food, R5 house and R8 water labels and the unknown share under each cage.
-- **F4**: support at 60 s per animal and phase block, by board and CC (whole span; CC4 grid days marked).
+- **F4**: support at 60 s per animal and phase block, by board and CC (stage19_window).
 - **F5**: reader profiles of the original Stage 19 (= event LOCF), read LOCF and read 60 s (share of supported time), with the same animals in every series and no group panels.
 - **F6**: unknown time by the reader last assigned and the read-gap length.
 
@@ -123,14 +129,14 @@ Each input is pinned by sha256 in the builder, and each pin is cross-checked aga
 - G07, G08: share_all and share_supported sum to 1, and the NA rules hold.
 - G09: column seconds equal reader seconds.
 - G10, G10b, G11: event-basis LOCF on stage19_window reproduces Stage 19's phase table (21,312 cells, max 5.5e-11 s), its shares and its observation seconds.
-- G12, G12b, G13: whole-span pooling reproduces srs `shares_unknown_column_pooled.csv`, `shares_unknown_reader_pooled.csv` and `support_by_phase.csv` (max difference about 6e-16).
+- G12, G12b, G13: whole-span pooling, computed in memory only, reproduces srs `shares_unknown_column_pooled.csv`, `shares_unknown_reader_pooled.csv` and `support_by_phase.csv` (max difference about 6e-16).
 - G14: excluded episode ids are absent from the summary tables and figure inputs that carry CageEpisodeID.
 - G14b: the observed time of every pooled summary (column shares by bound, unsupported time, observation gaps) and of the F1/F3/F5 inputs equals the observed time of the kept animal-blocks, by block set x phase (x CC, board), so no excluded episode contributes to a table that does not name episodes. A mutation test shows it fails when an excluded episode leaks in.
 - G15: no group column in any output.
 - G16-G21: layout, presence join, raw logs, censoring arithmetic, no negative unknown, phase labels.
 - Diagnostics: LOCF unknown time by basis; the 1-s grid against the exact unknown time (max 13.9 s per animal-block).
 
-**Release run (`s19c_v0.1_4aebc90`, 2026-10-14): 25 of 25 gates passed** (the numbers below equal those of the dev runs). The whole-span pooled numbers equal specification v1.1 section 3. On stage19_window, single-read (event-start), Active phase:
+**Release runs: `s19c_v0.1_4aebc90` (2026-10-14) and `s19c_v0.2_<commit>` (2026-10-15; see specification v1.3): 25 of 25 gates each.** The stage19_window numbers below are identical in v0.1 and v0.2. On stage19_window, single-read (event-start), Active phase:
 
 - LOCF: C1 66.0% (63.1%).
 - 60-s cap: C1 51.4% of observed time, unknown 19.8%; C1 64.2% (60.7%) of supported time.
@@ -151,7 +157,7 @@ These need a new reconstruction version from the raw logs (heavy; ask before run
 
 ## Decisions still open
 
-1. **Primary block set:** stage19_window (comparable with Stage 19; current default) or whole_span (includes the CC4 grid days). The per-block `block_set` convention (narrowest set) also needs confirmation.
+1. **Primary block set: decided** (2026-10-15): the existing Stage 19 window; the CC4 grid period separately, never pooled with it.
 2. **Group-descriptive layer:** gated. Side-by-side group means (specification section 8 item 5) would read the group lists behind an explicit flag; no models. Not built until Tobias approves.
 3. **Basis choice:** after the calibration pilot, by criterion (a) only. If the pilot is inconclusive, both bases are kept as sensitivity analyses. Bounds (60 s / 300 s) and tau stay reporting conventions until calibrated.
 4. **Manuscript figures:** whether revised figures replace the Stage 19 manuscript figures is decided only after these reviews (specification section 8 item 7).

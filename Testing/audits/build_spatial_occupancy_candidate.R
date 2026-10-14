@@ -1,4 +1,4 @@
-# Stage 19 candidate s19c_v0.1: UNREGISTERED, isolated, group-blind; Stage 19, its outputs and the manuscript figures are
+# Stage 19 candidate s19c_v0.2: UNREGISTERED, isolated, group-blind; Stage 19, its outputs and the manuscript figures are
 # not touched. Four-column primary occupancy (eight readers as diagnostics) of both reconstructions of the pinned
 # single-read spatial release srs_v1.1_9b18624 (event-start = historical reference, single-read = provisional candidate),
 # with unrestricted LOCF as the historical reference and the 300-s and 60-s observation-age bounds as sensitivity, the
@@ -12,7 +12,7 @@
 #   Rscript Testing/audits/build_spatial_occupancy_candidate.R [--run-id=<new id>] [--output-root=<absolute>]
 # Default output root <Behavior>/RANM/spatial_occupancy_candidate (checked with mmm_isolated_output_root_check()); writes
 # runs/<run_id>/ only, built in runs/.tmp_<run_id>/ and renamed at the end; an existing run or build folder is refused.
-# The default run id is s19c_v0.1_<commit>; it needs committed code. Ids starting with "dev" may run on uncommitted code.
+# The default run id is s19c_v0.2_<commit>; it needs committed code. Ids starting with "dev" may run on uncommitted code.
 # Inputs are pinned by sha256 (constants below, cross-checked against the srs and cep output manifests, the srs input
 # hashes and the Stage 19 rerun record) and the run stops on any mismatch. Protected locations are snapshotted before the
 # first write and compared before the rename (Functions/protected_outputs.R). The run fails unless every gate passes
@@ -225,7 +225,7 @@ s19c_reader_axis <- function() { L <- soc_reader_layout(); stats::setNames(sub("
 s19c_figures <- function(fig, dir) {
   dir.create(dir, recursive = TRUE, showWarnings = FALSE)
   sv <- function(p, n, w, h) { ggplot2::ggsave(file.path(dir, n), p, width = w, height = h, dpi = 200, bg = S19C_SURFACE); n }
-  cap1 <- "Group-blind QC of the candidate s19c_v0.1 (srs_v1.1_9b18624); the three spatially excluded cage episodes are left out."
+  cap1 <- paste("Group-blind QC of the candidate", SOC_VERSION, "(srs_v1.1_9b18624); the three spatially excluded cage episodes are left out.")
   cap2 <- "Column or reader occupancy is not resource engagement, proximity or a validated location; supported = a read at most d s old."
   cap <- paste(cap1, cap2, sep = "\n")
   files <- character(0)
@@ -399,7 +399,8 @@ s19c_readme <- function(run_id, commit, gates, files) {
     "Representation: four columns primary (C1 = R1 food + R5 house, C2 = R2 + R6, C3 = R3 + R7, C4 = R4 + R8 water); eight readers as diagnostics.",
     "Bases: event = event-start (historical reference); read = single-read (provisional candidate). Bounds: LOCF (historical reference), max300s, max60s.",
     "Denominators: share_all = seconds / observed time (units + unknown = 1); share_supported = seconds / supported time (units = 1; NA without support).",
-    "Phase = Active | Light (Phase_vendor Active | Inactive). block_set: stage19_window (primary; CC4 A1, I2, A2) | whole_span (secondary).",
+    "Phase = Active | Light (Phase_vendor Active | Inactive). block_set: stage19_window (primary window; CC4 A1, I2, A2) | cc4_grid_period",
+    "(the CC4 blocks after it, the grid-exposure period: reported separately, descriptive, never pooled with the primary window).",
     "Per-block rows: block_set names the narrowest set holding the block; aggregated rows: the set they were pooled over.",
     "Excluded cage episodes (spatial_excluded = TRUE) stay in the animal tables and are left out of every summary and figure.",
     "Supported = recently detected (a read <= d s old), not validated. Column or reader occupancy is not resource engagement or proximity.",

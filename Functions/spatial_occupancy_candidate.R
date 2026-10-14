@@ -19,23 +19,24 @@
 #   * "supported" means recently detected (a read <= d s old), not a validated location; column or reader occupancy is
 #     not resource engagement and not proximity;
 #   * Phase = Active | Light (the vendor label Active | Inactive is kept as Phase_vendor); the two are never pooled;
-#   * block sets: stage19_window (Stage 19's blocks; CC4 keeps A1, I2 and A2 only) is primary, whole_span (every block,
-#     the CC4 grid days included) secondary. A per-block row names the narrowest set that holds its block, so the rows
-#     with block_set == "stage19_window" are that set and all rows are the whole span.
+#   * block sets (decision of 2026-10-15): stage19_window (Stage 19's blocks; CC4 keeps A1, I2 and A2 only) is the primary
+#     window; cc4_grid_period (the CC4 blocks after it, I3 onward: the grid-exposure period) is reported separately and
+#     never pooled with it. The two sets are disjoint, so every per-block row belongs to exactly one. Whole-span pooling
+#     is computed only in memory, to check against the srs release tables (gates G12, G12b, G13).
 # Shares over several blocks or animals are pooled by seconds, never averaged; an equal-weight animal mean is given
 # beside the pooled share where a table says so. Exclusions arrive as columns (spatial_excluded, censor_from): excluded
 # cage episodes stay in the animal tables, flagged, and are left out of every summary and figure input. No group label,
 # no model and no test statistic.
 # ================================================================
 
-SOC_VERSION <- "s19c_v0.1"
+SOC_VERSION <- "s19c_v0.2"
 SOC_BOUNDS <- c("LOCF", "max300s", "max60s")
 SOC_SUPPORT_CRITERION <- c(LOCF = "none (unrestricted LOCF)", max300s = "observation age <= 300 s",
                            max60s = "observation age <= 60 s")
 SOC_BASIS_LABEL <- c(event = "event-start (historical reference)", read = "single-read (provisional candidate)",
                      both = "observation age is basis-independent (equal in both bases; gate)",
                      `read - event` = "single-read minus event-start")
-SOC_BLOCK_SETS <- c("stage19_window", "whole_span")
+SOC_BLOCK_SETS <- c("stage19_window", "cc4_grid_period")   # disjoint; never pooled together (whole_span: gates only)
 SOC_SEX_BY_BATCH <- c(B1 = "Male", B2 = "Male", B5 = "Male", B3 = "Female", B4 = "Female", B6 = "Female")
 SOC_READER_RESOURCE <- c("food", "", "", "", "house", "", "", "water")   # lab-reported (Stage 00b AQC_LAYOUT)
 SOC_DENOMINATOR <- c(share_all = "observed time (share_all)", share_supported = "supported time (share_supported)")
@@ -112,7 +113,7 @@ soc_blocks <- function(blocks) {
   b[, Phase_vendor := Phase]
   b[, Phase := ifelse(Phase_vendor == "Active", "Active", "Light")]
   b[, phase_index_in_class := seq_len(.N), by = .(SourceFile, Phase)]
-  b[, `:=`(block_set = ifelse(stage19_window, "stage19_window", "whole_span"), block_s = be - bs,
+  b[, `:=`(block_set = ifelse(stage19_window, "stage19_window", "cc4_grid_period"), block_s = be - bs,
            block_start_utc = soc_utc(bs), block_end_utc = soc_utc(be))]
   b[]
 }
@@ -148,9 +149,11 @@ soc_animal_meta <- function(animals, presence, raw_logs) {
   a[]
 }
 
-#' Rows of a per-block table in one block set ("stage19_window": stage19_window blocks; "whole_span": all).
+#' Rows of a per-block table in one block set ("stage19_window": Stage 19's blocks; "cc4_grid_period": the CC4 blocks
+#' after them; "whole_span": all blocks, used only by the gates that check against the srs release).
 soc_in_set <- function(d, set) {
-  switch(set, stage19_window = d[stage19_window == TRUE], whole_span = d, stop("Unknown block set: ", set, call. = FALSE))
+  switch(set, stage19_window = d[stage19_window == TRUE], cc4_grid_period = d[stage19_window == FALSE], whole_span = d,
+         stop("Unknown block set: ", set, call. = FALSE))
 }
 
 # ---------------------------------------------------------------- shares with the unknown category
@@ -773,7 +776,9 @@ soc_build <- function(tab, ref, meta, expected) {
          dsu = max(abs(m$share_supported - m$share_supported_srs), na.rm = TRUE), dobs = max(abs(m$observed_s - m$observed_s_srs)),
          dsup = max(abs(m$supported_s - m$supported_s_srs)))
   }
-  for (x in list(list("G12", "column", P_col, ref$shares_unknown_column_pooled, "C"), list("G12b", "reader", P_rd, ref$shares_unknown_reader_pooled, "R"))) {
+  P_ws_col <- soc_pool(occ_ok, ab_ok, "Phase", "column", sets = "whole_span")   # in memory only: the srs check
+  P_ws_rd <- soc_pool(occ_ok, ab_ok, "Phase", "reader", sets = "whole_span")
+  for (x in list(list("G12", "column", P_ws_col, ref$shares_unknown_column_pooled, "C"), list("G12b", "reader", P_ws_rd, ref$shares_unknown_reader_pooled, "R"))) {
     if (is.null(x[[4]])) next
     r <- rcmp(x[[3]], x[[4]], x[[5]])
     add(x[[1]], paste0("whole-span pooling (", x[[2]], "s, excluded episodes left out) reproduces srs shares_unknown_", x[[2]], "_pooled.csv"),

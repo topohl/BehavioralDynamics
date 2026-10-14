@@ -1,5 +1,5 @@
 # ================================================================
-# One-day RFID calibration pilot: the pre-registered analysis (decision criteria acp_criteria_v1.0)
+# One-day RFID calibration pilot: the pre-registered analysis (decision criteria acp_criteria_v1.1, schedule schedule_one_day_v2)
 # MMMSociability -- Functions/antenna_calibration_pilot.R
 # ================================================================
 # Used by Testing/audits/analyse_rfid_calibration_pilot.R (PRE-REGISTERED before any measurement; isolated output root
@@ -12,7 +12,11 @@
 # aqc_neighbours, aqc_device_check, aqc_board_overlap_counts). Those functions are reused unchanged.
 # Protocol, criteria, day-2 rule and plan: docs/RFID_CALIBRATION_PILOT.md sections 1-4.
 #
-# Pre-registration. The criteria file docs/rfid_calibration/acp_criteria_v1.0.csv (one row per rule: rule_id, criterion,
+# Amendment of 2026-10-15 (before any acquisition; Tobias's decision): schedule v2 runs every programme 4-2-2-4 by halves and
+# the competition run twice per board (the 10-s blocks of both runs are pooled per board); criteria v1.1 change only G07
+# and the day-2 handling (a separate confirmation experiment, never pooled); a substitute board needs an explicit
+# authorization (acp_read_substitution()). acp_criteria_v1.0.csv and schedule_one_day_v1.csv stay for provenance.
+# Pre-registration. The criteria file docs/rfid_calibration/acp_criteria_v1.1.csv (one row per rule: rule_id, criterion,
 # outcome, statistic, comparator, threshold, threshold_hi, category, feeds, source) and the seeded schedule
 # docs/rfid_calibration/schedule_one_day_v1.csv are pinned by their content sha256 (line endings normalised to LF, as
 # sxm_content_sha256()); acp_criteria() and acp_read_schedule() stop on any other content. Every decision threshold is read
@@ -75,16 +79,16 @@
 #  * day 2: "undecided" competition = B4 intermediate or B6 undecided; P is applied to the thresholds inside the CI only.
 # ================================================================
 
-ACP_VERSION <- "acp_criteria_v1.0"
-ACP_SCHEDULE_VERSION <- "schedule_one_day_v1"
+ACP_VERSION <- "acp_criteria_v1.1"
+ACP_SCHEDULE_VERSION <- "schedule_one_day_v2"
 ACP_DIR <- file.path("docs", "rfid_calibration")
-ACP_CRITERIA_FILE <- file.path(ACP_DIR, "acp_criteria_v1.0.csv")
-ACP_SCHEDULE_FILE <- file.path(ACP_DIR, "schedule_one_day_v1.csv")
+ACP_CRITERIA_FILE <- file.path(ACP_DIR, "acp_criteria_v1.1.csv")
+ACP_SCHEDULE_FILE <- file.path(ACP_DIR, "schedule_one_day_v2.csv")
 # Content sha256 with line endings normalised to LF (acp_content_sha256()): the same in every checkout.
-ACP_CRITERIA_SHA256 <- "c934354377d30c2f413d39b8504ee07f35cec132b47741d5a66f9c6fc2780446"
-ACP_SCHEDULE_SHA256 <- "2855780e2aa5cc7f04049eeb5b2868d9ba7920369218f1bd3ae105d0c30b549e"
+ACP_CRITERIA_SHA256 <- "18f34adff33242135b2e56bb9b1a327bda90de7e2c3136e4e06210cf60e5b5b4"
+ACP_SCHEDULE_SHA256 <- "165565b265319ecf83fec419cc51b7dcb44e7ce90c040b2390af1b6cbcbed9cf"
 # The schedule as written by R 4.5.1 on Windows (CRLF bytes; the hash recorded in the protocol).
-ACP_SCHEDULE_FILE_SHA256_CRLF <- "7b7fda397638e69b1866befffb159c741e1b6d6ed69654911bc0928c713328dd"
+ACP_SCHEDULE_FILE_SHA256_CRLF <- "eb3dd6814b029e3d396580afac93c4c007b69e9dc2f09c818f7e363df81ef975"
 # The one Exp9 input (group-blind acquisition reference): Stage 00b board history of run raqc_20261014_6165adf.
 ACP_BOARD_HISTORY_RUN <- "raqc_20261014_6165adf"
 ACP_BOARD_HISTORY_SHA256 <- "fe743f4d5a8c9a2a147420052675ba484a765e873484d2511d935bab9c463cc0"
@@ -101,6 +105,11 @@ ACP_TIME_FORMAT <- "%Y-%m-%d %H:%M:%OS"   # PC (logger) clock, labelled UTC as e
 
 # Analysis-plan parameters (docs/RFID_CALIBRATION_PILOT.md section 4, function list); not decision thresholds.
 ACP_BOARDS <- c(`2` = 2L, `4` = 4L)       # tested boards by role (2 reference, 4 least sensitive) -> physical board
+# The only substitutes the protocol allows (role -> physical board): board 3 for board 4 (least sensitive pair), board 1
+# for board 2. A substitute is used only through an authorization file (acp_read_substitution()); never silently.
+ACP_ALLOWED_SUBSTITUTES <- c(`4` = 3L, `2` = 1L)
+ACP_SUBSTITUTION_FILE <- "board_substitution.csv"
+ACP_SUBSTITUTION_COLUMNS <- c("role", "physical_board", "reason", "authorized_by", "authorized_on")
 ACP_PHASE_A <- c(2L, 3L, 5L, 8L)          # phase group A (R2, R3, R5, R8); group B = R1, R4, R6, R7
 ACP_CLAPPER_TAG <- "C"
 ACP_CLAPPER_BOARD <- 5L
@@ -239,6 +248,29 @@ acp_reader <- function(x) as.integer(sub("^R", "", toupper(trimws(as.character(x
 # ---------------------------------------------------------------- sheet, session, clapper, windows
 
 #' Reads and checks a placement sheet (acp_check_sheet()).
+#' An explicit board-substitution authorization (raw day folder, ACP_SUBSTITUTION_FILE; columns ACP_SUBSTITUTION_COLUMNS,
+#' one row per substituted role). Only the substitutes of ACP_ALLOWED_SUBSTITUTES are accepted, each with a reason, the
+#' person who authorized it and the date; anything else stops the analysis. Returns the board mapping (ACP_BOARDS with the
+#' substitutions applied) with the authorization as attribute "substitution".
+acp_read_substitution <- function(path) {
+  s <- data.table::fread(path, colClasses = "character", na.strings = NULL, encoding = "UTF-8")
+  if (!identical(names(s), ACP_SUBSTITUTION_COLUMNS)) stop("The board substitution file must have exactly the columns: ",
+                                                          paste(ACP_SUBSTITUTION_COLUMNS, collapse = ", "), call. = FALSE)
+  s[, (names(s)) := lapply(.SD, trimws)]
+  ok_role <- s$role %in% names(ACP_ALLOWED_SUBSTITUTES)
+  ok_board <- ok_role & suppressWarnings(as.integer(s$physical_board)) == unname(ACP_ALLOWED_SUBSTITUTES[s$role])
+  ok_date <- !is.na(as.Date(s$authorized_on, format = "%Y-%m-%d"))
+  if (!nrow(s) || anyDuplicated(s$role) || !all(ok_role) || !all(ok_board %in% TRUE) || !all(nzchar(s$reason)) ||
+      !all(nzchar(s$authorized_by)) || !all(ok_date)) {
+    stop("Board substitution not authorized: only ", paste(sprintf("board %d for role %s", ACP_ALLOWED_SUBSTITUTES, names(ACP_ALLOWED_SUBSTITUTES)),
+         collapse = " and "), " are allowed, each with a reason, authorized_by and authorized_on (YYYY-MM-DD). Abort and reschedule.", call. = FALSE)
+  }
+  boards <- ACP_BOARDS
+  boards[s$role] <- as.integer(s$physical_board)
+  attr(boards, "substitution") <- s
+  boards
+}
+
 acp_read_sheet <- function(path, schedule, boards = ACP_BOARDS) {
   acp_check_sheet(data.table::fread(path, colClasses = "character", na.strings = NULL, encoding = "UTF-8"), schedule, boards)
 }
@@ -840,7 +872,9 @@ acp_coread <- function(reads, windows, truth, crit) {
 }
 
 #' Competition run (C0, C1, C4, CS, CE) per board: per period x tag at its admissible set: reads, rate, P1s, P10s, longest
-#' gap, gaps >= 10/30/60 s, q99 gap. Statistics per board with a 10-s block bootstrap (B4f) within each period: TR, MS,
+#' gap, gaps >= 10/30/60 s, q99 gap. A board's runs of the same period (schedule v2: two C runs per board) are pooled: their
+#' 10-s blocks (ids unique per placement) enter one count matrix. Statistics per board with a 10-s block bootstrap (B4f)
+#' within each period: TR, MS,
 #' Gini (descriptive), CS_C4, SR; the longest gap of a load tag in C4 (starvation) and the per-tag q99 gaps in C4.
 acp_competition <- function(reads, windows, truth, crit, B = NULL) {
   B <- if (is.null(B)) as.integer(acp_th(crit, "G02")) else as.integer(B)
@@ -860,7 +894,7 @@ acp_competition <- function(reads, windows, truth, crit, B = NULL) {
       gaps_ge10 = sum(g >= ACP_GAP_COUNTS_S[1]), gaps_ge30 = sum(g >= ACP_GAP_COUNTS_S[2]), gaps_ge60 = sum(g >= ACP_GAP_COUNTS_S[3]),
       q99_gap = stats::quantile(g, 0.99, names = FALSE, type = 7))
     nb <- max(1L, ceiling(T / L - 1e-9))
-    blocks[[i]] <- data.table::data.table(board = x$board, period = x$pair_id, tag_label = tg, block = seq_len(nb),
+    blocks[[i]] <- data.table::data.table(board = x$board, period = x$pair_id, tag_label = tg, block = paste0(x$placement_id, "_", seq_len(nb)),
       reads = tabulate(pmin(floor((rt - x$ws) / L) + 1L, nb), nbins = nb), dur = pmin(L, T - (seq_len(nb) - 1L) * L))
   }
   per_tag <- data.table::rbindlist(per_tag); blocks <- data.table::rbindlist(blocks)
@@ -1427,7 +1461,8 @@ acp_decide_day2 <- function(decisions, crit, missing = character()) {
                                                                                                           if (nrow(tr)) tr$decision else "missing"), day2_content = "")
   out <- data.table::rbindlist(rows)
   rec <- if (any(out$triggered)) paste0("day 2 recommended (Tobias decides): ", paste(out$trigger[out$triggered], collapse = ", "),
-                                         "; always with the bridge (", gsub("\\|", ", ", acp_rule(crit, "DB1")$threshold), " plus REF on both boards), seed ",
+                                         "; a separate confirmation experiment, never pooled with day 1 (DC1, DC2), with the descriptive bridge (",
+                                         gsub("\\|", ", ", acp_rule(crit, "DC3")$threshold), " plus REF on both boards), seed ",
                                          format(acp_th(crit, "DS1"), scientific = FALSE), ", at most ", acp_th(crit, "DH1"), " h on site") else "no day 2 recommended"
   rbind(out, data.table::data.table(trigger = "recommendation", triggered = any(out$triggered), reason = rec, day2_content = ""))
 }

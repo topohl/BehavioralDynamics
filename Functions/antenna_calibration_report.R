@@ -22,7 +22,8 @@
 # Wording (Tobias, 2026-10-14): a basis that is not resolved is retained as a sensitivity analysis, and its estimates are
 # never described as bounds on true physical occupancy; recently detected (supported) is not validated location;
 # calibration with static tags concerns bench hardware behaviour only. The frozen feeds text of A40-A42 and B7a in
-# acp_criteria_v1.0 speaks of bounds; it stays unchanged (pinned), and the report prints the mapping's consequence instead.
+# acp_criteria_v1.0 and v1.1 (v1.1 changes only G07, G08 and the day-2 handling) speaks of bounds; it stays unchanged
+# (pinned), and the report prints the mapping's consequence instead.
 #
 # Choices where the brief leaves a detail open:
 #  * statistic names with a run-time part are mapped by family: rate_rel_median_<tag> (any tag label) and

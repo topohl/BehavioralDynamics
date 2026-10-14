@@ -328,7 +328,7 @@ check(grepl(day2[trigger == "recommendation"]$reason, flat, fixed = TRUE) && gre
         grepl("D2 not triggered", flat, fixed = TRUE) && grepl("(as recorded in the acp run's day2_recommendation.csv", flat, fixed = TRUE),
       "6: the day-2 verdict is printed as recorded")
 check(grepl(sprintf("RESOLVED (%d)", nrow(rep6$resolved)), flat, fixed = TRUE) && grepl(sprintf("UNCERTAIN (%d; 6 without", nrow(rep6$uncertain)), flat, fixed = TRUE) &&
-        grepl("NOT OBTAINED (0)", flat, fixed = TRUE) && grepl("A40-A42 and B7a in acp_criteria_v1.0 is unchanged", flat, fixed = TRUE),
+        grepl("NOT OBTAINED (0)", flat, fixed = TRUE) && grepl(paste("A40-A42 and B7a in", ACP_VERSION, "is unchanged"), flat, fixed = TRUE),
       "6: resolved, uncertain and not-obtained lists; the frozen criteria text is declared unchanged")
 sc <- fread(file.path(out6, "spec_consequences.csv"))
 sb <- fread(file.path(out6, "status_by_decision.csv"))
