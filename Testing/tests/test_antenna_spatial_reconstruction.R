@@ -13,6 +13,10 @@
 #  8. vendor records of a synthetic tag (apr_positions(), gate vendor) without the closing record
 #  9. materiality: median and 90th percentile of |shift| against the scale
 # 10. cage-episode key in Stage 29's format
+# 11. position changes per block at reader and column resolution, after the seed and before a censoring time
+# 12. 1-s grid state (position, age of the latest read, length of its read gap) and gap classes
+# 13. board missingness: unknown vs supported seconds, cage-mates at the same reader, censored cells left out
+# 14. shares of observed time with the unsupported time as its own category, and of supported time
 # ===========================================================================
 suppressPackageStartupMessages({ library(data.table); library(dplyr); library(tibble) })
 repo <- Sys.getenv("MMM_REPO_DIR", unset = NA_character_)
@@ -31,6 +35,7 @@ source("Functions/animalpos_preprocessing_helpers.R")
 source("Functions/antenna_log_helpers.R")
 source("Functions/animalpos_reconstruction.R")
 source("Functions/rfid_binfree_metrics.R")
+source("Functions/antenna_measurement.R")
 source("Functions/antenna_spatial_reconstruction.R")
 
 # 1. Reads (ms, reader): 1000 R2+R3 (first, no held reader: lowest = 2); 2000 R2; 3000 R5+R1+R5 (held 2 not among them:
@@ -119,5 +124,51 @@ check(is.na(asr_materiality(numeric(), 1)$material), "9: no shifts")
 
 # 10. Cage-episode key.
 check(identical(asr_cage_episode(c("B5", "B2"), c(4, 2), c("CC1", "CC3")), c("B5|sys.4|CC1", "B2|sys.2|CC3")), "10: Batch|System|CC")
+
+# 11. Changes per block: R1 [0,10), R2 [10,20), R6 [20,30), R1 [30,40); blocks from 0 and 25. Reader changes at 10, 20 (block
+#     1) and 30 (block 2); column states 1, 2, 2, 1 merge to 1, 2, 1: changes at 10 (block 1) and 30 (block 2). A censoring
+#     time at 25 removes the change at 30. The seed state at S0 is never a change.
+iv <- data.table(PositionID = c(1L, 2L, 6L, 1L), start = c(0, 10, 20, 30), end = c(10, 20, 30, 40))
+bk <- data.table(block = c(1, 2), bs = c(0, 25))
+check(identical(asr_interval_changes(iv, bk, 0)$changes, c(2L, 1L)), "11: reader changes per block")
+check(identical(asr_interval_changes(iv, bk, 0, resolution = "column")$changes, c(1L, 1L)), "11: column changes per block")
+check(identical(asr_interval_changes(iv, bk, 0, censor_from = 25)$changes, c(2L, 0L)), "11: no change after the censoring time")
+check(identical(asr_interval_changes(iv[1], bk, 0)$changes, c(0L, 0L)), "11: one state, no change")
+
+# 12. Grid state: reads at 10, 20, 100; R1 [10,20), R2 [20,Inf). Cells 5.5, 15.5, 50.5, 150.5: age NA, 5.5, 30.5, 50.5; gap NA,
+#     10, 80, Inf (after the last read); position 0, 1, 2, 2.
+gs <- asr_grid_state(data.table(PositionID = c(1L, 2L), start = c(10, 20), end = c(20, Inf)), c(10, 20, 100), c(5.5, 15.5, 50.5, 150.5))
+check(identical(gs$pos, c(0L, 1L, 2L, 2L)) && near(gs$age[-1], c(5.5, 30.5, 50.5)) && is.na(gs$age[1]) &&
+        near(gs$gap[2:3], c(10, 80)) && is.infinite(gs$gap[4]) && is.na(gs$gap[1]), "12: grid state")
+check(identical(asr_gap_class(c(NA, 100, 400, 2000, 4000, 20000, Inf)),
+                c("before the first read", "60-300s", "300-1800s", "1800-3600s", "3600-10800s", ">10800s", "open (no later read)")), "12: gap classes")
+
+# 13. Missingness on 4 cells, bound 60. A: R5 (age 10), R5 (100), R5 (100), R1 (10); B: R5 (100), R5 (10), R1 (10), R1 (100).
+#     A supported at R5 (cell 1): B at R5, not supported -> same 1, same supported 0, mate supported anywhere 0. A unknown at R5
+#     (cells 2, 3): cell 2 B at R5 supported, cell 3 B at R1 supported -> seconds 2, same 1, same supported 1, anywhere 2.
+#     A supported at R1 (cell 4): B at R1 unsupported -> same 1, 0, 0. A's unknown cells lie in a 200-s gap.
+st <- list(A = list(pos = c(5L, 5L, 5L, 1L), age = c(10, 100, 100, 10), gap = c(20, 200, 200, 20)),
+           B = list(pos = c(5L, 5L, 1L, 1L), age = c(100, 10, 10, 100), gap = c(300, 20, 20, 300)))
+bm <- asr_board_missingness(st, rep(1, 4), rep(TRUE, 4), bound = 60)
+a5u <- bm$colocation[AnimalNum == "A" & pos == 5 & state == "unknown"]
+a5s <- bm$colocation[AnimalNum == "A" & pos == 5 & state == "supported"]
+check(a5u$seconds == 2 && a5u$mate_same_reader == 1 && a5u$mate_same_reader_supported == 1 && a5u$mate_supported_anywhere == 2, "13: unknown at R5")
+check(a5s$seconds == 1 && a5s$mate_same_reader == 1 && a5s$mate_same_reader_supported == 0 && a5s$mate_supported_anywhere == 0, "13: supported at R5")
+check(identical(bm$gaps[AnimalNum == "A"]$gap_class, "60-300s") && bm$gaps[AnimalNum == "A"]$unknown_s == 2, "13: gap class of the unknown time")
+bm2 <- asr_board_missingness(st, rep(1, 4), c(TRUE, TRUE, FALSE, FALSE), bound = 60)
+check(sum(bm2$colocation[AnimalNum == "A"]$seconds) == 2, "13: censored cells are left out")
+
+# 14. Shares with the unknown category: group g1 observed 100 s; columns 1 and 2 with LOCF 60 / 40, <= 60 s 30 / 20 and
+#     <= 300 s 50 / 30. LOCF 0.6 / 0.4, unknown 0; max60s 0.3 / 0.2, unknown 0.5, of supported time 0.6 / 0.4; max300s
+#     0.5 / 0.3, unknown 0.2, of supported 0.625 / 0.375. Group g2 observed 50 s without any assignment: unknown 1.
+oc <- data.table(g = "g1", column = c(1L, 2L), seconds = c(60, 40), sup_60 = c(30, 20), sup_300 = c(50, 30))
+sh <- asr_shares_with_unknown(oc, data.table(g = c("g1", "g2"), observed_s = c(100, 50)), by = "g", unit = "column")
+g1 <- function(b, u) sh[g == "g1" & bound == b & unit == u]
+check(near(g1("LOCF", "1")$share_all, 0.6) && near(g1("LOCF", "unknown")$share_all, 0), "14: LOCF shares")
+check(near(g1("max60s", "1")$share_all, 0.3) && near(g1("max60s", "unknown")$share_all, 0.5) && near(g1("max60s", "1")$share_supported, 0.6),
+      "14: max60s, both denominators")
+check(near(g1("max300s", "2")$share_supported, 0.375) && near(g1("max300s", "unknown")$share_all, 0.2), "14: max300s")
+check(all(abs(sh[g == "g2"]$share_all - 1) < 1e-12) && all(sh[g == "g2"]$unit == "unknown"), "14: a group without assigned time is all unknown")
+check(all(sh[, near(sum(share_all), 1), by = .(g, bound)]$V1), "14: units plus unknown sum to 1")
 
 cat("test_antenna_spatial_reconstruction: all checks passed\n")

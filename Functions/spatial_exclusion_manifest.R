@@ -7,6 +7,8 @@
 #                    measures that need complete antenna coverage, for the whole recording span.
 #   censor           the cage episode is unobserved from `from` to the span end: every time-based measure ends there
 #                    (recording-duration censoring, not an exclusion of the episode).
+#   exclude_movement the cage episode's active-phase vendor movement outcomes (crossing rate, fragmentation) are left out
+#                    of new primary analyses and kept in a sensitivity analysis (from manifest v1.1).
 # Separate from the registered exclusions: the frozen S13 sensitivity of Stage 29 and every registered output stay as
 # they are, and no registered stage reads this file (Testing/tests/test_spatial_exclusion_manifest.R). A released
 # version is never edited: SXM_RELEASED pins its content, and a change is a new version file.
@@ -17,10 +19,11 @@ SXM_DIR <- file.path("docs", "spatial_exclusions")
 SXM_COLUMNS <- c("manifest_version", "record_id", "action", "Batch", "CC", "board", "System", "CageEpisodeID", "reader",
                  "resource", "animals", "from", "to", "applies_to", "measures_affected", "movement_outcomes", "evidence",
                  "registered_relation", "decision", "decision_date")
-SXM_ACTIONS <- c("exclude_spatial", "censor")
+SXM_ACTIONS <- c("exclude_spatial", "censor", "exclude_movement")
 SXM_TIME_FORMAT <- "%Y-%m-%d %H:%M:%OS"   # logger clock, labelled UTC as everywhere in the pipeline
 # sha256 of each released version's content with line endings normalised to LF (sxm_content_sha256()).
-SXM_RELEASED <- c(v1.0 = "9203a199cca0e4d1c7b2d57cd964a032e35acd3ec3032a009600cd0f723ddaa7")
+SXM_RELEASED <- c(v1.0 = "9203a199cca0e4d1c7b2d57cd964a032e35acd3ec3032a009600cd0f723ddaa7",
+                  v1.1 = "3ecd65bcf1a90e19c0ad99e99b3f26ac31a1877d834e770661799bd62024d940")
 
 #' File of a manifest version.
 sxm_path <- function(version, repo_root = MMM_REPO_ROOT) {
@@ -47,8 +50,8 @@ sxm_validate <- function(m, version = NULL) {
     stop("Batch, CC or board out of range.", call. = FALSE)
   if (any(m$System != paste0("sys.", m$board))) stop("System must be sys.<board>.", call. = FALSE)
   if (any(m$CageEpisodeID != paste(m$Batch, m$System, m$CC, sep = "|"))) stop("CageEpisodeID must be Batch|System|CC.", call. = FALSE)
-  ex <- m$action == "exclude_spatial"
-  if (any(m$from[ex] != "span_start" | m$to[ex] != "span_end")) stop("exclude_spatial records cover the whole span.", call. = FALSE)
+  ex <- m$action %in% c("exclude_spatial", "exclude_movement")
+  if (any(m$from[ex] != "span_start" | m$to[ex] != "span_end")) stop("Exclusion records cover the whole span.", call. = FALSE)
   ce <- m$action == "censor"
   if (any(is.na(sxm_time(m$from[ce]))) || any(m$to[ce] != "span_end")) stop("censor records need a time `from` and to = span_end.", call. = FALSE)
   if (anyDuplicated(paste(m$action, m$CageEpisodeID))) stop("Two records of one action for one cage episode.", call. = FALSE)
@@ -78,6 +81,12 @@ sxm_read <- function(version = "v1.0", repo_root = MMM_REPO_ROOT, allow_unreleas
 #' Whether cage episodes (vectors batch, cc, board) are excluded from spatial measures that need complete coverage.
 sxm_spatial_excluded <- function(m, batch, cc, board) {
   ex <- m[m$action == "exclude_spatial", , drop = FALSE]
+  paste(batch, cc, board) %in% paste(ex$Batch, ex$CC, ex$board)
+}
+
+#' Whether cage episodes are left out of new primary analyses of active-phase vendor movement outcomes (exclude_movement).
+sxm_movement_excluded <- function(m, batch, cc, board) {
+  ex <- m[m$action == "exclude_movement", , drop = FALSE]
   paste(batch, cc, board) %in% paste(ex$Batch, ex$CC, ex$board)
 }
 

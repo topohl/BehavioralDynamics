@@ -294,13 +294,22 @@ if (sys.nframe() == 0L) {
   data.table::fwrite(code, file.path(out_man, "code_hashes.csv"))
   raqc_figures(tab, ev, sm, out_fig)
   data.table::fwrite(unique(tab$inputs[, .(input, role, sha256, bytes)]), file.path(out_man, "input_hashes.csv"))
-  # the run status: hard failures, then warnings other than the relative review ranks W14 and W15
-  status <- if (any(ev$manifest$severity == "hard_failure" & ev$manifest$status == "flagged")) "FAIL" else
-    if (any(ev$manifest$status == "flagged" & !ev$manifest$check_id %in% c("W14", "W15"))) "WARN" else "PASS"
+  # the run status: hard failures, then warnings other than the relative review ranks W14 and W15. It is reported with its
+  # scope: the status of every board-recording, so a FAIL names the affected cage episodes and does not mark the other
+  # boards or recordings as invalid.
+  unit_status <- aqc_unit_status(ev$flags, tab$board_qc)
+  data.table::fwrite(keyed(unit_status), file.path(out_man, "qc_status_by_unit.csv"))
+  sc <- aqc_status_scope(unit_status)
+  status <- sc$status
+  if (status != (if (any(ev$manifest$severity == "hard_failure" & ev$manifest$status == "flagged")) "FAIL" else
+    if (any(ev$manifest$status == "flagged" & !ev$manifest$check_id %in% c("W14", "W15"))) "WARN" else "PASS")) {
+    stop("Unit status and manifest status disagree.", call. = FALSE)
+  }
   head_commit <- raqc_git(c("rev-parse", "HEAD"))[1]
-  run <- data.frame(item = c("run_id", "qc_status", "rules_version", "git_commit", "code_clean", "isolated", "recordings", "project_root", "raw_root",
+  run <- data.frame(item = c("run_id", "qc_status", "qc_scope", "board_recordings_fail", "board_recordings_warn", "board_recordings_pass",
+                             "rules_version", "git_commit", "code_clean", "isolated", "recordings", "project_root", "raw_root",
                              "data_version", "started", "finished", "R"),
-                    value = c(cfg$run_id, status, AQC_RULES_VERSION, head_commit,
+                    value = c(cfg$run_id, status, sc$scope, sc$counts[["fail"]], sc$counts[["warn"]], sc$counts[["pass"]], AQC_RULES_VERSION, head_commit,
                               as.character(!length(raqc_git(c("status", "--porcelain", "--untracked-files=all", "--", RAQC_CODE)))),
                               as.character(cfg$isolated), paste(ids, collapse = " "), project_root, cfg$raw_root,
                               "v2_cage_label_correction_2026-09-28", started, format(Sys.time(), "%Y-%m-%d %H:%M:%S"), R.version.string))
@@ -310,11 +319,12 @@ if (sys.nframe() == 0L) {
   writeLines(c("PROVISIONAL RAW RFID ACQUISITION QC (Stage 00b; manual diagnostic)", "",
                paste("run:", cfg$run_id, "| status:", status, "| rules:", AQC_RULES_VERSION, "| commit:", head_commit),
                paste("recordings:", length(ids)), "",
+               strwrap(paste0("Status scope: ", sc$scope, ". A FAIL concerns the listed board-recordings only (manifest/qc_status_by_unit.csv)."), 118), "",
                capture.output(print(counts)), "",
                "Hard failures are demonstrable acquisition defects; warnings are review items; diagnostics are continuous values.",
                "Flags and proposed exclusions are never applied by this stage; the frozen S13 list is unchanged.",
                "No group label, CombZ or outcome was read.",
-               "Files: manifest/qc_manifest.csv (one row per check), manifest/qc_flags.csv (one row per flagged unit),",
+               "Files: manifest/qc_manifest.csv (one row per check), manifest/qc_flags.csv (one row per flagged unit), manifest/qc_status_by_unit.csv,",
                "manifest/qc_proposed_exclusions.csv, manifest/qc_rules.csv, tables/ (QC tables and summaries), figures/qc/.",
                "Documentation: docs/RFID_ACQUISITION_QC.md in the MMMSociability repository."), file.path(cfg$tmp_dir, "README.txt"))
   # a resumed run may hold the files of an earlier failed publication: they are rewritten, never listed stale
@@ -328,9 +338,10 @@ if (sys.nframe() == 0L) {
                      file.path(out_man, "output_files_sha256.csv"))
   mmm_frozen_guard_after(guard)   # stops if a pinned file of a frozen run changed
   ledger_row <- list(run_id = cfg$run_id, finished = format(Sys.time(), "%Y-%m-%d %H:%M:%S"), git_commit = head_commit,
-                     rules_version = AQC_RULES_VERSION, qc_status = status, isolated = cfg$isolated, recordings = paste(ids, collapse = " "),
+                     rules_version = AQC_RULES_VERSION, qc_status = if (status == "FAIL") sprintf("FAIL (%d of %d board-recordings)", sc$counts[["fail"]], sc$counts[["units"]]) else status,
+                     isolated = cfg$isolated, recordings = paste(ids, collapse = " "),
                      output_manifest_sha256 = unname(mmm_file_sha256(file.path(out_man, "output_files_sha256.csv"))),
                      protected_files = NA, protection_changes = NA)
   mmm_qc_publish(cfg$tmp_dir, cfg$output_dir, cfg$base, ledger_row, before, locations, prot$hash, ledger_state)
-  message("Stage 00b ", status, ": ", cfg$output_dir)
+  message("Stage 00b ", status, " (", sc$scope, "): ", cfg$output_dir)
 }

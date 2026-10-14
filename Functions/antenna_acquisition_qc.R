@@ -651,6 +651,39 @@ aqc_process_recording <- function(vendor, recording, tags, sysmsg, initscan, ini
        system_messages = addkey(sm), blocks = addkey(blocks))
 }
 
+#' QC status of every board-recording (cage episode): FAIL with a hard failure on its board or a recording-wide hard
+#' failure (board NA), WARN with a warning other than the relative review ranks (W14, W15) on its board or its recording,
+#' PASS otherwise. units: one row per board-recording checked (SourceFile, Batch, CC, board). A FAIL concerns that unit
+#' only; it does not invalidate the other boards of the recording or the other recordings.
+aqc_unit_status <- function(flags, units, review_ranks = c("W14", "W15")) {
+  f <- data.table::as.data.table(flags)[severity %in% c("hard_failure", "warning") & !check_id %in% review_ranks]
+  u <- unique(data.table::as.data.table(units)[, .(SourceFile, Batch, CC, board)])
+  per <- data.table::rbindlist(lapply(seq_len(nrow(u)), function(i) {
+    x <- f[SourceFile == u$SourceFile[i] & (is.na(board) | board == u$board[i])]
+    data.table::data.table(hard_failures = sum(x$severity == "hard_failure"), warnings = sum(x$severity == "warning"),
+                           checks = paste(sort(unique(x$check_id)), collapse = " "))
+  }))
+  u <- cbind(u, per)
+  u[, status := ifelse(hard_failures > 0, "FAIL", ifelse(warnings > 0, "WARN", "PASS"))]
+  data.table::setorder(u, Batch, CC, board)
+  u[]
+}
+
+#' Run-level status with its scope: the status of the worst unit, and a sentence naming the failing units and how many
+#' units and recordings have no hard failure. Returns list(status, scope, failing, counts).
+aqc_status_scope <- function(unit_status) {
+  us <- data.table::as.data.table(unit_status)
+  n <- nrow(us); nf <- sum(us$status == "FAIL"); nw <- sum(us$status == "WARN")
+  rec <- us[, .(fail = any(status == "FAIL")), by = SourceFile]
+  failing <- us[status == "FAIL", paste(Batch, paste0("sys.", board), CC, sep = "|")]
+  status <- if (nf) "FAIL" else if (nw) "WARN" else "PASS"
+  scope <- if (nf) {
+    sprintf("hard failures confined to %d of %d board-recordings (%s) in %d of %d recordings; the other %d board-recordings have no hard failure (%d with warnings, %d without)",
+            nf, n, paste(failing, collapse = ", "), sum(rec$fail), nrow(rec), n - nf, nw, n - nf - nw)
+  } else if (nw) sprintf("no hard failure; %d of %d board-recordings with warnings", nw, n) else sprintf("no hard failure or warning in %d board-recordings", n)
+  list(status = status, scope = scope, failing = failing, counts = c(units = n, fail = nf, warn = nw, pass = n - nf - nw))
+}
+
 #' Adds the cage-episode keys of Stage 29 and the revised measurement tables to a QC table with Batch, CC and board:
 #' System = sys.<board> (unless the table carries the vendor System label already) and CageEpisodeID = Batch|sys.<board>|CC
 #' (the physical cage: the antenna board). NA where board is NA (recording-level rows). Other tables are returned as they are.

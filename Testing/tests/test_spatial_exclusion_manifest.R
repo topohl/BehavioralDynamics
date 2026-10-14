@@ -8,7 +8,9 @@
 #  3. validation refuses malformed records
 #  4. an edited released version is refused (a change needs a new version file)
 #  5. separation from the registered exclusions: the frozen S13 definition is unchanged; no registered stage reads the
-#     spatial manifest or the Stage 00b proposed exclusions
+#     spatial manifest or the Stage 00b proposed exclusions (the unregistered Stage 31 may read it, opt-in)
+#  6. v1.1: the movement decision as exclude_movement records for the same three cage episodes; spatial exclusions and the
+#     censoring time unchanged from v1.0; SX04 states what span_end means per analysis
 # ===========================================================================
 suppressPackageStartupMessages(library(data.table))
 repo <- Sys.getenv("MMM_REPO_DIR", unset = NA_character_)
@@ -81,10 +83,31 @@ code <- c(list.files("Analysis", pattern = "[.][Rr]$", recursive = TRUE, full.na
           list.files("Functions", pattern = "[.][Rr]$", full.names = TRUE))
 code <- code[!grepl("_archive", code)]
 reads <- function(pattern) code[vapply(code, function(f) any(grepl(pattern, readLines(f, warn = FALSE))), logical(1))]
-check(identical(sort(reads("spatial_exclusion_manifest|spatial_analysis_exclusions|sxm_read")), "Functions/spatial_exclusion_manifest.R"),
-      "5: no pipeline stage reads the spatial manifest (only the isolated audit builder does)")
+readers <- reads("spatial_exclusion_manifest|spatial_analysis_exclusions|sxm_read")
+check(all(readers %in% c("Functions/spatial_exclusion_manifest.R", "Functions/antenna_spatial_reconstruction.R", "Analysis/31_cc4_grid_exposure.R")),
+      "5: only the loader, the isolated reconstruction module and the unregistered, opt-in Stage 31 read the spatial manifest")
+registered <- code[grepl("^Analysis/(0[0-9]|1[0-9]|2[0-9]|30|32|33)[a-z]?_", code)]
+check(!any(registered %in% readers), "5: no registered stage (00-29, 30, 32, 33) reads the spatial manifest")
+check(!any(vapply(registered, function(f) any(grepl("antenna_spatial_reconstruction", readLines(f, warn = FALSE))), logical(1))),
+      "5: no registered stage sources the reconstruction module")
 check(setequal(reads("qc_proposed_exclusions"), c("Analysis/00b_qc_raw_acquisition.R")),
       "5: only Stage 00b itself writes or reads its proposed exclusions")
 check(!any(grepl("00b_qc_raw_acquisition", readLines("Analysis/run_all_analysis.R", warn = FALSE))), "5: Stage 00b is not in the automatic runner")
+
+# 6. v1.1
+m11 <- sxm_read("v1.1")
+check(identical(sort(m11[action == "exclude_movement"]$CageEpisodeID), sort(m[action == "exclude_spatial"]$CageEpisodeID)),
+      "6: exclude_movement for exactly the three dead-channel cage episodes")
+check(identical(m11[action %in% c("exclude_spatial", "censor"), .(action, CageEpisodeID, from, to)], m[, .(action, CageEpisodeID, from, to)]),
+      "6: spatial exclusions and the censoring time unchanged from v1.0")
+check(!any(grepl("^Open", m11$movement_outcomes)) && all(grepl("see exclude_movement", m11[action == "exclude_spatial"]$decision, fixed = TRUE)) &&
+        all(grepl("keep as sensitivity", m11[action == "exclude_movement"]$decision, fixed = TRUE)), "6: the movement decision is recorded, not open")
+check(all(grepl("light-phase crossing rate", m11[action == "exclude_movement"]$applies_to, fixed = TRUE)) &&
+        all(grepl("active-phase crossing_rate and active-phase fragmentation", m11[action == "exclude_movement"]$measures_affected, fixed = TRUE)),
+      "6: only the active-phase crossing rate and fragmentation; the light-phase rate is kept")
+check(grepl("Stage 31", m11[action == "censor"]$applies_to) && grepl("2023-12-07 13:12:01", m11[action == "censor"]$applies_to),
+      "6: SX04 states the span end per analysis and its Stage 31 application")
+check(identical(sxm_movement_excluded(m11, c("B2", "B2", "B5", "B5"), c("CC3", "CC4", "CC4", "CC3"), c(2, 5, 1, 1)), c(TRUE, TRUE, TRUE, FALSE)) &&
+        !any(sxm_movement_excluded(m, c("B2", "B5"), c("CC3", "CC4"), c(2, 1))), "6: movement lookups (v1.1 only)")
 
 cat("test_spatial_exclusion_manifest: all checks passed\n")

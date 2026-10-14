@@ -28,10 +28,11 @@ SRS_CODE <- c("Testing/audits/build_single_read_spatial_reconstruction.R", "Func
               "Functions/antenna_data_version.R", "Functions/rfid_event_stream.R", "Functions/rfid_binfree_metrics.R",
               "Functions/animalpos_preprocessing_helpers.R", "Functions/behavioral_dynamics_helpers.R", "Functions/project_paths.R",
               "Functions/behavior_analysis_config.R", "Functions/antenna_measurement.R", "Analysis/_pipeline_setup.R")
-SRS_MANIFEST_VERSION <- "v1.0"
-SRS_PER_RECORDING <- c("occupancy", "crosstab", "censored", "animals", "blocks", "knockout_metrics", "vendor_record_parity", "read_agreement")
+SRS_MANIFEST_VERSION <- "v1.1"
+SRS_PER_RECORDING <- c("occupancy", "crosstab", "censored", "animals", "blocks", "knockout_metrics", "vendor_record_parity", "read_agreement",
+                       "animal_block", "colocation", "gaps")
 SRS_LONGEST_RELATIVE <- c(file.path("rec", "B6_CC4", "read_basis_runs.csv.gz"), file.path("tables", "knockout_materiality.csv"),
-                          file.path("figures", "srs05_knockout_shifts.png"), file.path("manifest", "output_files_sha256.csv"))
+                          file.path("figures", "srs06_column_shares_with_unknown.png"), file.path("manifest", "output_files_sha256.csv"))
 
 srs_git <- function(args) suppressWarnings(system2("git", c("-C", MMM_REPO_ROOT, args), stdout = TRUE, stderr = TRUE))
 
@@ -49,149 +50,13 @@ srs_recording <- function(vf, cfg, man, marker) {
   if (file.exists(done) && identical(readLines(done), marker)) { message(id, ": done, kept"); return(invisible(id)) }
   t_start <- Sys.time()
   vendor <- data.table::fread(vf, colClasses = "character")
-  cal <- antenna_dv_vendor_calendar(vendor)
   tags <- data.table::as.data.table(rfid_animalpos_tag_map(tag_file))
   rec <- rfid_read_recording(cfg$raw_root, batch, cc, keep_read_offsets = TRUE)
-  ev <- rec$events
-  S0 <- cal$span_start; S1 <- min(cal$span_end, max(ev$t + ev$dur_sec))
-  ids <- unique(data.table::as.data.table(vendor)[, .(AnimalID, System_label = System)])
-  ids[, AnimalNum := canonical_animal_id(AnimalID)]
-  if (anyDuplicated(ids$AnimalNum)) stop(id, ": an animal has two spellings or two System labels.", call. = FALSE)
-  roster <- tibble::as_tibble(ids[, .(AnimalNum, System_label)])
-
-  # event basis: Stage 19's function and parameters
-  eb <- rfid_raw_occupancy_intervals(ev[, setdiff(names(ev), c("read_offsets_ms", "file_order"))], roster, tags, S0, S1, ASR_TAU_S)
-  if (anyNA(eb$audit$Board)) stop(id, ": an animal has no raw detection in the span.", call. = FALSE)
-  board_of <- stats::setNames(as.integer(eb$audit$Board), eb$audit$AnimalNum)
-  ev_iv_all <- data.table::as.data.table(eb$intervals)
-
-  # phase blocks (identical edges for both bases), Stage 19's CC4 crop, the manifest masks
-  blk_of <- function(t) animalpos_phase_block_index(as.POSIXct(t, origin = "1970-01-01", tz = "UTC"))
-  blocks <- data.table::data.table(block = seq(blk_of(S0), blk_of(S1 - 1e-6)))
-  blocks[, `:=`(bs = pmax(S0, block * ANIMALPOS_PHASE_LENGTH_SEC + ANIMALPOS_INACTIVE_START_SEC),
-                be = pmin(S1, (block + 1) * ANIMALPOS_PHASE_LENGTH_SEC + ANIMALPOS_INACTIVE_START_SEC))]
-  cb <- data.table::as.data.table(cal$blocks)[, .(block = as.numeric(PhaseBlockIndex), Phase,
-                                                  PhaseNumber = ifelse(Phase == "Active", as.integer(ConsecActive), as.integer(ConsecInactive)))]
-  blocks <- merge(blocks, cb, by = "block", all.x = TRUE)
-  if (anyNA(blocks$Phase)) stop(id, ": a block in the span has no vendor phase label.", call. = FALSE)
-  blocks[, `:=`(block_no = seq_len(.N), stage19_window = !(cc == "CC4" & PhaseNumber > 2L))]
-  edges <- blocks$bs[-1]
-
-  # reads on the millisecond grid (apr_reads(): the times that reproduce the vendor records), roster animals only
-  rd <- data.table::as.data.table(apr_reads(ev))[, .(tag, t_ms, gx, gy, board, PositionID)]
-  rd[, ord := .I]
-  rd <- merge(rd, tags[AnimalNum %in% ids$AnimalNum], by = "tag")
-  data.table::setorder(rd, ord)
+  res <- asr_process_recording(vendor, rec, tags, man, batch, cc, basename(vf))
   rm(rec); invisible(gc())
-
-  # Stage 29 windows of this recording (first active phase and the following light phase), as mmm_evs_windows() sets them
-  pre <- data.table::data.table(SourceFile = basename(vf), DateTime = antenna_dv_parse_time(vendor$DateTime), Batch = batch, CageChange = cc)
-  w29 <- mmm_evs_windows(pre)
-  # Stage 29's stream starts at the file's first record t0 (a few seconds to minutes after 18:30), so its active window
-  # holds data from t0 on
-  wins <- data.table::data.table(window = c("active", "light"), ws = pmax(as.numeric(c(w29$active_start, w29$light_start)), as.numeric(w29$t0)),
-                                 we = as.numeric(c(w29$active_end, w29$light_end)))
-
-  # the v2 vendor records (no synthetic preprocessing rows), to check the emulated baseline record for record
-  syn <- if ("is_synthetic_preprocessing_row" %in% names(vendor)) toupper(vendor$is_synthetic_preprocessing_row) == "TRUE" else FALSE
-  v2 <- data.table::data.table(AnimalNum = canonical_animal_id(vendor$AnimalID), t = as.numeric(antenna_dv_parse_time(vendor$DateTime)),
-                               PositionID = as.integer(vendor$PositionID))[!syn]
-  occ <- list(); xt <- list(); cens <- list(); anim <- list(); runs_out <- list(); kruns <- list(); vpar <- list(); agr <- list()
-  for (a in names(board_of)) {
-    b_own <- board_of[[a]]
-    excluded <- sxm_spatial_excluded(man, batch, cc, b_own)
-    cfrom <- sxm_censor_from(man, batch, cc, b_own)
-    cuts <- c(edges, if (is.finite(cfrom) && cfrom > S0 && cfrom < S1) cfrom)
-    ra <- rd[AnimalNum == a & board == b_own]
-    obs <- asr_resolve_ties(ra$t_ms, ra$PositionID)
-    t_obs <- obs$t_ms / 1000
-    filt <- rfid_flip_filter(t_obs, obs$pid, ASR_TAU_S)
-    rd_iv <- data.table::as.data.table(rfid_carry_forward_intervals(t_obs, filt, S0, S1))
-    read_t <- unique(ra$t_ms) / 1000
-    ev_iv <- ev_iv_all[AnimalNum == a, .(PositionID, start, end)]
-    seg <- asr_animal_segments(ev_iv, rd_iv, read_t, S0, S1, cuts)
-    ag <- asr_aggregate(seg, blocks[, .(block, bs)], censor_from = cfrom)
-    # at each in-span observation (before censoring): does each basis hold the reader just read?
-    io <- which(t_obs >= S0 & t_obs < min(S1, cfrom))
-    ag_read <- data.table::data.table(block = blocks$block[findInterval(t_obs[io], blocks$bs)], pid = obs$pid[io],
-                                      pe = asr_position_at(ev_iv, t_obs[io]), pr = asr_position_at(rd_iv, t_obs[io]))[
-      , .(observations = .N, event_holds_read_reader = sum(pe == pid), read_holds_read_reader = sum(pr == pid),
-          event_holds_read_column = sum(amv_column(pmax(pe, 1L)) == amv_column(pid) & pe > 0),
-          read_holds_read_column = sum(amv_column(pmax(pr, 1L)) == amv_column(pid) & pr > 0)), by = block]
-    agr[[a]] <- ag_read[, AnimalNum := a]
-    occ[[a]] <- ag$occupancy[, AnimalNum := a]; xt[[a]] <- ag$crosstab[, AnimalNum := a]
-    cens[[a]] <- ag$censored[, AnimalNum := a]
-    # the read-basis product: runs cut at the block edges (and the censoring time) with their supported seconds
-    rp <- asr_cut_intervals(rd_iv, cuts)
-    rp <- rp[start < cfrom]
-    for (dd in ASR_BOUNDS_S) data.table::set(rp, j = paste0("sup_", dd), value = asr_supported_seconds(read_t, dd, rp$start, rp$end, from = S0))
-    rp[, `:=`(AnimalNum = a, block = blocks$block[findInterval(start, blocks$bs)])]
-    runs_out[[a]] <- rp
-    in_span <- t_obs >= S0 & t_obs < S1
-    chg <- function(v) if (length(v) < 2) 0L else sum(v[-1] != v[-length(v)])
-    anim[[a]] <- data.table::data.table(
-      AnimalNum = a, board = b_own, System_label_v2 = ids$System_label[ids$AnimalNum == a], spatial_excluded = excluded,
-      censor_from = cfrom, reads_on_board = nrow(ra), reads_off_board = sum(rd$AnimalNum == a) - nrow(ra),
-      observations = nrow(obs), tie_observations = sum(obs$tie), tie_observations_in_span = sum(obs$tie & in_span),
-      read_seeded = any(t_obs < S0), read_seed_age_s = if (any(t_obs < S0)) S0 - max(t_obs[t_obs < S0]) else NA_real_,
-      changes_read_tau0_in_span = chg(obs$pid[in_span]), changes_read_tau2_in_span = chg(filt[in_span]))
-    # knockout: the vendor stream from all of the animal's reads (all boards, as the vendor pools them), and without one
-    # reader's reads on its own board
-    rall <- rd[AnimalNum == a]
-    variants <- list(baseline = rall)
-    for (k in ASR_KNOCKOUT_READERS) variants[[paste0("ko_R", k)]] <- rall[!(board == b_own & PositionID == k)]
-    for (v in names(variants)) {
-      x <- variants[[v]]
-      rec_v <- asr_vendor_records(x$t_ms, x$gx, x$gy)
-      if (v == "baseline") for (w in seq_len(nrow(wins))) {
-        e <- rec_v[t >= wins$ws[w] - 5e-4 & t < wins$we[w] - 5e-4]; o <- v2[AnimalNum == a & t >= wins$ws[w] - 5e-4 & t < wins$we[w] - 5e-4]
-        vpar[[length(vpar) + 1L]] <- data.table::data.table(AnimalNum = a, window = wins$window[w], records_emulated = nrow(e), records_v2 = nrow(o),
-          identical = nrow(e) == nrow(o) && all(e$PositionID == o$PositionID) && all(abs(e$t - o$t) <= 1.5e-3))
-      }
-      for (w in seq_len(nrow(wins))) {
-        r <- asr_window_runs(rec_v, wins$ws[w], wins$we[w])
-        if (!nrow(r)) next
-        kn <- x[t_ms >= wins$ws[w] * 1000 & t_ms < wins$we[w] * 1000, .N]
-        kruns[[length(kruns) + 1L]] <- r[, `:=`(AnimalNum = a, CC = cc, SourceFile = basename(vf), System = paste0("sys.", b_own),
-                                                variant = v, window = wins$window[w], reads_in_window = kn)]
-      }
-    }
-  }
-  key <- data.table::data.table(SourceFile = basename(vf), Batch = batch, CC = cc)
-  addkeys <- function(x) {
-    x <- cbind(key[rep(1L, nrow(x))], x)
-    x[, `:=`(board = board_of[AnimalNum])]
-    x[, `:=`(System = paste0("sys.", board), CageEpisodeID = asr_cage_episode(Batch, board, CC))]
-    x
-  }
-  ph <- blocks[, .(block, block_no, Phase, PhaseNumber, stage19_window)]
-  res <- list()
-  res$occupancy <- merge(addkeys(data.table::rbindlist(occ)), ph, by = "block")
-  res$crosstab <- merge(addkeys(data.table::rbindlist(xt)), ph, by = "block")
-  res$censored <- addkeys(data.table::rbindlist(cens))
-  res$read_agreement <- merge(addkeys(data.table::rbindlist(agr)), ph, by = "block")
-  res$animals <- addkeys(data.table::rbindlist(anim))[, `:=`(span_start = S0, span_end = S1)]
-  res$animals <- merge(res$animals, data.table::as.data.table(eb$audit)[, .(AnimalNum, tag, events_in_span, events_off_board,
-                                                                              event_seeded = seeded, event_seed_age_s = seed_lag_seconds,
-                                                                              changes_event_raw = reader_changes_raw,
-                                                                              changes_event_tau2 = reader_changes_after_flip_filter)], by = "AnimalNum")
-  res$blocks <- cbind(key[rep(1L, nrow(blocks))], blocks)
-  # window metrics of every variant: all animals of the recording together. Cage-mates share the variant: a knockout
-  # deletes reader k from every animal's reads on its own board (its few off-board reads are kept), so each board
-  # loses that antenna at once; boards are independent.
-  KR <- data.table::rbindlist(kruns)
-  km <- KR[, asr_window_metrics(.SD[, .(AnimalNum, CC, SourceFile, System, s, e, pos)]), by = .(variant, window)]
-  km <- merge(km, unique(KR[, .(variant, window, AnimalNum, reads_in_window)]), by = c("variant", "window", "AnimalNum"), all.x = TRUE)
-  km[, board := board_of[AnimalNum]]
-  km[, CageEpisodeID := asr_cage_episode(batch, board, CC)]
-  km[, Batch := batch]
-  res$knockout_metrics <- km
-  res$vendor_record_parity <- cbind(key[rep(1L, length(vpar))], data.table::rbindlist(vpar))[, `:=`(board = board_of[AnimalNum])][
-    , CageEpisodeID := asr_cage_episode(Batch, board, CC)][]
   dir.create(d, recursive = TRUE, showWarnings = FALSE)
   for (nm in SRS_PER_RECORDING) data.table::fwrite(res[[nm]], file.path(d, paste0(nm, ".csv")))
-  ro <- addkeys(data.table::rbindlist(runs_out))
-  data.table::fwrite(ro, file.path(d, "read_basis_runs.csv.gz"))
+  data.table::fwrite(res$runs, file.path(d, "read_basis_runs.csv.gz"))
   data.table::fwrite(input_tab, file.path(d, "inputs.csv"))
   writeLines(marker, done)
   message(sprintf("%s: %.1f min", id, as.numeric(difftime(Sys.time(), t_start, units = "mins"))))
@@ -395,6 +260,95 @@ srs_summaries <- function(tab, stage19, stage29, qc_animals, scales) {
   out
 }
 
+# ---------------------------------------------------------------- srs_v1.1 summaries: denominators, unknown time, R5,
+# missingness, change rates, movement exclusions (group-blind)
+srs_summaries_v11 <- function(tab, man) {
+  out <- list()
+  L <- data.table::data.table(PositionID = 1:8, reader = paste0("R", 1:8), column = amv_column(1:8),
+                              resource = c("food", "", "", "", "house", "", "", "water"))
+  ok <- function(d) d[!sxm_spatial_excluded(man, Batch, CC, board)]
+  q <- function(v) { v <- v[is.finite(v)]   # a unit with no supported time has no supported share
+    if (!length(v)) return(list(n = 0L, median = NA_real_, q25 = NA_real_, q75 = NA_real_, min = NA_real_, max = NA_real_))
+    list(n = length(v), median = stats::median(v), q25 = stats::quantile(v, 0.25, names = FALSE),
+         q75 = stats::quantile(v, 0.75, names = FALSE), min = min(v), max = max(v)) }
+  occ <- ok(data.table::copy(tab$occupancy))
+  occ[, column := L$column[PositionID]]
+  ab <- ok(data.table::copy(tab$animal_block))
+  # denominators: observed time = block time before the censoring time, per animal-block; summed over the grouping
+  obs_phase <- ab[, .(observed_s = sum(observed_s)), by = Phase]
+  obs_ep <- ab[, .(observed_s = sum(observed_s)), by = .(CageEpisodeID, Batch, CC, board, Phase)]
+  for (res_unit in c("column", "PositionID")) {
+    nm <- if (res_unit == "column") "column" else "reader"
+    pooled <- data.table::rbindlist(lapply(c("event", "read"), function(bs)
+      asr_shares_with_unknown(occ[basis == bs], obs_phase, by = "Phase", unit = res_unit)[, basis := bs]))
+    out[[paste0("shares_unknown_", nm, "_pooled")]] <- pooled[order(Phase, basis, bound, unit)]
+    ep <- data.table::rbindlist(lapply(c("event", "read"), function(bs)
+      asr_shares_with_unknown(occ[basis == bs], obs_ep, by = c("CageEpisodeID", "Batch", "CC", "board", "Phase"), unit = res_unit)[, basis := bs]))
+    out[[paste0("shares_unknown_", nm, "_by_episode")]] <- ep
+    out[[paste0("shares_unknown_", nm, "_episode_spread")]] <- ep[, c(q(share_all), list(supported_median = stats::median(share_supported, na.rm = TRUE),
+                                                                                         supported_q25 = stats::quantile(share_supported, 0.25, na.rm = TRUE, names = FALSE),
+                                                                                         supported_q75 = stats::quantile(share_supported, 0.75, na.rm = TRUE, names = FALSE))),
+                                                                  by = .(Phase, basis, bound, unit)][order(Phase, basis, bound, unit)]
+  }
+  # R5 (house): shares by basis and bound, all observed time and supported time; read minus event per cage episode
+  r5 <- out$shares_unknown_reader_by_episode[unit == "5"]
+  r5w <- data.table::dcast(r5, CageEpisodeID + Batch + CC + board + Phase + bound ~ basis, value.var = c("share_all", "share_supported"), fill = 0)
+  r5w[, `:=`(diff_all = share_all_read - share_all_event, diff_supported = share_supported_read - share_supported_event)]
+  out$r5_basis_difference_by_episode <- r5w
+  out$r5_basis_difference_spread <- rbind(r5w[, c(list(denominator = "observed time"), q(diff_all)), by = .(Phase, bound)],
+                                          r5w[, c(list(denominator = "supported time"), q(diff_supported)), by = .(Phase, bound)])[order(Phase, bound, denominator)]
+  out$r5_basis_difference_by_board <- r5w[bound == "max60s", .(cage_episodes = .N, diff_all_median = stats::median(diff_all, na.rm = TRUE),
+                                                              diff_supported_median = stats::median(diff_supported, na.rm = TRUE)), by = .(Phase, board)][order(Phase, board)]
+  out$r5_basis_difference_by_cc <- r5w[bound == "max60s", .(cage_episodes = .N, diff_all_median = stats::median(diff_all, na.rm = TRUE),
+                                                           diff_supported_median = stats::median(diff_supported, na.rm = TRUE)), by = .(Phase, CC)][order(Phase, CC)]
+  # support: share of observed time with a read <= 60 s (and <= 300 s) old, by phase, cage change, board, cage episode, animal
+  sp <- occ[basis == "read", .(sup60 = sum(sup_60), sup300 = sum(sup_300)), by = .(SourceFile, Batch, CC, board, CageEpisodeID, AnimalNum, block, Phase)]
+  sp <- merge(ab[, .(SourceFile, AnimalNum, block, observed_s)], sp, by = c("SourceFile", "AnimalNum", "block"))
+  agg <- function(by) sp[, .(observed_h = sum(observed_s) / 3600, supported_le60_share = sum(sup60) / sum(observed_s),
+                             supported_le300_share = sum(sup300) / sum(observed_s)), by = by]
+  out$support_by_phase <- agg("Phase")
+  out$support_by_cc <- agg(c("Phase", "CC"))[order(Phase, CC)]
+  out$support_by_board <- agg(c("Phase", "board"))[order(Phase, board)]
+  spe <- agg(c("Phase", "CageEpisodeID", "Batch", "CC", "board"))
+  spa <- agg(c("Phase", "CageEpisodeID", "AnimalNum"))
+  out$support_spread <- rbind(spe[, c(list(unit = "cage episode"), q(supported_le60_share)), by = Phase],
+                              spa[, c(list(unit = "animal"), q(supported_le60_share)), by = Phase])
+  # missingness: unknown time by the reader last assigned and the length of its read gap; co-location with cage-mates
+  gp <- ok(data.table::copy(tab$gaps))
+  gp[, reader := ifelse(pos > 0, paste0("R", pos), "none")]
+  out$unknown_by_reader_gap <- gp[, .(unknown_s = sum(unknown_s)), by = .(bound_s, Phase, reader, gap_class)][
+    , share_of_phase_unknown := unknown_s / sum(unknown_s), by = .(bound_s, Phase)][order(bound_s, Phase, reader, gap_class)]
+  out$unknown_by_gap <- gp[, .(unknown_s = sum(unknown_s)), by = .(bound_s, Phase, gap_class)][
+    , share := unknown_s / sum(unknown_s), by = .(bound_s, Phase)][order(bound_s, Phase, gap_class)]
+  co <- ok(data.table::copy(tab$colocation))
+  co[, reader := ifelse(pos > 0, paste0("R", pos), "none")]
+  colo <- co[mates > 0, .(seconds = sum(seconds), mate_same_reader = sum(mate_same_reader), mate_same_reader_supported = sum(mate_same_reader_supported),
+                          mate_supported_anywhere = sum(mate_supported_anywhere)), by = .(bound_s, Phase, reader, state)]
+  colo[, `:=`(mate_same_reader_share = mate_same_reader / seconds, mate_same_reader_supported_share = mate_same_reader_supported / seconds,
+              mate_supported_anywhere_share = mate_supported_anywhere / seconds)]
+  out$colocation_by_reader_state <- colo[order(bound_s, Phase, reader, state)]
+  uc <- co[state == "unknown", .(unknown_s = sum(seconds)), by = .(bound_s, Phase, CC, board)]
+  ob <- ab[, .(observed_s = sum(observed_s)), by = .(Phase, CC, board)][, .(bound_s = ASR_UNKNOWN_BOUNDS_S), by = .(Phase, CC, board, observed_s)]
+  uc <- merge(ob, uc, by = c("bound_s", "Phase", "CC", "board"), all.x = TRUE)
+  uc[is.na(unknown_s), unknown_s := 0]
+  out$unknown_by_cc_board <- uc[, unknown_share := unknown_s / observed_s][order(bound_s, Phase, CC, board)]
+  # changes of position per observed hour, both bases, reader and column resolution (descriptive; not locomotion)
+  cr <- ab[, .(observed_h = sum(observed_s) / 3600, event_reader = sum(changes_event_reader), event_column = sum(changes_event_column),
+               read_reader = sum(changes_read_reader), read_column = sum(changes_read_column)), by = .(Phase, CageEpisodeID, AnimalNum)]
+  crl <- data.table::melt(cr, id.vars = c("Phase", "CageEpisodeID", "AnimalNum", "observed_h"), variable.name = "basis_resolution", value.name = "changes")
+  crl <- crl[observed_h > 0][, per_h := changes / observed_h]
+  out$change_rates <- crl[, c(list(pooled_per_h = sum(changes) / sum(observed_h)), q(per_h)), by = .(Phase, basis_resolution)][order(Phase, basis_resolution)]
+  # movement exclusions (manifest exclude_movement): the Stage 29 animal-windows left out of new primary analyses
+  if (!is.null(tab$knockout_metrics)) {
+    w <- unique(tab$knockout_metrics[variant == "baseline", .(Batch, CC, board, CageEpisodeID, AnimalNum, window)])
+    w[, `:=`(movement_excluded = sxm_movement_excluded(man, Batch, CC, board))]
+    w[, primary_use := ifelse(window == "active", "left out of new primary analyses of crossing rate and fragmentation; kept in the sensitivity analysis",
+                              "light-phase crossing rate kept; evaluated separately")]
+    out$movement_exclusion_windows <- w[movement_excluded == TRUE][order(CageEpisodeID, AnimalNum, window)]
+  }
+  out
+}
+
 srs_figures <- function(sm, dir) {
   th <- ggplot2::theme_bw(base_size = 9) + ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
   sv <- function(p, n, w = 7, h = 4) ggplot2::ggsave(file.path(dir, paste0(n, ".png")), p, width = w, height = h, dpi = 200, bg = "white")
@@ -440,6 +394,15 @@ srs_figures <- function(sm, dir) {
     ggplot2::labs(x = NULL, y = "knockout - baseline, in standardizer SD", title = "Vendor-stream metrics with one antenna's reads deleted (healthy boards)",
                   subtitle = "dashed: 0.5 SD (materiality: median |shift| >= 0.2 SD or 90th percentile >= 0.5 SD)")
   sv(p, "srs05_knockout_shifts", 8, 4)
+  u <- data.table::copy(sm$shares_unknown_column_pooled)[basis == "read"]
+  u[, unit := factor(ifelse(unit == "unknown", "unknown", paste0("C", unit)), levels = c("C1", "C2", "C3", "C4", "unknown"))]
+  u[, bound := factor(bound, levels = c("LOCF", "max300s", "max60s"))]
+  p <- ggplot2::ggplot(u, ggplot2::aes(bound, share_all, fill = unit)) + ggplot2::geom_col(width = 0.7) +
+    ggplot2::scale_fill_manual(values = c(C1 = "grey20", C2 = "grey45", C3 = "grey65", C4 = "grey82", unknown = MMM_PALETTE_DIVERGING[["high"]]), name = NULL) +
+    ggplot2::facet_wrap(~Phase) + th +
+    ggplot2::labs(x = "carry-forward", y = "share of observed time", title = "Column occupancy with unsupported time as its own category (read basis)",
+                  subtitle = "LOCF: unrestricted; max300s / max60s: positions older than the bound are unknown, not redistributed")
+  sv(p, "srs06_column_shares_with_unknown", 8, 4)
   invisible(TRUE)
 }
 
@@ -517,6 +480,7 @@ if (sys.nframe() == 0L) {
   light_sd <- srs_scale(scales, "light", "crossing_rate")
   sm <- srs_summaries(tab, stage19, stage29, qc_animals, scales)
   sm$knockout_scales <- scales
+  sm <- c(sm, srs_summaries_v11(tab, MAN))
   for (dd in c("tables", "manifest", "figures")) dir.create(file.path(tmp, dd), showWarnings = FALSE)
   for (nm in SRS_PER_RECORDING) data.table::fwrite(tab[[nm]], file.path(tmp, "tables", paste0(nm, ".csv")))
   for (nm in names(sm)) data.table::fwrite(sm[[nm]], file.path(tmp, "tables", paste0(nm, ".csv")))

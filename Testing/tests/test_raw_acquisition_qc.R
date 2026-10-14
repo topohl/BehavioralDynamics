@@ -16,6 +16,7 @@
 #     (confirmed / probable / undecidable), schema, proposed exclusions, the frozen-S13 annotation, group-blindness
 # 12. end to end on a synthetic recording with a dead antenna: zero-read detection, expected co-reads, placement-scan
 #     evidence, integrity counts, coverage shares at exact cell counts
+# 13. status by unit (board-recording): a FAIL concerns its own board-recording; the run status with its scope
 # ===========================================================================
 suppressPackageStartupMessages({ library(data.table); library(dplyr); library(tibble) })
 repo <- Sys.getenv("MMM_REPO_DIR", unset = NA_character_)
@@ -248,4 +249,24 @@ ev12 <- aqc_evaluate(res)
 check(nrow(ev12$flags[check_id == "H06"]) == 1 && ev12$flags[check_id == "H06"]$classification == "probable acquisition failure: whole-session channel dropout",
       "12: without other recordings a bracketed dropout is probable, not confirmed")
 unlink(tmp, recursive = TRUE)
+
+# 13. Status by unit: a hard failure on B2 CC3 board 2 fails that board-recording only; a recording-wide warning (board NA)
+#     makes every board of B6 CC2 WARN; W14 / W15 review ranks never set a status.
+units <- data.table::CJ(SourceFile = c("B2_CC3", "B6_CC2", "B1_CC1"), board = 1:5)
+units[, `:=`(Batch = substr(SourceFile, 1, 2), CC = substr(SourceFile, 4, 6))]
+fl <- data.table(check_id = c("H06", "W04", "W14", "W15", "W06"), severity = c("hard_failure", "warning", "warning", "warning", "warning"),
+                 SourceFile = c("B2_CC3", "B6_CC2", "B1_CC1", "B1_CC1", "B2_CC3"), board = c(2L, NA, 3L, 4L, 5L))
+us <- aqc_unit_status(fl, units)
+st <- function(f, b) us[SourceFile == f & board == b]$status
+check(st("B2_CC3", 2) == "FAIL" && st("B2_CC3", 1) == "PASS" && st("B2_CC3", 5) == "WARN", "13: a hard failure fails its own board only")
+check(all(us[SourceFile == "B6_CC2"]$status == "WARN"), "13: a recording-wide warning applies to every board of the recording")
+check(all(us[SourceFile == "B1_CC1"]$status == "PASS"), "13: review ranks W14/W15 set no status")
+sc <- aqc_status_scope(us)
+check(sc$status == "FAIL" && identical(sc$failing, "B2|sys.2|CC3") && identical(as.numeric(unname(sc$counts)), c(15, 1, 6, 8)) &&
+        grepl("1 of 15 board-recordings", sc$scope) && grepl("in 1 of 3 recordings", sc$scope), "13: run status with its scope")
+check(aqc_status_scope(us[status != "FAIL"])$status == "WARN" && aqc_status_scope(us[status == "PASS"])$status == "PASS", "13: WARN and PASS runs")
+code00b <- readLines("Analysis/00b_qc_raw_acquisition.R", warn = FALSE)
+check(any(grepl("qc_status_by_unit.csv", code00b, fixed = TRUE)) && any(grepl("Status scope", code00b, fixed = TRUE)),
+      "13: Stage 00b writes the unit status and states the scope in its README")
+
 cat("test_raw_acquisition_qc: all checks passed\n")
