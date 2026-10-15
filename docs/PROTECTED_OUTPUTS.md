@@ -117,6 +117,6 @@ check reports as added for review. Stage 31b-31d runs in RANM are checked agains
 
 Reference run of the fifth round (2026-10-15; calibration amendment v3 before any data): `vpo_t1_20261015_0948_7dd32a1`,
 compared with the fourth round's end snapshot `vpo_t1_20261015_0308_1a55644` (no RANM run was written in this round, so no
-first run was taken): 13 of 13 content checks PASS, every protected output unchanged; baseline_diff lists only the four
+first run was taken): 12 of 12 content checks PASS, every protected output unchanged; baseline_diff lists only the four
 repository files added by the approved amendment (`acp_criteria_v1.2.csv`, `schedule_one_day_v3.csv`,
 `make_schedule_one_day_v3.R`, `acp_report_status_v1.1.csv`), reported as added for review.
