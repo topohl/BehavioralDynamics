@@ -17,7 +17,7 @@
 # default id is cqc_v1.0_<commit>; a release needs committed code.
 
 CQC_VERSION <- "cqc_v1.0"
-CQC_CODE <- c("Testing/audits/compare_cc4_qc_reruns.R", "Functions/cc4_phase_group_helpers.R", "Functions/project_paths.R",
+CQC_CODE <- c("Testing/audits/compare_cc4_qc_reruns.R", "Functions/cc4_phase_group_helpers.R", "Functions/cc4_grid_exposure_helpers.R", "Functions/project_paths.R",
               "Functions/protected_outputs.R", "Functions/qc_run_protection.R", "Functions/frozen_input_guard.R", "Analysis/_pipeline_setup.R")
 # The three versions of each stage: folder names under the frozen root (historical) and the QC rerun root.
 CQC_RUNS <- data.frame(
@@ -158,7 +158,7 @@ if (sys.nframe() == 0L) {
   suppressPackageStartupMessages(library(data.table))
   data.table::setDTthreads(1L)
   source("Analysis/_pipeline_setup.R")
-  for (h in c("project_paths.R", "cc4_phase_group_helpers.R", "qc_run_protection.R", "frozen_input_guard.R", "protected_outputs.R")) source_mmm_helper(h)
+  for (h in c("project_paths.R", "cc4_grid_exposure_helpers.R", "cc4_phase_group_helpers.R", "qc_run_protection.R", "frozen_input_guard.R", "protected_outputs.R")) source_mmm_helper(h)
   a <- cqc_args(commandArgs(trailingOnly = TRUE))
   project_root <- mmm_project_root()
   git <- function(args) suppressWarnings(system2("git", c("-C", MMM_REPO_ROOT, "--no-optional-locks", args), stdout = TRUE, stderr = TRUE))
