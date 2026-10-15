@@ -316,6 +316,13 @@ check(identical(unname(lengths(VPO_STAGE19_COPY_FILES)), c(8L, 11L)) && all(unli
       "7: the 19 pinned publication copies are named in the Stage 19 record")
 rk <- vpo_check_ranm_runs(ranm, 1L, vpo_hasher())
 check(setequal(rk[status == "missing"]$unit, VPO_RANM_RUNS), "7: a registered RANM run that is gone is reported missing")
+s31r <- file.path(ranm, "cc4_qc_reruns", "runs", "p31c_x"); dir.create(s31r, recursive = TRUE); writeLines("a", file.path(s31r, "primary_effects.csv"))
+fwrite(data.table(File = "primary_effects.csv", SHA256 = digest::digest(file = file.path(s31r, "primary_effects.csv"), algo = "sha256")), file.path(s31r, "manifest.csv"))
+r31 <- vpo_check_ranm_runs(ranm, 2L, vpo_hasher())[unit == "cc4_qc_reruns/p31c_x"]
+check(nrow(r31) >= 1L && all(r31$status == "ok"), "7: a Stage 31b-31d run with a root manifest.csv (File, SHA256) is checked against it")
+writeLines("b", file.path(s31r, "primary_effects.csv"))
+check(any(vpo_check_ranm_runs(ranm, 2L, vpo_hasher())[unit == "cc4_qc_reruns/p31c_x"]$status != "ok"), "7: ... and a changed file in it is caught")
+unlink(file.path(ranm, "cc4_qc_reruns"), recursive = TRUE)
 
 # 8. baseline snapshot round trip and diff
 h <- vpo_hasher()

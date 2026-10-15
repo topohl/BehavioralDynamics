@@ -307,7 +307,9 @@ vpo_check_ranm_runs <- function(ranm, tier, hasher, own = character(0)) {
         next
       }
       raqc <- basename(t) == "raw_acquisition_qc" || startsWith(basename(r), "raqc_")
-      out <- c(out, list(vpo_manifest_check("ranm_runs", r, VPO_RUN_MANIFEST, tier, hasher, allow = if (raqc) VPO_RAQC_UNLISTED else character(0),
+      # Stage 31b-31d runs (e.g. the QC reruns in RANM/cc4_qc_reruns) list their files in a root manifest.csv (File, SHA256)
+      man <- if (!file.exists(file.path(r, VPO_RUN_MANIFEST)) && file.exists(file.path(r, "manifest.csv"))) "manifest.csv" else VPO_RUN_MANIFEST
+      out <- c(out, list(vpo_manifest_check("ranm_runs", r, man, tier, hasher, allow = if (raqc) VPO_RAQC_UNLISTED else character(0),
                                             unit = unit)))
     }
     loose <- setdiff(list.files(t, all.files = TRUE, no.. = TRUE), c("runs", MMM_PROTECTION_IGNORED_NAMES))
