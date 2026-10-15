@@ -15,8 +15,8 @@ physical occupancy or as validated locations. No group label, CombZ or outcome i
 | part | where |
 |---|---|
 | one-day protocol (this document, section 1) | counterbalanced board order, seeded placement order, repeat reference placements |
-| seeded schedule | `docs/rfid_calibration/schedule_one_day_v2.csv` (generator `make_schedule_one_day_v2.R`, seed 20261014; amended 2026-10-15; v1 kept for provenance) |
-| decision criteria | section 2; machine-readable `docs/rfid_calibration/acp_criteria_v1.1.csv` (v1.0 kept for provenance) |
+| seeded schedule | `docs/rfid_calibration/schedule_one_day_v3.csv` (generator `make_schedule_one_day_v3.R`, seeds 20261014 and 20261016; amended twice on 2026-10-15; v1 and v2 kept for provenance) |
+| decision criteria | section 2; machine-readable `docs/rfid_calibration/acp_criteria_v1.2.csv` (v1.0 and v1.1 kept for provenance) |
 | day-2 rule | section 3 |
 | pre-registered analysis | `Functions/antenna_calibration_pilot.R`, `Testing/audits/analyse_rfid_calibration_pilot.R`, `Testing/tests/test_antenna_calibration_pilot.R` (section 4) |
 | full two-day programme (reference; day 2 only under the day-2 rule) | section 5 |
@@ -40,22 +40,58 @@ before booking, and nothing is booked or acquired without Tobias's confirmation:
 - Day plan and checklist: `docs/RFID_CALIBRATION_LOGISTICS.md`. Schedule v1 and criteria v1.0 stay in the repository for
   provenance; the v1 timeline below is the record of the first version.
 
-**Code status (2026-10-14; amended 2026-10-15).** The analysis is written and tested on synthetic logs only; nothing has been measured.
+**Amendment v3 of 2026-10-15 (Tobias's second decision of that day; before any data and before booking).** Booking is
+approved, subject to hardware and personnel, once the amended day is practical for one rack day (it is: 5.4 h on site,
+08:30-13:54; `docs/RFID_CALIBRATION_LOGISTICS.md` section 5). Four-column occupancy is the primary spatial representation,
+so the column boundaries and the house at R5 get targeted coverage:
+- **Schedule v3** (`schedule_one_day_v3.csv`, 160 rows; content sha256 `e61c7d6a...341b` pinned as ACP_SCHEDULE_SHA256; file
+  as written by R on Windows `a7330332...b739`; generator `make_schedule_one_day_v3.R`, seeds 20261014 and 20261016):
+  - **K, column-boundary step transitions:** known start and end centres, steps on a timed call, holds of 20 s, out and
+    back along a row; the lower row in half 1 and the upper row in half 2, inside the M visits, 4-2-2-4; 12 transitions
+    per board across all six column boundaries;
+  - **HX, house coverage:** four more ON/OFF pairs, 40 s analysed: HEx and HEy at the house edge towards R6 in x and y and
+    HSy at the house side towards R1 in y (on the bedding in the well), and HOx on the floor just outside the house wall
+    towards R6;
+  - **house-lifted periods** C1o and C4o in every competition run, so that one or four tags are measured with the house
+    on and lifted inside one run; every house-on period with tags in the house (C1, C4, CS) starts the same way (lift, tags
+    placed or moved, house set down over them);
+  - **reallocated:** C1, C4 and CS shortened in each of the four runs (the competition content doubled in v2): per board the
+    analysed C1 / C4 / CS time falls from 240 / 600 / 300 s (v2) to 180 / 480 / 240 s (v1: 120 / 300 / 150 s);
+  - every v2 row outside the competition runs is kept unchanged and in order; drop step 4 drops the HSy pairs.
+- **Criteria v1.2** (content sha256 `12c0b2d2...0500`): v1.1 with G07 (schedule v3), G08, one technical correction (A04) and
+  the added rows of category added_v1.2 (G10, K, KA, HX). Every v1.1 endpoint definition, decision threshold and the day-2
+  rule are unchanged. A04 changes the values of the basis-sensitive endpoints, and the shorter competition periods the data
+  of B4-B7. The added rows are computed apart from the v1.1 endpoints and are outside the day-2 rule; a sheet error on an
+  added placement is reported apart and never triggers D2.
+  - **A04 seeding.** An event in progress at the placement start is now an observation at the start, in both bases (this
+    changes the values, not the definitions or thresholds, of the basis-sensitive endpoints). Real
+    events have no length limit, so before v1.2 a tag placed before the start touch and read continuously left the event
+    basis unassigned for its whole placement, and the basis comparison would have favoured the single-read basis by
+    construction. Found while testing the v3 additions, before any data.
+- **Report mapping v1.1** (`acp_report_status_v1.1.csv`, sha256 `921aeaac...09a5`): the basis item is governed by the overall
+  verdict (K20); the added rows are mapped. Mapping v1.0 is kept.
+- Schedules v1 and v2, criteria v1.0 and v1.1 and mapping v1.0 stay in the repository for provenance. The v1 and v2
+  timelines below are the record of those versions; section 1.11 and section 2 (d) describe the additions.
+
+**Code status (2026-10-14; amended twice on 2026-10-15).** The analysis is written and tested on synthetic logs only; nothing has been measured.
 - `Functions/antenna_calibration_pilot.R` (prefix `acp_`) holds pure definitions and reuses the reconstruction,
   measurement and QC functions unchanged. Every threshold is read from the criteria file. `acp_criteria()` and
   `acp_read_schedule()` stop unless the content sha256 (line endings normalised to LF) equals the pinned value
-  (`ACP_CRITERIA_SHA256` = `c934354377d30c2f413d39b8504ee07f35cec132b47741d5a66f9c6fc2780446`, `ACP_SCHEDULE_SHA256` =
-  `2855780e2aa5cc7f04049eeb5b2868d9ba7920369218f1bd3ae105d0c30b549e`; the schedule file hash in section 1 is of its CRLF bytes).
+  (`ACP_CRITERIA_SHA256` = `12c0b2d2e3b0cd61f1b7ea0be64e0e8c1752e167ffb8b69b7c08c400d1aa0500` for acp_criteria_v1.2,
+  `ACP_SCHEDULE_SHA256` = `e61c7d6ad9fd40886f806cf895f640c6bcdceab0aec013b5246f7062bf0f341b` for schedule_one_day_v3).
+  The v1.0 and v1 pins of the first version were `c9343543...0446` and `2855780e...549e`.
 - `Testing/audits/analyse_rfid_calibration_pilot.R --date=<YYYYMMDD>` is the main-guarded runner. It reads the day's
   folder read-only and writes only `<Behavior>/RANM/calibration/<run_id>/` (built in `.tmp_<run_id>`; an existing folder
-  is refused). A release run needs committed code, the default raw folder and the pinned Stage 00b board history of
-  `raqc_20261014_6165adf`, which is the only Exp9 input and is group-blind.
-- `Testing/tests/test_antenna_calibration_pilot.R` covers T1-T16 of the analysis plan (section 4) and runs one synthetic
-  pilot day on the pinned schedule end to end, with expected values worked out by hand.
-- The criteria are fixed from the commit that adds them. A change before the pilot needs a new version
-  (`acp_criteria_v1.1`) with its reason; no change is allowed after data are seen.
+  is refused; default run id `acp_v1.2_<date>_<commit>`). A release run needs committed code, the default raw folder and
+  the pinned Stage 00b board history of `raqc_20261014_6165adf`, which is the only Exp9 input and is group-blind.
+- `Testing/tests/test_antenna_calibration_pilot.R` covers T1-T16 of the analysis plan (section 4), the v2 and v3
+  amendments (V2, V3), and runs one synthetic pilot day on the pinned schedule end to end, with expected values worked out
+  by hand. Among the V3 checks: the v1.1 decision rows of the synthetic day are identical with and without the added
+  placements, and so is the day-2 verdict (B15 aside, whose known-empty time follows the visit spans).
+- The criteria are fixed from the commit that adds them. A change before the pilot needs a new version with its reason;
+  no change is allowed after data are seen.
 
-## 1. One-day pilot protocol (v2)
+## 1. One-day pilot protocol (v2; amended by v3, section 1.11)
 
 **Status.** This revises the minimal one-day version in `docs/RFID_CALIBRATION_PILOT.md` (section Resources). Tobias approved that version in principle, subject to hardware availability.
 - Nothing is booked, no tag has been placed and no animal is involved.
@@ -368,7 +404,50 @@ Never drop a block on one board only.
 
 Static and sled-moved tags calibrate bench hardware behaviour only (boards 2 and 4). They do not validate positions of freely moving implanted mice; their results enter the Exp9 analysis only as priors, parameter choices and sensitivity analyses, never as bounds on true physical occupancy.
 
-## 2. Pre-specified decision criteria (acp_criteria_v1.0)
+### 11. Additions of schedule v3 (2026-10-15)
+
+**K: column-boundary step transitions.** In each M visit, after the passes and the short visits:
+- half 1 (V1 board 4, V2 board 2): the rail is moved to the lower row; the sled with T1 (x orientation, on the floor)
+  starts at the R1 centre and is pulled one reader spacing in about 2 s at 25, 47, 69, 91, 113 and 135 s after the start
+  touch, to R2, R3, R4, R3, R2 and R1; it holds at each centre in between (20 s; 165 s recorded);
+- half 2 (V2 board 2, V3 board 4): the same on the upper row, R5>R6>R7>R8>R7>R6>R5, with the rail already there;
+- the recorder calls each step from a timer; the video gives the true crossing times (annotation `cross` rows); every K
+  crossing changes column;
+- per board: 12 transitions, each of the six column boundaries in both directions, 4 passes.
+
+**HX: house coverage.** In the H blocks, with production bedding in the well, each class ON (house on its outline) and OFF
+(house lifted), T1, 40 s analysed:
+- HEx: (25,116), x (radial towards R6), on the bedding: misassignment towards the neighbouring column; H07 on, H08 off;
+- HEy: (25,116), y (tangential), on the bedding: orientation at the house edge; H09, H10;
+- HSy: (0,87), y (radial towards R1, the food reader), on the bedding: misassignment within the column; H11, H12;
+- HOx: (75,116), x, on the floor just outside the house wall towards R6: whether the house draws an outside tag into the
+  house column; H13, H14;
+- HEx and HEy are in the same H half (with HCz), HSy and HOx in the other (with HCx and the roof pair); their positions
+  inside each state are drawn from the second seed (20261016);
+- the positions are coordinates; their relation to the house outline (measured before the day) only labels them, and an
+  unexpected relation (HOx inside or HEx outside the wall) is a reason to amend and re-pin the schedule before the day.
+
+**House-lifted periods in every competition run.** C0 (sentinels, house on) -> lift, T1 into slot 1, house set down -> C1
+(100 s) -> lift, tags staying -> C1o (T1 alone, house lifted; 70 s) -> T2-T4 added in slots 2-4 -> C4o (house lifted;
+130 s) -> house set down -> C4 (250 s) -> lift, T3 and T4 to R6, house set down -> CS (130 s) -> CE. Every house-on period
+with tags in the house starts with the house set down over them and the slots checked on the camera, so the cells of the
+2 x 2 (one or four tags x house on or lifted) do not differ in handling. A disturbance inside a run is repeated at once as
+`<order>r` (logistics, stop rule 4).
+
+**Reallocation.** C1 130 -> 100 s, C4 310 -> 250 s and CS 160 -> 130 s in each run. Per board the analysed C1 / C4 / CS time
+falls from 240 / 600 / 300 s (v2) to 180 / 480 / 240 s (v1: 120 / 300 / 150 s); the 10-s blocks of B4-B6 from 24 / 60 / 30 to
+18 / 48 / 24. The v1.1 definitions and thresholds are unchanged; their precision is lower than in v2.
+
+**Drop step 4.** If the day is more than 20 min behind at the break: the HSy pairs on both boards (-5 min), after steps 1
+and 2. Step 3 (fewer visits) cannot be applied on both boards at the break of schedules v2 and v3 and is skipped; the
+analysis refuses it on one board.
+
+**On site.** 324.5 min (5.4 h), 08:30-13:54 (v2 276 min). Day plan: `docs/RFID_CALIBRATION_LOGISTICS.md` section 5.
+
+## 2. Pre-specified decision criteria (acp_criteria_v1.0; v1.1 and v1.2 amend it before any data)
+
+v1.1 (2026-10-15) changed G07 and the day-2 handling (DC1-DC3). v1.2 (2026-10-15, second decision) changes G07, G08 and A04
+(seeding, below) and adds the rows of category added_v1.2 described in (d). Every other rule below is unchanged.
 
 ### Rules that govern every criterion
 - **Fixed before any measurement.** The criteria are fixed before any measurement and before booking.
@@ -450,9 +529,42 @@ Static and sled-moved tags calibrate bench hardware behaviour only (boards 2 and
 | boards 1, 3 and 5 | They are untested. Board 3 is inferred from board 4. |
 | why a particular Exp9 animal-block was read little; same-reader co-assignment as proximity; any CON/RES/SUS difference | No calibration can address these. |
 
+### (d) Rows added in criteria v1.2 (category added_v1.2; outside the day-2 rule)
+
+**G10.** The added rows evaluate the measurements added in schedule v3 and are computed apart from the v1.1 endpoints: no
+added placement enters a v1.1 endpoint, and the v1.1 bootstrap draws do not depend on the added data (the shorter
+competition periods and the longer visit spans change the data of B4-B7, B15 and B16, not their definitions). An added row
+or placement that is not obtained is reported as not obtained and never triggers D2. No added row changes a v1.1 decision;
+the overall verdict K20 can only withhold a READ or EVENT call.
+
+**A04 (corrected seeding, criterion (a)).** Each placement or run is reconstructed only from its own observations from the
+placement start on. An event of the tag on its board that started before the start and still has reads at or after it (in
+progress at the start) is an observation at the start in both bases (the most recent such event). Otherwise time before the
+first observation is unassigned in both bases.
+
+| rule | statistic | decision |
+|---|---|---|
+| K01 | units: each K crossing, -10 to +10 s, truncated halfway to the neighbouring crossings; cluster = pass | - |
+| K02 | c_K(u, b) = correct-column share of the evaluated cells at tau 2 s; d_K = read - event; D_K pooled and per board; bootstrap strata board, clusters the passes | - |
+| K10-K16 | D_K | READ_K: D_K >= 0.05, lower CI > 0 and D_K > 0 on both boards; EVENT_K: D_K <= -0.05, upper CI < 0 and D_K < 0 on both boards; EQUIVALENT_K: CI inside (-0.05, +0.05); otherwise INCONCLUSIVE_K (the D_K bootstrap has only 4 passes per board, so both boards must agree) |
+| K20 | overall basis verdict | the criterion (a) decision of D_col, except (a) READ with EVENT_K, or (a) EVENT with READ_K: **discordant** (neither basis decisively supported; both retained as sensitivity analyses) |
+| K30 | switching latency: crossing to the first cell in the destination column, per transition and basis | descriptive (median and order-statistic CI); a missed transition counts as infinite |
+| K31 | hold cores: cells more than 5 s from every crossing | input of KA3 |
+| K32 | correct-column share of the assigned cells by detection age (<= 2, 2-10, 10-60, 60-300, > 300 s since the latest single read), K and M windows | descriptive |
+| KA1-KA8 | column-level adequacy under the basis of K20 (both bases on a tie or discordance) | **adequate** when, on both boards: KA1 every tested centre >= 0.95 correct column of the assigned time; KA2 mean over the tested P09, P10, P11, REF-x >= 0.90; KA3 hold cores >= 0.95; KA4 >= 0.90 of the K transitions detected; KA5 median switching latency <= 5 s; KA6 every tested house placement next to R6 with the house on (HEx, HEy, HOx) >= 0.90 ("tested": assigned for at least half the window, B2b). **Limited** as soon as any component is not met (the components not met are named); otherwise a component without data: not obtained. K runs with the house absent: "adequate" does not cover column changes with the house in place or house exits |
+| HX01-HX03 | extended house ratio over the classes inside the house, HCx, HCz, HEx, HEy, HSy (on / lifted, true reader, continuity 0.5; unread both excluded; bootstrap over pairs); per class, with HOx outside the wall: ratio, correct-reader and correct-column shares, orientation ratio HEy / HEx | HX02 with the B8 thresholds: no attenuation (>= 0.90, lower CI >= 0.80), attenuation (< 0.70, upper CI < 0.90), otherwise partial |
+| HX10 | competition with the house lifted: TR_off = C4o / C1o, MS_off, longest gap in C4o; both runs of a board pooled; 10-s block bootstrap | the B4 calls and precedence |
+| HX11 | HR4 = throughput C4 / C4o; HR1 = rate C1 / C1o | HR4 with the B8 thresholds |
+| HX20-HX24 | HI = HR4 / HR1 (house x load interaction) | interaction: CI excludes 1; no interaction: CI inside [0.85, 1.15]; otherwise undecided |
+
+The thresholds of KA1-KA6 are fixed before any data. KA1 and KA2 follow B2 (0.95 at centres, 0.90 at boundaries); KA5 uses
+the 5-s visits of M (a typical 5-s visit should not be shorter than the switching latency). No threshold of v1.1 is
+changed, and none of the added rows is chosen by biological outcomes, group effects, predictive performance or
+significance.
+
 ## 3. Day-2 rule (pre-specified)
 
-The rule is fixed before the pilot, together with the criteria (acp_criteria_v1.0; v1.1 of 2026-10-15 changes only the day-2 handling: a separate confirmation experiment, never pooled).
+The rule is fixed before the pilot, together with the criteria (acp_criteria_v1.0; v1.1 of 2026-10-15 changes only the day-2 handling: a separate confirmation experiment, never pooled; v1.2 leaves the rule unchanged: the rows it adds (K, KA, HX) are outside it, G10).
 
 **What runs, when.**
 - After day 1, `acp_decide_day2()` applies the rule to the decision table.
@@ -539,9 +651,10 @@ Implemented before booking (pre-registration); see "Pre-registered analysis code
 | functions | `Functions/antenna_calibration_pilot.R` (prefix `acp_`; pure definitions) |
 | runner | `Testing/audits/analyse_rfid_calibration_pilot.R` |
 | portable tests | `Testing/tests/test_antenna_calibration_pilot.R` |
-| criteria | `docs/rfid_calibration/acp_criteria_v1.1.csv` (content sha256 pinned in the code; v1.0 kept) |
-| schedule | `docs/rfid_calibration/schedule_one_day_v2.csv` (v1 kept) |
-| schedule generator | `docs/rfid_calibration/make_schedule_one_day_v2.R` (seed 20261014; v1 kept) |
+| criteria | `docs/rfid_calibration/acp_criteria_v1.2.csv` (content sha256 pinned in the code; v1.0 and v1.1 kept) |
+| schedule | `docs/rfid_calibration/schedule_one_day_v3.csv` (v1 and v2 kept) |
+| schedule generator | `docs/rfid_calibration/make_schedule_one_day_v3.R` (seeds 20261014 and 20261016; v1 and v2 kept) |
+| report layer | `Functions/antenna_calibration_report.R`, `Testing/audits/report_rfid_calibration_pilot.R`, mapping `docs/rfid_calibration/acp_report_status_v1.1.csv` (v1.0 kept), tests `Testing/tests/test_antenna_calibration_report.R` |
 
 **Running.**
 - One light R process; data.table threads 1.
@@ -622,7 +735,17 @@ Implemented before booking (pre-registration); see "Pre-registered analysis code
     - `acp_decide_tau` (B11);
     - `acp_decide_phantom` (B15);
     - `acp_decide_transfer` (B16);
-    - `acp_decide_day2` (D1-D6) → a recommendation only.
+    - `acp_decide_day2` (D1-D6) → a recommendation only (rows of category added_v1.2 never trigger D2).
+29. v1.2 additions (criteria K, KA, HX; computed apart from the v1.1 endpoints):
+    - `acp_k_units(annotation, windows, half_s)` → the K transition units (K01);
+    - `acp_k_analysis(grid, mtruth, units, crit, B)` → per unit c_K and d_K, D_K with the bootstrap, switching latency,
+      hold cores (K02, K30, K31);
+    - `acp_decide_k`, `acp_decide_basis_overall` (K10-K20), `acp_k_latency_rows` (K30);
+    - `acp_decide_column_adequacy(conf_s, k, conf_hx, overall, crit)` (KA1-KA8);
+    - `acp_house_extension(det, conf, crit, B)`, `acp_decide_house_extension` (HX02, HX03);
+    - `acp_competition_house(reads, windows, truth, crit, B)`, `acp_decide_competition_house` (HX10-HX24);
+    - `acp_age_accuracy(reads, windows, grid, mtruth, crit)` (K32).
+    `acp_observations()` seeds both bases with an event in progress at the placement start (A04, v1.2).
 
 ### Synthetic-log tests
 These are portable: they write UTF-16LE logs under `tempdir()` in the way `test_raw_acquisition_qc.R` section 12 does. They never source a runner and never touch S:.
@@ -645,6 +768,8 @@ These are portable: they write UTF-16LE logs under `tempdir()` in the way `test_
 | T14 | The criteria hash pin is enforced. |
 | T15 | Group-blind: no Group, CombZ, sus_animals or outcome symbol in the parsed code. |
 | T16 | The output-root guard refuses Raw Data, MMMdata and RANM/measurement_validation. |
+| V2 | Schedule v2: every programme 4-2-2-4 and two identical C runs per board, pooled by 10-s blocks; criteria v1.1 = v1.0 except G07, G08 and DB -> DC; an unauthorized board substitution aborts the runner. |
+| V3 | Schedule v3: the 98 v2 rows outside the competition runs kept in order; K and HX 4-2-2-4; HOx outside the wall; the same lift and set-down handling for C1, C4 and CS; the generator reproduces the pin; criteria v1.2 = v1.1 except G07, G08, A04 and the added rows; A04 seeding by hand; K units, latency, hold cores and D_K by hand; READ_K and EVENT_K need both boards; the overall verdict; column adequacy (tested placements; limited before not obtained); the extended house ratio; the house-lifted competition and interaction by hand; drop steps (step 3 skipped or on both boards, step 4); added rows and added placements never trigger D2; the v1.1 decision rows and the day-2 verdict of the synthetic day are unchanged by the added placements. |
 
 ### Repository functions reused unchanged
 | file | functions |
@@ -660,8 +785,8 @@ New code is limited to the joiner (sheet, clapper, windows, truth, annotation), 
 
 ### Effort
 - Before booking: about 10-12 h (code, tests, criteria).
-- Video annotation: about 2 h (48 crossings, 24 visits, survey).
-- Analysis after the day: about 12-14 h.
+- Video annotation: about 2.5 h (schedule v3: per board 24 pass crossings, 12 visits with 24 crossings and 12 K crossings; survey).
+- Analysis after the day: about 14-16 h.
 - Review: 2 h.
 
 ## 5. Reference: the full two-day programme (v1, 2026-10-14)

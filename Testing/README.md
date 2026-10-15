@@ -100,9 +100,11 @@ release decision.
   detection-independent records; `RANM/cage_episode_presence/`) and `audit_board_adjustment_read_dependent.R`
   (technical board adjustment of read-dependent measures; `RANM/board_adjustment/`).
 - **RFID calibration pilot (pre-registered, not yet run)** — `analyse_rfid_calibration_pilot.R --date=<YYYYMMDD>`
-  (criteria `docs/rfid_calibration/acp_criteria_v1.1.csv`, schedule `schedule_one_day_v2.csv`, both hash-pinned; v1.0 / v1 kept; isolated root
-  `RANM/calibration/`; `docs/RFID_CALIBRATION_PILOT.md`); after a run, `report_rfid_calibration_pilot.R --acp-run=<run>` writes the
-  resolved / uncertain / not-obtained report and the day-2 trace (`RANM/calibration_reports/`; `docs/RFID_CALIBRATION_LOGISTICS.md`).
+  (criteria `docs/rfid_calibration/acp_criteria_v1.2.csv`, schedule `schedule_one_day_v3.csv`, both hash-pinned; v1.0 / v1.1 and v1 / v2
+  kept; isolated root `RANM/calibration/`; `docs/RFID_CALIBRATION_PILOT.md`); after a run, `report_rfid_calibration_pilot.R --acp-run=<run>`
+  writes the resolved / uncertain / not-obtained report and the day-2 trace with the status mapping `acp_report_status_v1.1.csv`
+  (`RANM/calibration_reports/`; `docs/RFID_CALIBRATION_LOGISTICS.md`). Tests: `test_antenna_calibration_pilot.R`,
+  `test_antenna_calibration_report.R` (synthetic logs only).
 - **Revised spatial analysis, round 3 (2026-10-14, unregistered)** — `build_spatial_occupancy_candidate.R` (Stage 19 candidate
   s19c_v0.1 from the srs_v1.1 release; `RANM/spatial_occupancy_candidate/`; `docs/STAGE19_CANDIDATE.md`),
   `audit_cc4_reader_knockout.R` (pre-declared R3/R5 knockout over the CC4 Stage 31 phases; `RANM/cc4_reader_knockout/`;

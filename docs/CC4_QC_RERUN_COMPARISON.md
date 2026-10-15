@@ -3,6 +3,8 @@
 *Written for: Tobias and reviewers. Status: post hoc QC-sensitivity analysis, unregistered. The frozen registered runs stay
 the record and are not replaced; no manuscript figure was changed.*
 
+**Accepted by Tobias on 2026-10-15 (fifth round):** no further model rerun is required for this issue.
+
 ## 1. What was run
 
 Tobias approved on 2026-10-15 the revised active-phase eligibility (manifest SX06 applied to every active phase A1-A5 of

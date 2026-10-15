@@ -6,6 +6,8 @@ Written for: Tobias and reviewers.
 
 This candidate implements decision 4 of 2026-10-14: a **separate, versioned** revision of Stage 19 built from the pinned single-read spatial reconstruction release.
 
+**Fifth round (2026-10-15).** The candidate stays isolated until the results of the calibration pilot have been evaluated; manuscript figures are not replaced.
+
 **v0.2 (decision of 2026-10-15).** The existing Stage 19 block set is the primary window, for a like-for-like comparison of
 the original and the revised occupancy reconstruction. The CC4 blocks after it (I3 onward: the grid-exposure period) are
 reported separately as `cc4_grid_period` and are never pooled with the primary window, so no row mixes the intervention
