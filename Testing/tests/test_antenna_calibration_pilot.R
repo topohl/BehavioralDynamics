@@ -1,6 +1,6 @@
 # ===========================================================================
 # Pre-registered analysis of the one-day RFID calibration pilot (Functions/antenna_calibration_pilot.R, criteria
-# acp_criteria_v1.1, schedule_one_day_v2). Portable: synthetic UTF-16LE MultiMouseMonitor logs, sheets and annotations under tempdir(), written
+# acp_criteria_v1.2, schedule_one_day_v3). Portable: synthetic UTF-16LE MultiMouseMonitor logs, sheets and annotations under tempdir(), written
 # as test_raw_acquisition_qc.R section 12 does; nothing on the lab drive; the runner's main block is never sourced or run.
 # Expected values are worked out by hand in the comments. Sections follow T1-T16 of the analysis plan:
 #
@@ -25,6 +25,11 @@
 #  V2  the amendment of 2026-10-15: schedule v2 runs every programme 4-2-2-4 and C twice per board (pooled per board by
 #      10-s blocks with ids unique per placement); criteria v1.1 differ from v1.0 only in G07, G08 and the day-2 handling;
 #      a board substitution needs an explicit authorization and the runner aborts on an unauthorized one
+#  V3  the amendment v3 of 2026-10-15: schedule v3 keeps every v2 row outside the competition runs in order and adds K, HX
+#      and the house-lifted periods; criteria v1.2 = v1.1 except G07, G08 and the added rows; K units, latency, hold cores
+#      and D_K by hand; the overall basis verdict; column adequacy; the extended house ratio; competition with the house
+#      lifted and the interaction by hand; drop step 4; the added rows never trigger day 2; the v1.1 rows of the synthetic
+#      day are identical with and without the added placements
 # ===========================================================================
 suppressPackageStartupMessages({ library(data.table); library(dplyr); library(tibble) })
 data.table::setDTthreads(1L)
@@ -350,8 +355,8 @@ check(!acp_check_annotation(copy(ann11)[3, from_reader := "R6"])$ok && !acp_chec
       "T11: discontinuous or non-neighbour crossings are refused")
 
 # T12 --------------------------------------------------------------------------------------------------------------------
-check(identical(attr(sched, "sha256"), ACP_SCHEDULE_SHA256) && nrow(sched) == 118 && sum(sched$required) == 89 &&
-        identical(sched[unit_type == "C", .N, by = .(board, block)][order(board, block)]$N, rep(5L, 4)), "T12: the pinned schedule v2 (118 rows; two C runs per board)")
+check(identical(attr(sched, "sha256"), ACP_SCHEDULE_SHA256) && nrow(sched) == 160 && sum(sched$required) == 117 &&
+        identical(sched[unit_type == "C", .N, by = .(board, block)][order(board, block)]$N, rep(7L, 4)), "T12: the pinned schedule v3 (160 rows; two C runs per board, 7 periods each)")
 bytes <- readBin(ACP_SCHEDULE_FILE, "raw", file.size(ACP_SCHEDULE_FILE))
 if (any(bytes == as.raw(13L))) check(identical(digest::digest(ACP_SCHEDULE_FILE, algo = "sha256", file = TRUE), ACP_SCHEDULE_FILE_SHA256_CRLF),
                                      "T12: a CRLF checkout has the bytes written by R on Windows (ACP_SCHEDULE_FILE_SHA256_CRLF)")
@@ -478,8 +483,9 @@ unlink(rd16$out, recursive = TRUE)
 # far reader every 8 s; midpoints: the lower reader with a 2-read run at the other reader every 5 s (the lower reader's
 # reads in the first 0.45 s are left out, so runs last 0.45-0.87 s on board 2 and 0.45-0.97 s on board 4, all below 1 s);
 # off the centres board 4 reads the near/lower reader every 518 ms (0.8 x board 2); house on: 19 of 20 reads; roof: one
-# read every 3 s; movement: reads at the true reader from 0.3 s after a crossing to 0.2 s after the next; C: sentinels
-# continuous, load tags time-sharing. Survey sweeps at 10 grid units/s with read zones of +-30 units (board 4 R6: 6 units
+# read every 3 s; movement: reads at the true reader from 0.3 s after a crossing to 0.2 s after the next (K: crossings 1 s
+# into each step, at 26, 48, ... 136 s); C: sentinels continuous, load tags time-sharing; the house-lifted periods C1o
+# and C4o as C1 and C4 (no house effect). Survey sweeps at 10 grid units/s with read zones of +-30 units (board 4 R6: 6 units
 # to the right). Clapper touches at every start and end, sheet times 2.3 s early, one spurious touch in the break.
 sim_day <- function(sched, S0) {
   s <- copy(sched)
@@ -509,7 +515,7 @@ sim_day <- function(sched, S0) {
         t0 <- t0 + len / 10 + 5
       }
     }
-    if (r$analysed && r$unit_type %in% ACP_SINGLE_TYPES) {
+    if (r$analysed && r$unit_type %in% c(ACP_SINGLE_TYPES, "HX")) {
       tg <- if (r$unit_type == "T0") r$tags else "T1"
       x <- r$x; y <- r$y
       d <- sqrt((RFID_GRID_X - x)^2 + (RFID_GRID_Y - y)^2); o <- order(d); p1 <- o[1]; p2 <- o[2]
@@ -524,11 +530,15 @@ sim_day <- function(sched, S0) {
         add(tg, b, A, v[!inrun]); add(tg, b, Bp, round(c(fl_t, fl_t + 0.4145) * 1000))
       } else {
         v <- cadence(a, z, ev4); pause <- Reduce(`|`, lapply(seq(a + 10, z, by = 20), function(f) v >= f * 1000 & v < (f + 1.05) * 1000), FALSE)
-        add(tg, b, p1, v[!pause]); add(tg, b, p2, round((seq(a + 3.3, z - 1, by = 8)) * 1000))
+        v <- v[!pause]; if (r$pair_id %in% c("H07", "H09", "H11", "H13")) v <- v[seq_along(v) %% 20 != 0]
+        add(tg, b, p1, v); add(tg, b, p2, round((seq(a + 3.3, z - 1, by = 8)) * 1000))
       }
     }
-    if (r$unit_type %in% c("M_pass", "M_visits")) {
-      if (r$unit_type == "M_pass") {
+    if (r$unit_type %in% c("M_pass", "M_visits", "K")) {
+      if (r$unit_type == "K") {
+        seq_r <- if (r$pair_id == "K-lower") c(1, 2, 3, 4, 3, 2, 1) else c(5, 6, 7, 8, 7, 6, 5)
+        tc <- a + 25 + 22 * (0:5) + 1; fr <- seq_r[1:6]; to <- seq_r[2:7]
+      } else if (r$unit_type == "M_pass") {
         trav <- if (grepl("slow", r$pair_id)) 2 else 0.5
         seq_r <- c(5, 6, 7, 8, 7, 6, 5, 6, 7, 8, 7, 6, 5)
         tc <- a + 8 + (seq_len(12) - 1) * (trav + 5) + trav / 2
@@ -543,8 +553,8 @@ sim_day <- function(sched, S0) {
     }
     if (r$unit_type == "C") {
       add("T5", b, 8, cadence(a, z)); add("T6", b, 4, cadence(a, z))
-      if (r$pair_id == "C1") add("T1", b, 5, cadence(a, z))
-      if (r$pair_id == "C4") for (k in 1:4) add(paste0("T", k), b, 5, cadence(a + (k - 1) * 0.4145, z, every = 4))
+      if (r$pair_id %in% c("C1", "C1o")) add("T1", b, 5, cadence(a, z))
+      if (r$pair_id %in% c("C4", "C4o")) for (k in 1:4) add(paste0("T", k), b, 5, cadence(a + (k - 1) * 0.4145, z, every = 4))
       if (r$pair_id == "CS") { add("T1", b, 5, cadence(a, z, 2)); add("T2", b, 5, cadence(a + 0.4145, z, 2)); add("T3", b, 6, cadence(a, z, 2)); add("T4", b, 6, cadence(a + 0.4145, z, 2)) }
     }
   }
@@ -599,6 +609,34 @@ check(!any(dc$decision %in% "not_obtained") && !nrow(res$missing) && !res$day2[t
 check(nrow(res$movement_units[unit_type == "crossing"]) == 48 && nrow(res$movement_units[unit_type == "visit"]) == 24 &&
         data.table::uniqueN(res$movement_units[unit_type == "crossing"]$cluster) == 16, "E2E: 24 crossings in 8 passes and 12 visits per board")
 check(all(res$known_empty$events == 0) && near(sum(res$known_empty[!is.na(board)]$board_hours), res$known_empty[is.na(board)]$board_hours), "E2E: known-empty time")
+# v1.2 additions on the synthetic day: both bases switch 0.3 s after each K crossing (d_K = 0), the house-extension and
+# house-lifted placements read as their v1.1 counterparts (house on: 19 of 20 reads; C1o, C4o as C1, C4)
+check(dv("D_K") == "EQUIVALENT_K" && near(dc[statistic == "D_K"]$estimate, 0, 1e-9) && dv("basis_overall") == "READ",
+      "E2E: K transitions equivalent under both bases; the overall basis verdict is READ")
+check(nrow(res$k_units) == 24L && data.table::uniqueN(res$k_units$cluster) == 8L && all(res$k_units[, .N, by = board]$N == 12L) &&
+        identical(sort(unique(res$k_units$boundary)), c("R1|R2", "R2|R3", "R3|R4", "R5|R6", "R6|R7", "R7|R8")), "E2E: 12 K transitions in 4 passes per board, all six column boundaries")
+kls <- res$k_latency_summary
+check(nrow(kls) == 4L && all(kls$detected == 12L) && all(kls$median_s > 0.25 & kls$median_s < 0.5), "E2E: every K transition detected; switching latency about 0.3 s")
+kar <- dc[criterion == "KA" & statistic != "column_adequacy"]
+check(dv("column_adequacy") == "adequate" && nrow(kar) == 12L && all(kar$decision == "met") && all(grepl("_read$", kar$statistic)),
+      "E2E: column-level assignment adequate (components on the read basis of the READ verdict, both boards)")
+check(dv("house_ratio_ext") == "no_attenuation" && all(dc[statistic == "competition_call_house_off"]$decision == "time_sharing") &&
+        all(dc[statistic == "HR4"]$decision == "no_attenuation") && all(dc[statistic == "HI"]$decision == "no_interaction") &&
+        near(dc[statistic == "house_ratio_HEx"]$estimate, dc[statistic == "house_ratio_HCx"]$estimate, 0.02), "E2E: house extension and the house-lifted periods")
+check(!nrow(res$missing_additions) && nrow(res$age_accuracy) > 0 && all(res$age_accuracy[basis == "read" & age_class == "<=2"]$correct_column_assigned > 0.95),
+      "E2E: every added endpoint obtained; accuracy by detection age")
+# the v1.1 rows do not depend on the added placements: the same day without the K, HX and house-lifted rows in the sheet
+# gives the same v1.1 decision rows (B15 aside: its known-empty time follows the visit spans, which the K rows extend)
+v13 <- sched[unit_type %in% c("K", "HX") | pair_id %in% ACP_C_PERIODS_HOUSE_OFF]$order
+res0 <- acp_analyse(sched, acp_check_sheet(day$sheet[!order %in% as.character(v13)], sched), ses, ank, svy, bh, crit, B = 200L)
+v11 <- function(r) r$decisions[!category %in% ACP_ADDED_CATEGORY & criterion != "B15", .(criterion, statistic, board, estimate, lo, hi, n_units, decision)]
+check(isTRUE(all.equal(v11(res), v11(res0), tolerance = 0)) && nrow(v11(res)) > 50L, "E2E: the v1.1 decision rows are unchanged by the added placements")
+check(identical(res0$day2$triggered, res$day2$triggered) && !nrow(res0$missing) && any(grepl("^sheet: missing", res0$missing_additions$item)),
+      "E2E: added placements missing from the sheet are reported apart and never trigger D2 (G10)")
+kdrop <- copy(day$sheet)[order == as.character(sched[pair_id == "K-upper"]$order[1]), `:=`(status = "dropped", drop_step = "")]
+resk <- acp_analyse(sched, acp_check_sheet(kdrop, sched), ses, ank, svy, bh, crit, B = 200L)
+check(!resk$day2[trigger == "D2"]$triggered && any(grepl("drop_outside_order", resk$missing_additions$item)) && !nrow(resk$missing),
+      "E2E: a dropped K placement is reported apart (missing_additions) and leaves D2 untriggered")
 
 # V2 ---------------------------------------------------------------------------------------------------------------------
 # board order 4-2-2-4 by halves for every programme, and two identical C runs per board
@@ -621,11 +659,11 @@ tr4 <- ((tr_hand[period == "C4" & tag_label %in% c("T1", "T2", "T3", "T4"), sum(
 check(near(cp$stats[board == 4 & statistic == "TR"]$estimate, tr4, 1e-9), "V2: TR on board 4 pools the reads and durations of both runs")
 # criteria v1.1 against v1.0: only G07, G08 and the day-2 handling differ; every threshold of v1.0 is kept
 c10 <- data.table::fread(file.path(ACP_DIR, "acp_criteria_v1.0.csv"), colClasses = "character", na.strings = NULL)
-c11 <- data.table::fread(ACP_CRITERIA_FILE, colClasses = "character", na.strings = NULL)
+c11 <- data.table::fread(file.path(ACP_DIR, "acp_criteria_v1.1.csv"), colClasses = "character", na.strings = NULL)
 same <- merge(c10, c11, by = "rule_id", suffixes = c("_10", "_11"))
 diff_ids <- same[Reduce(`|`, lapply(setdiff(names(c10), "rule_id"), function(k) same[[paste0(k, "_10")]] != same[[paste0(k, "_11")]]))]$rule_id
 check(identical(sort(diff_ids), c("G07", "G08")) && identical(sort(setdiff(c10$rule_id, c11$rule_id)), c("DB1", "DB2")) &&
-        identical(sort(setdiff(c11$rule_id, c10$rule_id)), c("DC1", "DC2", "DC3")) && identical(ACP_VERSION, "acp_criteria_v1.1") &&
+        identical(sort(setdiff(c11$rule_id, c10$rule_id)), c("DC1", "DC2", "DC3")) &&
         grepl("never pooled", c11[rule_id == "DC1"]$statistic) &&
         (grepl("separate confirmation experiment", res$day2[trigger == "recommendation"]$reason) || !res$day2[trigger == "recommendation"]$triggered) &&
         grepl("separate confirmation experiment", paste(deparse(acp_decide_day2), collapse = " "), fixed = TRUE), "V2: criteria v1.1 = v1.0 except G07, G08 and DB1-DB2 -> DC1-DC3 (day 2 never pooled)")
@@ -649,6 +687,177 @@ check(grepl("board_mismatch", rmain, fixed = TRUE) && grepl("never substituted s
         grepl("acp_read_substitution(subst_path)", rmain, fixed = TRUE) && grepl("boards = boards", rmain, fixed = TRUE) &&
         regexpr("board_mismatch", rmain, fixed = TRUE) < regexpr("acp_analyse(", rmain, fixed = TRUE),
       "V2: the runner aborts on an unauthorized board before the analysis and passes an authorized mapping on")
+
+# V3 ---------------------------------------------------------------------------------------------------------------------
+# schedule v3 against v2: every v2 row outside the competition runs is kept, with the same content and in the same order
+s2 <- data.table::fread(file.path(ACP_DIR, "schedule_one_day_v2.csv"), colClasses = "character", na.strings = NULL)
+s3 <- data.table::fread(ACP_SCHEDULE_FILE, colClasses = "character", na.strings = NULL)
+kc3 <- c("visit", "block", "board", "position", "x", "y", "orientation", "height", "object", "n_tags", "tags", "seconds", "slot_s", "pair_id", "purpose")
+key2 <- do.call(paste, c(s2[!grepl("^C[ab]$", block), kc3, with = FALSE], sep = "|")); key3 <- do.call(paste, c(s3[, kc3, with = FALSE], sep = "|"))
+j3 <- 0L; insub <- TRUE
+for (k in key2) { hit <- which(key3 == k & seq_along(key3) > j3); if (!length(hit)) { insub <- FALSE; break }; j3 <- hit[1] }
+check(insub && length(key2) == 98L, "V3: the 98 v2 rows outside the competition runs are kept in v3, unchanged and in order")
+cv3 <- sched[unit_type == "C"]
+check(all(cv3[, .(ok = identical(pair_id, c("C0", "C1", "C1o", "C4o", "C4", "CS", "CE")) && identical(seconds, c(70, 100, 70, 130, 250, 130, 70))), by = .(board, block)]$ok) &&
+        all(sched[pair_id %in% ACP_C_PERIODS_HOUSE_OFF]$object == "none (house lifted)") && all(sched[pair_id %in% c("C1", "C4")]$object == "house"),
+      "V3: every competition run holds C0, C1, C1o, C4o, C4, CS, CE with the v3 durations; the house lifted for C1o and C4o")
+check(identical(first("^K1$"), c("4", "2")) && identical(first("^K2$"), c("2", "4")) && identical(sched[unit_type == "K"]$pair_id, c("K-lower", "K-lower", "K-upper", "K-upper")) &&
+        all(sched[unit_type == "K"]$seconds == 165), "V3: K runs 4-2-2-4, the lower row in half 1 and the upper row in half 2")
+hb <- sched[unit_type %in% c("H", "HX") & board == "2", .(half = sub("-.*$", "", block), pair_id)]
+check(identical(sort(hb[half == "H1"]$pair_id), c("H01", "H02", "H05", "H06", "H11", "H12", "H13", "H14")) &&
+        identical(sort(hb[half == "H2"]$pair_id), c("H03", "H04", "H07", "H08", "H09", "H10")) &&
+        all(sched[unit_type == "HX", .N, by = .(board, pair_id)]$N == 1L) && nrow(sched[unit_type == "HX"]) == 16L && all(sched[unit_type == "HX"]$seconds == 50) &&
+        all(sched[pair_id %in% c("H13", "H14")]$height == "floor") && all(sched[pair_id %in% c("H13", "H14")]$x == 75),
+      "V3: HEx and HEy in one H half, HSy and HOx (outside the wall, on the floor) in the other; every HX placement once per board, 40 s analysed")
+cr3 <- sched[grepl("^C[ab]$", block)]
+check(all(cr3[, .(ok = sum(grepl("set down|set house down", position)) == 4L && sum(grepl("^lift house", position)) == 3L), by = .(board, block)]$ok),
+      "V3: every house-on period with tags in the house (C1, C4, CS) starts with the house set down over them")
+gen3 <- file.path(tmp, "gen3"); dir.create(gen3)
+system2(file.path(R.home("bin"), "Rscript"), c("docs/rfid_calibration/make_schedule_one_day_v3.R", gen3), stdout = FALSE, stderr = FALSE)
+check(identical(acp_content_sha256(file.path(gen3, "schedule_one_day_v3.csv")), ACP_SCHEDULE_SHA256), "V3: the generator reproduces the pinned schedule v3")
+# criteria v1.2 against v1.1
+c12 <- data.table::fread(ACP_CRITERIA_FILE, colClasses = "character", na.strings = NULL)
+same12 <- merge(c11, c12, by = "rule_id", suffixes = c("_11", "_12"))
+diff12 <- same12[Reduce(`|`, lapply(setdiff(names(c11), "rule_id"), function(k) same12[[paste0(k, "_11")]] != same12[[paste0(k, "_12")]]))]$rule_id
+added12 <- setdiff(c12$rule_id, c11$rule_id)
+check(identical(sort(diff12), c("A04", "G07", "G08")) && !length(setdiff(c11$rule_id, c12$rule_id)) && identical(ACP_VERSION, "acp_criteria_v1.2") &&
+        all(c12[rule_id %in% setdiff(added12, "G10")]$category == ACP_ADDED_CATEGORY) && c12[rule_id == "G10"]$category == "governing" &&
+        all(c("K10", "K20", "KA1", "KA6", "HX02", "HX21") %in% added12) && grepl("schedule_one_day_v3", c12[rule_id == "G07"]$statistic, fixed = TRUE),
+      "V3: criteria v1.2 = v1.1 except G07, G08, the A04 seeding correction and the added rows (category added_v1.2; G10 governing)")
+# A04 (v1.2): T1 is read at R6 continuously from A0 (one event); a placement starting at A0 + 10 has no event start of its
+# own, so without the seed the event basis would stay unassigned; the in-progress event is an observation at the start in
+# both bases. The previous placement's single R1 read (T3) is not in progress at the next start and does not seed it.
+o_ev <- acp_observations(ss$events, ss$reads, "T1", 2L, A0 + 10, A0 + 60, "event"); o_rd <- acp_observations(ss$events, ss$reads, "T1", 2L, A0 + 10, A0 + 60, "read")
+check(nrow(o_ev) == 1L && near(o_ev$t, A0 + 10) && o_ev$pid == 6L && near(o_rd$t[1], A0 + 10) && o_rd$pid[1] == 6L && nrow(o_rd) == 1L + sum(ss$reads[tag_label == "T1" & board == 2L]$t >= A0 + 10 - 5e-4 & ss$reads[tag_label == "T1" & board == 2L]$t < A0 + 60),
+      "V3: an event in progress at the start seeds both bases at the start (A04)")
+g_seed <- acp_reconstruct(ss$events, ss$reads, win1("seed", A0 + 15, A0 + 55, start = A0 + 10, end = A0 + 60), tau = 2)
+check(all(g_seed$pos == 6L), "V3: with the seed the event basis is assigned for the whole continuously read placement")
+check(!nrow(acp_observations(ss$events, ss$reads, "T1", 4L, A0 + 210, A0 + 280, "event")[pid == 1L]), "V3: a finished event of the previous placement does not seed (T3)")
+# K units, latency, hold cores and D_K by hand. One K placement [K0, K0 + 60): crossings R1>R2 at 20 s and R2>R3 at 40 s.
+# Read basis: R1 until 20.5 s, R2 until 40.3 s, then R3. Event basis: R1 until 22 s, then R2 to the end (the second
+# transition missed). Units [10, 30) and [30, 50), 196 evaluated cells each (+-0.2 s guard). Unit 1: read wrong at 20.25-
+# 20.45 (3 cells), event at 20.25-21.95 (18): d = 15 / 196. Unit 2: read wrong at 40.25 (1), event at 40.25-49.95 (98):
+# d = 97 / 196. D_K = 112 / 392. Latency: read 0.55 and 0.35 s; event 2.05 s and missed. Hold cores (> 5 s from both
+# crossings): 150 + 100 + 150 cells; event wrong after 45 s: 250 / 400.
+K0 <- S0 + 5000
+akk <- acp_check_annotation(data.table(placement_id = "k", kind = "cross", t_pc = fmt(K0 + c(20, 40)), from_reader = c("R1", "R2"), to_reader = c("R2", "R3")))
+wk <- data.table(placement_id = "k", tag_label = "T1", board = 2L, phys_board = 2L, unit_type = "K", pair_id = "K-lower", use = TRUE, start = K0, end = K0 + 60,
+                 ws = K0, we = K0 + 60)
+ku <- acp_k_units(akk$annotation, wk, acp_th(crit, "K01"))
+check(akk$ok && nrow(ku) == 2L && near(ku$us - K0, c(10, 30), 1e-5) && near(ku$ue - K0, c(30, 50), 1e-5) && identical(ku$direction, c(1L, 1L)) &&
+        data.table::uniqueN(ku$cluster) == 1L && identical(ku$boundary, c("R1|R2", "R2|R3")) && identical(ku$row, c("lower", "lower")),
+      "V3: K units (+-10 s, truncated halfway to the neighbouring crossing; one pass)")
+mtk <- acp_movement_truth(akk$annotation, wk, 0.1, 0.2)
+mid <- (seq_len(600) - 0.5) / 10
+gk <- rbind(data.table(placement_id = "k", tag_label = "T1", basis = "read", tau = 2, cell = 1:600, pos = ifelse(mid < 20.5, 1L, ifelse(mid < 40.3, 2L, 3L))),
+            data.table(placement_id = "k", tag_label = "T1", basis = "event", tau = 2, cell = 1:600, pos = ifelse(mid < 22, 1L, 2L)))
+kr <- acp_k_analysis(gk, mtk, ku, crit, B = 200L)
+ud <- kr$unit_d[order(unit_id)]
+check(near(ud$c_read, c(193, 195) / 196) && near(ud$c_event, c(178, 98) / 196) && near(kr$stats[statistic == "D_K"]$estimate, 112 / 392) &&
+        is.na(kr$stats[statistic == "D_K_b4"]$estimate), "V3: c_K and D_K by hand")
+lk <- kr$latency[order(basis, unit_id)]
+check(near(lk[basis == "read"]$latency_s, c(0.55, 0.35), 1e-5) && near(lk[basis == "event"]$latency_s[1], 2.05, 1e-5) && identical(lk[basis == "event"]$missed, c(FALSE, TRUE)),
+      "V3: switching latency by hand; the event basis misses the second transition")
+check(identical(kr$latency_summary[basis == "event"]$median_s, Inf) && near(kr$latency_summary[basis == "read"]$median_s, 0.45, 1e-5) &&
+        identical(kr$latency_summary[basis == "event"]$detected, 1L), "V3: the latency median counts a missed transition as infinite")
+hk <- kr$hold_core[order(basis)]
+check(identical(hk$cells, c(400L, 400L)) && near(hk[basis == "event"]$correct_column_assigned, 250 / 400) && near(hk[basis == "read"]$correct_column_assigned, 1),
+      "V3: hold cores (> 5 s from every crossing) by hand")
+check(acp_decide_k(kr$stats, crit)[statistic == "D_K"]$decision == "not_obtained" &&
+        acp_decide_k(copy(kr$stats)[statistic == "D_K_b4", estimate := kr$stats[statistic == "D_K"]$estimate], crit)[statistic == "D_K"]$decision == "READ_K",
+      "V3: D_K 0.29 on board 2 alone -> not_obtained (board 4 missing); with board 4 in the same direction -> READ_K")
+kst <- function(e, lo, hi) data.table(statistic = c("D_K", "D_K_b2", "D_K_b4"), estimate = e, lo = c(lo, NA, NA), hi = c(hi, NA, NA), n_units = 24L)
+kd <- function(...) acp_decide_k(kst(...), crit)[statistic == "D_K"]$decision
+check(kd(0.1, 0.02, 0.18) == "READ_K" && kd(-0.1, -0.18, -0.02) == "EVENT_K" && kd(0.01, -0.02, 0.04) == "EQUIVALENT_K" && kd(0.04, -0.01, 0.09) == "INCONCLUSIVE_K" &&
+        kd(0.06, 0, 0.12) == "INCONCLUSIVE_K" && kd(NA, NA, NA) == "not_obtained", "V3: K categories (READ_K needs a lower CI bound above 0)")
+check(acp_decide_k(copy(kst(0.1, 0.02, 0.18))[statistic == "D_K_b4", estimate := -0.01], crit)[statistic == "D_K"]$decision == "INCONCLUSIVE_K" &&
+        acp_decide_k(copy(kst(-0.1, -0.18, -0.02))[statistic == "D_K_b2", estimate := 0.01], crit)[statistic == "D_K"]$decision == "INCONCLUSIVE_K",
+      "V3: READ_K and EVENT_K need both boards in the same direction (K11a, K11b, K13a, K13b)")
+ovd <- function(a, k) acp_decide_basis_overall(a, k, crit)$decision
+check(ovd("READ", "EVENT_K") == "discordant" && ovd("EVENT", "READ_K") == "discordant" && ovd("READ", "INCONCLUSIVE_K") == "READ" && ovd("READ", "not_obtained") == "READ" &&
+        ovd("EVENT", "EVENT_K") == "EVENT" && ovd("TIE_inconclusive", "READ_K") == "TIE_inconclusive" && ovd("TIE_equivalent", "EVENT_K") == "TIE_equivalent" &&
+        ovd(NA, "READ_K") == "not_obtained" && ovd("not_obtained", "READ_K") == "not_obtained", "V3: the overall basis verdict can only withhold a READ or EVENT call")
+# column adequacy on built inputs: centres 1; boundary units P09 0.95, P10 0.90, P11 0.92, REF-x (0.90 + 0.94) / 2 -> mean
+# 0.9225; hold cores 0.99; 12 transitions at 0.5 s per board and basis; house edge 0.97
+cs_b <- rbindlist(lapply(c(2L, 4L), function(b) rbindlist(lapply(c("event", "read"), function(bs) data.table(board = b, basis = bs, tau = 2,
+  pair_id = c(acp_set(crit, "A13"), "P09", "P10", "P11", "REFx", "REFx"), assigned = 1, correct_column = c(rep(1, 11), 0.95, 0.9, 0.92, 0.9, 0.94))))))
+k_b <- list(hold_core = data.table(board = rep(c(2L, 4L), each = 2), basis = rep(c("event", "read"), 2), cells = 400L, correct_column_assigned = 0.99),
+            latency = data.table(board = rep(c(2L, 4L), each = 24), basis = rep(rep(c("event", "read"), each = 12), 2), latency_s = 0.5, missed = FALSE))
+hx_b <- rbindlist(lapply(c(2L, 4L), function(b) data.table(board = b, basis = rep(c("event", "read"), each = 2), tau = 2, pair_id = c("H07", "H09"), assigned = 1, correct_column = 0.97)))
+cad <- function(cs = cs_b, k = k_b, hx = hx_b, ov = "READ") acp_decide_column_adequacy(cs, k, hx, ov, crit)
+a1 <- cad()
+check(a1[statistic == "column_adequacy"]$decision == "adequate" && nrow(a1) == 13L && near(a1[statistic == "ka2_boundary_mean_correct_column_read" & board == "2"]$estimate, 0.9225) &&
+        nrow(cad(ov = "TIE_inconclusive")) == 25L && nrow(cad(ov = "discordant")) == 25L, "V3: column adequacy (one basis under READ; both under a tie or discordance)")
+cs_l <- copy(cs_b)[board == 4L & basis == "read" & pair_id == "P10", correct_column := 0.5]
+check(cad(cs_l)[statistic == "column_adequacy"]$decision == "limited" && cad(cs_l, ov = "EVENT")[statistic == "column_adequacy"]$decision == "adequate" &&
+        cad(cs_l)[statistic == "ka2_boundary_mean_correct_column_read" & board == "4"]$decision == "not_met", "V3: a boundary mean of 0.82 on board 4 -> limited (read basis only)")
+k_m <- copy(k_b); k_m$latency <- copy(k_b$latency)[board == 2L & basis == "read", missed := seq_len(.N) <= 7L]
+check(cad(k = k_m)[statistic == "ka4_transitions_detected_read" & board == "2"]$decision == "not_met" &&
+        identical(cad(k = k_m)[statistic == "ka5_latency_median_s_read" & board == "2"]$estimate, Inf), "V3: 7 of 12 transitions missed -> KA4 not met and an infinite median latency")
+k_n <- copy(k_b); k_n$hold_core <- data.table(board = integer(), basis = character(), cells = integer(), correct_column_assigned = numeric())
+check(cad(k = k_n)[statistic == "column_adequacy"]$decision == "not_obtained" && cad(hx = NULL)[statistic == "column_adequacy"]$decision == "not_obtained",
+      "V3: a component without data -> not_obtained")
+check(cad(cs_l, hx = NULL)[statistic == "column_adequacy"]$decision == "limited", "V3: a component not met makes adequacy limited even when another lacks data")
+hx_u <- copy(hx_b)[pair_id == "H09", `:=`(assigned = 0, correct_column = 0)]
+a_u <- cad(hx = hx_u)[statistic == "ka6_house_edge_min_correct_column_read" & board == "2"]
+check(a_u$decision == "met" && identical(a_u$n_units, 1L) && cad(hx = copy(hx_b)[, assigned := 0.3])[statistic == "column_adequacy"]$decision == "not_obtained",
+      "V3: KA6 uses the tested placements only (an unassigned placement is reported through HX03); none tested -> not_obtained")
+cs_u <- copy(cs_b)[pair_id == "P10", `:=`(assigned = 0.2, correct_column = 0)]
+check(near(cad(cs_u)[statistic == "ka2_boundary_mean_correct_column_read" & board == "2"]$estimate, (0.95 + 0.92 + 0.92) / 3),
+      "V3: KA2 averages the tested boundary units only (B2b)")
+# extended house ratio by hand (continuity 0.5): HCx 114/120 and HCz 108/120 in 60 s, HEx 38/40, HEy 30/40, HSy 40/40 in 40 s
+# on board 2; board 4 the same except HEy unread on and off (excluded): 9 pairs
+hxd <- rbindlist(lapply(c(2L, 4L), function(b) data.table(board = b, PositionID = 0L, pair_id = c("H01", "H02", "H03", "H04", "H07", "H08", "H09", "H10", "H11", "H12"),
+  T = c(60, 60, 60, 60, 40, 40, 40, 40, 40, 40), reads = c(114, 120, 108, 120, 38, 40, if (b == 2L) c(30, 40) else c(0, 0), 40, 40),
+  P1s = c(1, 1, 1, 1, 1, 1, if (b == 2L) c(1, 1) else c(0, 0), 1, 1))))
+lr <- c(log(114.5 / 120.5), log(108.5 / 120.5), log(38.5 / 40.5), log(30.5 / 40.5), 0, log(114.5 / 120.5), log(108.5 / 120.5), log(38.5 / 40.5), 0)
+hxe <- acp_house_extension(hxd, NULL, crit, B = 500L)
+dhx <- acp_decide_house_extension(hxe, crit)
+check(near(hxe$stats$estimate, exp(mean(lr))) && hxe$stats$n_units == 9L && !hxe$pairs[pair == "HEy" & board == 4L]$included &&
+        dhx[statistic == "house_ratio_ext"]$decision == "no_attenuation" && dhx[statistic == "house_ratio_HEy"]$n_units == 1L &&
+        near(hxe$orientation[board == 2L & state == "on"]$ratio_HEy_HEx, 30.5 / 38.5), "V3: extended house ratio, exclusion and orientation ratio by hand")
+hxd_a <- copy(hxd)[pair_id %in% c("H01", "H03", "H07", "H09", "H11"), reads := round(reads / 2)]
+check(acp_decide_house_extension(acp_house_extension(hxd_a, NULL, crit, B = 500L), crit)[statistic == "house_ratio_ext"]$decision == "attenuation",
+      "V3: half the reads with the house on -> attenuation")
+# competition with the house lifted by hand (board 2; T1 at 2.4/s in C1 and C1o; T1-T4 at 0.6/s each in C4o; in C4 0.6/s
+# (no house effect) or 0.3/s (the house attenuates only under load)): HR1 = 1; HR4 = 1 or (288.5 / 240) / (576.5 / 240)
+cw2 <- data.table(placement_id = c("q1", "q1o", "q4o", "q4"), pair_id = c("C1", "C1o", "C4o", "C4"), ws = c(0, 200, 400, 700), we = c(120, 320, 640, 940))
+tr2 <- merge(cw2[, .(placement_id, pair_id)], as.data.table(ACP_C_ROLES), by = "pair_id", allow.cartesian = TRUE)
+tr2 <- cbind(tr2[, .(placement_id, board = 2L, phys_board = 2L, pair_id, unit_type = "C", tag_label, role)],
+             acp_position_truth(tr2[, .(phys_board = 2L, x, y)], acp_survey_centres(NULL, NULL, 2L)))
+rd2 <- function(c4 = 0.6) rbind(reg("T1", 5, 0, 120, 2.4), reg("T1", 5, 200, 320, 2.4), rbindlist(lapply(c("T1", "T2", "T3", "T4"), function(tg) rbind(reg(tg, 5, 400, 640, 0.6), reg(tg, 5, 700, 940, c4)))))
+ch1 <- acp_competition_house(rd2(), cw2, tr2, crit, B = 300L)
+d1h <- acp_decide_competition_house(ch1, crit)[board == "2"]
+check(near(ch1$stats[statistic == "HR1"]$estimate, 1) && near(ch1$stats[statistic == "HR4"]$estimate, 1) && near(ch1$stats[statistic == "TR_off"]$estimate, (576.5 / 240) / (288.5 / 120)) &&
+        d1h[statistic == "competition_call_house_off"]$decision == "time_sharing" && d1h[statistic == "HR4"]$decision == "no_attenuation" &&
+        d1h[statistic == "HI"]$decision == "no_interaction" && near(d1h[statistic == "MS_off"]$estimate, 0.25), "V3: house-lifted competition without a house effect")
+d2h <- acp_decide_competition_house(acp_competition_house(rd2(0.3), cw2, tr2, crit, B = 300L), crit)[board == "2"]
+check(near(d2h[statistic == "HR4"]$estimate, (288.5 / 240) / (576.5 / 240)) && d2h[statistic == "HR4"]$decision == "attenuation" && d2h[statistic == "HI"]$decision == "interaction" &&
+        d2h[statistic == "HI"]$rule_id == "HX23" && d2h[statistic == "competition_call_house_off"]$decision == "time_sharing", "V3: attenuation only under load -> interaction")
+# the added rows are outside the day-2 rule; drop step 4
+d2x <- rbind(base13(0.2, 0.1, 0.3, "READ"), acp_row(crit, "KA8", "column_adequacy", "not_obtained"), acp_row(crit, "HX02", "house_ratio_ext", "not_obtained"),
+             acp_row(crit, "K16", "D_K", "not_obtained"))
+check(!tg(d2x)[["D2"]] && !tg(d2x)[["recommendation"]] && tg(rbind(d2x, acp_row(crit, "B8a", "house_ratio", "not_obtained")))[["D2"]],
+      "V3: an added row not obtained never triggers D2; a v1.1 row does")
+hsy <- sched[pair_id %in% c("H11", "H12")]$order
+d4s <- copy(sh12)[order %in% roof, `:=`(status = "dropped", drop_step = "1")][pair_id == "CS", drop_step := "2"][grepl("^M-visits", pair_id), drop_step := "3"][
+  order %in% hsy, `:=`(status = "dropped", drop_step = "4")]
+check(acp_check_sheet(d4s, sched)$ok, "V3: drop steps 1-4 in order pass (step 4 drops HSy on both boards)")
+d124 <- copy(sh12)[order %in% roof, `:=`(status = "dropped", drop_step = "1")][pair_id == "CS", drop_step := "2"][order %in% hsy, `:=`(status = "dropped", drop_step = "4")]
+check(acp_check_sheet(d124, sched)$ok, "V3: step 3 may be skipped (steps 1, 2, 4)")
+d3one <- copy(d124)[order %in% sched[pair_id == "M-visits-2" & board == "4"]$order, drop_step := "3"]
+check("drop_one_board" %in% acp_check_sheet(d3one, sched)$problems$check, "V3: drop step 3 on one board only is refused")
+check("drop_order" %in% acp_check_sheet(copy(sh12)[order %in% hsy, `:=`(status = "dropped", drop_step = "4")], sched)$problems$check,
+      "V3: drop step 4 before steps 1-3 is refused")
+check("drop_one_board" %in% acp_check_sheet(copy(d4s)[order %in% hsy[sched[order %in% hsy]$board == "2"], `:=`(status = "executed", drop_step = "")], sched)$problems$check,
+      "V3: drop step 4 on one board only is refused")
+check("drop_outside_order" %in% acp_check_sheet(copy(sh12)[pair_id == "H07", `:=`(status = "dropped", drop_step = "4")], sched)$problems$check,
+      "V3: drop step 4 drops only the HSy pairs")
+kbad <- rbind(day$annotation, data.table(placement_id = as.character(sched[pair_id == "K-lower"]$order[1]), kind = "cross", t_pc = fmt(S0 + 99999),
+                                          from_reader = "R1", to_reader = "R5"))
+check(!"k_within_column" %in% ank$problems$check && "k_within_column" %in% acp_check_annotation(kbad, shk$sheet)$problems$check, "V3: a K crossing within a column is refused")
+rfile <- paste(readLines("Testing/audits/analyse_rfid_calibration_pilot.R"), collapse = "\n")
+check(grepl("make_schedule_one_day_v3.R", rfile, fixed = TRUE) && grepl("acp_v1.2_", rmain, fixed = TRUE), "V3: the runner hashes the v3 generator; default run id acp_v1.2_")
 
 unlink(tmp, recursive = TRUE)
 cat("test_antenna_calibration_pilot: all checks passed\n")

@@ -1,5 +1,5 @@
-# One-day RFID calibration pilot: the PRE-REGISTERED analysis (decision criteria acp_criteria_v1.1, seeded schedule
-# schedule_one_day_v2; amended 2026-10-15 before any acquisition). Group-blind; isolated output. Definitions: Functions/antenna_calibration_pilot.R; protocol,
+# One-day RFID calibration pilot: the PRE-REGISTERED analysis (decision criteria acp_criteria_v1.2, seeded schedule
+# schedule_one_day_v3; amended twice on 2026-10-15 before any acquisition and booking). Group-blind; isolated output. Definitions: Functions/antenna_calibration_pilot.R; protocol,
 # criteria, day-2 rule and analysis plan: docs/RFID_CALIBRATION_PILOT.md sections 1-4; tests (synthetic logs only):
 # Testing/tests/test_antenna_calibration_pilot.R.
 #
@@ -14,7 +14,7 @@
 # .tmp_<run_id> and renamed at the end; an existing run or build folder is refused. The run refuses to start unless the
 # criteria file and the schedule have their pinned content hashes (acp_criteria(), acp_read_schedule()). A release run
 # (run id not starting with "dev") needs committed code, the default raw folder and the pinned board history; --raw-dir,
-# --board-history and uncommitted code are for dev runs. The default run id is acp_v1.1_<date>_<commit>.
+# --board-history and uncommitted code are for dev runs. The default run id is acp_v1.2_<date>_<commit>.
 # Board substitution: a tested board is replaced only through an explicit authorization, board_substitution.csv in the raw
 # day folder (acp_read_substitution(): only board 3 for role 4 or board 1 for role 2, with reason, authorized_by and
 # authorized_on), listed in sha256_manifest.csv when that exists. Without it, any placement on another physical board than
@@ -24,7 +24,7 @@ ACP_RUN_CODE <- c("Testing/audits/analyse_rfid_calibration_pilot.R", "Functions/
                   "Functions/antenna_log_helpers.R", "Functions/animalpos_reconstruction.R", "Functions/antenna_measurement.R",
                   "Functions/antenna_spatial_reconstruction.R", "Functions/antenna_acquisition_qc.R",
                   "Functions/animalpos_preprocessing_helpers.R", "Functions/project_paths.R", "Analysis/_pipeline_setup.R",
-                  "docs/rfid_calibration/make_schedule_one_day_v2.R")
+                  "docs/rfid_calibration/make_schedule_one_day_v3.R")
 ACP_RAW_FILES <- c(sheet = "placement_sheet.csv", movement = "annotation_movement.csv", survey = "annotation_survey.csv", tags = "tags.csv")
 
 acp_runner_args <- function(args) {
@@ -72,7 +72,7 @@ if (sys.nframe() == 0L) {
   sched <- acp_read_schedule(file.path(MMM_REPO_ROOT, ACP_SCHEDULE_FILE))
   project_root <- mmm_project_root()
   head_commit <- acp_git(c("rev-parse", "HEAD"))[1]
-  run_id <- if (is.na(a$run_id)) paste0("acp_v1.1_", a$date, "_", substr(head_commit, 1, 7)) else a$run_id
+  run_id <- if (is.na(a$run_id)) paste0("acp_v1.2_", a$date, "_", substr(head_commit, 1, 7)) else a$run_id
   dev <- startsWith(run_id, "dev")
   dirty <- acp_git(c("status", "--porcelain", "--untracked-files=all", "--", ACP_RUN_CODE, ACP_CRITERIA_FILE, ACP_SCHEDULE_FILE))
   if (!dev && length(dirty)) stop("A release run needs committed code, criteria and schedule:\n", paste(dirty, collapse = "\n"), call. = FALSE)
@@ -148,7 +148,9 @@ if (sys.nframe() == 0L) {
                "decisions.csv               one row per decision or supporting statistic: criterion, rule_id, estimate, 95% CI, decision",
                "day2_recommendation.csv     the day-2 rule (D1-D7): triggers and content; a recommendation only, Tobias decides",
                "tables/                     endpoints (detection, confusion, co-reads, competition, shielding, board ratio, flicker,",
-               "                            visits, boundary timing, known-empty, cadence, vendor emulation), sheet and annotation checks",
+               "                            visits, boundary timing, known-empty, cadence, vendor emulation), sheet and annotation checks;",
+               "                            the v1.2 additions (k_*, detection_house_ext, confusion_house_ext, house_extension_*,",
+               "                            competition_house_*, age_accuracy, missing_additions), outside the day-2 rule (G10)",
                "manifest/                   criteria used, code, input and output hashes, run parameters, session info", "",
                paste("Day-2 rule:", rec),
                paste("Boards:", paste(sprintf("role %s -> board %d", names(boards), boards), collapse = "; "),

@@ -1,7 +1,7 @@
-# One-day RFID calibration pilot: post-pilot REPORT on a finished pre-registered analysis run (acp_criteria_v1.1 /
-# schedule_one_day_v2). Group-blind; isolated output; the acp run folder is read only, after its output manifest has been
-# verified. Every decision row is classified with the hash-pinned status mapping docs/rfid_calibration/acp_report_status_v1.0.csv
-# (resolved / uncertain / not obtained / supporting, the specification v1.1 item and the consequence); the projection test
+# One-day RFID calibration pilot: post-pilot REPORT on a finished pre-registered analysis run (acp_criteria_v1.2 /
+# schedule_one_day_v3). Group-blind; isolated output; the acp run folder is read only, after its output manifest has been
+# verified. Every decision row is classified with the hash-pinned status mapping docs/rfid_calibration/acp_report_status_v1.1.csv
+# (resolved / uncertain / not obtained / supporting, the specification item and the consequence); the projection test
 # of the day-2 rule is traced per threshold; the day-2 verdict is printed as recorded by the pre-registered analysis, never
 # recomputed (a disagreement of the trace is flagged). Definitions: Functions/antenna_calibration_report.R; the
 # pre-registered analysis (unchanged): Functions/antenna_calibration_pilot.R and Testing/audits/analyse_rfid_calibration_pilot.R;
@@ -17,13 +17,13 @@
 # manuscript imports, docs/rfid_calibration and the other repository pin files) are snapshotted before the first write and
 # compared before the rename (Functions/protected_outputs.R). A release report (id not starting with "dev") needs committed
 # code and a release acp run (not a dev run, committed code, the pinned board history); the default id is
-# acr_v1.0_<acp run id>_<commit>, with the prefix "dev_" when the acp run is not a release.
+# acr_v1.1_<acp run id>_<commit>, with the prefix "dev_" when the acp run is not a release.
 
 ACR_REPORT_CODE <- c("Testing/audits/report_rfid_calibration_pilot.R", "Functions/antenna_calibration_report.R",
                      "Functions/antenna_calibration_pilot.R", "Functions/project_paths.R", "Functions/behavioral_dynamics_helpers.R",
                      "Functions/frozen_input_guard.R", "Functions/qc_run_protection.R", "Functions/protected_outputs.R",
-                     "Analysis/_pipeline_setup.R", "docs/rfid_calibration/acp_report_status_v1.0.csv",
-                     "docs/rfid_calibration/acp_criteria_v1.1.csv")
+                     "Analysis/_pipeline_setup.R", "docs/rfid_calibration/acp_report_status_v1.1.csv",
+                     "docs/rfid_calibration/acp_criteria_v1.2.csv")
 ACR_REPORT_FILES <- c("README.txt", "status_by_decision.csv", "spec_consequences.csv", "day2_trace.csv", "day2_trace_check.csv",
                       "uncertain_without_day2.csv")
 ACR_LONGEST_RELATIVE <- c("uncertain_without_day2.csv", file.path("manifest", "protection_snapshot_before.csv"),
@@ -67,7 +67,7 @@ if (sys.nframe() == 0L) {
   project_root <- mmm_project_root()
   acp <- acr_verify_acp_run(a$acp_run)
   head_commit <- acr_git(c("rev-parse", "HEAD"))[1]
-  report_id <- if (is.na(a$report_id)) paste0(if (acp$release) "" else "dev_", "acr_v1.0_", basename(acp$dir), "_", substr(head_commit, 1, 7)) else a$report_id
+  report_id <- if (is.na(a$report_id)) paste0(if (acp$release) "" else "dev_", paste0(ACR_VERSION, "_"), basename(acp$dir), "_", substr(head_commit, 1, 7)) else a$report_id
   dev <- startsWith(report_id, "dev")
   dirty <- acr_git(c("status", "--porcelain", "--untracked-files=all", "--", ACR_REPORT_CODE))
   if (!dev && length(dirty)) stop("A release report needs committed code and mapping:\n", paste(dirty, collapse = "\n"), call. = FALSE)

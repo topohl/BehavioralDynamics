@@ -1,5 +1,5 @@
 # ================================================================
-# One-day RFID calibration pilot: the post-pilot report layer (status mapping acp_report_status_v1.0)
+# One-day RFID calibration pilot: the post-pilot report layer (status mapping acp_report_status_v1.1)
 # MMMSociability -- Functions/antenna_calibration_report.R
 # ================================================================
 # Used by Testing/audits/report_rfid_calibration_pilot.R (isolated output <Behavior>/RANM/calibration_reports/runs/<report_id>/),
@@ -11,8 +11,8 @@
 #
 # What the report adds to a finished acp run (decisions.csv, day2_recommendation.csv, tables/, manifest/):
 #  * a status per decision row: resolved, uncertain, not_obtained, or supporting (a statistic without a decision, or a
-#    component of a governing decision), with the specification v1.1 item it informs and its consequence, from the
-#    hash-pinned mapping docs/rfid_calibration/acp_report_status_v1.0.csv (statistic, decision_value, status, spec_item,
+#    component of a governing decision), with the specification item it informs and its consequence, from the
+#    hash-pinned mapping docs/rfid_calibration/acp_report_status_v1.1.csv (statistic, decision_value, status, spec_item,
 #    consequence, day2_path, rule_ids, superseded_feeds). A decision value or rule id the mapping does not list stops the
 #    report: the mapping was written before any data and, like the criteria, a change is a new version;
 #  * the projection test of the day-2 rule per threshold (D1, D4, D6: c inside the CI, h, |theta - c|, h/sqrt(2),
@@ -22,12 +22,17 @@
 # Wording (Tobias, 2026-10-14): a basis that is not resolved is retained as a sensitivity analysis, and its estimates are
 # never described as bounds on true physical occupancy; recently detected (supported) is not validated location;
 # calibration with static tags concerns bench hardware behaviour only. The frozen feeds text of A40-A42 and B7a in
-# acp_criteria_v1.0 and v1.1 (v1.1 changes only G07, G08 and the day-2 handling) speaks of bounds; it stays unchanged
-# (pinned), and the report prints the mapping's consequence instead.
+# acp_criteria_v1.0, v1.1 and v1.2 speaks of bounds; it stays unchanged (pinned), and the report prints the mapping's
+# consequence instead.
+# Mapping v1.1 (2026-10-15, before any data; criteria v1.2): the basis item is governed by the overall verdict
+# basis_overall (K20), so the D_col rows are supporting (their consequence, unchanged, is prefixed accordingly); the rows
+# added in criteria v1.2 (K, KA, HX) are mapped, with day-2 path none: they are outside the day-2 rule (G10), so a
+# not_obtained added row never implies D2 in the trace check. acp_report_status_v1.0.csv stays for provenance.
 #
 # Choices where the brief leaves a detail open:
-#  * statistic names with a run-time part are mapped by family: rate_rel_median_<tag> (any tag label) and
-#    five_s_visits_kept_<basis>_tau<tau>; every other statistic by its exact name; a decision NA is the value "NA";
+#  * statistic names with a run-time part are mapped by family: rate_rel_median_<tag> (any tag label),
+#    five_s_visits_kept_<basis>_tau<tau>, ka<k>_..._<basis>, k_latency_median_s_<basis>, k_transitions_missed_<basis> and
+#    house_ratio_<class> (HCx, HCz, HEx, HEy, HSy, HOx); every other statistic by its exact name; a decision NA is the value "NA";
 #  * status of a specification item: not_obtained if any governing row is, else uncertain if any is, else resolved;
 #  * a day-2 trigger applies to a resolved, uncertain or not-obtained row when the recorded day2_recommendation.csv has it
 #    triggered and, for the rows governing D1, D4 and D6 (D_col, board_call, competition_call, SR), when the trace has a
@@ -36,11 +41,11 @@
 #    differ from the recorded one when |theta - c| lies within that rounding of h/sqrt(2), which is then flagged.
 # ================================================================
 
-ACR_VERSION <- "acr_v1.0"
-ACR_STATUS_VERSION <- "acp_report_status_v1.0"
-ACR_STATUS_FILE <- file.path("docs", "rfid_calibration", "acp_report_status_v1.0.csv")
+ACR_VERSION <- "acr_v1.1"
+ACR_STATUS_VERSION <- "acp_report_status_v1.1"
+ACR_STATUS_FILE <- file.path("docs", "rfid_calibration", "acp_report_status_v1.1.csv")
 # Content sha256 with line endings normalised to LF (acp_content_sha256()).
-ACR_STATUS_SHA256 <- "8400d348a3a609a53f31adc09601bf2f75d4be81899e92840af2c10b2c3cabe4"
+ACR_STATUS_SHA256 <- "921aeaac24baef53eb1de0492a41ebfb27a6159c9c2bd8e6436119e8473009a5"
 ACR_STATUS_COLUMNS <- c("statistic", "decision_value", "status", "spec_item", "consequence", "day2_path", "rule_ids", "superseded_feeds")
 ACR_STATUSES <- c("resolved", "uncertain", "not_obtained", "supporting")
 ACR_NA <- "NA"                                   # decision_value of a row whose decision is NA
@@ -48,8 +53,8 @@ ACR_TRIGGERS <- paste0("D", 1:7)
 ACR_DECISION_COLUMNS <- c("criterion", "rule_id", "statistic", "board", "estimate", "lo", "hi", "n_units", "decision", "category", "feeds")
 ACR_DAY2_COLUMNS <- c("trigger", "triggered", "reason", "day2_content")
 # Statistics of the trace that decide whether D1, D4 or D6 applies to a governing row.
-ACR_TRACE_LINK <- list(D_col = "D_col", board_call = c("R_board", "coread_ratio"), competition_call = c("TR", "MS", "competition_call"),
-                       SR = "SR")
+ACR_TRACE_LINK <- list(D_col = "D_col", basis_overall = "D_col", board_call = c("R_board", "coread_ratio"),
+                       competition_call = c("TR", "MS", "competition_call"), SR = "SR")
 ACR_SCOPE <- paste("These results apply to boards 2 and 4 under bench conditions (one PhenoSoft session, production cages, fresh",
                    "bedding, no animal), with static or sled-moved tags.")
 ACR_BENCH_SENTENCE <- paste("Calibration with static tags bounds bench hardware behaviour only: no Exp9 location is validated, and a",
@@ -61,19 +66,24 @@ ACR_FOOTPRINT_CONSEQUENCE <- paste(
   "Descriptive, no decision: the reliable, border and unread classes of the single-tag placements (P1s at the true reader) give",
   "the physical wording of 'assigned to reader k' (S3, S6 text) for boards 2 and 4 on the bench; border placements are reported",
   "as border. Not a day-2 reason.")
-# Specification v1.1 items the pilot informs; governing = the decision statistics that carry the item's status.
+# Specification items the pilot informs; governing = the decision statistics that carry the item's status (mapping v1.1: the
+# basis item is governed by the overall verdict; four items for the criteria v1.2 additions).
 ACR_SPEC_ITEMS <- data.frame(
   spec_item = c("basis", "reader-level basis", "resolution", "fresh age class", "carry-forward age cap", "tau",
                 "competition in one field", "competition across fields", "board-level load", "house shielding", "roof",
-                "board call", "footprint wording", "QC rules", "transfer"),
+                "board call", "footprint wording", "QC rules", "transfer", "column-boundary transitions", "column adequacy",
+                "house positions and orientation", "house and load"),
   spec_reference = c("decision 2; sections 1, 4, 7, 8 (items 1, 6), 11.1; S3", "decision 3; S3", "decision 3; section 1; S3, S4",
                      "section 3; 11.3", "decision 4; section 3; S3 (ii), (iii); section 8 item 1", "section 1; S2, S3",
                      "sections 5, 6; S6, S7; 11.2, 11.5", "section 6; S7; 11.5", "section 6; S7, S9; 11.5", "section 5; 11.2",
-                     "section 5", "section 6; 11.4; S7", "section 9 (S3, S6 text)", "section 10", "section 11.10"),
-  criteria = c("(a) A20-A42", "(a) A50", "B2", "B3", "B7", "B11; D5", "B4; D6", "B5", "B6; D6", "B8", "B9", "B10; D3, D4", "B1",
-               "B13-B15", "B16; D7"),
-  governing = c("D_col", "D_rdr", "resolution", "fresh_age_s", "delta_s", "tau_star_event|tau_star_read", "competition_call", "CS_C4",
-                "SR", "house_ratio", "roof_vs_foam_H05_H06", "board_call", "", "phantom_events|tag_qc", "transfer"),
+                     "section 5", "section 6; 11.4; S7", "section 9 (S3, S6 text)", "section 10", "section 11.10",
+                     "decision 2; section 7 (schedule v3)", "decision 3; section 1; S3 (schedule v3)", "section 5 (schedule v3)",
+                     "sections 5, 6; S6, S7 (schedule v3)"),
+  criteria = c("(a) A20-A42; K20", "(a) A50", "B2", "B3", "B7", "B11; D5", "B4; D6", "B5", "B6; D6", "B8", "B9", "B10; D3, D4", "B1",
+               "B13-B15", "B16; D7", "K01-K32", "KA1-KA8", "HX01-HX03", "HX10-HX24"),
+  governing = c("basis_overall", "D_rdr", "resolution", "fresh_age_s", "delta_s", "tau_star_event|tau_star_read", "competition_call", "CS_C4",
+                "SR", "house_ratio", "roof_vs_foam_H05_H06", "board_call", "", "phantom_events|tag_qc", "transfer", "D_K", "column_adequacy",
+                "house_ratio_ext", "competition_call_house_off|HR4|HI"),
   stringsAsFactors = FALSE)
 
 # ---------------------------------------------------------------- the status mapping (pinned)
@@ -107,7 +117,10 @@ acr_status_map <- function(path = ACR_STATUS_FILE) {
 #' Mapping key of a statistic name: the family of names with a run-time part, otherwise the name itself.
 acr_statistic_key <- function(statistic) {
   s <- sub("^rate_rel_median_.*$", "rate_rel_median_<tag>", as.character(statistic))
-  sub("^five_s_visits_kept_(event|read)_tau.*$", "five_s_visits_kept_<basis>_tau<tau>", s)
+  s <- sub("^five_s_visits_kept_(event|read)_tau.*$", "five_s_visits_kept_<basis>_tau<tau>", s)
+  s <- sub("^(ka[1-6]_[a-z0-9_]+)_(event|read)$", "\\1_<basis>", s)
+  s <- sub("^(k_latency_median_s|k_transitions_missed)_(event|read)$", "\\1_<basis>", s)
+  sub("^house_ratio_(HCx|HCz|HEx|HEy|HSy|HOx)$", "house_ratio_<class>", s)
 }
 
 #' Mapping key of a decision: the value, or "NA" for a missing or empty one.
@@ -196,7 +209,8 @@ acr_day2_trace <- function(decisions, crit) {
 }
 
 #' The recorded triggers next to what the decision table implies: D1, D4 and D6 recomputed from the trace; D5 from the tau
-#' decisions; D2 only in one direction (a not_obtained decision implies D2; its other reasons are not in decisions.csv); D3
+#' decisions; D2 only in one direction (a not_obtained decision of a v1.1 row implies D2; the rows of category
+#' ACP_ADDED_CATEGORY are outside the day-2 rule; its other reasons are not in decisions.csv); D3
 #' recorded only; D7 never a trigger; the recommendation row against the recorded triggers. flag: non-empty where the
 #' recorded verdict and the decision table disagree (the recorded verdict stands).
 acr_day2_check <- function(trace, day2, classified) {
@@ -206,7 +220,7 @@ acr_day2_check <- function(trace, day2, classified) {
   tz <- cl[grepl("^tau_star_", cl$statistic)]
   rows <- list(
     list("D1", any(trace$counts[trace$trigger == "D1"] %in% TRUE), "projection test (P1) over day2_trace.csv"),
-    list("D2", if (any(acr_decision_value(cl$decision) == "not_obtained")) TRUE else NA,
+    list("D2", if (any(acr_decision_value(cl$decision) == "not_obtained" & !cl$category %in% ACP_ADDED_CATEGORY)) TRUE else NA,
          "a not_obtained decision implies D2 (its other reasons, e.g. sheet or alignment problems, are in the acp run's tables/missing.csv)"),
     list("D3", NA, "recorded only (REF repeatability; not recomputed)"),
     list("D4", any(trace$counts[trace$trigger == "D4"] %in% TRUE), "projection test (P1) over day2_trace.csv"),
@@ -451,7 +465,7 @@ acr_readme_lines <- function(rep, info) {
                "The pre-registered criteria, schedule and analysis code are not changed by this report.")),
     "", "FILES",
     "status_by_decision.csv      every decision row: status, specification item, consequence, day-2 path and whether it applies",
-    "spec_consequences.csv       one row per specification v1.1 item: governing decisions, status, consequence",
+    "spec_consequences.csv       one row per specification item: governing decisions, status, consequence",
     "day2_trace.csv              projection test per threshold (D1, D4, D6): inside, h, |theta - c|, h/sqrt(2), resolvable",
     "day2_trace_check.csv        recorded triggers against the decision table (flags only; the recorded verdict stands)",
     "uncertain_without_day2.csv  uncertain results that no day-2 trigger addresses",

@@ -1,5 +1,5 @@
 # ================================================================
-# One-day RFID calibration pilot: the pre-registered analysis (decision criteria acp_criteria_v1.1, schedule schedule_one_day_v2)
+# One-day RFID calibration pilot: the pre-registered analysis (decision criteria acp_criteria_v1.2, schedule schedule_one_day_v3)
 # MMMSociability -- Functions/antenna_calibration_pilot.R
 # ================================================================
 # Used by Testing/audits/analyse_rfid_calibration_pilot.R (PRE-REGISTERED before any measurement; isolated output root
@@ -16,9 +16,17 @@
 # the competition run twice per board (the 10-s blocks of both runs are pooled per board); criteria v1.1 change only G07
 # and the day-2 handling (a separate confirmation experiment, never pooled); a substitute board needs an explicit
 # authorization (acp_read_substitution()). acp_criteria_v1.0.csv and schedule_one_day_v1.csv stay for provenance.
-# Pre-registration. The criteria file docs/rfid_calibration/acp_criteria_v1.1.csv (one row per rule: rule_id, criterion,
+# Amendment v3 of 2026-10-15 (before any acquisition and booking; Tobias's decision): schedule v3 adds column-boundary step
+# transitions (K, both rows, 4-2-2-4 within the M visits), three house-extension ON/OFF pairs (HX: HEx, HEy, HSy) and
+# house-lifted periods C1o and C4o in every competition run (C4, CS and C1 shortened); criteria v1.2 change G07 and add the
+# rows of category added_v1.2 (G10, K, KA, HX), and correct the seeding rule A04 (an event in progress at the placement
+# start seeds both bases; before, a tag placed before the start touch and read continuously left the event basis
+# unassigned for its whole placement). The added endpoints are computed apart from the v1.1 endpoints (no v1.1
+# endpoint gains or loses a unit, its bootstrap draws are unchanged), and they are outside the day-2 rule. A fourth drop
+# step drops the HSy pairs on both boards. Schedule v2 and criteria v1.1 stay for provenance.
+# Pre-registration. The criteria file docs/rfid_calibration/acp_criteria_v1.2.csv (one row per rule: rule_id, criterion,
 # outcome, statistic, comparator, threshold, threshold_hi, category, feeds, source) and the seeded schedule
-# docs/rfid_calibration/schedule_one_day_v1.csv are pinned by their content sha256 (line endings normalised to LF, as
+# docs/rfid_calibration/schedule_one_day_v3.csv are pinned by their content sha256 (line endings normalised to LF, as
 # sxm_content_sha256()); acp_criteria() and acp_read_schedule() stop on any other content. Every decision threshold is read
 # from the criteria file (acp_th(), acp_set(), acp_test(): the comparator of the row is applied, with 1e-9 slack for
 # floating point); a statistic that is NA never satisfies a condition. Comparators: = (a parameter), >=, >, <=, <, ==,
@@ -42,7 +50,8 @@
 # time without a touch falls back to the sheet time plus that offset, flagged). Analysed window [start + 5 s, end - 5 s].
 # Truth: the nearest measured antenna centre (survey read-zone midpoints, grid fallback); the admissible set = readers
 # within 5 grid units of the minimum distance; reader "0" in detection tables is that set (the true reader). Bases: event
-# starts and single reads (asr_resolve_ties()), both from the placement's own start (acp_observations()), flip filter over
+# starts and single reads (asr_resolve_ties()), both from the placement's own start (acp_observations(); v1.2: an event in
+# progress at the start is an observation at the start in both bases, criteria A04), flip filter over
 # the placement's own observations [start, end), carry-forward amv_runs(), grid amv_grid_track() at 0.1 s; unassigned
 # before the first observation. Every bootstrap: acp_boot(), stratified cluster resampling, B and seed from the criteria,
 # percentile CI; C statistics: 10-s block bootstrap within each period. Group-blind throughout.
@@ -51,7 +60,8 @@
 #  * criteria: decision thresholds and the day-2 thresholds in one pinned file (categories governing/basis/limitation/
 #    descriptive/day2); analysis-plan parameters (guards, tolerances) are the ACP_* constants below.
 #  * sheet: placement_id = schedule order (+ "r" for a repeat, which supersedes its original); dropped rows are allowed
-#    only as drop step 1 (H05/H06 on both boards); step 2 marks CS rows, step 3 M-visits rows; steps are used in order.
+#    only as drop step 1 (H05/H06 on both boards) or, from schedule v3, drop step 4 (the HSy pairs H11/H12 on both boards);
+#    step 2 marks CS rows, step 3 M-visits rows; steps are used in order.
 #    An order deviation = an executed first-time row whose rank by start differs from its schedule rank (flag only).
 #  * time base: the PC clock is the logger clock; the annotation is already on the PC clock (filmed display offsets
 #    applied when annotating), so it is not shifted by the clapper offset.
@@ -77,18 +87,28 @@
 #    in a visit (first start to last end) and during BASELINE/BREAK rows of the sheet. Poisson upper bound at the CI level.
 #  * B16: board signature over the session's isolated events, z against the same board's rows of board_history.csv.
 #  * day 2: "undecided" competition = B4 intermediate or B6 undecided; P is applied to the thresholds inside the CI only.
+#  * v1.2 additions (category added_v1.2): K units are the K crossings (K01) and never enter `units` (D_col, B11, B12); the
+#    v1.1 competition statistics use the v1.1 periods only (C0, C1, C4, CS, CE), and the house-lifted periods have their
+#    own bootstrap (acp_competition_house(), periods C1, C1o, C4, C4o in that order); HX placements are not in
+#    ACP_SINGLE_TYPES (B1, B3, B11, B13 and B10 keep their units). Latency: cell midpoints (A06 grid) at or after the
+#    crossing and inside the unit window; a missed transition counts as an infinite latency in the KA5 median. Detection
+#    age: from the tag's single reads at any reader of the tested board. KA2 per unit: correct_column / assigned of each
+#    placement, REF-x replicates averaged; a placement never assigned gives no value (KA component not obtained if none).
+#    The overall verdict K20 does not feed B2 (the resolution keeps the criterion (a) decision).
 # ================================================================
 
-ACP_VERSION <- "acp_criteria_v1.1"
-ACP_SCHEDULE_VERSION <- "schedule_one_day_v2"
+ACP_VERSION <- "acp_criteria_v1.2"
+ACP_SCHEDULE_VERSION <- "schedule_one_day_v3"
 ACP_DIR <- file.path("docs", "rfid_calibration")
-ACP_CRITERIA_FILE <- file.path(ACP_DIR, "acp_criteria_v1.1.csv")
-ACP_SCHEDULE_FILE <- file.path(ACP_DIR, "schedule_one_day_v2.csv")
+ACP_CRITERIA_FILE <- file.path(ACP_DIR, "acp_criteria_v1.2.csv")
+ACP_SCHEDULE_FILE <- file.path(ACP_DIR, "schedule_one_day_v3.csv")
 # Content sha256 with line endings normalised to LF (acp_content_sha256()): the same in every checkout.
-ACP_CRITERIA_SHA256 <- "18f34adff33242135b2e56bb9b1a327bda90de7e2c3136e4e06210cf60e5b5b4"
-ACP_SCHEDULE_SHA256 <- "165565b265319ecf83fec419cc51b7dcb44e7ce90c040b2390af1b6cbcbed9cf"
+ACP_CRITERIA_SHA256 <- "12c0b2d2e3b0cd61f1b7ea0be64e0e8c1752e167ffb8b69b7c08c400d1aa0500"
+ACP_SCHEDULE_SHA256 <- "e61c7d6ad9fd40886f806cf895f640c6bcdceab0aec013b5246f7062bf0f341b"
 # The schedule as written by R 4.5.1 on Windows (CRLF bytes; the hash recorded in the protocol).
-ACP_SCHEDULE_FILE_SHA256_CRLF <- "eb3dd6814b029e3d396580afac93c4c007b69e9dc2f09c818f7e363df81ef975"
+ACP_SCHEDULE_FILE_SHA256_CRLF <- "a733033215aa43542412d9cd8991c41c0ff4251c77939f237d64337cda02b739"
+# Category of the rows added in criteria v1.2 (outside the day-2 rule; criteria G10).
+ACP_ADDED_CATEGORY <- "added_v1.2"
 # The one Exp9 input (group-blind acquisition reference): Stage 00b board history of run raqc_20261014_6165adf.
 ACP_BOARD_HISTORY_RUN <- "raqc_20261014_6165adf"
 ACP_BOARD_HISTORY_SHA256 <- "fe743f4d5a8c9a2a147420052675ba484a765e873484d2511d935bab9c463cc0"
@@ -123,17 +143,27 @@ ACP_GAP_COUNTS_S <- c(10, 30, 60)         # per-tag gaps counted in the C period
 ACP_LAMBDA_UNITS <- c("P01", "P02", "P03", "REFz", "H04")   # z centres of lambda_sat
 ACP_SINGLE_TYPES <- c("P", "REFz", "REFx", "H", "T0")       # single-tag static placements
 ACP_T1_STATIC_TYPES <- c("P", "REFz", "REFx", "H")          # the T1 placements of B3 and B11
-ACP_C_PERIODS <- c("C0", "C1", "C4", "CS", "CE")
+ACP_C_PERIODS <- c("C0", "C1", "C4", "CS", "CE")   # the v1.1 periods: B4-B7 use these only
+ACP_C_PERIODS_HOUSE_OFF <- c("C1o", "C4o")         # v1.2: the house-lifted periods of every competition run (HX10, HX11)
 ACP_BOARD_PAIRS <- c(sprintf("P%02d", 1:15), sprintf("H%02d", 1:6))   # the 21 paired static placements of B10
 ACP_HOUSE_PAIRS <- data.frame(pair = c("HCx", "HCz"), on = c("H01", "H03"), off = c("H02", "H04"), stringsAsFactors = FALSE)
-# Tags and slots of the competition run (protocol section 6, block C).
+# v1.2 house-extension pairs (HX01): house edge towards R6 in x and y, house side towards R1 in y (inside the house, on the
+# bedding), and HOx on the floor just outside the house wall towards R6.
+ACP_HOUSE_EXT_PAIRS <- data.frame(pair = c("HEx", "HEy", "HSy", "HOx"), on = c("H07", "H09", "H11", "H13"), off = c("H08", "H10", "H12", "H14"),
+                                  stringsAsFactors = FALSE)
+ACP_HOUSE_RATIO_EXT_CLASSES <- c("HCx", "HCz", "HEx", "HEy", "HSy")   # HX02: the classes inside the house
+ACP_HOUSE_EDGE_ON <- c("H07", "H09", "H13")        # KA6: the house placements next to R6 with the house on
+ACP_K_PAIRS <- c("K-lower", "K-upper")
+# Tags and slots of the competition run (protocol section 6, block C; v1.2 adds the house-lifted periods C1o and C4o, whose
+# tags lie in the same slots as in C1 and C4).
 ACP_C_ROLES <- data.frame(
-  pair_id = c("C0", "C0", "C1", "C1", "C1", rep("C4", 6), rep("CS", 6), "CE", "CE"),
-  tag_label = c("T5", "T6", "T1", "T5", "T6", "T1", "T2", "T3", "T4", "T5", "T6", "T1", "T2", "T3", "T4", "T5", "T6", "T5", "T6"),
-  x = c(300, 300, -10, 300, 300, -10, 10, -10, 10, 300, 300, -10, 10, 90, 110, 300, 300, 300, 300),
-  y = c(116, 0, 126, 116, 0, 126, 126, 106, 106, 116, 0, 126, 126, 116, 116, 116, 0, 116, 0),
+  pair_id = c("C0", "C0", "C1", "C1", "C1", rep("C4", 6), rep("CS", 6), "CE", "CE", rep("C1o", 3), rep("C4o", 6)),
+  tag_label = c("T5", "T6", "T1", "T5", "T6", "T1", "T2", "T3", "T4", "T5", "T6", "T1", "T2", "T3", "T4", "T5", "T6", "T5", "T6",
+                "T1", "T5", "T6", "T1", "T2", "T3", "T4", "T5", "T6"),
+  x = c(300, 300, -10, 300, 300, -10, 10, -10, 10, 300, 300, -10, 10, 90, 110, 300, 300, 300, 300, -10, 300, 300, -10, 10, -10, 10, 300, 300),
+  y = c(116, 0, 126, 116, 0, 126, 126, 106, 106, 116, 0, 126, 126, 116, 116, 116, 0, 116, 0, 126, 116, 0, 126, 126, 106, 106, 116, 0),
   role = c("sentinel", "sentinel", "load", "sentinel", "sentinel", rep("load", 4), "sentinel", "sentinel", rep("load", 4),
-           "sentinel", "sentinel", "sentinel", "sentinel"),
+           "sentinel", "sentinel", "sentinel", "sentinel", "load", "sentinel", "sentinel", rep("load", 4), "sentinel", "sentinel"),
   stringsAsFactors = FALSE)
 ACP_EPS <- 1e-9
 
@@ -202,13 +232,15 @@ acp_test <- function(crit, id, x) {
   out & !is.na(out)
 }
 
-#' Type of a schedule pair_id: REFz, REFx, T0, P, H, M_pass, M_visits, C, SURVEY or "".
+#' Type of a schedule pair_id: REFz, REFx, T0, P, H, HX (v1.2 house extension H07-H12), M_pass, M_visits, K (v1.2
+#' column-boundary steps), C (including the house-lifted periods C1o, C4o), SURVEY or "".
 acp_pair_type <- function(pair_id) {
   out <- rep("", length(pair_id))
   out[pair_id == "REFz"] <- "REFz"; out[pair_id == "REFx"] <- "REFx"
   out[grepl("^T0-", pair_id)] <- "T0"; out[grepl("^P[0-9]{2}$", pair_id)] <- "P"; out[grepl("^H0[1-6]$", pair_id)] <- "H"
-  out[grepl("^M-pass", pair_id)] <- "M_pass"; out[grepl("^M-visits", pair_id)] <- "M_visits"
-  out[pair_id %in% ACP_C_PERIODS] <- "C"; out[pair_id == "SURVEY"] <- "SURVEY"
+  out[pair_id %in% c(ACP_HOUSE_EXT_PAIRS$on, ACP_HOUSE_EXT_PAIRS$off)] <- "HX"
+  out[grepl("^M-pass", pair_id)] <- "M_pass"; out[grepl("^M-visits", pair_id)] <- "M_visits"; out[pair_id %in% ACP_K_PAIRS] <- "K"
+  out[pair_id %in% c(ACP_C_PERIODS, ACP_C_PERIODS_HOUSE_OFF)] <- "C"; out[pair_id == "SURVEY"] <- "SURVEY"
   out
 }
 
@@ -226,7 +258,7 @@ acp_read_schedule <- function(path = ACP_SCHEDULE_FILE) {
   s[, `:=`(order = as.integer(order), x = num(x), y = num(y), n_tags = as.integer(n_tags), seconds = num(seconds),
            slot_s = num(slot_s), start_min = num(start_min))]
   s[, unit_type := acp_pair_type(pair_id)]
-  s[, analysed := board %in% names(ACP_BOARDS) & unit_type %in% c(ACP_SINGLE_TYPES, "M_pass", "M_visits", "C")]
+  s[, analysed := board %in% names(ACP_BOARDS) & unit_type %in% c(ACP_SINGLE_TYPES, "HX", "M_pass", "M_visits", "K", "C")]
   s[, required := n_tags > 0L]   # every row with a tag in a cage is executed or dropped
   attr(s, "sha256") <- h
   s[]
@@ -313,19 +345,34 @@ acp_check_sheet <- function(sheet, schedule, boards = ACP_BOARDS) {
   # every required schedule row executed or dropped
   done <- sh[is.na(repeat_of)]$order
   add("missing", "error", as.character(setdiff(schedule[required == TRUE]$order, done)), "neither executed nor dropped")
-  # dropped rows and the fixed drop order (always applied to both boards)
-  add("drop_outside_order", "error", sh[status == "dropped" & !(sched_pair %in% c("H05", "H06") & drop_step == 1L)]$placement_id,
-      "only the roof pairs H05/H06 may be dropped, as drop step 1")
-  add("drop_outside_order", "error", sh[status == "executed" & drop_step == 1L]$placement_id, "drop step 1 drops rows")
+  # dropped rows and the fixed drop order (always applied to both boards); step 4 (schedule v3) drops the HSy pairs
+  add("drop_outside_order", "error", sh[status == "dropped" & !(sched_pair %in% c("H05", "H06") & drop_step == 1L) &
+                                          !(sched_pair %in% c("H11", "H12") & drop_step == 4L)]$placement_id,
+      "only the roof pairs H05/H06 (drop step 1) and the HSy pairs H11/H12 (drop step 4) may be dropped")
+  add("drop_outside_order", "error", sh[status == "executed" & drop_step %in% c(1L, 4L)]$placement_id, "drop steps 1 and 4 drop rows")
   add("drop_outside_order", "error", sh[drop_step == 2L & sched_pair != "CS"]$placement_id, "drop step 2 shortens CS only")
   add("drop_outside_order", "error", sh[drop_step == 3L & !grepl("^M-visits", sched_pair)]$placement_id, "drop step 3 shortens visits only")
-  add("drop_outside_order", "error", sh[drop_step > 3L | drop_step < 0L]$placement_id, "unknown drop step")
+  add("drop_outside_order", "error", sh[drop_step > 4L | drop_step < 0L]$placement_id, "unknown drop step")
   steps <- sort(unique(sh$drop_step[sh$drop_step > 0L]))
-  if (length(steps) && !identical(as.integer(steps), seq_len(max(steps)))) add("drop_order", "error", "all", "drop steps must be used in order (1, then 2, then 3)")
+  # steps in order; step 3 may be skipped (at the break of schedules v2 and v3 only board 4's second visits remain, so step
+  # 3 cannot be applied on both boards), so step 4 may follow step 2
+  if (length(steps) && !(identical(as.integer(steps), seq_len(max(steps))) || identical(as.integer(steps), c(1L, 2L, 4L)))) {
+    add("drop_order", "error", "all", "drop steps must be used in order (1, then 2, then 3 if it can be applied on both boards, then 4)")
+  }
+  if (3L %in% steps) {
+    vh <- unique(sh[drop_step == 3L]$sched_pair)
+    add("drop_one_board", "error", as.character(setdiff(schedule[pair_id %in% vh]$order, sh[drop_step == 3L]$order)),
+        "drop step 3 shortens a visits half on both boards")
+  }
   if (1L %in% steps) {
     roof <- schedule[pair_id %in% c("H05", "H06")]$order
     add("drop_one_board", "error", as.character(setdiff(roof, sh[status == "dropped" & drop_step == 1L]$order)),
         "drop step 1 drops H05 and H06 on both boards")
+  }
+  if (4L %in% steps) {
+    hsy <- schedule[pair_id %in% c("H11", "H12")]$order
+    add("drop_one_board", "error", as.character(setdiff(hsy, sh[status == "dropped" & drop_step == 4L]$order)),
+        "drop step 4 drops H11 and H12 on both boards")
   }
   if (2L %in% steps) add("drop_one_board", "error", as.character(setdiff(schedule[pair_id == "CS"]$order, sh[drop_step == 2L]$order)),
                          "drop step 2 shortens CS on both boards")
@@ -507,10 +554,11 @@ acp_position_truth <- function(pos, centres) {
   out[]
 }
 
-#' Truth per static placement x tag: the single-tag placements at their schedule position, the C periods per tag at the
-#' protocol slots (roles). windows: acp_windows() rows; centres: acp_survey_centres().
+#' Truth per static placement x tag: the single-tag placements (and the v1.2 house-extension placements HX) at their
+#' schedule position, the C periods per tag at the protocol slots (roles). windows: acp_windows() rows; centres:
+#' acp_survey_centres().
 acp_truth <- function(windows, centres, roles = ACP_C_ROLES) {
-  w <- windows[use == TRUE & unit_type %in% c(ACP_SINGLE_TYPES, "C")]
+  w <- windows[use == TRUE & unit_type %in% c(ACP_SINGLE_TYPES, "HX", "C")]
   single <- w[unit_type != "C", .(placement_id, board, phys_board, pair_id, unit_type, tag_label, x, y, role = "single")]
   multi <- merge(w[unit_type == "C", .(placement_id, board, phys_board, pair_id, unit_type)], data.table::as.data.table(roles),
                  by = "pair_id", allow.cartesian = TRUE)
@@ -521,7 +569,8 @@ acp_truth <- function(windows, centres, roles = ACP_C_ROLES) {
 
 #' Movement annotation: crossings (and arrive/depart rows) with log times t; from/to as PositionID. Returns list(annotation,
 #' problems). Checks: kind, readable times, neighbouring readers at a crossing, continuity (each crossing starts where the
-#' previous one ended), increasing times within a placement, and that every movement placement of the sheet has crossings.
+#' previous one ended), increasing times within a placement, that every movement placement of the sheet (M and, from
+#' schedule v3, K) has crossings, and that every crossing of a K placement changes column.
 acp_check_annotation <- function(annotation, sheet = NULL) {
   a <- data.table::copy(data.table::as.data.table(annotation))
   miss <- setdiff(ACP_ANNOTATION_COLUMNS, names(a))
@@ -541,8 +590,12 @@ acp_check_annotation <- function(annotation, sheet = NULL) {
     if (anyDuplicated(x$t)) add("duplicate_time", p, "two crossings at one time")
   }
   if (!is.null(sheet)) {
-    mv <- sheet[use == TRUE & unit_type %in% c("M_pass", "M_visits")]$placement_id
+    mv <- sheet[use == TRUE & unit_type %in% c("M_pass", "M_visits", "K")]$placement_id
     add("no_crossings", setdiff(mv, cr$placement_id), "movement placement without annotated crossings")
+    kp <- sheet[use == TRUE & unit_type == "K"]$placement_id
+    kc <- cr[placement_id %in% kp & is.finite(from_reader) & is.finite(to_reader)]
+    add("k_within_column", unique(kc[amv_column(pmax(from_reader, 1L)) == amv_column(pmax(to_reader, 1L))]$placement_id),
+        "a crossing of a K placement does not change column")
   }
   problems <- if (length(prob)) data.table::rbindlist(prob) else
     data.table::data.table(check = character(), severity = character(), placement_id = character(), detail = character())
@@ -640,10 +693,11 @@ acp_detect_one <- function(t, t_ms, event, read, ws, we, missed_k, split_gap_s =
 
 #' E0/E1 per placement x tag x reader (PositionID 1-8, and 0 = the admissible set, the true reader) for the single-tag
 #' static placements: reads, r, P1s, P10s, e (= r / lambda_sat of the board, when given), within-event lattice and missed
-#' share (lattice k >= B3c), longest and q99 gap, event splits per min; class (B1) at reader 0.
-acp_detection <- function(reads, windows, truth, crit, lambda_sat = NULL) {
+#' share (lattice k >= B3c), longest and q99 gap, event splits per min; class (B1) at reader 0. types: the unit types
+#' (ACP_SINGLE_TYPES; the v1.2 house-extension placements are computed apart with types = "HX").
+acp_detection <- function(reads, windows, truth, crit, lambda_sat = NULL, types = ACP_SINGLE_TYPES) {
   missed_k <- acp_th(crit, "B3c")
-  tr <- merge(truth[unit_type %in% ACP_SINGLE_TYPES], windows[, .(placement_id, ws, we, start)], by = "placement_id")
+  tr <- merge(truth[unit_type %in% types], windows[, .(placement_id, ws, we, start)], by = "placement_id")
   out <- data.table::rbindlist(lapply(seq_len(nrow(tr)), function(i) {
     x <- tr[i]; tg <- x$tag_label
     r <- reads[tag_label == tg & board == x$phys_board & t >= x$ws & t < x$we]
@@ -667,18 +721,28 @@ acp_detection <- function(reads, windows, truth, crit, lambda_sat = NULL) {
 acp_lambda_sat <- function(det) det[PositionID == 0L & pair_id %in% ACP_LAMBDA_UNITS, .(lambda_sat = stats::median(r), n = .N), by = board]
 
 #' Observations of one tag on one (physical) board in [from, to): event starts (basis "event") or single reads, one per
-#' millisecond (asr_resolve_ties(); basis "read"). Returns data.table(t, pid) in time order.
+#' millisecond (asr_resolve_ties(); basis "read"). Seeding (criteria v1.2, A04): an event of the tag on the board that
+#' started before `from` and still has reads at or after it (in progress at the placement start) is an observation at
+#' `from` in both bases (the most recent such event; ties by file order). Without it a tag placed before the start touch
+#' and read continuously has no event start in its placement, and the event basis stays unassigned for the whole
+#' placement. Returns data.table(t, pid) in time order.
 acp_observations <- function(events, reads, tag, board, from, to, basis = c("event", "read")) {
   basis <- match.arg(basis); tg <- tag; bd <- board
+  rr <- reads[tag_label == tg & reads$board == bd & t_ms >= round(from * 1000) & t_ms < round(to * 1000)]
+  ip <- unique(rr$event)
+  ip <- ip[events$t[ip] < from]
+  seed <- if (length(ip)) {
+    e <- events[ip][order(t, file_order)]
+    data.table::data.table(t = from, pid = as.integer(e$PositionID[nrow(e)]))
+  } else data.table::data.table(t = numeric(), pid = integer())
   if (basis == "event") {
     x <- events[tag_label == tg & events$board == bd & t >= from & t < to]
     x <- x[order(t, file_order)]
-    return(data.table::data.table(t = x$t, pid = as.integer(x$PositionID)))
+    return(rbind(seed, data.table::data.table(t = x$t, pid = as.integer(x$PositionID))))
   }
-  x <- reads[tag_label == tg & reads$board == bd & t_ms >= round(from * 1000) & t_ms < round(to * 1000)]
-  x <- x[order(t_ms)]
+  x <- rr[order(t_ms)]
   o <- asr_resolve_ties(x$t_ms, x$PositionID)
-  data.table::data.table(t = o$t_ms / 1000, pid = as.integer(o$pid))
+  rbind(seed, data.table::data.table(t = o$t_ms / 1000, pid = as.integer(o$pid)))
 }
 
 #' Assigned reader of one window on a grid of `step` s, per basis x tau: observations from the placement's own start
@@ -875,11 +939,12 @@ acp_coread <- function(reads, windows, truth, crit) {
 #' gap, gaps >= 10/30/60 s, q99 gap. A board's runs of the same period (schedule v2: two C runs per board) are pooled: their
 #' 10-s blocks (ids unique per placement) enter one count matrix. Statistics per board with a 10-s block bootstrap (B4f)
 #' within each period: TR, MS,
-#' Gini (descriptive), CS_C4, SR; the longest gap of a load tag in C4 (starvation) and the per-tag q99 gaps in C4.
+#' Gini (descriptive), CS_C4, SR; the longest gap of a load tag in C4 (starvation) and the per-tag q99 gaps in C4. Only
+#' the v1.1 periods (ACP_C_PERIODS) enter; the house-lifted periods of schedule v3 are analysed by acp_competition_house().
 acp_competition <- function(reads, windows, truth, crit, B = NULL) {
   B <- if (is.null(B)) as.integer(acp_th(crit, "G02")) else as.integer(B)
   L <- acp_th(crit, "B4f"); k0 <- acp_th(crit, "G06"); level <- acp_th(crit, "G01"); seed <- acp_th(crit, "G03")
-  tr <- merge(truth[unit_type == "C"], windows[, .(placement_id, ws, we)], by = "placement_id")
+  tr <- merge(truth[unit_type == "C" & pair_id %in% ACP_C_PERIODS], windows[, .(placement_id, ws, we)], by = "placement_id")
   if (!nrow(tr)) return(list(per_tag = data.table::data.table(), stats = data.table::data.table(), gaps = data.table::data.table()))
   load <- unique(ACP_C_ROLES$tag_label[ACP_C_ROLES$role == "load"]); sent <- unique(ACP_C_ROLES$tag_label[ACP_C_ROLES$role == "sentinel"])
   per_tag <- list(); blocks <- list()
@@ -1170,9 +1235,9 @@ acp_cadence <- function(events, board_history) {
 }
 
 #' Vendor position records (apr_positions(gate = "vendor")) of each single-tag placement from its own reads (all boards,
-#' as the vendor pools them) in [start, end). Descriptive only.
+#' as the vendor pools them) in [start, end). Descriptive only (schedule v3: also the HX and K placements).
 acp_vendor_emulation <- function(reads, windows) {
-  w <- windows[use == TRUE & unit_type %in% c(ACP_SINGLE_TYPES, "M_pass", "M_visits") & !is.na(tag_label)]
+  w <- windows[use == TRUE & unit_type %in% c(ACP_SINGLE_TYPES, "HX", "M_pass", "M_visits", "K") & !is.na(tag_label)]
   data.table::rbindlist(lapply(seq_len(nrow(w)), function(i) {
     x <- w[i]; tg <- x$tag_label
     r <- reads[tag_label == tg & t_ms >= round(x$start * 1000) & t_ms < round(x$end * 1000)][order(t_ms)]
@@ -1419,7 +1484,8 @@ acp_decide_tags <- function(tq, crit) {
 
 #' Day-2 rule (D1-D6): a recommendation only (Tobias decides). decisions: the decision table; missing: blocks or endpoints
 #' not obtained (D2). P (rule P1) is applied to the thresholds inside each CI. Returns data.table(trigger, triggered,
-#' reason, day2_content), with a final row "recommendation".
+#' reason, day2_content), with a final row "recommendation". Rows of category ACP_ADDED_CATEGORY (criteria v1.2) are
+#' outside the rule (G10): they never trigger D2.
 acp_decide_day2 <- function(decisions, crit, missing = character()) {
   fac <- acp_th(crit, "P1")
   d <- data.table::as.data.table(decisions)
@@ -1432,7 +1498,7 @@ acp_decide_day2 <- function(decisions, crit, missing = character()) {
   b <- g_("D_col")
   add("D1", nrow(b) == 1L && identical(b$decision, "TIE_inconclusive") && P_any(b, acp_set(crit, "D1a")),
       sprintf("basis %s; D_col %.3f [%.3f, %.3f]", if (nrow(b)) b$decision else "missing", if (nrow(b)) b$estimate else NA, if (nrow(b)) b$lo else NA, if (nrow(b)) b$hi else NA), "D1a")
-  no <- unique(c(d[decision == "not_obtained", paste(criterion, statistic, board)], missing))
+  no <- unique(c(d[decision == "not_obtained" & !category %in% ACP_ADDED_CATEGORY, paste(criterion, statistic, board)], missing))
   add("D2", length(no) > 0, if (length(no)) paste("not obtained:", paste(no, collapse = "; ")) else "every endpoint obtained", "D2a")
   sd <- d[statistic == "REF_excess_sd"]; le <- d[statistic == "REF_late_early"]
   bc <- g_("board_call"); ba <- g_("board_call_drift_adjusted"); inf <- g_("R_board")
@@ -1467,6 +1533,341 @@ acp_decide_day2 <- function(decisions, crit, missing = character()) {
   rbind(out, data.table::data.table(trigger = "recommendation", triggered = any(out$triggered), reason = rec, day2_content = ""))
 }
 
+# ---------------------------------------------------------------- v1.2 additions (criteria category added_v1.2)
+
+#' K units (K01): each crossing of a K placement, [t - half_s, t + half_s] truncated halfway to the neighbouring crossings
+#' and clipped to the analysed window; cluster = pass (a maximal run of crossings in one column direction). Returns
+#' data.table(unit_id, placement_id, board, unit_type "transition", cluster, us, ue, from, to, t_cross, direction (+1 or -1
+#' column), row (lower/upper), boundary).
+acp_k_units <- function(annotation, windows, half_s = 10) {
+  cr <- annotation[kind == "cross"]
+  out <- data.table::rbindlist(lapply(unique(cr$placement_id), function(p) {
+    w <- windows[placement_id == p & use == TRUE]
+    if (nrow(w) != 1L || !identical(w$unit_type, "K")) return(NULL)
+    x <- cr[placement_id == p][order(t)]
+    n <- nrow(x)
+    dirn <- sign(amv_column(x$to_reader) - amv_column(x$from_reader))
+    pass <- cumsum(c(TRUE, dirn[-1] != dirn[-n]))
+    prev_mid <- c(-Inf, (x$t[-n] + x$t[-1]) / 2); next_mid <- c((x$t[-n] + x$t[-1]) / 2, Inf)
+    data.table::data.table(unit_id = paste0(p, "_k", seq_len(n)), placement_id = p, board = w$board, unit_type = "transition",
+                           cluster = paste0(p, "_pass", pass), us = pmax(x$t - half_s, prev_mid, w$ws), ue = pmin(x$t + half_s, next_mid, w$we),
+                           from = x$from_reader, to = x$to_reader, t_cross = x$t, direction = as.integer(dirn),
+                           row = ifelse(x$from_reader <= 4L, "lower", "upper"),
+                           boundary = paste0("R", pmin(x$from_reader, x$to_reader), "|R", pmax(x$from_reader, x$to_reader)))
+  }))
+  if (!nrow(out)) return(data.table::data.table(unit_id = character(), placement_id = character(), board = integer(), unit_type = character(),
+                                                cluster = character(), us = numeric(), ue = numeric(), from = integer(), to = integer(),
+                                                t_cross = numeric(), direction = integer(), row = character(), boundary = character()))
+  out[ue > us]
+}
+
+#' Median of x (NA dropped; Inf kept, so a missed transition counts as an infinite latency) with the order-statistic CI
+#' of acp_median_ci().
+acp_median_ci_inf <- function(x, level = 0.95) {
+  x <- sort(x[!is.na(x)]); n <- length(x)
+  if (!n) return(data.table::data.table(n = 0L, median = NA_real_, lo = NA_real_, hi = NA_real_))
+  k <- 0L
+  for (kk in seq_len(floor(n / 2))) if (1 - 2 * stats::pbinom(kk - 1L, n, 0.5) >= level) k <- kk else break
+  data.table::data.table(n = n, median = stats::median(x), lo = if (k) x[k] else NA_real_, hi = if (k) x[n - k + 1L] else NA_real_)
+}
+
+#' K statistics at tau A03 (K02, K30, K31). grid: acp_reconstruct() rows of the K placements; mtruth: acp_movement_truth()
+#' rows (u, adm, eval); units: acp_k_units(). Per unit the correct-column share per basis and d_K = read - event; D_K,
+#' D_K_b2 and D_K_b4 with the bootstrap (strata board, clusters the passes); per transition x basis the switching latency
+#' (first cell at or after the crossing, inside the unit window, assigned to the destination column; NA = missed) and its
+#' summary per board x basis; the hold-core correct-column share of the assigned time per board x basis. Returns
+#' list(unit_d, stats, latency, latency_summary, hold_core).
+acp_k_analysis <- function(grid, mtruth, units, crit, B = NULL) {
+  B <- if (is.null(B)) as.integer(acp_th(crit, "G02")) else as.integer(B)
+  tt <- acp_th(crit, "A03"); level <- acp_th(crit, "G01"); seed <- acp_th(crit, "G03"); core <- acp_th(crit, "K31")
+  none <- list(unit_d = data.table::data.table(), stats = data.table::data.table(statistic = c("D_K", "D_K_b2", "D_K_b4"), estimate = NA_real_,
+                                                                                  lo = NA_real_, hi = NA_real_, n_units = 0L, n_clusters = 0L, B = B),
+               latency = data.table::data.table(), latency_summary = data.table::data.table(), hold_core = data.table::data.table())
+  if (is.null(units) || !nrow(units) || is.null(grid) || !nrow(grid) || is.null(mtruth) || !nrow(mtruth)) return(none)
+  g <- grid[abs(tau - tt) < 1e-9 & placement_id %in% units$placement_id]
+  mt <- mtruth[placement_id %in% units$placement_id]
+  cells <- acp_unit_cells(mt, units)
+  conf <- acp_confusion(g, cells[, .(placement_id, cell, adm, eval, unit_id, unit_type, cluster, board)], by = c("unit_id", "cluster", "board", "basis", "tau"))
+  if (!nrow(conf) || !all(c("event", "read") %in% conf$basis)) return(none)
+  w <- data.table::dcast(conf, unit_id + cluster + board ~ basis, value.var = "correct_column")
+  ud <- w[, .(unit_id, cluster, board, c_read = read, c_event = event, d = read - event)][is.finite(d)]
+  f <- function(u) c(D_K = if (nrow(u)) mean(u$d) else NA_real_, D_K_b2 = if (any(u$board == 2L)) mean(u$d[u$board == 2L]) else NA_real_,
+                     D_K_b4 = if (any(u$board == 4L)) mean(u$d[u$board == 4L]) else NA_real_)
+  st <- acp_boot(ud, f, "board", "cluster", B, seed, level)
+  x <- merge(g, mt[, .(placement_id, cell, u)], by = c("placement_id", "cell"))
+  lat <- data.table::rbindlist(lapply(seq_len(nrow(units)), function(i) {
+    un <- units[i]; pid <- un$placement_id; t0 <- un$t_cross; t1 <- un$ue; dest <- amv_column(un$to)
+    y <- x[placement_id == pid & u >= t0 & u < t1]
+    data.table::rbindlist(lapply(c("event", "read"), function(b) {
+      z <- y[basis == b][order(u)]
+      hit <- z[pos > 0L & amv_column(pmax(pos, 1L)) == dest]
+      data.table::data.table(unit_id = un$unit_id, placement_id = pid, board = un$board, basis = b, boundary = un$boundary, row = un$row,
+                             direction = un$direction, latency_s = if (nrow(hit)) hit$u[1] - t0 else NA_real_)
+    }))
+  }))
+  lat[, missed := is.na(latency_s)]
+  ls <- lat[, c(list(transitions = .N, detected = sum(!missed), detected_share = mean(!missed)),
+                as.list(acp_median_ci_inf(ifelse(missed, Inf, latency_s), level)[, .(median_s = median, lo_s = lo, hi_s = hi)])), by = .(board, basis)]
+  hm <- data.table::rbindlist(lapply(unique(units$placement_id), function(p) {
+    mm <- mt[placement_id == p & eval == TRUE]; tcs <- sort(units[placement_id == p]$t_cross)
+    k <- findInterval(mm$u, tcs)
+    dd <- pmin(ifelse(k > 0L, mm$u - tcs[pmax(k, 1L)], Inf), ifelse(k < length(tcs), tcs[pmin(k + 1L, length(tcs))] - mm$u, Inf))
+    mm[dd > core, .(placement_id, cell, adm)][, board := units[placement_id == p]$board[1]]
+  }))
+  hc <- merge(g, hm, by = c("placement_id", "cell"))
+  hc[, ok := pos > 0L & acp_col_distance(adm, pos) %in% 0]
+  hold <- hc[, .(cells = .N, assigned = sum(pos > 0L), correct_column_assigned = if (any(pos > 0L)) sum(ok) / sum(pos > 0L) else NA_real_),
+             by = .(board, basis)]
+  list(unit_d = ud[], stats = st, latency = lat[], latency_summary = ls[], hold_core = hold[])
+}
+
+#' K decision (K10-K16) from the D_K statistics: READ_K (and both boards above 0), EVENT_K (both below 0), EQUIVALENT_K,
+#' INCONCLUSIVE_K or not_obtained; with the per-board rows (supporting).
+acp_decide_k <- function(stats, crit) {
+  g <- function(s) { x <- stats[stats$statistic == s]; if (nrow(x) != 1L) data.table::data.table(estimate = NA_real_, lo = NA_real_, hi = NA_real_, n_units = NA_integer_) else x }
+  D <- g("D_K"); b2 <- g("D_K_b2"); b4 <- g("D_K_b4")
+  t <- function(id, x) acp_test(crit, id, x)
+  if (anyNA(c(D$estimate, D$lo, D$hi, b2$estimate, b4$estimate))) { dec <- "not_obtained"; rid <- "K16" }
+  else if (t("K10", D$estimate) && t("K11", D$lo) && t("K11a", b2$estimate) && t("K11b", b4$estimate)) { dec <- "READ_K"; rid <- "K10" }
+  else if (t("K12", D$estimate) && t("K13", D$hi) && t("K13a", b2$estimate) && t("K13b", b4$estimate)) { dec <- "EVENT_K"; rid <- "K12" }
+  else if (t("K14", D$lo) && t("K15", D$hi)) { dec <- "EQUIVALENT_K"; rid <- "K14" }
+  else { dec <- "INCONCLUSIVE_K"; rid <- "K16" }
+  rbind(acp_row(crit, rid, "D_K", dec, D$estimate, D$lo, D$hi, D$n_units),
+        acp_row(crit, "K02", "D_K_b2", NA, b2$estimate, b2$lo, b2$hi, b2$n_units, board = "2"),
+        acp_row(crit, "K02", "D_K_b4", NA, b4$estimate, b4$lo, b4$hi, b4$n_units, board = "4"))
+}
+
+#' Overall basis verdict (K20): the criterion (a) decision of D_col, except (a) READ with EVENT_K or (a) EVENT with READ_K
+#' -> discordant; (a) missing or not obtained -> not_obtained.
+acp_decide_basis_overall <- function(dcol, dk, crit) {
+  dcol <- if (length(dcol) == 1L && !is.na(dcol)) dcol else "not_obtained"
+  dk <- if (length(dk) == 1L && !is.na(dk)) dk else "not_obtained"
+  dec <- if (dcol == "not_obtained") "not_obtained" else
+    if ((dcol == "READ" && dk == "EVENT_K") || (dcol == "EVENT" && dk == "READ_K")) "discordant" else dcol
+  acp_row(crit, "K20", "basis_overall", dec)
+}
+
+#' Switching-latency rows (K30) per board x basis: median (missed = Inf) with its order-statistic CI, and the missed count.
+acp_k_latency_rows <- function(k, crit) {
+  ls <- k$latency_summary
+  if (!nrow(ls)) return(NULL)
+  data.table::rbindlist(lapply(seq_len(nrow(ls)), function(i) rbind(
+    acp_row(crit, "K30", paste0("k_latency_median_s_", ls$basis[i]), NA, ls$median_s[i], ls$lo_s[i], ls$hi_s[i], ls$transitions[i], board = ls$board[i]),
+    acp_row(crit, "K30", paste0("k_transitions_missed_", ls$basis[i]), NA, ls$transitions[i] - ls$detected[i], n_units = ls$transitions[i], board = ls$board[i]))))
+}
+
+#' Column-level adequacy (KA1-KA8) under the basis of the overall verdict (READ -> read, EVENT -> event, otherwise both):
+#' per board x basis the components KA1-KA6 (met, not_met, not_obtained; KA1, KA2 and KA6 over the tested placements, B2b)
+#' and the decision: limited when any component is not met, else not_obtained when any lacks data, else adequate.
+#' conf_s: static confusion (board, pair_id, basis, tau, assigned, correct_column); k: acp_k_analysis(); conf_hx: the
+#' HX static confusion.
+acp_decide_column_adequacy <- function(conf_s, k, conf_hx, overall, crit) {
+  ov <- if (length(overall) == 1L && !is.na(overall)) overall else ""
+  bases <- switch(ov, READ = "read", EVENT = "event", c("event", "read"))
+  tt <- acp_th(crit, "A03")
+  cs <- conf_s[abs(tau - tt) < 1e-9]
+  ch <- if (!is.null(conf_hx) && nrow(conf_hx)) conf_hx[abs(tau - tt) < 1e-9] else NULL
+  cca <- function(a, cc) ifelse(a > 0, cc / a, NA_real_)
+  fin <- function(v) if (length(v) && any(is.finite(v))) v[is.finite(v)] else NA_real_
+  rows <- list(); status <- character()
+  comp <- function(rule, stat, b, bs, v, n) {
+    st <- if (is.na(v)) "not_obtained" else if (acp_test(crit, rule, v)) "met" else "not_met"
+    status <<- c(status, st)
+    rows[[length(rows) + 1L]] <<- acp_row(crit, rule, paste0(stat, "_", bs), st, v, n_units = n, board = b)
+  }
+  for (b in c(2L, 4L)) for (bs in bases) {
+    x <- cs[board == b & basis == bs & pair_id %in% acp_set(crit, "A13") & acp_test(crit, "B2b", assigned)]
+    comp("KA1", "ka1_centre_min_correct_column", b, bs, if (nrow(x)) min(fin(cca(x$assigned, x$correct_column))) else NA_real_, nrow(x))
+    y <- cs[board == b & basis == bs & pair_id %in% acp_set(crit, "A09") & acp_test(crit, "B2b", assigned)]
+    yv <- if (nrow(y)) y[, .(v = mean(cca(assigned, correct_column), na.rm = TRUE)), by = pair_id][is.finite(v)] else data.table::data.table(v = numeric())
+    comp("KA2", "ka2_boundary_mean_correct_column", b, bs, if (nrow(yv)) mean(yv$v) else NA_real_, nrow(yv))
+    hc <- if (nrow(k$hold_core)) k$hold_core[board == b & basis == bs] else k$hold_core
+    comp("KA3", "ka3_hold_core_correct_column", b, bs, if (nrow(hc) == 1L) hc$correct_column_assigned else NA_real_, if (nrow(hc) == 1L) hc$cells else 0L)
+    lv <- if (nrow(k$latency)) k$latency[board == b & basis == bs] else k$latency
+    comp("KA4", "ka4_transitions_detected", b, bs, if (nrow(lv)) mean(!lv$missed) else NA_real_, nrow(lv))
+    comp("KA5", "ka5_latency_median_s", b, bs, if (nrow(lv)) stats::median(ifelse(lv$missed, Inf, lv$latency_s)) else NA_real_, nrow(lv))
+    he <- if (!is.null(ch)) ch[board == b & basis == bs & pair_id %in% ACP_HOUSE_EDGE_ON & acp_test(crit, "B2b", assigned)] else NULL
+    comp("KA6", "ka6_house_edge_min_correct_column", b, bs, if (!is.null(he) && nrow(he)) min(fin(cca(he$assigned, he$correct_column))) else NA_real_,
+         if (is.null(he)) 0L else nrow(he))
+  }
+  dec <- if (any(status == "not_met")) "limited" else if (any(status == "not_obtained")) "not_obtained" else "adequate"
+  rbind(acp_row(crit, "KA8", "column_adequacy", dec, sum(status == "not_met"), n_units = length(status)), data.table::rbindlist(rows))
+}
+
+#' House pairs (HX02, HX03) over HCx, HCz (B8) and the v1.2 classes HEx, HEy, HSy and HOx: per class x board the log rate
+#' ratio house on / lifted at the true reader (continuity G06), P1s in both states, unread in both (B1b; excluded); the
+#' extended house ratio over the classes inside the house (ACP_HOUSE_RATIO_EXT_CLASSES) with the bootstrap over pairs
+#' (strata board); the pooled ratio per class (HOx included); per placement x basis (tau A03) the
+#' shares of the assigned time at the correct reader, in the correct row and in the correct column; the orientation ratio
+#' HEy / HEx per state and board. det: detection rows (reader 0) of H01-H04 and H07-H12; conf: their static confusion.
+acp_house_extension <- function(det, conf, crit, B = NULL) {
+  B <- if (is.null(B)) as.integer(acp_th(crit, "G02")) else as.integer(B)
+  k0 <- acp_th(crit, "G06"); tt <- acp_th(crit, "A03")
+  cls <- rbind(ACP_HOUSE_PAIRS, ACP_HOUSE_EXT_PAIRS)
+  d0 <- det[PositionID == 0L & pair_id %in% c(cls$on, cls$off)]
+  p <- data.table::rbindlist(lapply(seq_len(nrow(cls)), function(i) {
+    on <- d0[pair_id == cls$on[i], .(board, n_on = reads, T_on = T, P1s_on = P1s)]
+    off <- d0[pair_id == cls$off[i], .(board, n_off = reads, T_off = T, P1s_off = P1s)]
+    merge(on, off, by = "board")[, pair := cls$pair[i]]
+  }))
+  if (!nrow(p)) return(list(pairs = p, stats = data.table::data.table(statistic = "house_ratio_ext", estimate = NA_real_, lo = NA_real_, hi = NA_real_,
+                                                                      n_units = 0L, n_clusters = 0L, B = B),
+                            per_class = data.table::data.table(), assignment = data.table::data.table(), orientation = data.table::data.table()))
+  p[, `:=`(log_ratio = log((n_on + k0) / T_on) - log((n_off + k0) / T_off),
+           unread_both = acp_test(crit, "B1b", P1s_on) & acp_test(crit, "B1b", P1s_off), unit_id = paste0(pair, "_b", board))]
+  p[, included := !unread_both]
+  st <- acp_boot(p[included == TRUE & pair %in% ACP_HOUSE_RATIO_EXT_CLASSES], function(u) c(house_ratio_ext = if (nrow(u)) exp(mean(u$log_ratio)) else NA_real_),
+                 "board", "unit_id", B, acp_th(crit, "G03"), acp_th(crit, "G01"))
+  pc <- p[included == TRUE, .(pairs = .N, ratio = exp(mean(log_ratio))), by = pair]
+  a <- if (!is.null(conf) && nrow(conf)) conf[abs(tau - tt) < 1e-9 & pair_id %in% c(cls$on, cls$off)] else data.table::data.table()
+  if (nrow(a)) {
+    a[, `:=`(pair = c(cls$pair, cls$pair)[match(pair_id, c(cls$on, cls$off))], state = ifelse(pair_id %in% cls$on, "on", "off"),
+             correct_column_assigned = ifelse(assigned > 0, correct_column / assigned, NA_real_))]
+    a <- a[, .(board, pair, state, pair_id, placement_id, basis, assigned, unassigned, correct_reader_assigned, correct_row_assigned, correct_column_assigned)]
+  }
+  rate <- function(id) d0[pair_id == id, .(board, r = (reads + k0) / T)]
+  ori <- data.table::rbindlist(lapply(c("on", "off"), function(s) {
+    x <- rate(if (s == "on") "H07" else "H08"); y <- rate(if (s == "on") "H09" else "H10")
+    if (!nrow(x) || !nrow(y)) return(NULL)
+    merge(x, y, by = "board", suffixes = c("_HEx", "_HEy"))[, .(board, state = s, ratio_HEy_HEx = r_HEy / r_HEx)]
+  }))
+  list(pairs = p[], stats = st, per_class = pc[], assignment = a[], orientation = ori[])
+}
+
+#' HX02 (extended house ratio: no_attenuation, attenuation, partial with the B8 thresholds; B8c not applied) and the
+#' per-class ratios (HX03, supporting).
+acp_decide_house_extension <- function(hx, crit) {
+  hr <- hx$stats[statistic == "house_ratio_ext"]
+  dec <- if (nrow(hr) != 1L || anyNA(c(hr$estimate, hr$lo, hr$hi))) "not_obtained"
+         else if (acp_test(crit, "B8a", hr$estimate) && acp_test(crit, "B8b", hr$lo)) "no_attenuation"
+         else if (acp_test(crit, "B8d", hr$estimate) && acp_test(crit, "B8e", hr$hi)) "attenuation" else "partial"
+  rows <- list(acp_row(crit, "HX02", "house_ratio_ext", dec, hr$estimate[1], hr$lo[1], hr$hi[1], hr$n_units[1]))
+  pc <- hx$per_class
+  for (cl in c(ACP_HOUSE_PAIRS$pair, ACP_HOUSE_EXT_PAIRS$pair)) {
+    z <- if (nrow(pc)) pc[pair == cl] else pc
+    rows[[length(rows) + 1L]] <- acp_row(crit, "HX03", paste0("house_ratio_", cl), NA, if (nrow(z)) z$ratio else NA_real_, n_units = if (nrow(z)) z$pairs else 0L)
+  }
+  data.table::rbindlist(rows)
+}
+
+#' Competition with the house lifted (HX10, HX11, HX20): periods C1, C1o, C4 and C4o of both runs of a board pooled by their
+#' 10-s blocks (B4f; ids unique per placement), with a block bootstrap within each period (periods drawn in the fixed order
+#' C1, C1o, C4, C4o): TR_off = load throughput C4o / C1o, MS_off, HR1 = rate C1 / C1o (T1), HR4 = throughput C4 / C4o, HI =
+#' HR4 / HR1, TR_on = C4 / C1 (descriptive; B4 is the v1.1 call); the longest gap of a load tag in C4o.
+acp_competition_house <- function(reads, windows, truth, crit, B = NULL) {
+  B <- if (is.null(B)) as.integer(acp_th(crit, "G02")) else as.integer(B)
+  L <- acp_th(crit, "B4f"); k0 <- acp_th(crit, "G06"); level <- acp_th(crit, "G01"); seed <- acp_th(crit, "G03")
+  per_all <- c("C1", "C1o", "C4", "C4o"); load <- c("T1", "T2", "T3", "T4")
+  tr <- merge(truth[unit_type == "C" & pair_id %in% per_all & role == "load"], windows[, .(placement_id, ws, we)], by = "placement_id")
+  if (!nrow(tr) || !any(tr$pair_id %in% ACP_C_PERIODS_HOUSE_OFF)) {
+    return(list(per_tag = data.table::data.table(), stats = data.table::data.table(), gaps = data.table::data.table(), blocks = data.table::data.table()))
+  }
+  per_tag <- list(); blocks <- list()
+  for (i in seq_len(nrow(tr))) {
+    x <- tr[i]; tg <- x$tag_label
+    rt <- sort(reads[tag_label == tg & board == x$phys_board & t >= x$ws & t < x$we & PositionID %in% acp_mask_readers(x$adm)]$t)
+    T <- x$we - x$ws; g <- diff(c(x$ws, rt, x$we))
+    per_tag[[i]] <- data.table::data.table(board = x$board, period = x$pair_id, placement_id = x$placement_id, tag_label = tg, T = T, reads = length(rt),
+                                           rate = length(rt) / T, longest_gap = max(g))
+    nb <- max(1L, ceiling(T / L - 1e-9))
+    blocks[[i]] <- data.table::data.table(board = x$board, period = x$pair_id, tag_label = tg, block = paste0(x$placement_id, "_", seq_len(nb)),
+                                          reads = tabulate(pmin(floor((rt - x$ws) / L) + 1L, nb), nbins = nb), dur = pmin(L, T - (seq_len(nb) - 1L) * L))
+  }
+  per_tag <- data.table::rbindlist(per_tag); blocks <- data.table::rbindlist(blocks)
+  stat_fn <- function(N, D) {
+    has <- function(p, tg) !is.null(N[[p]]) && all(tg %in% colnames(N[[p]]))
+    nr <- length(D[[1]]); na <- rep(NA_real_, nr)
+    thr <- function(p, tg) if (has(p, tg)) (rowSums(N[[p]][, tg, drop = FALSE]) + k0) / D[[p]] else na
+    tot <- if (has("C4o", load)) rowSums(N$C4o[, load, drop = FALSE]) else na
+    ms <- if (has("C4o", load)) ifelse(tot > 0, apply(N$C4o[, load, drop = FALSE], 1, max) / tot, NA_real_) else na
+    HR1 <- thr("C1", "T1") / thr("C1o", "T1"); HR4 <- thr("C4", load) / thr("C4o", load)
+    cbind(TR_off = thr("C4o", load) / thr("C1o", "T1"), MS_off = ms, HR1 = HR1, HR4 = HR4, HI = HR4 / HR1, TR_on = thr("C4", load) / thr("C1", "T1"))
+  }
+  stats <- data.table::rbindlist(lapply(sort(unique(blocks$board)), function(b) {
+    bl <- blocks[board == b]
+    per <- intersect(per_all, unique(bl$period))
+    mats <- lapply(stats::setNames(per, per), function(p) {
+      m <- data.table::dcast(bl[period == p], block ~ tag_label, value.var = "reads", fill = 0L)
+      list(cnt = as.matrix(m[, -1, with = FALSE]), dur = bl[period == p, .(dur = dur[1]), by = block]$dur)
+    })
+    pt <- stat_fn(lapply(mats, function(z) matrix(colSums(z$cnt), 1, dimnames = list(NULL, colnames(z$cnt)))), lapply(mats, function(z) sum(z$dur)))
+    reps <- acp_with_seed(seed, {
+      N <- list(); D <- list()
+      for (p in per) {
+        z <- mats[[p]]; nb <- nrow(z$cnt)
+        idx <- matrix(sample.int(nb, B * nb, replace = TRUE), B, nb)
+        N[[p]] <- vapply(colnames(z$cnt), function(tg) rowSums(matrix(z$cnt[idx, tg], B, nb)), numeric(B))
+        if (B == 1L) N[[p]] <- matrix(N[[p]], 1, dimnames = list(NULL, colnames(z$cnt)))
+        D[[p]] <- rowSums(matrix(z$dur[idx], B, nb))
+      }
+      stat_fn(N, D)
+    })
+    a <- (1 - level) / 2
+    data.table::data.table(board = b, statistic = colnames(pt), estimate = as.numeric(pt[1, ]),
+      lo = apply(reps, 2, function(v) if (all(is.na(v))) NA_real_ else stats::quantile(v, a, na.rm = TRUE, names = FALSE)),
+      hi = apply(reps, 2, function(v) if (all(is.na(v))) NA_real_ else stats::quantile(v, 1 - a, na.rm = TRUE, names = FALSE)),
+      n_units = nrow(bl[tag_label == "T1"]), B = B)
+  }))
+  gaps <- per_tag[period == "C4o", .(max_gap_C4o = max(longest_gap)), by = board]
+  list(per_tag = per_tag[], stats = stats[], gaps = gaps[], blocks = blocks[])
+}
+
+#' HX10 (competition call with the house lifted, B4 thresholds and precedence), HX11 (HR4 call with the B8 thresholds; HR1
+#' supporting) and HX20-HX24 (interaction HI: the CI excludes 1 -> interaction, else inside [HX21, HX22] -> no_interaction,
+#' else undecided), per board.
+acp_decide_competition_house <- function(ch, crit) {
+  st <- ch$stats
+  out <- list()
+  for (b in c(2L, 4L)) {
+    s <- function(nm) { x <- if (nrow(st)) st[board == b & statistic == nm] else st; if (nrow(x) != 1L) data.table::data.table(estimate = NA_real_, lo = NA_real_, hi = NA_real_, n_units = NA_integer_) else x }
+    TRo <- s("TR_off"); MSo <- s("MS_off"); HR1 <- s("HR1"); HR4 <- s("HR4"); HI <- s("HI")
+    G <- if (nrow(ch$gaps)) ch$gaps[board == b]$max_gap_C4o else numeric(); G <- if (length(G)) G else NA_real_
+    call <- if (anyNA(c(TRo$estimate, MSo$estimate, G))) "not_obtained"
+            else if (acp_test(crit, "B4d", MSo$estimate) || acp_test(crit, "B4e", G)) "capture_or_starvation"
+            else if (acp_test(crit, "B4c", TRo$estimate)) "collision"
+            else if (acp_test(crit, "B4a", TRo$estimate) && acp_test(crit, "B4b", MSo$estimate)) "time_sharing" else "intermediate"
+    hr4 <- if (anyNA(c(HR4$estimate, HR4$lo, HR4$hi))) "not_obtained"
+           else if (acp_test(crit, "B8a", HR4$estimate) && acp_test(crit, "B8b", HR4$lo)) "no_attenuation"
+           else if (acp_test(crit, "B8d", HR4$estimate) && acp_test(crit, "B8e", HR4$hi)) "attenuation" else "partial"
+    hi <- if (anyNA(c(HI$estimate, HI$lo, HI$hi))) "not_obtained"
+          else if (HI$hi < 1 - ACP_EPS || HI$lo > 1 + ACP_EPS) "interaction"
+          else if (acp_test(crit, "HX21", HI$lo) && acp_test(crit, "HX22", HI$hi)) "no_interaction" else "undecided"
+    out[[length(out) + 1L]] <- rbind(
+      acp_row(crit, "HX10", "competition_call_house_off", call, board = b),
+      acp_row(crit, "HX10", "TR_off", NA, TRo$estimate, TRo$lo, TRo$hi, TRo$n_units, board = b),
+      acp_row(crit, "HX10", "MS_off", NA, MSo$estimate, MSo$lo, MSo$hi, MSo$n_units, board = b),
+      acp_row(crit, "HX10", "max_gap_C4o_s", NA, G, board = b),
+      acp_row(crit, "HX11", "HR4", hr4, HR4$estimate, HR4$lo, HR4$hi, HR4$n_units, board = b),
+      acp_row(crit, "HX11", "HR1", NA, HR1$estimate, HR1$lo, HR1$hi, HR1$n_units, board = b),
+      acp_row(crit, switch(hi, interaction = "HX23", no_interaction = "HX21", "HX24"), "HI", hi, HI$estimate, HI$lo, HI$hi, HI$n_units, board = b))
+  }
+  data.table::rbindlist(out)
+}
+
+#' Accuracy by detection age (K32, descriptive): over the evaluated cells of the K and M placements at tau A03 that a basis
+#' assigns, the age = time since the tag's latest single read at any reader of its board (from the placement start); the
+#' share in the correct column by age class x basis x board x movement type (K or M).
+acp_age_accuracy <- function(reads, windows, grid, mtruth, crit) {
+  cls <- acp_set(crit, "K32"); tt <- acp_th(crit, "A03")
+  w <- windows[use == TRUE & unit_type %in% c("K", "M_pass", "M_visits")]
+  if (is.null(grid) || !nrow(grid) || is.null(mtruth) || !nrow(mtruth) || !nrow(w)) return(data.table::data.table())
+  g <- grid[abs(tau - tt) < 1e-9 & placement_id %in% w$placement_id]
+  x <- merge(g, mtruth[eval == TRUE, .(placement_id, cell, u, adm)], by = c("placement_id", "cell"))[pos > 0L]
+  if (!nrow(x)) return(data.table::data.table())
+  x <- merge(x, w[, .(placement_id, board, unit_type, phys_board, start, end, tag = tag_label)], by = "placement_id")
+  x[, age := {
+    tg <- tag[1]; pb <- phys_board[1]; s0 <- start[1]; s1 <- end[1]
+    rt <- sort(reads[tag_label == tg & board == pb & t >= s0 & t < s1]$t)
+    k <- findInterval(u, rt)
+    ifelse(k > 0L, u - rt[pmax(k, 1L)], NA_real_)
+  }, by = placement_id]
+  lab <- c(paste0("<=", cls[1]), paste0(cls[-length(cls)], "-", cls[-1]), paste0(">", cls[length(cls)]))
+  x[, age_class := cut(age, c(-Inf, cls, Inf), labels = lab, right = TRUE)]
+  x[, correct := acp_col_distance(adm, pos) %in% 0]
+  x[!is.na(age_class), .(cells = .N, correct_column_assigned = mean(correct)),
+    by = .(board, basis, movement = ifelse(unit_type == "K", "K", "M"), age_class)][order(board, basis, movement, age_class)]
+}
+
 # ---------------------------------------------------------------- the whole analysis
 
 #' The pre-registered analysis of one pilot day, pure (reads and writes no file). schedule: acp_read_schedule(); sheet:
@@ -1476,8 +1877,13 @@ acp_decide_day2 <- function(decisions, crit, missing = character()) {
 #' `day2`.
 acp_analyse <- function(schedule, sheet, session, annotation, survey, board_history, crit, B = NULL, boards = ACP_BOARDS) {
   B <- if (is.null(B)) as.integer(acp_th(crit, "G02")) else as.integer(B)
-  out <- list(); missing <- character()
-  if (!sheet$ok) missing <- c(missing, paste("sheet:", unique(sheet$problems[severity == "error"]$check)))
+  out <- list(); missing <- character(); add_missing <- character()
+  # sheet errors on the placements added in schedule v3 (K, HX, C1o, C4o) are reported apart and are not D2 reasons (G10)
+  added_orders <- as.character(schedule[unit_type %in% c("K", "HX") | pair_id %in% ACP_C_PERIODS_HOUSE_OFF]$order)
+  se <- sheet$problems[severity == "error"]
+  se_added <- sub("r$", "", se$placement_id) %in% added_orders
+  if (any(!se_added)) missing <- c(missing, paste("sheet:", unique(se[!se_added]$check)))
+  if (any(se_added)) add_missing <- c(add_missing, paste0("sheet: ", se[se_added]$check, " (", se[se_added]$placement_id, ")"))
   touches <- acp_clapper_touches(session$reads)
   al <- acp_align(sheet$sheet, touches)
   if (!al$n_matched) missing <- c(missing, "clapper and sheet times could not be aligned")
@@ -1487,7 +1893,7 @@ acp_analyse <- function(schedule, sheet, session, annotation, survey, board_hist
                                           fallback_times = sum(win$start_source == "sheet") + sum(win$end_source == "sheet"))
   out$channel_check <- acp_channel_check(session$reads, win, boards)
   if (!all(out$channel_check$passed)) missing <- c(missing, "a board failed the channel check")
-  reqd <- schedule[unit_type %in% c("C", "H") & board %in% names(boards)]$order
+  reqd <- schedule[((unit_type == "C" & pair_id %in% ACP_C_PERIODS) | unit_type == "H") & board %in% names(boards)]$order
   inc <- setdiff(reqd, win[use == TRUE]$order)
   inc <- setdiff(inc, sheet$sheet[status == "dropped" & drop_step == 1L]$order)
   if (length(inc)) missing <- c(missing, paste("C or H block incomplete: orders", paste(inc, collapse = ",")))
@@ -1511,7 +1917,7 @@ acp_analyse <- function(schedule, sheet, session, annotation, survey, board_hist
   out$confusion_competition <- if (nrow(grid_c)) merge(acp_confusion(grid_c, truth[, .(placement_id, tag_label, adm)]),
                                                        truth[, .(placement_id, tag_label, board, pair_id, role)], by = c("placement_id", "tag_label")) else NULL
   out$confusion_static <- conf_s
-  units <- NULL; conf_m <- data.table::data.table(); mtruth <- NULL
+  units <- NULL; conf_m <- data.table::data.table(); mtruth <- NULL; grid_m <- NULL
   if (!is.null(annotation) && nrow(annotation$annotation)) {
     mtruth <- acp_movement_truth(annotation$annotation, win, step, acp_th(crit, "A07"))
     units <- acp_movement_units(annotation$annotation, win, acp_th(crit, "A10"), acp_th(crit, "A11"))
@@ -1571,8 +1977,53 @@ acp_analyse <- function(schedule, sheet, session, annotation, survey, board_hist
   out$cadence <- acp_cadence(session$events, board_history)
   dec$transfer <- acp_decide_transfer(out$cadence, crit, boards)
   out$vendor_emulation <- acp_vendor_emulation(session$reads, win)
+  # ---- v1.2 additions (category added_v1.2): computed apart from the v1.1 endpoints above; outside the day-2 rule (G10)
+  # K: column-boundary step transitions
+  kw <- win[use == TRUE & unit_type == "K"]
+  k_units <- if (!is.null(annotation) && nrow(annotation$annotation)) acp_k_units(annotation$annotation, win, acp_th(crit, "K01")) else NULL
+  if (!nrow(kw)) add_missing <- c(add_missing, "no K placement executed")
+  else if (is.null(k_units) || !nrow(k_units)) add_missing <- c(add_missing, "no K movement truth (camera or clock alignment)")
+  else if (length(setdiff(kw$placement_id, k_units$placement_id))) {
+    add_missing <- c(add_missing, paste("no K movement truth for placements", paste(setdiff(kw$placement_id, k_units$placement_id), collapse = ",")))
+  }
+  grid_k <- if (!is.null(k_units) && nrow(k_units)) {
+    k_w <- kw[placement_id %in% k_units$placement_id, .(placement_id, tag_label, phys_board, start, end, ws, we)]
+    data.table::rbindlist(lapply(seq_len(nrow(k_w)), function(i) acp_reconstruct(session$events, session$reads, k_w[i], tt, step)))
+  } else NULL
+  out$k_units <- k_units
+  kres <- acp_k_analysis(grid_k, mtruth, k_units, crit, B)
+  out$k_unit_d <- kres$unit_d; out$k_statistics <- kres$stats; out$k_latency <- kres$latency
+  out$k_latency_summary <- kres$latency_summary; out$k_hold_core <- kres$hold_core
+  dec$k <- acp_decide_k(kres$stats, crit)
+  dec$basis_overall <- acp_decide_basis_overall(dec$column[statistic == "D_col"]$decision, dec$k[statistic == "D_K"]$decision, crit)
+  dec$k_latency <- acp_k_latency_rows(kres, crit)
+  # HX: house-extension pairs (static, apart from B1/B3/B8/B10/B11/B13) and the house-lifted competition periods
+  det_hx <- acp_detection(session$reads, win, truth, crit, types = "HX")
+  if (nrow(det_hx)) det_hx <- merge(det_hx, lam[, .(board, lambda_sat)], by = "board", all.x = TRUE)[, e := r / lambda_sat]
+  out$detection_house_ext <- det_hx
+  hx_w <- merge(truth[unit_type == "HX", .(placement_id, tag_label)], win[, .(placement_id, phys_board, start, end, ws, we)], by = "placement_id")
+  grid_hx <- data.table::rbindlist(lapply(seq_len(nrow(hx_w)), function(i) acp_reconstruct(session$events, session$reads, hx_w[i], c(0, tt), step)))
+  conf_hx <- if (nrow(grid_hx)) merge(acp_confusion(grid_hx, truth[, .(placement_id, tag_label, adm)]), truth[, .(placement_id, tag_label, board, pair_id, unit_type)],
+                                      by = c("placement_id", "tag_label")) else NULL
+  out$confusion_house_ext <- conf_hx
+  hx_need <- schedule[unit_type == "HX" & board %in% names(boards)]$order
+  hx_inc <- setdiff(setdiff(hx_need, win[use == TRUE]$order), sheet$sheet[status == "dropped" & drop_step == 4L]$order)
+  if (length(hx_inc)) add_missing <- c(add_missing, paste("HX pairs incomplete: orders", paste(hx_inc, collapse = ",")))
+  out$house_extension <- acp_house_extension(rbind(det[pair_id %in% c(ACP_HOUSE_PAIRS$on, ACP_HOUSE_PAIRS$off)], det_hx, fill = TRUE),
+                                             rbind(conf_s[pair_id %in% c(ACP_HOUSE_PAIRS$on, ACP_HOUSE_PAIRS$off)], conf_hx, fill = TRUE), crit, B)
+  dec$house_ext <- acp_decide_house_extension(out$house_extension, crit)
+  c_need <- schedule[unit_type == "C" & pair_id %in% ACP_C_PERIODS_HOUSE_OFF & board %in% names(boards)]$order
+  if (length(setdiff(c_need, win[use == TRUE]$order))) {
+    add_missing <- c(add_missing, paste("house-lifted competition periods incomplete: orders", paste(setdiff(c_need, win[use == TRUE]$order), collapse = ",")))
+  }
+  out$competition_house <- acp_competition_house(session$reads, win, truth, crit, B)
+  dec$competition_house <- acp_decide_competition_house(out$competition_house, crit)
+  # KA: column-level adequacy under the overall basis verdict
+  dec$column_adequacy <- acp_decide_column_adequacy(conf_s, kres, conf_hx, dec$basis_overall$decision, crit)
+  out$age_accuracy <- acp_age_accuracy(session$reads, win, rbind(grid_m, grid_k), mtruth, crit)
   out$decisions <- data.table::rbindlist(dec, use.names = TRUE)
   out$missing <- data.table::data.table(item = unique(missing))
+  out$missing_additions <- data.table::data.table(item = unique(add_missing))
   out$day2 <- acp_decide_day2(out$decisions, crit, unique(missing))
   out$session <- data.table::data.table(n_sessions = session$n_sessions, devices_expected = session$device_check$devices_expected,
                                         devices_on_grid = session$device_check$devices_on_grid, clock_fold_rows_dropped = session$clock_fold_rows_dropped,

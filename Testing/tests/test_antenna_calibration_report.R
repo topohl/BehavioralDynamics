@@ -1,6 +1,6 @@
 # ===========================================================================
 # Post-pilot report layer of the one-day RFID calibration pilot: Functions/antenna_calibration_report.R, the status mapping
-# docs/rfid_calibration/acp_report_status_v1.0.csv and the writer of Testing/audits/report_rfid_calibration_pilot.R (sourced
+# docs/rfid_calibration/acp_report_status_v1.1.csv and the writer of Testing/audits/report_rfid_calibration_pilot.R (sourced
 # for its definitions; its main block is never run). Portable: synthetic acp run folders under tempdir(), decision rows
 # built with the pre-registered acp_row() and acp_decide_*() on the real pinned criteria; nothing on the lab drive.
 # Expected values are worked out by hand in the comments.
@@ -10,6 +10,8 @@
 #     wording in the consequences; unresolved bases are retained as sensitivity analyses
 #  2  decision vocabulary from the source: every decision literal of acp_decide_*() and every B9 class pair is mapped
 #  3  every decision row the pilot code can emit is mapped: each branch of each decision function, in both directions
+#     (mapping v1.1: also the criteria v1.2 additions K, KA and HX; the D_col rows are supporting, the overall verdict
+#     basis_overall governs the basis item; a not_obtained added row never implies D2 in the trace check)
 #  4  classification by hand on a representative day; an unmapped value and a wrong rule id stop the report
 #  5  day-2 trace by hand: D1 (D_col 0.03 [-0.01, 0.07]) and D4 (R_board 0.93 [0.85, 1.01]); agreement with
 #     acp_decide_day2(); a tampered recorded trigger is flagged and the recorded verdict stands
@@ -43,10 +45,12 @@ source("Testing/audits/report_rfid_calibration_pilot.R")   # definitions only (m
 crit <- acp_criteria()
 map <- acr_status_map()
 tmp <- tempfile("acr_"); dir.create(tmp)
-# 'bound' may appear only in the bench-hardware sentence; code identifiers (snake_case, e.g. fresh_le_Gmax_bound) are not wording
+# 'bound' may appear only in the bench-hardware sentence; code identifiers (snake_case, e.g. fresh_le_Gmax_bound) are not wording;
+# the word is matched as bound, bounds or bounded ("column boundary" of criteria v1.2 is another word)
+BOUND_RE <- "\\bbound(s|ed)?\\b"
 no_bound <- function(txt) {
   t <- gsub(ACR_BENCH_SENTENCE, " ", paste(txt, collapse = " "), fixed = TRUE)
-  !grepl("bound", gsub("[A-Za-z0-9]+(_[A-Za-z0-9]+)+", " ", t), ignore.case = TRUE)
+  !grepl(BOUND_RE, gsub("[A-Za-z0-9]+(_[A-Za-z0-9]+)+", " ", t), ignore.case = TRUE, perl = TRUE)
 }
 
 # 1 ----------------------------------------------------------------------------------------------------------------------
@@ -66,7 +70,7 @@ check(nrow(sup) > 0 && all(mapply(function(ids, f) all(frozen(ids) == f), sup$ru
       "1: superseded_feeds is the frozen feeds text of the row's rule")
 check(setequal(unique(unlist(strsplit(sup$rule_ids, "|", fixed = TRUE))), c("A40", "A42", "B7a")) &&
         identical(acp_rule(crit, "A41")$feeds, acp_rule(crit, "A40")$feeds) &&
-        setequal(crit[grepl("bound", feeds, ignore.case = TRUE)]$rule_id, c("A40", "A41", "A42", "B7a")) &&
+        setequal(crit[grepl(BOUND_RE, feeds, ignore.case = TRUE, perl = TRUE)]$rule_id, c("A40", "A41", "A42", "B7a")) &&
         all(nzchar(map[grepl("A40|A42|B7a", rule_ids)]$superseded_feeds)),
       "1: every frozen feeds text speaking of bounds (A40 = A41, A42, B7a) is marked on every row of those rules")
 check(no_bound(map$consequence), "1: no 'bound' wording in the mapping's consequences")
@@ -88,10 +92,12 @@ lits_of <- function(fn) {
   unique(gsub('^"|"$', "", pd$text[pd$line1 >= sr[1] & pd$line2 <= sr[3] & pd$token == "STR_CONST"]))
 }
 DEC_FNS <- c("acp_decide_basis", "acp_decide_resolution", "acp_decide_support_age", "acp_decide_competition", "acp_decide_delta",
-             "acp_decide_shielding", "acp_decide_board", "acp_decide_tau", "acp_decide_phantom", "acp_decide_transfer", "acp_decide_tags")
+             "acp_decide_shielding", "acp_decide_board", "acp_decide_tau", "acp_decide_phantom", "acp_decide_transfer", "acp_decide_tags",
+             "acp_decide_k", "acp_decide_basis_overall", "acp_k_latency_rows", "acp_decide_column_adequacy", "acp_decide_house_extension",
+             "acp_decide_competition_house")
 lits <- unique(unlist(lapply(DEC_FNS, lits_of)))
-NON_DECISION <- c("D_b2", "D_b4", "_b2", "_b4", "2", "4", "read", "event", "reliable", "missing", " / ", "five_s_visits_kept_%s_tau%g")
-is_id <- grepl("^[A-Z][0-9]+[a-z]?$", lits)
+NON_DECISION <- c("D_b2", "D_b4", "_b2", "_b4", "2", "4", "read", "event", "reliable", "missing", " / ", "five_s_visits_kept_%s_tau%g", "_", "")
+is_id <- grepl("^[A-Z]{1,2}[0-9]+[a-z]?$", lits)
 is_stat <- vapply(lits, function(l) any(startsWith(unique(map$statistic), l)), logical(1))
 left <- lits[!is_id & !is_stat & !lits %in% NON_DECISION]
 check(length(left) >= 35 && all(left %in% map$decision_value),
@@ -183,6 +189,34 @@ E(acp_decide_phantom(ke(0L), crit)); E(acp_decide_phantom(ke(2L), crit)); E(acp_
 E(acp_decide_transfer(data.table(board = c(2L, 4L), z_gap = c(0.5, 4), z_k1 = c(0.2, 0.1)), crit))   # caveat (board 4)
 E(acp_decide_transfer(data.table(board = c(2L, 4L), z_gap = c(0.5, 1), z_k1 = c(0.2, 0.1)), crit))   # transfer
 E(acp_decide_transfer(data.table(board = c(1L, 3L), z_gap = 0, z_k1 = 0), crit))                     # not_obtained
+# criteria v1.2 additions: K, the overall verdict, latency rows, column adequacy, the extended house ratio and the
+# house-lifted competition, each in every branch
+kst3 <- function(e, lo, hi) data.table(statistic = c("D_K", "D_K_b2", "D_K_b4"), estimate = e, lo = c(lo, NA, NA), hi = c(hi, NA, NA), n_units = 24L)
+E(acp_decide_k(kst3(0.1, 0.02, 0.18), crit)); E(acp_decide_k(kst3(-0.1, -0.18, -0.02), crit)); E(acp_decide_k(kst3(0.01, -0.02, 0.04), crit))
+E(acp_decide_k(kst3(0.04, -0.01, 0.09), crit)); E(acp_decide_k(kst3(NA, NA, NA), crit))
+for (a in c("READ", "EVENT", "TIE_equivalent", "TIE_inconclusive", "not_obtained")) E(acp_decide_basis_overall(a, "EQUIVALENT_K", crit))
+E(acp_decide_basis_overall("READ", "EVENT_K", crit))                                                                     # discordant
+E(acp_k_latency_rows(list(latency_summary = data.table(board = 2L, basis = c("event", "read"), transitions = 12L, detected = c(11L, 12L), detected_share = 1,
+                                                       median_s = 0.4, lo_s = 0.3, hi_s = 0.5)), crit))
+ca_cs <- function(v) rbindlist(lapply(c(2L, 4L), function(b) data.table(board = b, basis = c("event", "read"), tau = 2, pair_id = rep(c("P01", "P09"), each = 2),
+                                                                         assigned = 1, correct_column = v)))
+ca_k <- function(v, missed) list(hold_core = data.table(board = rep(c(2L, 4L), each = 2), basis = c("event", "read"), cells = 400L, correct_column_assigned = v),
+                                 latency = data.table(board = rep(c(2L, 4L), each = 2), basis = c("event", "read"), latency_s = 0.5, missed = missed))
+ca_hx <- function(v) data.table(board = rep(c(2L, 4L), each = 2), basis = c("event", "read"), tau = 2, pair_id = "H07", assigned = 1, correct_column = v)
+E(acp_decide_column_adequacy(ca_cs(1), ca_k(1, FALSE), ca_hx(1), "READ", crit))                                      # adequate; met
+E(acp_decide_column_adequacy(ca_cs(0.5), ca_k(0.5, TRUE), ca_hx(0.5), "TIE_inconclusive", crit))                      # limited; not_met
+E(acp_decide_column_adequacy(ca_cs(1)[0], list(hold_core = data.table(), latency = data.table()), NULL, "EVENT", crit)) # not_obtained
+hxs <- function(e, lo, hi) list(stats = data.table(statistic = "house_ratio_ext", estimate = e, lo = lo, hi = hi, n_units = 10L),
+                                per_class = data.table(pair = c("HCx", "HCz", "HEx", "HEy", "HSy"), pairs = 2L, ratio = 1))
+E(acp_decide_house_extension(hxs(0.97, 0.9, 1.04), crit)); E(acp_decide_house_extension(hxs(0.5, 0.4, 0.6), crit))
+E(acp_decide_house_extension(hxs(0.8, 0.7, 0.9), crit)); E(acp_decide_house_extension(hxs(NA, NA, NA), crit))
+chs <- function(b, TRo, MSo, HR4, HR4lo, HR4hi, HI, HIlo, HIhi) data.table(board = b, statistic = c("TR_off", "MS_off", "HR1", "HR4", "HI", "TR_on"),
+  estimate = c(TRo, MSo, 1, HR4, HI, 1), lo = c(TRo - 0.05, MSo - 0.05, 0.95, HR4lo, HIlo, 0.95), hi = c(TRo + 0.05, MSo + 0.05, 1.05, HR4hi, HIhi, 1.05), n_units = 24L)
+ch_a <- list(stats = rbind(chs(2L, 1.0, 0.3, 1.0, 0.95, 1.05, 1.0, 0.9, 1.1), chs(4L, 0.6, 0.3, 0.5, 0.4, 0.6, 0.5, 0.4, 0.6)), gaps = data.table(board = c(2L, 4L), max_gap_C4o = 5))
+ch_b <- list(stats = rbind(chs(2L, 0.8, 0.6, 0.8, 0.7, 0.9, 1.0, 0.8, 1.2), chs(4L, 0.8, 0.3, 0.8, 0.7, 0.9, 1.0, 0.8, 1.2)), gaps = data.table(board = c(2L, 4L), max_gap_C4o = 5))
+E(acp_decide_competition_house(ch_a, crit))   # b2 time_sharing, no_attenuation, no_interaction; b4 collision, attenuation, interaction
+E(acp_decide_competition_house(ch_b, crit))   # b2 capture_or_starvation; b4 intermediate; HR4 partial; HI undecided
+E(acp_decide_competition_house(list(stats = data.table(), gaps = data.table()), crit))   # not_obtained everywhere
 all_rows <- rbindlist(emit)
 cl_all <- acr_classify(all_rows, map)
 check(nrow(cl_all) == nrow(all_rows) && !anyNA(cl_all$status), "3: every emitted decision row is mapped and classified")
@@ -205,6 +239,7 @@ day <- rbind(acp_decide_basis(bs(0.03, -0.01, 0.07, 0.05, 0.01, -0.01, 0.01), cr
              acp_decide_board(brs(0.93, 0.85, 1.01, 0.93, 0.85, 1.01, 0.9, 0.8, 1.0), ref_ok, crit), tau_case(1, 2, 5, 20),
              acp_decide_tags(data.table(tag_label = paste0("T", c(2, 4, 5, 6, 3, 1)), rate = c(2.5, 2.45, 2.4, 2.45, 2.42, 2.44)), crit),
              acp_decide_phantom(ke(0L), crit), acp_decide_transfer(data.table(board = c(2L, 4L), z_gap = c(0.4, -1.2), z_k1 = c(0.3, 0.8)), crit))
+day <- rbind(day, acp_decide_basis_overall("TIE_inconclusive", "INCONCLUSIVE_K", crit))   # the overall verdict (criteria v1.2, K20)
 day2 <- acp_decide_day2(day, crit)   # the pre-registered rule: the recorded verdict of this day
 check(identical(stats::setNames(day2$triggered, day2$trigger), c(D1 = TRUE, D2 = FALSE, D3 = FALSE, D4 = TRUE, D5 = FALSE, D6 = TRUE, D7 = FALSE,
                                                                  recommendation = TRUE)), "4: the representative day triggers D1, D4 and D6")
@@ -212,9 +247,12 @@ rep4 <- acr_summary(day, map, crit, day2)
 cl <- rep4$classified
 row4 <- function(stat, b = "pooled") cl[statistic == stat & board == b]
 check(nrow(cl) == nrow(day) && identical(cl$statistic, day$statistic), "4: one classified row per decision row, in order")
+x <- row4("basis_overall")
+check(x$status == "uncertain" && x$spec_item == "basis" && x$day2_path == "D1" && x$day2_applies && x$decision == "TIE_inconclusive" &&
+        grepl("sensitivity analyses", x$consequence), "4: the overall basis verdict TIE_inconclusive is uncertain and D1 applies")
 x <- row4("D_col")
-check(x$status == "uncertain" && x$spec_item == "basis" && x$day2_path == "D1" && x$day2_applies && grepl("A42", x$feeds_note) &&
-        grepl("sensitivity analyses", x$consequence), "4: D_col TIE_inconclusive is uncertain, D1 applies, A42's frozen text is superseded")
+check(x$status == "supporting" && x$spec_item == "basis" && !x$day2_applies && grepl("A42", x$feeds_note) && grepl("basis_overall", x$consequence, fixed = TRUE),
+      "4: D_col is supporting under mapping v1.1 (the overall verdict governs); A42's frozen text is still superseded")
 x <- row4("D_rdr")
 check(x$status == "uncertain" && x$spec_item == "reader-level basis" && !x$day2_applies && x$day2_note == "no day-2 path",
       "4: D_rdr TIE_inconclusive has no day-2 path")
@@ -269,7 +307,7 @@ check(all(ck[trigger %in% c("D1", "D4", "D5", "D6", "D7", "recommendation")]$agr
 day2_bad <- copy(day2)[trigger == "D1", triggered := FALSE]
 rep5 <- acr_summary(day, map, crit, day2_bad)
 check(length(rep5$flags) == 1L && grepl("^D1: recorded FALSE", rep5$flags) && identical(rep5$verdict$reason, day2[trigger == "recommendation"]$reason) &&
-        !rep5$classified[statistic == "D_col"]$day2_applies && "D_col" %in% rep5$uncertain_without_day2$statistic,
+        !rep5$classified[statistic == "basis_overall"]$day2_applies && "basis_overall" %in% rep5$uncertain_without_day2$statistic,
       "5: a recorded trigger the decision table contradicts is flagged; the recorded verdict stands")
 check(any(grepl("FLAG: D1: recorded FALSE", acr_readme_lines(rep5, list(report_id = "dev_x", commit = "c", acp_dir = "x", release = TRUE, map_sha256 = "m",
                                                                       acp_run = c(git_commit = "g", dev_run = "FALSE", code_clean = "TRUE", board_history_pinned = "TRUE"))),
@@ -278,6 +316,12 @@ day_no <- rbind(day[statistic != "house_ratio"], acp_decide_shielding(shd(NA, NA
 rep5b <- acr_summary(day_no, map, crit, acp_decide_day2(day_no, crit))
 check(isTRUE(rep5b$check[trigger == "D2"]$agree) && rep5b$not_obtained$statistic == "house_ratio" && rep5b$not_obtained$day2_applies,
       "5: a not_obtained decision implies the recorded D2")
+day_add <- rbind(day, acp_decide_column_adequacy(data.table(board = integer(), basis = character(), tau = numeric(), pair_id = character(), assigned = numeric(),
+                                                            correct_column = numeric()), list(hold_core = data.table(), latency = data.table()), NULL, "TIE_inconclusive", crit))
+rep5c <- acr_summary(day_add, map, crit, acp_decide_day2(day_add, crit))
+check(!acp_decide_day2(day_add, crit)[trigger == "D2"]$triggered && is.na(rep5c$check[trigger == "D2"]$recomputed) && !length(rep5c$flags) &&
+        "column_adequacy" %in% rep5c$not_obtained$statistic && !rep5c$not_obtained[statistic == "column_adequacy"]$day2_applies,
+      "5: an added row not obtained (category added_v1.2) is reported as not obtained and implies no D2")
 
 # 6 ----------------------------------------------------------------------------------------------------------------------
 pr <- getOption("mmm.project_root"); beh <- dirname(pr)
@@ -320,7 +364,7 @@ check(all(file.exists(file.path(out6, ACR_REPORT_FILES))), "6: every report file
 readme <- readLines(file.path(out6, "README.txt"), warn = FALSE)
 flat <- gsub("\\s+", " ", paste(readme, collapse = " "))
 check(sum(readme == ACR_BENCH_SENTENCE) == 1L && any(readme == ACR_SCOPE) &&
-        sum(grepl("bound", gsub("[A-Za-z0-9]+(_[A-Za-z0-9]+)+", " ", readme), ignore.case = TRUE)) == 1L &&
+        sum(grepl(BOUND_RE, gsub("[A-Za-z0-9]+(_[A-Za-z0-9]+)+", " ", readme), ignore.case = TRUE, perl = TRUE)) == 1L &&
         grepl("boards 2 and 4 under bench conditions", flat, fixed = TRUE) && grepl("no Exp9 location is validated", flat, fixed = TRUE),
       "6: the README states the bench scope; 'bound' appears only in the bench-hardware sentence")
 check(no_bound(readme), "6: no 'bound' wording for the bases in the README")
