@@ -108,3 +108,9 @@ data, the raw logs (size and time stamp only) and repository pin files without a
 Reference runs of the third round (commit 4aebc90): `vpo_t1_20261014_2327_4aebc90` (first run: 13 of 13 checks PASS) and
 `vpo_t1_20261014_2333_4aebc90` (baseline comparison: 14 of 14 PASS; the only differences are the five new isolated runs:
 s19c_v0.1_4aebc90, ckr_v1.0_4aebc90, cc4e_v1.0_4aebc90, cc4e_v1.0_4aebc90_isens and the first check run).
+
+Reference runs of the fourth round (2026-10-15): `vpo_t1_20261015_0016_28c1d6f` (first run, PASS) and
+`vpo_t1_20261015_0308_1a55644` (baseline comparison): every protected output unchanged; the differences are the new isolated
+runs (Stage 31b-31d QC reruns, their comparison, the Stage 19 candidate v0.2) and three repository files added by the
+approved calibration amendment (`acp_criteria_v1.1.csv`, `schedule_one_day_v2.csv`, `make_schedule_one_day_v2.R`), which the
+check reports as added for review. Stage 31b-31d runs in RANM are checked against their root `manifest.csv`.

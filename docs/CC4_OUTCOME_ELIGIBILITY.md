@@ -55,8 +55,8 @@ The full table, with rationales, is CC4E_RULES in Functions/cc4_outcome_eligibil
 - **Censoring (E04).** SX04 is recording-duration censoring: time after the last read is unobserved. It is missing, not excluded.
 
 **Limits:**
-- Extending SX06/SX07 from A1 to A1-A5 is an interpretation of the record: the movement records name the Stage 29 window, while
-  SX02/SX03 record the reader silent for the whole session. It is presented to Tobias for confirmation.
+- Extending SX06/SX07 from A1 to A1-A5 rests on SX02/SX03 (the reader silent for the whole session) and the CC4 knockout;
+  the movement records themselves name the Stage 29 window. Approved by Tobias on 2026-10-15.
 - The active exclusion is fixed and does not consult the CC4 knockout; changing that needs a new rule version.
 - The inactive family is kept whatever the CC4 knockout shows (E06); a material result is reported, not acted on.
 - A knockout models a silent antenna, not other changes on that board.
@@ -148,12 +148,13 @@ No rule-applied 31b-31d run exists yet. It needs a release audit run, ideally wi
   - test_spatial_exclusion_manifest.R allows the helper as a manifest reader and still forbids the registered stages; 31b-31d read only the eligibility file.
 - **Protection:** each audit run records manifest/protection_check.csv; in both release runs it is empty (no protected file changed).
 
-## 10. Decisions for Tobias
+## 10. Decisions (Tobias, 2026-10-15)
 
-1. **A1-A5.** Confirm that the movement records SX06/SX07, written for the Stage 29 window (A1), extend to every active phase
-   of the episode because the reader was silent for the whole session (SX02/SX03).
-2. **Inactive family and the CC4 knockout.** Under cc4e_v1.0 the inactive family stays in the primary analysis whatever the
-   knockout shows. If the release knockout is material for R3's inactive outcomes, decide whether a new rule version should
-   exclude the B2|sys.5 inactive family (the inactive sensitivity already shows the effect of leaving it out).
-3. **Rule-applied reruns of 31b-31d.** They refit biological models (31c/31d: NB2 with 4,999-draw bootstraps) and are not run
-   now; they wait for the review of the revised spatial analysis.
+1. **A1-A5: approved.** B2|sys.5|CC4 leaves the primary Stage 31 active-phase crossing analyses across A1-A5: R3 was silent
+   for the whole recording, and the independent CC4 knockout shows material effects on the active crossing outcomes.
+2. **Inactive family: kept, flagged**, as the manifest says; the release CC4 knockout is not material for R3's inactive
+   outcomes (retained_flagged). The inactive sensitivity without the affected cage is run alongside.
+3. **Rule-applied reruns of 31b-31d: approved and done** (2026-10-15) as post hoc QC-sensitivity analyses in an isolated root,
+   with the full model specifications unchanged; the comparison with the historical results is
+   `docs/CC4_QC_RERUN_COMPARISON.md`. They do not replace the registered outputs. Earlier cage changes, S13, the historical
+   registered results and the master animal rosters are unchanged.

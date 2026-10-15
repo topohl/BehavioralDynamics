@@ -398,7 +398,7 @@ The measurement validation of 2026-10-13 was unregistered and descriptive
   - B2 CC3 board 2: OR112 and OR141, not OR106 and OR131;
   - B2 CC4 board 5: none of its animals.
 - The vendor position stream depends on these antennas (knockout of 2026-10-14,
-  `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.2.md` section 2). Deleting R5 or
+  `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.3.md` section 2). Deleting R5 or
   R3 from healthy boards shifts the active-phase crossing rate (R5: -3.0/h,
   ratio 0.87; R3: +1.7/h), fragmentation, occupancy dispersion and
   shared-position occupancy by 0.3-1.2 standardizer SD (median |shift|); the
