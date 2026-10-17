@@ -2,8 +2,10 @@
 # Stage 30 exploratory outcome screen: helpers (Exp9 SIS RFID)
 # MMMSociability -- Functions/stage30_screen.R
 # ================================================================
-# Pure constants and functions for Analysis/30_exploratory_screen.R, implementing the FROZEN Stage 30 registry v1.0
-# (docs/stage30/stage30_registry_v1.0.json, sha256 5c252bf6...; the JSON is authoritative). Sourcing this file defines
+# Pure constants and functions for Analysis/30_exploratory_screen.R, implementing the FROZEN Stage 30 registry v1.1
+# (docs/stage30/stage30_registry_v1.1.json: v1.0 on the corrected outcome, built and frozen by
+# Analysis/_supporting/stage30_registry_v1_1.R; the JSON is authoritative). v1.0 (sha256 5c252bf6...) ran once as
+# v1.0_be71e2f on the Stage 29 v1.0.1 release (outcome version ov1). Sourcing this file defines
 # constants and functions only; it reads and writes nothing.
 #
 # Blindness contract: no function here reads a Group, RES/SUS or CombZ column from disk. The driver attaches the
@@ -21,25 +23,24 @@
 # Requires: data.table, clubSandwich, lme4, lmerTest, pbkrtest, reformulas, digest, jsonlite; mmm_ci_* (engine).
 # ================================================================
 
-# ---------------------------------------------------------------- frozen identities (registry v1.0 / FREEZE_RECORD.csv)
-S30SC_REGISTRY_VERSION <- "1.0"
-S30SC_REGISTRY_SHA256 <- "5c252bf699bc0f517c5508854d710bbaa014d4b6fe98d128eb0071bde89dd05e"
-S30SC_REGISTRY_MD_SHA256 <- "e12b390b3c8bfadd32e5d2aae319f6053c0875893a41b3cf3bd60553d5bdf531"
+# ---------------------------------------------------------------- frozen identities (registry v1.1 / FREEZE_RECORD.csv)
+# v1.0: registry 5c252bf699bc0f517c5508854d710bbaa014d4b6fe98d128eb0071bde89dd05e, companion e12b390b3c8b..., reference
+# table fc053468f2a1..., release tables a2fc84db / cc549c24 / 33d91929 / efe2d1f8 (estimates, continuous, exposure,
+# multiplicity). The PHASE-B values come from the v1.1 freeze and the config v1.0.2 release; until then every gate fails.
+S30SC_REGISTRY_VERSION <- "1.1"
+S30SC_REGISTRY_SHA256 <- "PHASE-B"  # RETRACK-PIN
+S30SC_REGISTRY_MD_SHA256 <- "PHASE-B"  # RETRACK-PIN
 S30SC_V2_MANIFEST_SHA256 <- "bb33a111980913f4ddf97c40872ccdd96dd73accdbdc5c5867954b51aad2c571"
 S30SC_V2_N_FILES <- 24L
-S30SC_REF_TABLE_SHA256 <- "fc053468f2a1d1a07e981b6a76c71caa6cfd89b19da7318ee2c2f82f49050dd1"
+S30SC_REF_TABLE_SHA256 <- "PHASE-B"  # RETRACK-PIN (the config v1.0.2 release canonical_window_metrics.csv)
 S30SC_X401_SHA256 <- "a533b239852fbe46c8a4ff776754984f4fe1f29c0c4277082487c1546f7acf8a"
 S30SC_COOKIE_MANIFEST_SHA256 <- "0abe20ee9bcf34b422c81202bf58409d133e26834d3d395d8aa608c3b2c19666"
 S30SC_COOKIE_FILE_SHA256 <- c(cookie_response.csv = "329e2455a243a8e393f60bfe600f2f8a267fb03714571432890f7beb488e16d8",
                               animals.csv = "ce66d07475cee8ea384ebbd7b6708c24a83e0aaba04a6a5fa6467914c9fb0163",
                               cookie_windows.csv = "e7e7e27edc6288405b84001aaff524355fd2ae1d5777be34105d656e0c289e1d")
-# Stage 29 v1.0.1 / data version v2 tables read for the carry-over rows (identical in cage_fix_rerun/out/tables and the
-# release folder v101_dv2_<commit7>/tables)
-S30SC_S29_TABLE_SHA256 <- c(canonical_window_metrics.csv = "fc053468f2a1d1a07e981b6a76c71caa6cfd89b19da7318ee2c2f82f49050dd1",
-                            estimates.csv = "a2fc84dbed97803e37ec916e77c5c8e76d20c62cfebb2ce82b6a17adc4f56042",
-                            continuous_estimates.csv = "cc549c248778a735f1e79ba2b33e59443778ef200e480ad7479b4150f2b15200",
-                            exposure_estimates.csv = "33d91929453ae9eec694b173208a6588021893604aa98fa379227adfc7611a70",
-                            multiplicity.csv = "efe2d1f85d3349a32d6897f794780cfe4a825789af8c6cfb00d13b451c845a92")
+# Stage 29 config v1.0.2 release tables read for the carry-over rows (release folder v102_dv2_<commit7>/tables)
+S30SC_S29_TABLE_SHA256 <- c(canonical_window_metrics.csv = "PHASE-B", estimates.csv = "PHASE-B", continuous_estimates.csv = "PHASE-B",
+                            exposure_estimates.csv = "PHASE-B", multiplicity.csv = "PHASE-B")  # RETRACK-PIN
 # frozen code identities (FREEZE_RECORD.csv; the config is gated on its analytic constants, not on its file hash)
 S30SC_CODE_SHA256 <- c("Functions/stage30_movement.R" = "9a368491ff373194a22e6baacd4874bfa260c4e1296e81d9be5863ed6bfde659",
                        "Functions/rfid_canonical_inference.R" = "886d8bc06807b5958482a31449d0b8e5886db106cc7d02f63863d535dc78b92c",
@@ -73,12 +74,13 @@ S30SC_RAW_SEED_SHA256 <- c(
   "B6/E9_SIS_B6_CC3_AnimalPos.csv" = "fe570ca5381cf6b5ff5b18506ef195985499170d50d59c209a6e996a60881727",
   "B6/E9_SIS_B6_CC4_AnimalPos.csv" = "af827417db646c6dc2756aaff3bea01f992813975e92dd5b742c238b016e5549")
 
-# Stage 29 v1.0.1 release folder (registry stage29_release.stage29_run): analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_<commit7>
-S30SC_S29_RELEASE_PATTERN <- "/analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_([0-9a-f]{7})$"
-# numerics-relevant package versions gated against the Stage 29 v1.0.1 release run_manifest (and R.version.string)
+# Stage 29 config v1.0.2 release folder (registry stage29_release.stage29_run): .../29_canonical_behavior_releases/v102_dv2_<commit7>
+S30SC_S29_RELEASE_PATTERN <- "/analysis_ready/pipeline/29_canonical_behavior_releases/v102_dv2_([0-9a-f]{7})$"
+S30SC_S29_OUTCOME_VERSION <- "ov2_corrected_workbook"
+# numerics-relevant package versions gated against the Stage 29 release run_manifest (and R.version.string)
 S30SC_GATED_PACKAGES <- c("lme4", "lmerTest", "pbkrtest", "clubSandwich", "Matrix", "reformulas")
 # REAL output root entries that block a REAL run (any earlier REAL output or staging folder, at any commit)
-S30SC_REAL_OUT_PATTERN <- "^(\\.tmp_)?v1\\.0_"
+S30SC_REAL_OUT_PATTERN <- "^(\\.tmp_)?v1\\.1_"
 # lmerTest's silent Kenward-Roger -> Satterthwaite fallback (contest1D / contestMD warning text)
 S30SC_KR_FALLBACK_PATTERN <- "Unable to compute Kenward-Roger"
 # CombZ table columns: the label pre-flight (before outcome contact) never selects CombZ; the outcome read selects only these
@@ -147,12 +149,12 @@ s30sc_gate <- function(gate, passed, detail = "", stage = "") data.table::data.t
 s30sc_sign_chr <- function(v) ifelse(is.na(v), "NA", ifelse(v > 0, "+", ifelse(v < 0, "-", "0")))
 
 # ---------------------------------------------------------------- run-once / release / environment gates (pure)
-#' Entries of the REAL output root that block a REAL run: any v1.0_* output or .tmp_v1.0_* staging folder, at any commit.
+#' Entries of the REAL output root that block a REAL run: any v<version>_* output or .tmp_v<version>_* staging folder, at any commit.
 s30sc_real_out_conflicts <- function(out_root) {
   if (!dir.exists(out_root)) return(character())
   grep(S30SC_REAL_OUT_PATTERN, list.files(out_root, all.files = TRUE, no.. = TRUE), value = TRUE)
 }
-#' commit7 of a Stage 29 v1.0.1 release folder path (NA if the path is not .../29_canonical_behavior_releases/v101_dv2_<commit7>).
+#' commit7 of a Stage 29 release folder path (NA if the path does not match S30SC_S29_RELEASE_PATTERN).
 s30sc_release_commit <- function(dir) {
   p <- sub("/+$", "", gsub("\\\\", "/", as.character(dir)))
   if (!grepl(S30SC_S29_RELEASE_PATTERN, p)) return(NA_character_)
@@ -169,7 +171,7 @@ s30sc_parse_packages <- function(s) {
   p <- trimws(strsplit(as.character(s), ";", fixed = TRUE)[[1]]); p <- p[nzchar(p)]
   stats::setNames(sub("^\\S+\\s+", "", p), sub("\\s.*$", "", p))
 }
-#' Package / R version gate rows: the numerics-relevant versions must equal the Stage 29 v1.0.1 release run_manifest.
+#' Package / R version gate rows: the numerics-relevant versions must equal the Stage 29 release run_manifest.
 s30sc_package_gate <- function(release_packages, release_r, pkgs = S30SC_GATED_PACKAGES, r_now = R.version.string,
                                version_of = function(p) as.character(utils::packageVersion(p))) {
   exp <- if (length(release_packages) != 1L || is.na(release_packages)) character() else s30sc_parse_packages(release_packages)
@@ -1040,7 +1042,7 @@ s30sc_carry_over <- function(tables_dir, mask_values) {
                              stage30_sex_analysis_equivalent = data.table::fcase(estimand == "slope_sexavg", "sex-averaged slope", estimand == "slope_DiD_F_minus_M", "INT (slope F - M)",
                                                                                  estimand == "slope_Female", "F (slope in females)", estimand == "slope_Male", "M (slope in males)", default = NA_character_))]
   out <- data.table::rbindlist(list(cont_rows, cat_rows), fill = TRUE)
-  out[, `:=`(status = "CARRY_OVER", carry_over_rule = "Stage 29-determined combination: shown with its Stage 29 row as exported (release v1.0.1 / data version v2); never re-tested; no Stage 30 p; not in any Stage 30 family",
+  out[, `:=`(status = "CARRY_OVER", carry_over_rule = "Stage 29-determined combination: shown with its Stage 29 row as exported (release v1.0.2 / data version v2 / outcome version ov2); never re-tested; no Stage 30 p; not in any Stage 30 family",
              values_masked = isTRUE(mask_values))]
   if (isTRUE(mask_values)) for (k in intersect(c("estimate", "se", "df", "ci_low", "ci_high", "p_raw", "se_cr2", "df_cr2", "stage29_p_adjusted_holm"), names(out)))
     data.table::set(out, j = k, value = NA_real_)
