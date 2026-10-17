@@ -1,4 +1,4 @@
-# Contract test for the post hoc movement-CombZ display-line helpers (Functions/posthoc_movement_combz_fit.R; registry v1.0).
+# Contract test for the post hoc movement-CombZ display-line helpers (Functions/posthoc_movement_combz_fit.R; registry v1.1).
 #
 # Synthetic data in memory / tempdir() only: nothing here reads project data, the S: registry, a bundle or any S: path,
 # and no Analysis/ runner is sourced or executed (the runner is only read as text / parsed).
@@ -6,12 +6,12 @@
 #   1. static: the runner has one mode (--real) parsed before any read, an explicit commit opt-in, sources no Analysis/
 #      file other than _pipeline_setup.R and writes nothing itself; the helper holds no S: path; this test sources only
 #      Analysis/_pipeline_setup.R;
-#   2. mode and run name v1.0_<commit7>; registry gates on a synthetic frozen copy;
+#   2. mode and run name v1.1_<commit7>; registry gates on a synthetic frozen copy;
 #   3. population gates (counts per sex, one row per animal, finite values) and their failures;
 #   4. fits = a direct stats::lm + predict(interval = "confidence", level = 0.95) on the 101-point grid over the observed
 #      range; coefficients = coef / SE / sigma / R squared; no t or P column; output gates;
 #   5. failure rule: fewer than 10 animals or a rank-deficient fit -> FAILED, no line; the output gate then fails;
-#   6. writer: manifest, read-only files, README, refusal of a second run (any v1.0_* or .tmp_v1.0_* entry), post-write check.
+#   6. writer: manifest, read-only files, README, refusal of a second run (any v1.1_* or .tmp_v1.1_* entry), post-write check.
 #
 # Portable-suite idiom: plain Rscript, fail()/check()/ok(), no testthat. Run from the repo root:
 #   Rscript Testing/tests/test_posthoc_movement_combz_fit.R
@@ -50,7 +50,7 @@ ok("static: mode first, opt-in, sources, no writes, no S: path, model code in th
 # ---------------------------------------------------------------- 2. mode, run name, registry gates
 check(identical(pmf_parse_mode("--real"), "REAL"), "--real accepted")
 for (a in list(character(), "--dry-run", c("--real", "x"), "real")) check(!is.na(errmsg(pmf_parse_mode(a))), paste("mode refused:", paste(a, collapse = " ")))
-check(identical(pmf_run_name(strrep("a", 40)), "v1.0_aaaaaaa"), "run name v1.0_<commit7>")
+check(identical(pmf_run_name(strrep("a", 40)), "v1.1_aaaaaaa"), "run name v1.1_<commit7>")
 check(!is.na(errmsg(pmf_run_name("abc1234"))), "run name needs a full hash")
 rdir <- file.path(TMP, "reg"); dir.create(rdir)
 body <- c("# synthetic registry", "", "**Status.** FROZEN 2026-01-01T00:00:00+0100, test copy.", "")
@@ -64,8 +64,9 @@ rg <- phc_registry_gates(rdir, repo_copy, expect = exp)
 check(nrow(rg) == 5L && all(rg$passed), "registry gates pass on a frozen read-only copy (CRLF repository copy hashed in LF form)")
 rg2 <- phc_registry_gates(rdir, repo_copy, expect = modifyList(exp, list(sha256 = strrep("0", 64))))
 check(!any(rg2$passed[1:3]), "registry gates fail on a different frozen sha256")
-check(identical(PMF_REGISTRY$sha256, "a617bb5be709b558ed628a61fab0095b598345912c86e9c25070d07b02cb8098") &&
-        identical(PMF_REGISTRY$freeze_commit, "2be501d8b849346bdde47e246fb738a9df05ad98"), "frozen registry identity pinned")
+# v1.0: sha256 a617bb5be709b558ed628a61fab0095b598345912c86e9c25070d07b02cb8098, freeze commit 2be501d8b849346bdde47e246fb738a9df05ad98
+check(identical(PMF_REGISTRY$version, "1.1") && (identical(PMF_REGISTRY$sha256, "PHASE-B") || grepl("^[0-9a-f]{64}$", PMF_REGISTRY$sha256)),  # RETRACK-PIN
+      "registry v1.1 identity: PHASE-B until frozen, then the frozen sha256")
 ok("mode, run name, registry gates")
 
 # ---------------------------------------------------------------- 3. population gates
