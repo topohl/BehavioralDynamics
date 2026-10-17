@@ -9,28 +9,30 @@
 #
 #   0. identity: explicit opt-in, committed clean code, frozen code hashes, registry (S: bytes, repository LF form, sha list,
 #      status, read-only, blob unchanged since the freeze), EXPOSURE formulas = the frozen config, package and R versions
-#   1. output: run once (no v1.0_* / .tmp_v1.0_* entry in the stage folder), path lengths
-#   2. inputs: data version v2 manifest + 24 files, 24 raw_data files, ebb_v101 bundle (manifest, files, FROZEN row),
-#      CombZ table, sus / con lists, Stage 09 input, the Stage 29 v1.0.1 release tables used by the gates
+#   1. output: run once (no v1.2_* / .tmp_v1.2_* entry in the stage folder; addendum A2), path lengths
+#   2. inputs: data version v2 manifest + 24 files, 24 raw_data files, the pinned ebb bundle (manifest, files, FROZEN row),
+#      CombZ table, sus / con lists, Stage 09 input, the Stage 29 release tables used by the gates
 #   3. measures (group-blind): canonical stream (Functions/rfid_event_stream.R via Functions/stage30_movement.R), phase windows,
 #      board observation intervals from raw records, coverage manifest and the coverage-count gate, window metrics one window
-#      at a time (s30mv_window_metrics(full = TRUE, na_if_file_ends_early = FALSE)), A1 of CC1-CC4 = ebb_v101 B1 within 1e-9
-#   4. labels and outcome: Group from the lists (checked against ebb_v101 and the CombZ table), CombZ, CombZ_wb; design and
+#      at a time (s30mv_window_metrics(full = TRUE, na_if_file_ends_early = FALSE)), A1 of CC1-CC4 = ebb B1 within 1e-9
+#   4. labels and outcome: Group from the lists (checked against the ebb and the CombZ table), CombZ, CombZ_wb; design and
 #      population gates; the Stage 09 input
 #   5. fits: modules A-E and sensitivities (Functions/stage32_inference.R), Module F and H13 (Functions/stage32_prediction.R)
 #   6. post-fit gates: A-exp = frozen EXPOSURE_CC1 and B-exp = frozen EXPOSURE_TR within 1e-6; Module F continuity with the
 #      stored Stage 29 section-7 values (1e-9); every registered hypothesis row present; forbidden-word check
-#   7. write once (registry addendum A1, docs/STAGE32_REGISTRY_v1.0_ADDENDUM_A1.md, FROZEN): the 12 tables are written and
-#      round-trip-checked in a LOCAL staging folder and must be byte-identical to the tables of the aborted v1.0 execution
-#      (determinism gate); the reporting flags (addendum A1 section C) are derived from the written tables; audit files,
-#      README and QC PNGs complete the local folder, which is verified and only then copied to
-#      pipeline/32_behavior_exposure_adaptation/v1.1_<commit7>/ {tables, audit, qc_plots, README.txt}, read-only.
+#   7. write once (the A1 write step, docs/STAGE32_REGISTRY_v1.0_ADDENDUM_A1.md, FROZEN): the 12 tables are written and
+#      round-trip-checked in a LOCAL staging folder and compared with the tables of the registered v1.1 run (addendum A2
+#      item 4; recorded, not a gate); the reporting flags (addendum A1 section C) are derived from the written tables; audit
+#      files, README and QC PNGs complete the local folder, which is verified and only then copied to
+#      pipeline/32_behavior_exposure_adaptation/v1.2_<commit7>/ {tables, audit, qc_plots, README.txt}, read-only.
 # Addendum A1: the first REAL execution (commit 4f9c016, 2026-09-30) fitted everything and passed every gate, then stopped
 # inside the writer (a trailing space in one gate detail failed the frozen CSV round-trip check). Its staging folder
 # .tmp_v1.0_4f9c016 stays on S:, read-only and unmodified, as evidence; it keeps every v1.0 run name blocked. This runner is
-# the corrected second execution; the numeric Stage 32 code (windows, inference, prediction) is unchanged since 4f9c016.
+# the corrected second execution (v1.1_f4c7a31); the numeric Stage 32 code (windows, inference, prediction) is unchanged since 4f9c016.
+# Addendum A2 (docs/STAGE32_REGISTRY_v1.0_ADDENDUM_A2.md, FROZEN before this execution): this runner is the third execution, the
+# same registered fits on the corrected outcome (config v1.0.2, outcome version ov2, ebb_v102); the v1.1 results had been seen.
 # Nothing estimated is printed before the write; a failure before the S: copy leaves nothing on S: (a failure during the copy
-# leaves .tmp_v1.1_<commit7>, which blocks any further run).
+# leaves .tmp_v1.2_<commit7>, which blocks any further run).
 # Mode: exactly `--real`, and MMM_STAGE32_REAL_RUN must equal the HEAD commit7. Synthetic tests: Testing/tests/test_stage32_*.R.
 # Optional MMM_STAGE32_LOCAL_STAGING = local folder for the staging copy (default: the R session tempdir()).
 # Run from the MMMSociability repo root:  MMM_STAGE32_REAL_RUN=<commit7> Rscript Analysis/32_behavior_exposure_adaptation.R --real
@@ -75,7 +77,7 @@ gate("0-identity", paste0("explicit REAL opt-in: ", S32_OPTIN_ENV, " = HEAD comm
 CODE_FILES <- c("Analysis/32_behavior_exposure_adaptation.R", "Functions/stage32_windows.R", "Functions/stage32_inference.R", "Functions/stage32_prediction.R",
                 "Functions/stage32_run.R", "Functions/stage32_reporting.R", names(S32_FROZEN_CODE_SHA256), "Functions/behavior_analysis_config.R",
                 "Functions/behavioral_dynamics_helpers.R", "Functions/project_paths.R", "Analysis/_pipeline_setup.R", S32_REGISTRY$repo_path, S32_REGISTRY$repo_csv,
-                S32_ADDENDUM$repo_path)
+                S32_ADDENDUM$repo_path, S32_ADDENDUM2$repo_path)
 cln <- s30fb_code_clean(git("status", "--porcelain", "--untracked-files=all", "--", CODE_FILES), git("ls-files", "--", CODE_FILES), CODE_FILES)
 gate("0-identity", "MMM files used are committed and clean (git status --untracked-files=all / ls-files)", cln$ok, if (nzchar(cln$detail)) cln$detail else commit)
 gate("0-identity", "this is the committed Analysis/32_behavior_exposure_adaptation.R",
@@ -110,6 +112,15 @@ gate("0-identity", paste("file at HEAD = the file committed at the addendum free
      grepl("^[0-9a-f]{40}$", b_head) && identical(b_head, b_frz), paste(b_head, b_frz))
 gate_rows(s32r_addendum_gates(REG_DIR, file.path(MMM_REPO_ROOT, S32_ADDENDUM$repo_path)))
 inp(file.path(REG_DIR, S32_ADDENDUM$file), "registry addendum A1 (S:, read-only)"); inp(file.path(REG_DIR, S32_ADDENDUM$sha_file), "addendum A1 sha256 list (S:)")
+# registry addendum A2 (FROZEN before this execution): freeze commit after the v1.1 execution, git blob, S: copy, sha list
+gate("0-identity", "addendum A2 freeze commit follows the v1.1 execution commit f4c7a31 and is an ancestor of HEAD",
+     git_ok("merge-base", "--is-ancestor", S32_PRIOR_RUN$commit, S32_ADDENDUM2$freeze_commit) &&
+       git_ok("merge-base", "--is-ancestor", S32_ADDENDUM2$freeze_commit, "HEAD") && !identical(S32_ADDENDUM2$freeze_commit, commit), S32_ADDENDUM2$freeze_commit)
+b_head <- git("rev-parse", paste0("HEAD:", S32_ADDENDUM2$repo_path))[1]; b_frz <- git("rev-parse", paste0(S32_ADDENDUM2$freeze_commit, ":", S32_ADDENDUM2$repo_path))[1]
+gate("0-identity", paste("file at HEAD = the file committed at the addendum freeze (git blob):", S32_ADDENDUM2$repo_path),
+     grepl("^[0-9a-f]{40}$", b_head) && identical(b_head, b_frz), paste(b_head, b_frz))
+gate_rows(s32r_addendum_gates(REG_DIR, file.path(MMM_REPO_ROOT, S32_ADDENDUM2$repo_path), S32_ADDENDUM2))
+inp(file.path(REG_DIR, S32_ADDENDUM2$file), "registry addendum A2 (S:, read-only)"); inp(file.path(REG_DIR, S32_ADDENDUM2$sha_file), "addendum A2 sha256 list (S:)")
 for (f in S32_NUMERIC_CODE) {
   b_head <- git("rev-parse", paste0("HEAD:", f))[1]; b_ab <- git("rev-parse", paste0(S32_ABORTED$commit, ":", f))[1]
   gate("0-identity", paste("numeric Stage 32 code unchanged since the aborted execution 4f9c016 (git blob):", f),
@@ -123,7 +134,8 @@ gate_rows(s32r_package_gates())
 # ---------------------------------------------------------------- 1. output location (run once)
 OUT_ROOT <- file.path(AR, "pipeline", S32_STAGE_DIR); RUN <- s32r_run_name(commit); RUN_DIR <- file.path(OUT_ROOT, RUN)
 blk <- s32r_blocking_entries(OUT_ROOT)
-gate("1-output", "no earlier v1.1_* output or .tmp_v1.1_* staging folder in the Stage 32 folder (run once; addendum A1)", !length(blk), paste(blk, collapse = ","))
+gate("1-output", paste0("no earlier v", S32_RUN_VERSION, "_* output or .tmp_v", S32_RUN_VERSION, "_* staging folder in the Stage 32 folder (run once; addendum A2)"),
+     !length(blk), paste(blk, collapse = ","))
 ABORT <- s32r_aborted_check(OUT_ROOT); gate_rows(ABORT$gates)
 for (i in seq_len(nrow(ABORT$evidence)))
   inp(file.path(OUT_ROOT, S32_ABORTED$name, ABORT$evidence$file[i]), paste("aborted v1.0 staging folder,", ABORT$evidence$role[i]), ABORT$evidence$sha256[i])
@@ -151,9 +163,9 @@ for (i in seq_along(RAW_FILES)) inp(RAW_FILES[i], "raw_data_animalpos", raw_sha[
 B29_ROOT <- file.path(AR, "canonical", "behavior_bundle"); B29 <- file.path(B29_ROOT, S32_EBB$bundle_id)
 V29 <- s30fb_verify_stage29_bundle(B29, file.path(B29_ROOT, "BUNDLE_REGISTRY.csv"), S32_EBB[c("bundle_id", "manifest_sha256")]); gate_rows(V29$gates)
 B1_FILE <- file.path(B29, S32_EBB$b1_file)
-gate("2-inputs", "ebb_v101 B1_animal_longitudinal.csv SHA-256 = pinned = manifest entry", identical(s30fb_sha(B1_FILE), S32_EBB$b1_sha256) &&
+gate("2-inputs", "ebb B1_animal_longitudinal.csv SHA-256 = pinned = manifest entry", identical(s30fb_sha(B1_FILE), S32_EBB$b1_sha256) &&
        isTRUE(V29$check[file == S32_EBB$b1_file, ok]), B1_FILE)
-inp(file.path(B29, "00_manifest.csv"), "ebb_v101 manifest", V29$manifest_sha256); inp(B1_FILE, "ebb_v101 B1 (A1 gate, label check)")
+inp(file.path(B29, "00_manifest.csv"), "ebb manifest", V29$manifest_sha256); inp(B1_FILE, "ebb B1 (A1 gate, label check)")
 COMBZ <- file.path(AR, "canonical", "later_outcome_combz", "tables", "later_outcome_combz_animal_level.csv")
 LIST_DIR <- dirname(dirname(ROOT)); SUS_FILE <- file.path(LIST_DIR, "sus_animals.csv"); CON_FILE <- file.path(LIST_DIR, "con_animals.csv")
 S09_FILE <- file.path(AR, "pipeline", "09_early_prediction", "10min", "tables", "model_ladder_input.csv")
@@ -167,7 +179,7 @@ for (it in list(list(COMBZ, "combz_table"), list(SUS_FILE, "sus_list"), list(CON
   gate("2-inputs", paste0(it[[2]], " SHA-256 = frozen (", substr(S32_INPUT_SHA256[[it[[2]]]], 1, 8), ")"), identical(sha, S32_INPUT_SHA256[[it[[2]]]]), it[[1]])
   inp(it[[1]], it[[2]], sha)
 }
-gate("2-inputs", "Stage 29 v1.0.1 release tables used by the gates and the reporting flags are read-only", all(file.access(c(S29_EXPO, S29_S09, S29_CONT), 2L) != 0L))
+gate("2-inputs", "Stage 29 release tables used by the gates and the reporting flags are read-only", all(file.access(c(S29_EXPO, S29_S09, S29_CONT), 2L) != 0L))
 
 # ---------------------------------------------------------------- 3. measures (group-blind)
 tick("3 measures")
@@ -218,7 +230,7 @@ rec <- merge(rec, LONG[phase == "L1", .(AnimalNum, CC, light_phase_crossing_rate
 REF <- fread(B1_FILE, select = S32W_REF_COLS, colClasses = list(character = c("AnimalNum", "CageEpisodeID")))
 REF[, AnimalNum := canonical_animal_id(AnimalNum)]
 CMP_A1 <- s32w_compare(rec, REF, c("AnimalNum", "CC"), setdiff(S32W_REF_COLS, c("AnimalNum", "CC")), tol = 1e-9)
-gate("3-measures", "recomputed A1 of CC1-CC4 (and L1 rate) = ebb_v101 B1 within 1e-9 (444 rows, every column, identical NA pattern)",
+gate("3-measures", "recomputed A1 of CC1-CC4 (and L1 rate) = ebb B1 within 1e-9 (444 rows, every column, identical NA pattern)",
      nrow(rec) == 444L && nrow(REF) == 444L && all(CMP_A1$passed) && all(CMP_A1$n == 444L),
      paste(CMP_A1[, sprintf("%s:%.3g", column, max_abs_diff)], collapse = "; "))
 
@@ -236,12 +248,14 @@ gate("4-labels", "Group from the lists (con -> CON, else sus -> SUS, else RES) =
 EBBL <- fread(B1_FILE, select = c("AnimalNum", "CC", "Sex", "Batch", "Group", "CombZ"), colClasses = c(AnimalNum = "character"))
 EBBL[, AnimalNum := canonical_animal_id(AnimalNum)]
 chkL <- merge(EBBL, AN[, .(AnimalNum, G2 = Group, S2 = Sex, B2 = Batch, C2 = CombZ)], by = "AnimalNum")
-gate("4-labels", "Group, Sex, Batch = ebb_v101 B1 (444 rows); CombZ = ebb_v101 within 1e-9",
+gate("4-labels", "Group, Sex, Batch = ebb B1 (444 rows); CombZ = ebb within 1e-9",
      nrow(chkL) == 444L && all(chkL$Group == chkL$G2) && all(chkL$Sex == chkL$S2) && all(chkL$Batch == chkL$B2) && max(abs(chkL$CombZ - chkL$C2)) <= 1e-9)
 cnt <- AN[, .N, by = .(Sex, Group)]
 ok_cnt <- all(vapply(names(S32_POP$by_sex_group), function(s) all(vapply(names(S32_POP$by_sex_group[[s]]), function(g)
   isTRUE(cnt[Sex == s & Group == g, N] == S32_POP$by_sex_group[[s]][[g]]), TRUE)), TRUE))
-gate("4-labels", "animals per Sex x Group: CON 12/12, RES 28/25, SUS 18/16 (F/M)", ok_cnt, paste(cnt[order(Sex, Group), paste(Sex, Group, N)], collapse = ", "))
+pc <- S32_POP$by_sex_group
+gate("4-labels", sprintf("animals per Sex x Group: CON %d/%d, RES %d/%d, SUS %d/%d (F/M)", pc$Female[["CON"]], pc$Male[["CON"]], pc$Female[["RES"]],
+                         pc$Male[["RES"]], pc$Female[["SUS"]], pc$Male[["SUS"]]), ok_cnt, paste(cnt[order(Sex, Group), paste(Sex, Group, N)], collapse = ", "))
 bs <- AN[, .(b = paste(sort(unique(Batch)), collapse = ",")), by = Sex]
 gate("4-labels", "Sex nested in Batch (F B3/B4/B6, M B1/B2/B5)", identical(bs[Sex == "Female", b], "B3,B4,B6") && identical(bs[Sex == "Male", b], "B1,B2,B5"))
 gate("4-labels", "CombZ finite for all 111 animals", all(is.finite(AN$CombZ)))
@@ -270,9 +284,10 @@ gate("4-design", "Stage 09 input: 111 animals; Group = lists; Sex = CombZ table;
        all(is.finite(as.matrix(F9[, .(Movement_mean, Movement_rmssd, Entropy_acf1)]))))
 F9[, CombZ := outcome]; data.table::setorder(F9, AnimalNum)
 F9_SIS <- F9[Group != "CON"]
-gate("4-design", "Module F SIS population: 87 animals (F 28 RES / 18 SUS, M 25 / 16), 24 CC1 cages, 6 batches",
+gate("4-design", sprintf("Module F SIS population: 87 animals (F %d RES / %d SUS, M %d / %d), 24 CC1 cages, 6 batches", pc$Female[["RES"]], pc$Female[["SUS"]],
+                         pc$Male[["RES"]], pc$Male[["SUS"]]),
      nrow(F9_SIS) == 87L && uniqueN(F9_SIS$CageEpisodeID) == 24L && uniqueN(F9_SIS$Batch) == 6L &&
-       identical(F9_SIS[, .N, by = .(Sex, Group)][order(Sex, Group), N], c(28L, 18L, 25L, 16L)))
+       identical(F9_SIS[, .N, by = .(Sex, Group)][order(Sex, Group), N], unname(c(pc$Female[c("RES", "SUS")], pc$Male[c("RES", "SUS")]))))
 
 # ---------------------------------------------------------------- 5. fits (nothing estimated is printed)
 FIT_AT <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"); tick("5 fits: modules A-E and sensitivities")
@@ -376,7 +391,10 @@ RUNM <- data.table(
   conventions = paste(S32_CONVENTIONS, collapse = " || "),
   run_version = S32_RUN_VERSION, registry_addendum = S32_ADDENDUM$id, registry_addendum_sha256 = S32_ADDENDUM$sha256,
   registry_addendum_freeze_commit = S32_ADDENDUM$freeze_commit, registry_addendum_frozen_at = S32_ADDENDUM$frozen_at,
-  execution_number = 2L, aborted_execution_commit = S32_ABORTED$commit, aborted_staging_folder = S32_ABORTED$name,
+  registry_addendum2 = S32_ADDENDUM2$id, registry_addendum2_sha256 = S32_ADDENDUM2$sha256,
+  registry_addendum2_freeze_commit = S32_ADDENDUM2$freeze_commit, registry_addendum2_frozen_at = S32_ADDENDUM2$frozen_at,
+  execution_number = 3L, aborted_execution_commit = S32_ABORTED$commit, aborted_staging_folder = S32_ABORTED$name,
+  prior_registered_run = S32_PRIOR_RUN$name, prior_registered_run_commit = S32_PRIOR_RUN$commit,
   execution_history = S32F_EXECUTION_HISTORY, registry_inconsistency = S32F_REGISTRY_NOTE,
   numeric_code_unchanged_since_aborted = paste(S32_NUMERIC_CODE, collapse = "; "),
   local_staging_dir = normalizePath(LOCAL_DIR, winslash = "/", mustWork = FALSE),
@@ -392,9 +410,10 @@ README <- c(
   paste("registry", normalizePath(file.path(REG_DIR, S32_REGISTRY$file), winslash = "/", mustWork = FALSE)),
   paste("data version", S32_V2_DIR, "(manifest", S32_INPUT_SHA256[["v2_manifest"]], "); raw_data seeds and board records; ebb", S32_EBB$bundle_id),
   paste("registry addendum A1 sha256", S32_ADDENDUM$sha256, "(frozen", S32_ADDENDUM$frozen_at, "at", S32_ADDENDUM$freeze_commit, ")"),
-  paste("run mode REAL, run folder v1.1 (registry addendum A1): the second execution of the registered fits, after the first (commit 4f9c016)",
-        "aborted in the writer; a later run is refused while any v1.1_* or .tmp_v1.1_* folder exists here, and every v1.0 run name stays blocked",
-        "by the aborted staging folder .tmp_v1.0_4f9c016"), paste("generated_at", RUNM$finished_at), "",
+  paste("registry addendum A2 sha256", S32_ADDENDUM2$sha256, "(frozen", S32_ADDENDUM2$frozen_at, "at", S32_ADDENDUM2$freeze_commit, ")"),
+  paste("run mode REAL, run folder v1.2 (registry addendum A2): the third execution of the registered fits, on the corrected outcome, after",
+        "the aborted first (commit 4f9c016) and the registered second (v1.1_f4c7a31, outcome version ov1); a later run is refused while any",
+        "v1.2_* or .tmp_v1.2_* folder exists here"), paste("generated_at", RUNM$finished_at), "",
   S32F_README_A1, "",
   "Tables (tables/):",
   "  coverage_manifest       per animal x CC x phase: the registered coverage rule (a)-(d), explicit exclusion, primary (10 min) and strict completeness",
@@ -417,8 +436,8 @@ README <- c(
   "  * the direction of every CombZ model is stated: A-cz, C-cz, D (cz) and E (cz) are behaviour ~ CombZ_wb; Module F and H13 are CombZ ~ behaviour.", "",
   "Driver conventions where the registry is silent (also in audit/run_manifest.csv):", paste(" ", S32_CONVENTIONS), "",
   "audit/: input_hashes, gate_results (every pre-write gate), run_manifest, reproduction_gate (A-exp / B-exp vs the frozen Stage 29 rows),",
-  "reference_a1_gate (A1 metrics vs ebb_v101), coverage_counts; addendum A1: aborted_run_evidence (the 14 files of .tmp_v1.0_4f9c016),",
-  "determinism_gate (the 12 tables vs the aborted staging tables), reporting_flags (section C rules and comparators, one row per flagged",
+  "reference_a1_gate (A1 metrics vs the ebb B1), coverage_counts; addenda: aborted_run_evidence (the 14 files of .tmp_v1.0_4f9c016),",
+  "prior_run_comparison (the 12 tables vs the v1.1 tables; addendum A2), reporting_flags (A1 section C rules and comparators, one row per flagged",
   "estimate); audit/output_manifest.csv lists every other file (bytes, sha256); every file is read-only (0444).",
   "qc_plots/: lightweight descriptive QC figures (group x phase means with CON cage lines; Module F held-out predictions and permutation null).")
 TABLES <- list(coverage_manifest = COV, window_metrics_long = WL, descriptives = DESC, models = MODELS, estimates = ESTIMATES, joint_tests = JOINTS,
@@ -429,19 +448,22 @@ AUDIT <- list(input_hashes = unique(rbindlist(INPUTS), by = c("input", "role")),
 bad <- s32r_forbidden(c(TABLES, AUDIT), README)
 gate("6-results", "no forbidden word (registry section 9) in any output table, column name or the README", !length(bad), paste(bad, collapse = "; "))
 
-# ---------------------------------------------------------------- 7. local staging, determinism, reporting flags (addendum A1)
-tick("7 local staging of the 12 tables and the determinism gate (addendum A1)")
+# ---------------------------------------------------------------- 7. local staging, prior-run comparison (addendum A2), reporting flags (addendum A1)
+tick("7 local staging of the 12 tables and the comparison with the v1.1 tables (addendum A2)")
 STAGE <- s32r_stage_tables(LOCAL_ROOT, RUN, TABLES)
-DET <- s32r_determinism(STAGE)
-gate("7-determinism", "the 12 tables are byte-identical (sha256) to the tables of the aborted v1.0 staging folder (addendum A1 section B3)",
-     nrow(DET) == 12L && all(DET$identical), paste(DET[identical == FALSE, file], collapse = ","))
+PRIOR_DIR <- file.path(OUT_ROOT, S32_PRIOR_RUN$name)
+CMP <- s32r_prior_comparison(STAGE, PRIOR_DIR)
+inp(file.path(PRIOR_DIR, "audit", "output_manifest.csv"), "registered v1.1 run output manifest (comparison only)")
+AUDIT$input_hashes <- unique(rbindlist(INPUTS), by = c("input", "role"))   # include the v1.1 manifest read above
+gate("7-prior", "the 12 tables compared with the registered v1.1 tables (addendum A2 item 4; recorded, not a gate)", nrow(CMP) == 12L,
+     sprintf("%d of 12 identical to %s: %s", sum(CMP$identical), S32_PRIOR_RUN$name, paste(CMP[identical == TRUE, file], collapse = ",")))
 FLAGS <- s32f_reporting_flags(s32f_read_written(STAGE), FROZEN, fread(S29_CONT))
 gate("7-flags", "reporting flags (addendum A1 section C; recorded): rows and explicit comparators found", TRUE,
      sprintf("%d rows; comparators found %d of %d", nrow(FLAGS), sum(FLAGS$comparator_found %in% TRUE), sum(!is.na(FLAGS$comparator_source))))
-AUDIT$aborted_run_evidence <- ABORT$evidence; AUDIT$determinism_gate <- DET; AUDIT$reporting_flags <- FLAGS
-RUNM[, `:=`(n_tables_identical_to_aborted = sum(DET$identical), n_reporting_flag_rows = nrow(FLAGS))]; AUDIT$run_manifest <- RUNM
-bad2 <- s32r_forbidden(AUDIT[c("aborted_run_evidence", "determinism_gate", "reporting_flags", "run_manifest")], README)
-gate("7-results", "no forbidden word in the addendum A1 audit files or the run manifest", !length(bad2), paste(bad2, collapse = "; "))
+AUDIT$aborted_run_evidence <- ABORT$evidence; AUDIT$prior_run_comparison <- CMP; AUDIT$reporting_flags <- FLAGS
+RUNM[, `:=`(n_tables_identical_to_v1_1 = sum(CMP$identical), n_reporting_flag_rows = nrow(FLAGS))]; AUDIT$run_manifest <- RUNM
+bad2 <- s32r_forbidden(AUDIT[c("aborted_run_evidence", "prior_run_comparison", "reporting_flags", "run_manifest")], README)
+gate("7-results", "no forbidden word in the addendum audit files or the run manifest", !length(bad2), paste(bad2, collapse = "; "))
 RUNM[, n_gates_before_write := length(GATES)]; AUDIT$run_manifest <- RUNM
 AUDIT$gate_results <- rbindlist(GATES)
 tick("7 QC plots (local) and write")
