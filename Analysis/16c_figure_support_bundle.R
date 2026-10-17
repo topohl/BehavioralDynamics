@@ -29,7 +29,7 @@
 # definition constants and composite-rule lines are evaluated in an empty environment (Functions/figure_support_bundle.R).
 #
 # Output (REAL): analysis_ready/canonical/figure_support_bundle/<bundle_id>/ with BUNDLE_REGISTRY.csv beside it;
-#   bundle_id = fsb_v4_<YYYYMMDD>_<commit7> (fsb_v1 to fsb_v3 stay FROZEN and untouched); written once (refused if it, its staging folder, its registry row or its gate
+#   bundle_id = <FSB_BUNDLE_PREFIX>_<YYYYMMDD>_<commit7> (fsb_v5 on the corrected outcome; fsb_v1 to fsb_v4 stay FROZEN and untouched); written once (refused if it, its staging folder, its registry row or its gate
 #   log exists), files 0444; post-write gates before the registry row; complete gate log in logs/ beside the registry.
 # Modes (exactly one argument; with none the runner refuses before reading anything):
 #   --dry-run  writes <dry root>/<YYYYMMDD_HHMMSS>/<bundle_id>/ (status DRY_RUN_NOT_FOR_USE); never writes to S:.
@@ -202,7 +202,8 @@ gate("4-read", "B1: 111 animals x CC1-CC4 (444 rows); CON 24 animals (96 rows)",
      paste(nrow(B1), uniqueN(B1$AnimalNum), nrow(B1[Group == "CON"])))
 gate("4-read", "CombZ table: 117 unique animals; A4: 117 animals", nrow(CZ) == FSB_N$combz_animals && !anyDuplicated(CZ$AnimalNum) && nrow(A4) == FSB_N$combz_animals,
      paste(nrow(CZ), nrow(A4)))
-gate("4-read", "sus / con lists: 35 and 24 ids, disjoint", length(SUS) == 35L && length(CON) == 24L && !length(intersect(SUS, CON)), paste(length(SUS), length(CON)))
+gate("4-read", sprintf("sus / con lists: %d and %d ids, disjoint", FSB_N$sus_list, FSB_N$con_list),
+     length(SUS) == FSB_N$sus_list && length(CON) == FSB_N$con_list && !length(intersect(SUS, CON)), paste(length(SUS), length(CON)))
 
 # ---------------------------------------------------------------- 5. labels and CombZ cross-checks (no new label)
 CZ[, Group_lists := fsb_group_from_lists(AnimalNum, SUS, CON)]
@@ -237,8 +238,10 @@ F2 <- fsb_combz_components(CZ, DEF, THR)
 gate("6-F2", "F2: 117 animals x 6 components = 702 rows", nrow(F2) == FSB_N$combz_animals * FSB_N$components && uniqueN(F2$AnimalNum) == FSB_N$combz_animals, nrow(F2))
 gate("6-F2", "CombZ recomposed from signed_z by the frozen producer rule = stored CombZ within 1e-12 (all 117)",
      attr(F2, "recompose_max_abs_diff") <= FSB_TOL, attr(F2, "recompose_max_abs_diff"))
-gate("6-F2", "n_components_present from the frozen rule = stored (all 117); 2 animals with 5 of 6",
-     attr(F2, "n_present_mismatch") == 0L && F2[, .(n = n_components_present[1]), by = AnimalNum][, sum(n == 5L)] == 2L,
+npres <- F2[, .(n = n_components_present[1]), by = AnimalNum][, table(factor(n, levels = names(FSB_N$n_components_present)))]
+gate("6-F2", paste0("n_components_present from the frozen rule = stored (all 117); animals with ",
+                    paste(names(FSB_N$n_components_present), "of 6:", FSB_N$n_components_present, collapse = ", ")),
+     attr(F2, "n_present_mismatch") == 0L && identical(as.integer(npres), unname(FSB_N$n_components_present)),
      paste(F2[present == FALSE, paste(AnimalNum, component)], collapse = ","))
 gate("6-F2", "signed_z = stored component value for every animal x component (identical doubles)", {
   ok <- TRUE; for (k in CST$COMBZ_COMPONENTS) { a <- F2[component == k][match(CZ$AnimalNum, AnimalNum), signed_z]; b <- as.numeric(CZ[[k]])

@@ -6,7 +6,7 @@
 #   1. static: no model / test / adjustment call in the helper or the runner; the runner parses its mode before any read,
 #      sources no Analysis/ file other than _pipeline_setup.R and never sources or evaluates the CombZ producer file; the
 #      helper parses (never sources) it; this test sources only Analysis/_pipeline_setup.R;
-#   2. run mode and bundle id fsb_v4_<YYYYMMDD>_<commit7>;
+#   2. run mode and bundle id fsb_v5_<YYYYMMDD>_<commit7>;
 #   3. frozen CombZ definition parser: constants and composite rule read without executing the file; refusal of a missing,
 #      duplicated or non-literal constant and of a missing / non-consecutive rule; the real producer source yields the
 #      six components and three inversions;
@@ -74,7 +74,7 @@ check(grepl("Both", errmsg(fsb_parse_mode(c("--dry-run", "--real")))), "both mod
 check(identical(fsb_parse_mode("--dry-run"), "DRY") && identical(fsb_parse_mode("--real"), "REAL"), "modes parse")
 cm <- "0123456789abcdef0123456789abcdef01234567"
 bid <- fsb_bundle_id(as.Date("2026-09-30"), cm)
-check(identical(bid, "fsb_v4_20260930_0123456") && grepl("^fsb_v[0-9]+_[0-9]{8}_[0-9a-f]{7}$", bid), "bundle id fsb_v4_<YYYYMMDD>_<commit7>")
+check(identical(bid, "fsb_v5_20260930_0123456") && grepl("^fsb_v[0-9]+_[0-9]{8}_[0-9a-f]{7}$", bid), "bundle id fsb_v5_<YYYYMMDD>_<commit7>")
 check(grepl("full git commit", errmsg(fsb_bundle_id(Sys.Date(), "abc1234"))), "a short commit is refused")
 ok("run mode and bundle id")
 
@@ -222,7 +222,7 @@ s30fb_write_csv(ph_rows("sensitivity_common_cage_variance")[, same_sign := TRUE]
 s30fb_write_csv(data.table(model_id = paste0("m", 1:8), singular = c(TRUE, rep(FALSE, 7)), vc_con_cage = c(0, runif(7)), error = NA_character_), file.path(PHR, "tables", "diagnostics.csv"))
 s30fb_write_csv(data.table(stage = "s", gate = "g", passed = TRUE), file.path(PHR, "audit", "gate_results.csv"))
 s30fb_write_csv(data.table(input = "x", sha256 = "y"), file.path(PHR, "audit", "input_hashes.csv"))
-s30fb_write_csv(data.table(mode = "REAL", git_commit = FSB_POSTHOC$run_commit, registry_sha256 = FSB_POSTHOC$registry_sha256, registry_version = "1.0",
+s30fb_write_csv(data.table(mode = "REAL", git_commit = FSB_POSTHOC$run_commit, registry_sha256 = FSB_POSTHOC$registry_sha256, registry_version = FSB_POSTHOC$registry_version,
                            status_counts = FSB_POSTHOC$status_counts, n_failed = 0L), file.path(PHR, "audit", "run_manifest.csv"))
 writeLines(c("Stage 29b", paste("commit", FSB_POSTHOC$run_commit), paste("registry sha256", FSB_POSTHOC$registry_sha256)), file.path(PHR, "README.txt"))
 phf <- sort(setdiff(s30fb_files_on_disk(PHR), "audit/output_manifest.csv"))
@@ -341,7 +341,7 @@ s30fb_write_csv(tag29(data.table(Sex = rep(c("Female", "Male"), each = 2), term 
 s30fb_write_csv(tag29(data.table(Sex = c("Female", "Male"), n = 6L, status = "OK")), file.path(P29, "tables", "diagnostics.csv"))
 s30fb_write_csv(data.table(stage = "s", gate = "g", passed = TRUE), file.path(P29, "audit", "gate_results.csv"))
 s30fb_write_csv(data.table(input = "x", sha256 = "y"), file.path(P29, "audit", "input_hashes.csv"))
-s30fb_write_csv(data.table(mode = "REAL", git_commit = FSB_POSTHOC29C$run_commit, registry_sha256 = FSB_POSTHOC29C$registry_sha256, registry_version = "1.0",
+s30fb_write_csv(data.table(mode = "REAL", git_commit = FSB_POSTHOC29C$run_commit, registry_sha256 = FSB_POSTHOC29C$registry_sha256, registry_version = FSB_POSTHOC29C$registry_version,
                            status_counts = FSB_POSTHOC29C$status_counts), file.path(P29, "audit", "run_manifest.csv"))
 writeLines(c("Stage 29c", paste("commit", FSB_POSTHOC29C$run_commit), paste("registry sha256", FSB_POSTHOC29C$registry_sha256)), file.path(P29, "README.txt"))
 p29f <- sort(setdiff(s30fb_files_on_disk(P29), "audit/output_manifest.csv"))

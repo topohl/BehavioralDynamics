@@ -37,18 +37,19 @@
 # ================================================================
 
 FSB_SCHEMA_VERSION <- "4"
-FSB_BUNDLE_PREFIX <- "fsb_v4"   # v1 (fsb_v1_20260930_f06552c), v2 (fsb_v2_20260930_a23d699) and v3 (fsb_v3_20261007_a2acd57), all FROZEN, are never rewritten
+FSB_BUNDLE_PREFIX <- "fsb_v5"   # v1 (fsb_v1_20260930_f06552c), v2 (fsb_v2_20260930_a23d699), v3 (fsb_v3_20261007_a2acd57) and v4 (fsb_v4_20261012_f4c2ba6), all FROZEN, are never rewritten
+# v5 = v4 on the corrected outcome (config v1.0.2, outcome version ov2); the PHASE-B pins come from the Phase B runs; the v4 values are in git history (f4c2ba6)
 FSB_STATUS_REAL <- "FROZEN"
 FSB_STATUS_DRY <- "DRY_RUN_NOT_FOR_USE"
 FSB_TOL <- 1e-12
 
-FSB_STAGE29 <- list(bundle_id = "ebb_v101_20260929_b2ce507",
-                    manifest_sha256 = "ec59aa337fc63511de4aa2bf3e1ee1f4b34b84d6d671565f74e0bb3939f7226c")
+FSB_STAGE29 <- list(bundle_id = "ebb_v102_PHASE-B",  # RETRACK-PIN
+                    manifest_sha256 = "PHASE-B")  # RETRACK-PIN
 # v2: the post hoc run 29b (Analysis/29b_posthoc_con_contrasts.R, registry POSTHOC_CON_CONTRASTS v1.0), REAL, run once
-FSB_POSTHOC <- list(stage_dir = "29b_posthoc_con_contrasts", run_name = "v1.0_7f1da1f",
-                    run_commit = "7f1da1f6cea098a97cd0b06e3a37140826dda2f1",
-                    output_manifest_sha256 = "4c079ecfb31db159ea7c28379fac48ac6fbb27e6e7af00762840f7fdf0367faa", output_manifest_n = 7L,
-                    registry_version = "1.0", registry_sha256 = "a6435d8d84b164671b59486f7a3eb9af2bff29bd251c58866cd4b777f9fa0604",
+FSB_POSTHOC <- list(stage_dir = "29b_posthoc_con_contrasts", run_name = "PHASE-B",  # RETRACK-PIN (v1.1_<commit7>)
+                    run_commit = "PHASE-B",  # RETRACK-PIN
+                    output_manifest_sha256 = "PHASE-B", output_manifest_n = 7L,  # RETRACK-PIN
+                    registry_version = "1.1", registry_sha256 = "PHASE-B",  # RETRACK-PIN
                     status_counts = "primary_separate_cage_variances OK=4; sensitivity_common_cage_variance OK=4",
                     tier = "POST HOC exploratory")
 # bundle table -> post hoc run file (copied verbatim) and its expected row count
@@ -60,19 +61,16 @@ FSB_POSTHOC_DISPLAY_COLS <- c("measure_label", "unit", "estimand_label", "displa
 # v3: the Stage 14 display tables of the run promoted 2026-10-06c (the promotion record lists every file with this SHA-256;
 # Stage 14 is not re-run for the bundle) and the Stage 08 10-minute dwell-time table Stage 14 reads
 FSB_STAGE14 <- list(
-  root_rel = "analyses/systems_dashboard/5min", record = "docs/behavior_output_producer_reruns/stage14_20261006c.csv",
+  root_rel = "analyses/systems_dashboard/5min", record = "PHASE-B",  # RETRACK-PIN (docs/behavior_output_producer_reruns/stage14_<date>.csv of the Phase B promotion)
   files = c(domain_heatmap = "stats_tables/systems_sis_domain_heatmap_source_data.csv",
             transition_means = "tables/systems_hmm_transition_probability_summary.csv",
             transition_differences = "tables/systems_hmm_transition_probability_differences.csv",
             resolution_sensitivity = "stats_tables/systems_sis_hmm_resolution_sensitivity.csv",
             state_display_labels = "tables/systems_hmm_state_display_labels.csv"),
-  sha256 = c(domain_heatmap = "fa4c613260a157ffd6044ce27ab733d583741a65597a32b7031ca691347d2271",
-             transition_means = "0279d418ceca5c6b43f60c02574dca24537712925ac4c63a654af25b42b39837",
-             transition_differences = "222208fb9742b4e45b3b2c7c806843765fd5a59e78a534193415cf20d645a568",
-             resolution_sensitivity = "d3a79a1afd938e7f63ce0e054125d2affd3a34c9159b42e3ecb772645b58ffa5",
-             state_display_labels = "60ec75e62b4b407fef8c3ef8750cd816b821d231df473c3f5cb72e18b1132c29"))
+  sha256 = c(domain_heatmap = "PHASE-B", transition_means = "PHASE-B", transition_differences = "PHASE-B",
+             resolution_sensitivity = "PHASE-B", state_display_labels = "PHASE-B"))  # RETRACK-PIN
 FSB_HMM_DWELL <- list(root_rel = "analyses/hmm_states/10min", file = "tables/hmm_state_dwell_times.csv",
-                      sha256 = "be4ba0cf6095726326cad6eb8896e6e84509f41edceb5a64887b265fa16dc03d", bin_size_sec = 600, n_records = 3346L)
+                      sha256 = "PHASE-B", bin_size_sec = 600, n_records = 3346L)  # RETRACK-PIN (sha256; v4 be4ba0cf...)
 FSB_HMM_RESOLUTION <- "10min_based"           # the HMM resolution of the Stage 14 HMM figures (hmm_primary_bin_level)
 FSB_HMM_STATES <- as.character(1:4)
 FSB_HMM_GROUPS <- c("CON", "RES", "SUS")
@@ -87,16 +85,16 @@ FSB_D1_DISPLAY_COLS <- c("window_label", "row_label", "row_description", "displa
 # v4: Stage 09's sex-stratified correlations (10-minute resolution, the Stage 09 output root the inventory declares;
 # the Movement_mean rows are identical at 5 minutes). Copied verbatim; the file's SHA-256 is pinned.
 FSB_STAGE09 <- list(root_rel = "pipeline/09_early_prediction/10min", file = "tables/primary_movement_entropyacf1_correlations_by_sex.csv",
-                    sha256 = "aeec1749e8ede6c2300c055f25d5d9f6ca66636d28610dffda2825532fd98819", n_rows = 6L,
+                    sha256 = "PHASE-B", n_rows = 6L,  # RETRACK-PIN (v4 aeec1749...)
                     features = c("Movement_mean", "Movement_rmssd", "Entropy_acf1"), feature = "Movement_mean",
                     # the same run's per-animal input (pinned by the Stage 29 v1.0.1 release run_inputs), read for an identity gate only
                     input_file = "tables/model_ladder_input.csv",
-                    input_sha256 = "da78f80e4b7867cbabe7847a7da2667459a690a1b25f8ff97ef919cc8d2426dd")
+                    input_sha256 = "PHASE-B")  # RETRACK-PIN (v4 da78f80e...)
 # v4: the post hoc run 29c (Analysis/29c_posthoc_movement_combz_fit.R, registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0), REAL, run once
-FSB_POSTHOC29C <- list(stage_dir = "29c_posthoc_movement_combz_fit", run_name = "v1.0_fd61cd9",
-                       run_commit = "fd61cd99787e9ce207a650b8c6a6f1ef3764ac30",
-                       output_manifest_sha256 = "fc0d13db4faa936522347ccf56aa001bc021fde2fe2c48d19b30153f3e463ffd", output_manifest_n = 7L,
-                       registry_version = "1.0", registry_sha256 = "a617bb5be709b558ed628a61fab0095b598345912c86e9c25070d07b02cb8098",
+FSB_POSTHOC29C <- list(stage_dir = "29c_posthoc_movement_combz_fit", run_name = "PHASE-B",  # RETRACK-PIN (v1.1_<commit7>)
+                       run_commit = "PHASE-B",  # RETRACK-PIN
+                       output_manifest_sha256 = "PHASE-B", output_manifest_n = 7L,  # RETRACK-PIN
+                       registry_version = "1.1", registry_sha256 = "PHASE-B",  # RETRACK-PIN
                        status_counts = "Female OK; Male OK", tier = "POST HOC descriptive display")
 FSB_POSTHOC29C_TABLES <- c(E2_movement_combz_fit_lines = "tables/fit_lines.csv", E2b_movement_combz_fit_coefficients = "tables/coefficients.csv",
                            E2c_movement_combz_fit_diagnostics = "tables/diagnostics.csv")
@@ -125,11 +123,11 @@ FSB_DESIGN_CC1_AGE <- c(22L, 29L)   # Stage 33 gate GC-6l: every one of the 117 
 FSB_DESIGN_UNIT <- "postnatal day (event date - date of birth, in days)"
 # canonical CombZ tables and label lists: the on-disk SHA-256 must equal these (the first three = Stage 30 input_hashes)
 FSB_INPUT_SHA256 <- c(
-  combz_table = "1f6a2a69c6b0781b8de8da50ecdadf309b62bbc9c82106c0fa91d18119a7de54",
-  sus_list = "dea3804b71b479f84900f946e5494b204ed0e8801498da459a6fc781beb9f391",
+  combz_table = "PHASE-B",  # RETRACK-PIN
+  sus_list = "PHASE-B",  # RETRACK-PIN
   con_list = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
-  combz_component_definition = "af3c273434c7457b7b28ba39bbc231afc5f161435cf04b588c9de820fab6f70f",
-  combz_classification_thresholds = "e1536f0c6e45a708770b0b78139232ebf9077eed4b884fd3e03524aad861afc9")
+  combz_component_definition = "PHASE-B",  # RETRACK-PIN
+  combz_classification_thresholds = "PHASE-B")  # RETRACK-PIN
 # the frozen CombZ definition code: the producer, pinned by its git blob (git hash-object; line-ending independent)
 # (version 2 since 708e615; fsb_v1-v4 were built with version 1, blob d850859e at bac46bf)
 FSB_COMBZ_CODE <- list(path = "Analysis/build_later_outcome_combz.R", git_blob = "3303304ec9309f6361326c9e7acc7e023c134715",
@@ -149,7 +147,9 @@ FSB_SEXES <- c("Female", "Male")
 FSB_CCS <- paste0("CC", 1:4)
 FSB_SEX_BATCHES <- list(Female = c("B3", "B4", "B6"), Male = c("B1", "B2", "B5"))
 FSB_N <- list(con_cages = 3L, con_per_cage = 4L, con_per_sex = 12L, combz_animals = 117L, components = 6L,
-              rfid_animals = 111L, con_rfid_animals = 24L)
+              rfid_animals = 111L, con_rfid_animals = 24L,
+              sus_list = 39L, con_list = 24L,  # RETRACK-PIN (v4: 35 / 24)
+              n_components_present = c(`4` = 2L, `5` = 11L, `6` = 104L))  # RETRACK-PIN (v4: 2 animals with 5 of 6, the rest 6)
 FSB_TABLES <- c("F1_con_cage_means", "F1b_con_reference_means", "F2_combz_components", "F2b_combz_definition",
                 "P1_posthoc_con_contrasts", "P1b_posthoc_sensitivity", "P1c_posthoc_diagnostics",
                 "D1_domain_heatmap_cells", "M1_hmm_transition_difference", "M2_hmm_transition_flows",

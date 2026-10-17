@@ -781,12 +781,17 @@ dhm_resolution <- function(variant, component) {
 # input is hash-gated and the A1 / L1 values are gated against the frozen
 # registered tables (1e-9). Returns list(blocks, gates, inputs); stops if any
 # gate fails.
+# The bundle and the Stage 29 release of config v1.0.2 (corrected outcome; the 2026-10-06c promotion used ebb_v101_20260929_b2ce507,
+# manifest ec59aa33..., release v101_dv2_b2ce507 with canonical_window_metrics fc053468..., sus list dea3804b..., CombZ 1f6a2a69...).
+# The Stage 30 v1.0 features stay the source of the group-blind inactivity values (v1.1 recomputes the same features).
+MMM_DHM_EBB_ID <- "ebb_v102_PHASE-B"  # RETRACK-PIN
+MMM_DHM_S29_RELEASE <- "v102_dv2_PHASE-B"  # RETRACK-PIN
 MMM_DHM_INPUT_SHA256 <- c(
-  sus_animals = "dea3804b71b479f84900f946e5494b204ed0e8801498da459a6fc781beb9f391",
+  sus_animals = "PHASE-B",  # RETRACK-PIN
   con_animals = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
-  later_outcome_combz = "1f6a2a69c6b0781b8de8da50ecdadf309b62bbc9c82106c0fa91d18119a7de54",
-  ebb_v101_manifest = "ec59aa337fc63511de4aa2bf3e1ee1f4b34b84d6d671565f74e0bb3939f7226c",
-  stage29_canonical_window_metrics = "fc053468f2a1d1a07e981b6a76c71caa6cfd89b19da7318ee2c2f82f49050dd1",
+  later_outcome_combz = "PHASE-B",  # RETRACK-PIN
+  ebb_manifest = "PHASE-B",  # RETRACK-PIN
+  stage29_canonical_window_metrics = "PHASE-B",  # RETRACK-PIN
   stage30_features_full_precision = "5d196b218ea6e441bc346a2f3d494fa5419742199e2d367b664ec8e7e599bb83"
 )
 
@@ -800,8 +805,8 @@ dhm_canonical_paths <- function(project_root) {
     sus_animals = file.path(dirname(dirname(project_root)), "sus_animals.csv"),
     con_animals = file.path(dirname(dirname(project_root)), "con_animals.csv"),
     later_outcome_combz = file.path(ar, "canonical", "later_outcome_combz", "tables", "later_outcome_combz_animal_level.csv"),
-    ebb_v101_dir = file.path(ar, "canonical", "behavior_bundle", "ebb_v101_20260929_b2ce507"),
-    stage29_canonical_window_metrics = file.path(ar, "pipeline", "29_canonical_behavior_releases", "v101_dv2_b2ce507",
+    ebb_dir = file.path(ar, "canonical", "behavior_bundle", MMM_DHM_EBB_ID),
+    stage29_canonical_window_metrics = file.path(ar, "pipeline", "29_canonical_behavior_releases", MMM_DHM_S29_RELEASE,
                                                  "tables", "canonical_window_metrics.csv"),
     stage30_features_full_precision = file.path(ar, "pipeline", "30_exploratory_screen", "v1.0_be71e2f", "tables",
                                                 "features_cc1_cc4_windows_full_precision.rds")
@@ -941,14 +946,14 @@ dhm_canonical_block_metrics <- function(project_root, stage14_roster, s30b_dir, 
   }
   rec_a1 <- merge(blocks[phase == "A1"], blocks[phase == "L1", list(AnimalNum, CC, light_phase_crossing_rate = crossing_rate)],
                   by = c("AnimalNum", "CC"))
-  b1_path <- dhm_bundle_file(pth$ebb_v101_dir, "B1_animal_longitudinal.csv", MMM_DHM_INPUT_SHA256[["ebb_v101_manifest"]])
-  inp(b1_path, "ebb_v101_B1_animal_longitudinal")
+  b1_path <- dhm_bundle_file(pth$ebb_dir, "B1_animal_longitudinal.csv", MMM_DHM_INPUT_SHA256[["ebb_manifest"]])
+  inp(b1_path, "ebb_B1_animal_longitudinal")
   b1 <- data.table::fread(b1_path, colClasses = list(character = c("AnimalNum", "CageEpisodeID")))
   b1[, AnimalNum := canonical_animal_id(AnimalNum)]
   cmp(rec_a1, b1, c("AnimalNum", "CC"),
       c("CageEpisodeID", "n_in_cage", "n_tracked_mates", "obs_s", "n_events", "n_bouts", "crossing_rate", "shared_zone_use",
         "occupancy_dispersion", "fragmentation", "light_phase_crossing_rate", "Sex", "Batch", "Group"),
-      "ebb_v101 B1 = recomputed first dark phase of CC1-CC4")
+      "ebb B1 = recomputed first dark phase of CC1-CC4")
   s29 <- data.table::fread(pth$stage29_canonical_window_metrics, colClasses = list(character = "AnimalNum"))
   s29[, AnimalNum := canonical_animal_id(AnimalNum)]
   cmp(rec_a1, s29, c("AnimalNum", "CC"),
