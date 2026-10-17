@@ -131,8 +131,9 @@ FSB_INPUT_SHA256 <- c(
   combz_component_definition = "af3c273434c7457b7b28ba39bbc231afc5f161435cf04b588c9de820fab6f70f",
   combz_classification_thresholds = "e1536f0c6e45a708770b0b78139232ebf9077eed4b884fd3e03524aad861afc9")
 # the frozen CombZ definition code: the producer, pinned by its git blob (git hash-object; line-ending independent)
-FSB_COMBZ_CODE <- list(path = "Analysis/build_later_outcome_combz.R", git_blob = "d850859e088de991946f0e9b1f5230b24cccfab7",
-                       last_commit = "bac46bf", doc = "docs/COMBZ_CANONICAL_DEFINITION.md")
+# (version 2 since 708e615; fsb_v1-v4 were built with version 1, blob d850859e at bac46bf)
+FSB_COMBZ_CODE <- list(path = "Analysis/build_later_outcome_combz.R", git_blob = "3303304ec9309f6361326c9e7acc7e023c134715",
+                       last_commit = "708e615", doc = "docs/COMBZ_CANONICAL_DEFINITION.md")
 FSB_COMBZ_CONSTANTS <- c("COMBZ_DEFINITION_ID", "COMBZ_REFERENCE_POP_ID", "COMBZ_CLASSIFICATION_ID", "COMBZ_CORRECTION_ID",
                          "COMBZ_COMPONENTS", "COMBZ_COMPONENT_META", "PARITY_TOL_COMBZ")
 # the producer's composite rule, evaluated verbatim (build_later_outcome_combz.R, "recompute the composite")
@@ -405,20 +406,21 @@ fsb_combz_definition_table <- function(defn, compdef, f2, combz_table_path, comb
   np <- f2[, .(n_present = sum(present), n_missing = sum(!present), missing_animals = paste(sort(AnimalNum[!present]), collapse = ";")), by = component]
   np <- np[match(meta$component, component)]
   n5 <- f2[, .(n = n_components_present[1]), by = AnimalNum][, table(n)]
-  corr <- c(sucrose_pref = paste("rebuilt by the producer from the sucrosePreference sheet keyed by animal (not by row position), negative bottle",
-                                 "readings counted as zero; standardised with the reference rows the workbook's own formulas name (upstream correction",
-                                 paste0(cst$COMBZ_CORRECTION_ID, "; 18 animals, ", FSB_COMBZ_CODE$doc, " section 4b)")),
-            delta_cort = paste("OR620's value replaced by the exact linear map every other batch-5 male follows (upstream correction",
-                               paste0(cst$COMBZ_CORRECTION_ID, "; 1 animal, ", FSB_COMBZ_CODE$doc, " section 4b)")))
+  # the corrections are applied in the corrected workbook, not by the producer (version 2)
+  src <- paste0(" (in the corrected workbook; upstream correction ", cst$COMBZ_CORRECTION_ID, "; ", FSB_COMBZ_CODE$doc, " sections 4b-4c)")
+  organ <- "damaged, missing or blank organ weights carry no score and leave the CON reference (2026-10-16)"
+  corr <- c(NOR = paste0("batch 1 values are the analysed SLEAP D2 (2026-10-16); 00317's value is missing until its novel-object video is re-tracked", src),  # RETRACK-PIN
+            sucrose_pref = paste0("rebuilt keyed by animal, not by row position, with negative bottle readings counted as zero (2026-09-20)", src),
+            delta_cort = paste0("OR620's value from the linear map every other batch-5 male follows (2026-09-20); the female sex-pooled reference rebuilt (2026-10-16)", src),
+            adrenal_weight = paste0(organ, src), spleen_weight = paste0(organ, src))
   out <- data.table::data.table(
     component = meta$component, component_order = seq_len(k), display_label = meta$raw_measure, domain = meta$domain,
     source_table = combz_table_path, source_table_sha256 = combz_table_sha256, source_column = meta$component,
-    upstream_source = paste0("E9_Behavior_Data_before_restructure.xlsx (pinned) :: sheet zScore column ", meta$xlsx_column),
+    upstream_source = paste0("E9_Behavior_Data.xlsx (pinned corrected workbook) :: sheet combz_canonical column ", meta$xlsx_column),
     raw_measure = meta$raw_measure, raw_derivation = meta$raw_derivation,
-    standardisation = "z = (x - mean(x | reference)) / populationSD(x | reference), computed upstream in the endpoint workbook",
-    reference_population = paste0("as implemented upstream: the within-sex CON animals (12 per sex), encoded as per-sex positional formula blocks whose ",
-                                  "row ranges only approximately coincide with sex (", FSB_COMBZ_CODE$doc, " section 4a); reference_population_id ",
-                                  cst$COMBZ_REFERENCE_POP_ID),
+    standardisation = "z = (x - mean(x | reference)) / populationSD(x | reference), computed upstream in the corrected endpoint workbook",
+    reference_population = paste0("the within-sex CON animals (12 per sex) with a valid value for the component, as computed in the corrected ",
+                                  "workbook (", FSB_COMBZ_CODE$doc, " sections 4a and 4c); reference_population_id ", cst$COMBZ_REFERENCE_POP_ID),
     sd_convention = as.character(cd$sd_convention[match(meta$component, cd$component)]),
     standardisation_reproducible_in_repository = as.logical(cd$reproducible_in_repository[match(meta$component, cd$component)]),
     raw_value_reference_columns = "NA in F2: the producer carries the stored z-scores verbatim; re-deriving raw -> z would change the endpoint",
