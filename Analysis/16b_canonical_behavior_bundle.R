@@ -13,7 +13,10 @@
 #   * every Holm family recomputes exactly from its raw p-values and has its declared size,
 #   * (config v1.0.1 on) the Stage 29 run is a RELEASE run of data_versions$release: its preprocessed inputs are the
 #     manifest files with the manifest hashes, it passed the analytic-identity gate, and it recorded no block failure;
-#     the configuration itself is re-checked against its frozen analytic parent.
+#     the configuration itself is re-checked against its frozen analytic parent,
+#   * (config v1.0.2 on) the run is bound to outcome_versions$release, the canonical CombZ table still hashes to it, and
+#     every RES/SUS label the bundle carries (Stage 29 windows, Stage 09 predictions) equals that table's outcome_group;
+#     the Stage 09 10-min and 5-min ladders were run on its CombZ.
 # A bundle version directory is never overwritten; there is no "latest" pointer.
 # ================================================================
 
@@ -71,6 +74,12 @@ IDN <- mmm_cfg_check_parent(CFG, CFG_ROOT)
 if (!is_true(run$analytic_identity_ok) || !identical(run$analytic_parent_config_sha256, IDN$parent_sha256))
   stop("The Stage 29 run did not pass the analytic-identity gate against frozen v", IDN$parent_version, ".", call. = FALSE)
 invisible(mmm_dv_verify(DV))   # the data version on disk still matches its manifest
+# outcome-version binding (config v1.0.2 on; every mode)
+OV <- mmm_ov_resolve(CFG)
+CZ_FILE <- file.path(AR, "canonical", "later_outcome_combz", "tables", "later_outcome_combz_animal_level.csv")
+if (!identical(run$outcome_version, OV$id) || !identical(run$combz_table_sha256, OV$combz_table_sha256))
+  stop("The Stage 29 run is not bound to the release outcome version ", OV$id, " (run: ", run$outcome_version %||% "<none>", ").", call. = FALSE)
+if (!DRY) invisible(mmm_ov_verify_table(OV, CZ_FILE))   # the canonical CombZ table on disk is still the bound one
 inp <- rd(A29, "run_inputs.csv")
 dvr <- mmm_dv_verify_run_inputs(DV, as.data.frame(inp))
 if (!dvr$ok) stop("Stage 29 inputs do not match data version ", DV$id, ": ", paste(dvr$problems, collapse = "; "), call. = FALSE)
@@ -111,6 +120,15 @@ thr <- rd(AR, "canonical", "later_outcome_combz", "tables", "combz_classificatio
 A4 <- rd(AR, "canonical", "later_outcome_combz", "tables", "later_outcome_combz_animal_level.csv")[
   , .(AnimalNum = canonical_animal_id(AnimalNum), Sex, Batch = paste0("B", Batch), Group = outcome_group, CombZ)][, rfid_tracked := AnimalNum %in% canonical_animal_id(W$AnimalNum)]
 if (nrow(A4) != 117 || sum(A4$rfid_tracked) != 111) stop("CombZ cohort is not 117 animals with 111 RFID-tracked.", call. = FALSE)
+# labels: every RES/SUS label carried into the bundle equals the CombZ table's outcome_group (Stage 09 takes Group from Stage 01)
+lab_check <- function(x, what) {
+  m <- merge(unique(x[, .(AnimalNum = canonical_animal_id(AnimalNum), Group)]), A4[, .(AnimalNum, GroupCZ = Group)], by = "AnimalNum")
+  bad <- m[Group != GroupCZ]
+  if (nrow(m) != uniqueN(canonical_animal_id(x$AnimalNum)) || nrow(bad))
+    stop(what, " labels differ from the CombZ table for ", nrow(bad), " animal(s): ", paste(bad$AnimalNum, collapse = ", "),
+         "; rerun Stage 01 and the stage that wrote them.", call. = FALSE)
+}
+if (!DRY) { lab_check(W, "Stage 29 window (B1)"); lab_check(A2, "Stage 09 prediction (A2)") }   # a DRY Stage 29 run permutes the labels
 # A0: design timeline for Figure 1a. Design facts only (config$windows, $population); the counts come from the Stage 29 windows.
 A0 <- data.table(
   step = 1:8,
@@ -132,6 +150,12 @@ PERM <- rd(S09, "10min", "tables", "primary_prediction_permutation_test.csv")
 SEXI <- rd(S09, "10min", "tables", "primary_feature_sex_interactions.csv")
 S09_5 <- list(assoc = file.path(S09, "5min", "tables", "primary_movement_entropyacf1_associations.csv"),
               perf = file.path(S09, "5min", "tables", "primary_prediction_performance.csv"))
+lad5 <- file.path(S09, "5min", "tables", "model_ladder_input.csv")
+if (file.exists(S09_5$assoc) || file.exists(S09_5$perf)) {
+  l5 <- if (file.exists(lad5)) merge(rd(lad5)[, .(AnimalNum = as.character(AnimalNum), outcome)], cz, by = "AnimalNum") else data.table()
+  if (nrow(l5) != 111 || max(abs(l5$outcome - l5$CombZ)) > 1e-9)
+    stop("Stage 09 5-min tables are present but were not run on the canonical CombZ; rerun Stage 09 at 5 min first.", call. = FALSE)
+}
 
 # C2: one estimates table with stable result ids
 C2 <- rbindlist(list(

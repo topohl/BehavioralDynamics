@@ -23,7 +23,11 @@
 #     (meta$analytic_parent), data version = data_versions$release with its manifest gate. The only mode 16b bundles.
 #   CONTROL: MMM_STAGE29_CONTROL_DIR = an output folder outside analysis_ready. Every RELEASE gate, unpermuted labels,
 #     optionally MMM_STAGE29_DATA_VERSION = another declared data version (e.g. v1_original, to reproduce the frozen
-#     v1.0.0 tables byte for byte). Never bundled.
+#     v1.0.0 tables byte for byte) and (config v1.0.2 on) MMM_STAGE29_OUTCOME_VERSION = another declared outcome version
+#     with MMM_STAGE29_OUTCOME_TABLE = that version's archived CombZ table (e.g. ov1_original with data version v2, to
+#     reproduce the v1.0.1 release tables). Never bundled.
+#   OUTCOME (config v1.0.2 on): the CombZ table must hash to outcome_versions[[...]]$combz_table_sha256 before any row is
+#     read, the RES/SUS count gate reads that outcome version, and Stage 09's ladder outcome must equal its CombZ.
 #   DRY (code testing only): MMM_STAGE29_DRY_RUN_DIR (outside analysis_ready); RES/SUS labels are permuted among SIS
 #     animals within Batch, CombZ is permuted, the freeze and code gates are skipped; the identity and data gates run.
 # ================================================================
@@ -51,6 +55,16 @@ dv_req <- Sys.getenv("MMM_STAGE29_DATA_VERSION")
 DV <- mmm_dv_resolve(CFG, ROOT, if (nzchar(dv_req)) dv_req else CFG$data_versions$release); DVX <- DV$spec
 if (MODE == "RELEASE" && !DV$is_release)
   stop("A RELEASE run reads data_versions$release (", CFG$data_versions$release, "); MMM_STAGE29_DATA_VERSION is for CONTROL and DRY runs.", call. = FALSE)
+# outcome version (config v1.0.2): RELEASE reads the canonical CombZ table bound to outcome_versions$release
+ov_req <- Sys.getenv("MMM_STAGE29_OUTCOME_VERSION"); ov_tab <- Sys.getenv("MMM_STAGE29_OUTCOME_TABLE")
+OV <- mmm_ov_resolve(CFG, if (nzchar(ov_req)) ov_req else CFG$outcome_versions$release)
+if (MODE == "RELEASE" && (!OV$is_release || nzchar(ov_tab)))
+  stop("A RELEASE run reads the canonical CombZ table of outcome_versions$release (", CFG$outcome_versions$release,
+       "); MMM_STAGE29_OUTCOME_VERSION / _TABLE are for CONTROL and DRY runs.", call. = FALSE)
+CZ_FILE <- if (nzchar(ov_tab)) normalizePath(ov_tab, winslash = "/", mustWork = FALSE) else
+  file.path(AR, "canonical", "later_outcome_combz", "tables", "later_outcome_combz_animal_level.csv")
+if (!OV$is_release && !nzchar(ov_tab))
+  stop("Outcome version ", OV$id, " is not the release; name its archived table in MMM_STAGE29_OUTCOME_TABLE.", call. = FALSE)
 PRE <- DV$dir; RAW <- file.path(RFID_SRC, "raw_data")
 if (!dir.exists(PRE)) stop("Missing ", PRE, call. = FALSE)
 git <- function(...) system2("git", c("-C", shQuote(MMM_REPO_ROOT), ...), stdout = TRUE, stderr = TRUE)
@@ -83,17 +97,20 @@ if (MODE == "RELEASE") {
 }
 # data version: manifest hash, exact file set and per-file hashes, before any row is read (stops otherwise)
 dv_inputs <- mmm_dv_verify(DV)
+# outcome version: the CombZ table hash, before any row is read (stops otherwise)
+ov_input <- mmm_ov_verify_table(OV, CZ_FILE)
 TAB <- file.path(WORK, "tables"); AUD <- file.path(WORK, "audit")
 dir.create(TAB, recursive = TRUE, showWarnings = FALSE); dir.create(AUD, recursive = TRUE, showWarnings = FALSE)
 wr <- function(x, name) data.table::fwrite(x, file.path(TAB, name))
 if (nrow(IDN$differences)) data.table::fwrite(IDN$differences, file.path(AUD, "analytic_identity.csv"))
 RUN <- list(config_version = CFG$meta$config_version, config_sha256 = cfg_sha, git_commit = commit,
             dry_run = DRY, run_mode = MODE, data_version = DV$id, data_version_tag = DV$tag, data_manifest_sha256 = DV$manifest_sha256,
+            outcome_version = OV$id, outcome_version_tag = OV$tag, combz_table = CZ_FILE, combz_table_sha256 = OV$combz_table_sha256,
             preprocessed_dir = PRE, out_dir = OUT, analytic_parent_config_version = IDN$parent_version,
             analytic_parent_config_sha256 = IDN$parent_sha256, analytic_identity_ok = IDN$ok,
             started_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"))
 message(if (DRY) "Stage 29 DRY RUN (not frozen-gated): config " else paste0("Stage 29 ", MODE, ": frozen config v"), CFG$meta$config_version, " ", cfg_sha,
-        " at commit ", RUN$git_commit, "; data version ", DV$id, " (", DV$tag, "); output ", OUT)
+        " at commit ", RUN$git_commit, "; data version ", DV$id, " (", DV$tag, "); outcome version ", OV$id, " (", OV$tag, "); output ", OUT)
 
 # ---------------------------------------------------------------- 1. metrics and runtime gates
 crit <- CFG$metrics$fragmentation$bout_criterion_s
@@ -142,8 +159,7 @@ if (!all(wcov$light_complete)) warning("Some light-phase windows are incomplete 
 wr(wcov, "validation_window_coverage.csv")
 
 # design table (Group from the canonical CombZ table)
-cz <- data.table::fread(file.path(AR, "canonical", "later_outcome_combz", "tables", "later_outcome_combz_animal_level.csv"),
-                        colClasses = c(AnimalNum = "character"))
+cz <- data.table::fread(CZ_FILE, colClasses = c(AnimalNum = "character"))
 cz[, AnimalNum := canonical_animal_id(AnimalNum)]
 des <- merge(prim$animals, cz[, .(AnimalNum, Group = outcome_group, Sex, Batch_cz = paste0("B", Batch), CombZ)], by = "AnimalNum")
 if (nrow(des) != 444) stop("Design join lost windows.", call. = FALSE)
@@ -163,9 +179,11 @@ des[, CageEpisodeID := paste(Batch, System, CC, sep = "|")]
 des[, n_in_cage := .N, by = CageEpisodeID]
 des <- merge(des, light, by = c("AnimalNum", "CC"), all.x = TRUE)
 des <- mmm_ci_code_design(des)
-ec <- CFG$population$primary$expected_by_sex_group
+ec <- OV$expected_by_sex_group   # outcome-version facts; outcome_versions$ov1_original == population$primary$expected_by_sex_group (v1.0.0)
 cnt <- des[CC == "CC1" & Group != "CON", .N, by = .(Sex, Group)]
-for (sx in names(ec)) for (g in names(ec[[sx]])) if (cnt[Sex == sx & Group == g, N] != ec[[sx]][[g]]) stop("Population count gate failed.", call. = FALSE)
+for (sx in names(ec)) for (g in names(ec[[sx]])) if (!identical(cnt[Sex == sx & Group == g, N], as.integer(ec[[sx]][[g]])))
+  stop("Population count gate failed (outcome version ", OV$id, "): ", sx, " ", g, " has ", paste(cnt[Sex == sx & Group == g, N], collapse = ""),
+       " CC1 animals, expected ", ec[[sx]][[g]], ".", call. = FALSE)
 wr(des, "canonical_window_metrics.csv"); wr(prim$dyads, "canonical_dyads.csv")
 
 CON_SET <- c("crossing_rate", "shared_zone_use", "occupancy_dispersion", "fragmentation")
@@ -544,6 +562,10 @@ CUM[construct %in% names(sdz), estimate_standardized := estimate / sdz[construct
 guarded("7 Stage 09 sensitivities", {
 s09 <- data.table::fread(file.path(AR, "pipeline", "09_early_prediction", "10min", "tables", "model_ladder_input.csv"))
 s09[, AnimalNum := canonical_animal_id(AnimalNum)]
+# Stage 09 must have been run on the bound outcome version: its ladder outcome equals that CombZ for every animal
+s09cz <- merge(s09[, .(AnimalNum, outcome)], unique(des[, .(AnimalNum, CombZ)]), by = "AnimalNum")
+if (!DRY && (nrow(s09cz) != nrow(s09) || !isTRUE(all(abs(s09cz$outcome - s09cz$CombZ) <= 1e-9))))
+  stop("Stage 09 model_ladder_input.csv outcome differs from the CombZ of outcome version ", OV$id, "; rerun Stage 09 first.", call. = FALSE)
 s09 <- merge(s09, des[CC == "CC1", .(AnimalNum, Batch, CageEpisodeID, sex_c)], by = "AnimalNum")
 if (DRY) s09[, outcome := sample(outcome)]
 loo_r2 <- function(d, form, fold) { pred <- rep(NA_real_, nrow(d))
@@ -584,7 +606,7 @@ wr(S09S, "stage09_cv_sensitivities.csv"); wr(S09X, "stage09_batch_adjusted_sex_i
 wr(rbindlist(reg, fill = TRUE), "model_registry.csv")
 wr(rbindlist(lapply(c(CON_SET, "light_phase_crossing_rate"), function(k) des[, .(construct = k, n = sum(is.finite(get(k))),
   mean = mean(get(k), na.rm = TRUE), sd = stats::sd(get(k), na.rm = TRUE)), by = .(CC, Sex, Group)])), "descriptive_summaries.csv")
-stage_inputs <- c(file.path(AR, "canonical", "later_outcome_combz", "tables", "later_outcome_combz_animal_level.csv"),
+stage_inputs <- c(CZ_FILE,
             file.path(AR, "pipeline", "09_early_prediction", "10min", "tables", "model_ladder_input.csv"),
             file.path(lagdir, "10min", "tables", "acute_window_raw_features.csv"), file.path(lagdir, "5min", "tables", "acute_window_raw_features.csv"),
             file.path(lagdir, "10min", "tables", "acute_window_provenance_by_animal_cagechange.csv"),

@@ -74,6 +74,23 @@ if (!is.null(cfg$meta$analytic_parent)) {
 # data-version binding: every declared version must match its pinned manifest, file set and file hashes (no rows are read)
 dv_ids <- setdiff(names(cfg$data_versions %||% list()), c("release", "rule"))
 for (id in dv_ids) { v <- mmm_dv_verify(mmm_dv_resolve(cfg, mmm_project_root(), id)); message("Data version ", id, ": ", sum(v$role == "preprocessed"), " files verified") }
+# outcome-version binding (v1.0.2 on): the release CombZ table with its lists and workbook, and every archived table of an
+# earlier outcome version, must hash to their pins (no rows are read)
+ov_ids <- setdiff(names(cfg$outcome_versions %||% list()), c("release", "rule"))
+for (id in ov_ids) {
+  ov <- mmm_ov_resolve(cfg, id); s <- ov$spec
+  tab <- if (ov$is_release) file.path(mmm_project_root(), "analysis_ready", "canonical", "later_outcome_combz", "tables",
+                                      "later_outcome_combz_animal_level.csv") else file.path(mmm_project_root(), s$archived_table)
+  mmm_ov_verify_table(ov, tab)
+  if (ov$is_release) {
+    ep <- mmm_endpoint_source_root(mmm_project_root())
+    up <- c(sus_list_sha256 = "sus_animals.csv", con_list_sha256 = "con_animals.csv",
+            workbook_sha256 = file.path("SIS_Analysis", "E9_Behavior_Data.xlsx"))
+    for (k in names(up)) if (!is.null(s[[k]]) && !identical(digest::digest(file = file.path(ep, up[[k]]), algo = "sha256"), s[[k]]))
+      stop("Outcome version ", id, ": ", up[[k]], " does not hash to its pinned ", k, ".", call. = FALSE)
+  }
+  message("Outcome version ", id, ": CombZ table verified", if (ov$is_release) " (release; lists and workbook verified)" else " (archived)")
+}
 dir.create(vdir, recursive = TRUE)
 writeLines(json, file.path(vdir, "behavior_analysis_config.json"), useBytes = TRUE)
 file.copy(cfg_file, file.path(vdir, "behavior_analysis_config.R"))

@@ -17,12 +17,14 @@
 #                  digit, an upper-case letter, an underscore, a quote or '::'), i.e. no number, identifier,
 #                  argument value or code fragment may be dropped or replaced; prose may be reworded and
 #                  annotations appended;
-#      * a new leaf may be added only under data_versions, meta$(change_log|analytic_parent|release|
-#        errata_applied), metrics$<k>$(display_name|first_use_definition|legacy_identifier_note) or
-#        population$expected_counts_note;
+#      * a new leaf may be added only under data_versions, outcome_versions (v1.0.2), meta$(change_log|
+#        analytic_parent|release|errata_applied), metrics$<k>$(display_name|first_use_definition|
+#        legacy_identifier_note), population$expected_counts_note or population$primary$expected_by_sex_group_note;
 #      * semantic checks: the pinned parent version and sha, the change_log entry with the change_rule label,
 #        frozen_before_res_sus_outcome_models = FALSE, a complete data_versions binding, and a parent data
-#        version whose counts equal the parent's frozen expected_counts.
+#        version whose counts equal the parent's frozen expected_counts; from v1.0.2 also a complete
+#        outcome_versions binding whose parent outcome version has the parent's frozen RES/SUS counts and
+#        whose every version keeps the frozen SIS total and count structure.
 #    Anything else (formulas, expected ranks, contrasts, families, estimators, thresholds, constants, windows,
 #    populations, RNG, figure data sources, arrays of terms) must be byte-identical.
 #    Limit (by construction): a whitelisted text leaf can still gain misleading prose; every accepted change
@@ -32,6 +34,8 @@
 # 3. mmm_dv_resolve / mmm_dv_verify / mmm_dv_verify_run_inputs: the data-version binding gate
 #    (cfg$data_versions): manifest hash, exact file set, per-file SHA-256, supporting files, and the same
 #    check on a Stage 29 run's audit/run_inputs.csv.
+# 4. mmm_ov_resolve / mmm_ov_verify_table (v1.0.2): the outcome-version binding gate (cfg$outcome_versions):
+#    the CombZ table a run reads must hash to the bound version's combz_table_sha256.
 # ================================================================
 
 # ---------------------------------------------------------------- 1. analytic identity
@@ -51,9 +55,11 @@ MMM_CFG_V101_RULES <- list(
             "^/figure1/(panels/[cde]|panel_sources/e/x|extended_data/\\[2\\])$",
             "^/population/rfid_cohort$"),
   added = c("^/data_versions(/|$)",
+            "^/outcome_versions(/|$)",
             "^/meta/(change_log|analytic_parent|release|errata_applied)(/|$)",
             "^/metrics/[^/]+/(display_name|first_use_definition|legacy_identifier_note)$",
-            "^/population/expected_counts_note$"),
+            "^/population/expected_counts_note$",
+            "^/population/primary/expected_by_sex_group_note$"),
   populated_empty = c("^/meta/change_log$"),
   logical_change = c("^/meta/frozen_before_res_sus_outcome_models$"))
 
@@ -167,6 +173,28 @@ mmm_cfg_analytic_identity <- function(parent, new, parent_sha256 = NA_character_
       paste("parent complete-case set:", paste(cc_ids, collapse = ", ")))
   struct_ok <- all(vapply(ids, function(i) identical(names(unlist(dvs[[i]]$expected_counts)), names(unlist(parent$population$expected_counts))), TRUE))
   chk("data_version_count_structure", struct_ok, "every data version declares the same count structure as the parent")
+  # outcome versions (v1.0.2 on): the RES/SUS counts are outcome-version facts
+  ovs <- new$outcome_versions
+  if (!is.null(ovs) || package_version(new$meta$config_version %||% "0") >= package_version("1.0.2")) {
+    oids <- setdiff(names(ovs %||% list()), c("release", "rule"))
+    oneed <- c("tag", "producer", "combz_table_sha256", "sus_list_sha256", "con_list_sha256", "expected_by_sex_group")
+    hex <- function(x) grepl("^[0-9a-f]{64}$", x %||% "")
+    ocomplete <- length(oids) > 0 && all(vapply(oids, function(i) all(oneed %in% names(ovs[[i]])) && hex(ovs[[i]]$combz_table_sha256) &&
+      hex(ovs[[i]]$sus_list_sha256) && hex(ovs[[i]]$con_list_sha256), TRUE))
+    otags <- vapply(oids, function(i) ovs[[i]]$tag %||% NA_character_, "")
+    chk("outcome_versions_complete", ocomplete && !anyDuplicated(otags) && !anyNA(otags) && isTRUE(ovs$release %in% oids),
+        paste("outcome versions:", paste(oids, collapse = ", "), "; release:", ovs$release %||% "<missing>"))
+    pov <- ap$outcome_version %||% NA_character_
+    chk("parent_outcome_version_counts", isTRUE(pov %in% oids) &&
+          identical(ovs[[pov]]$expected_by_sex_group, parent$population$primary$expected_by_sex_group),
+        paste("outcome_versions$", pov, "$expected_by_sex_group must equal the parent's population$primary$expected_by_sex_group", sep = ""))
+    pec <- parent$population$primary$expected_by_sex_group
+    ostruct <- all(vapply(oids, function(i) identical(names(unlist(ovs[[i]]$expected_by_sex_group)), names(unlist(pec))) &&
+      isTRUE(sum(unlist(ovs[[i]]$expected_by_sex_group)) == parent$population$primary$expected_n), TRUE))
+    chk("outcome_version_count_structure", ostruct,
+        paste("every outcome version declares the parent's sex x group structure and sums to the frozen SIS n =",
+              parent$population$primary$expected_n))
+  }
   ck <- do.call(rbind, ck)
 
   list(ok = all(d$allowed) && all(ck$ok), n_leaves_parent = length(la), n_leaves_new = length(lb),
@@ -262,4 +290,27 @@ mmm_dv_verify_run_inputs <- function(dv, run_inputs, pattern = MMM_DV_PRE_PATTER
     if (!setequal(basename(pre$input), man$file)) "the run's preprocessed file set differs from the manifest",
     if (anyNA(expect) || any(pre$sha256 != expect)) "a run input hash differs from the manifest")
   list(ok = !length(problems), problems = problems, n = nrow(pre))
+}
+
+# ---------------------------------------------------------------- 3. outcome-version binding (v1.0.2)
+
+#' Resolve a declared outcome version (default: cfg$outcome_versions$release).
+mmm_ov_resolve <- function(cfg, outcome_version = cfg$outcome_versions$release) {
+  ovs <- cfg$outcome_versions
+  if (is.null(ovs)) stop("Config v", cfg$meta$config_version, " has no outcome_versions binding.", call. = FALSE)
+  ids <- setdiff(names(ovs), c("release", "rule"))
+  if (length(outcome_version) != 1 || !outcome_version %in% ids)
+    stop("Unknown outcome version '", outcome_version, "'; declared: ", paste(ids, collapse = ", "), call. = FALSE)
+  s <- ovs[[outcome_version]]
+  list(id = outcome_version, tag = s$tag, is_release = identical(outcome_version, ovs$release), combz_table_sha256 = s$combz_table_sha256,
+       expected_by_sex_group = s$expected_by_sex_group, spec = s)
+}
+
+#' The CombZ table a run reads must hash to the bound outcome version. Stops otherwise; returns the run_inputs row.
+mmm_ov_verify_table <- function(ov, file) {
+  if (!file.exists(file)) stop("CombZ table missing: ", file, call. = FALSE)
+  now <- digest::digest(file = file, algo = "sha256")
+  if (!identical(now, ov$combz_table_sha256))
+    stop("Outcome version ", ov$id, ": the CombZ table hashes to ", now, ", not ", ov$combz_table_sha256, " (", file, ")", call. = FALSE)
+  data.frame(input = file, bytes = file.size(file), sha256 = now, role = "outcome_version_combz_table", stringsAsFactors = FALSE)
 }

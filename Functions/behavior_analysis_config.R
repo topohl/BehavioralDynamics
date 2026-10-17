@@ -34,13 +34,22 @@
 #     population$expected_counts keeps the v1.0.0 (data version v1) values; Stage 29 reads the counts of the
 #     bound data version from data_versions.
 #   * Changed AFTER outcome inspection (meta$change_log). User approval: 2026-09-29 (round 5, item 29).
+#
+# VERSION 1.0.2 (outcome-version binding; NO analytic change).
+#   * The endpoint workbook was corrected upstream on 2026-10-16 (batch 1 novel-object D2, blank and damaged organ
+#     weights, female corticosterone reference; erratum E13) and the CombZ producer moved to version 2. The outcome
+#     (CombZ and the RES/SUS labels) is an upstream fact like the preprocessed data: outcome_versions binds Stage 29 to a
+#     hashed CombZ table and carries the RES/SUS counts the frozen models must see. population$primary$expected_by_sex_group
+#     keeps the v1.0.0 (outcome version ov1) values; Stage 29 reads the counts of the bound outcome version.
+#   * Analytic parent unchanged: v1.0.0; the identity gate proves no numeric or logical leaf changed.
+#   * Changed AFTER outcome inspection (meta$change_log). User approval: 2026-10-17 ("rerun on corrected workbook").
 # ================================================================
 
 MMM_BEHAVIOR_CONFIG <- list(
   meta = list(
     config_id = "E9_SIS_RFID_BEHAVIOR_CANONICAL",
-    config_version = "1.0.1",
-    frozen_on = "2026-09-29",
+    config_version = "1.0.2",
+    frozen_on = "2026-10-17",  # RETRACK-PIN (the freeze date in Phase B)
     frozen_before_res_sus_outcome_models = FALSE,
     alpha = 0.05, sidedness = "two-sided for every t and z test; F and chi-square tests are omnibus",
     ci_level = 0.95,
@@ -67,10 +76,21 @@ MMM_BEHAVIOR_CONFIG <- list(
            design_choices_changed = "none: models, endpoints, contrasts, multiplicity, inference, sensitivities, thresholds, constants and RNG are those of v1.0.0 (analytic_parent identity gate)",
            allowed_triggers_invoked = "none (this is not a respecification; change_rule$allowed_triggers concern analytic changes)",
            approval = "user decision 2026-09-29, round 5, item 29 (corrected-metadata Stage 29 release approved)",
-           errata = "docs/BEHAVIOR_CONFIG_v1.0.0_ERRATA.md E1-E10", release_record = "docs/STAGE29_RELEASE_v1.0.1_dv2.md")),
+           errata = "docs/BEHAVIOR_CONFIG_v1.0.0_ERRATA.md E1-E10", release_record = "docs/STAGE29_RELEASE_v1.0.1_dv2.md"),
+      list(version = "1.0.2", date = "2026-10-17", label = "changed after outcome inspection",
+           summary = "v1.0.2: outcome-version binding (corrected CombZ and RES/SUS labels); no analytic change; changed after outcome inspection (erratum E13)",
+           technical_reason = paste("E13: the endpoint workbook was corrected upstream on 2026-10-16 (SIS_Analysis/WORKBOOK_LOG.csv: batch 1",
+                                    "novel-object D2 replaced by the analysed SLEAP value, blank and damaged organ weights unscored, female",
+                                    "corticosterone reference rebuilt) and 00317's novel-object video re-tracked; CombZ changes for every animal and",
+                                    "the RES/SUS labels of OR419 and OR434 among the RFID animals, so the outcome becomes a hashed, versioned input",
+                                    "(outcome_versions) and the RES/SUS counts move from population$primary into it."),
+           design_choices_changed = "none: models, endpoints, contrasts, multiplicity, inference, sensitivities, thresholds, constants and RNG are those of v1.0.0 (analytic_parent identity gate)",
+           allowed_triggers_invoked = "none (this is not a respecification; change_rule$allowed_triggers concern analytic changes)",
+           approval = "user decision 2026-10-17 ('rerun on corrected workbook'; scope: every registered analysis on the corrected labels)",
+           errata = "docs/BEHAVIOR_CONFIG_v1.0.0_ERRATA.md E13", release_record = "docs/STAGE29_RELEASE_v1.0.2_ov2.md")),
     analytic_parent = list(
       config_version = "1.0.0", config_sha256 = "33d22430b0e6d3a45a28bea8546a185c523aedf72055ddf5ae208cff51f8950e",
-      frozen_commit = "a9b7a2c01972145d33eeeb28f42a65c0f02ec0e0", data_version = "v1_original",
+      frozen_commit = "a9b7a2c01972145d33eeeb28f42a65c0f02ec0e0", data_version = "v1_original", outcome_version = "ov1_original",
       frozen_dir = "analysis_ready/canonical/behavior_config/v1.0.0",
       identity_rule = paste("Functions/behavior_config_identity.R mmm_cfg_analytic_identity(parent, this) must return ok = TRUE; it is",
                             "enforced by Analysis/_supporting/freeze_behavior_analysis_config.R before freezing, by Stage 29 before any data are",
@@ -78,11 +98,13 @@ MMM_BEHAVIOR_CONFIG <- list(
     release = list(
       stage29_release_root = "analysis_ready/pipeline/29_canonical_behavior_releases",
       stage29_run_folder_rule = "v<config_version without dots>_<data_versions[[release]]$tag>_<commit7>; immutable; never overwritten",
-      supersedes_bundle = "ebb_v100_20260927_95e5dc8",
+      supersedes_bundle = "ebb_v101_20260929_b2ce507",
       superseded_stage29_runs = I(c("v100_dv1_0555c90 (archived read-only snapshot of the run behind ebb_v100_20260927_95e5dc8)",
-                                    "pipeline/29_canonical_behavior (f3a25da re-run, config v1.0.0, data version v1; never written again)")),
+                                    "pipeline/29_canonical_behavior (f3a25da re-run, config v1.0.0, data version v1; never written again)",
+                                    "v101_dv2_b2ce507 (config v1.0.1, data version v2, outcome version ov1; behind ebb_v101_20260929_b2ce507)")),
       manuscript_facing = TRUE,
-      preserved = "config v1.0.0, bundle ebb_v100_20260927_95e5dc8 and both earlier Stage 29 runs stay unchanged as provenance"),
+      preserved = paste("configs v1.0.0 and v1.0.1, bundles ebb_v100_20260927_95e5dc8 and ebb_v101_20260929_b2ce507 and every earlier",
+                        "Stage 29 run stay unchanged as provenance")),
     errata_applied = list(
       E1_E1b = I(c("/event_stream/seed")), E2 = I(c("/sensitivities/SHARED_ZONE/D1/longitudinal")),
       E3 = I(c("/metrics/*/standardizer_definition")), E4 = I(c("/models/TR_POOLED/random_slope/evidence")),
@@ -105,6 +127,9 @@ MMM_BEHAVIOR_CONFIG <- list(
     primary = list(
       id = "SIS_ONLY", definition = "animals not on Analysis/con_animals.csv (outcome_group RES or SUS)", expected_n = 87,
       expected_by_sex_group = list(Female = list(RES = 28, SUS = 18), Male = list(RES = 25, SUS = 16)),
+      expected_by_sex_group_note = paste("the frozen v1.0.0 counts, i.e. those of outcome version ov1_original; the counts are outcome-version",
+                                         "facts, not design choices, and Stage 29 gates on outcome_versions[[outcome_versions$release]]$expected_by_sex_group",
+                                         "(erratum E13)"),
       rationale = "the RES/SUS question is within SIS; the CON cage structure must not drive the primary random effects",
       decision_basis = "DESIGN"),
     exposure = list(id = "ALL_RFID", definition = "all 111 RFID animals; CON vs SIS", expected_n = 111,
@@ -653,6 +678,45 @@ MMM_BEHAVIOR_CONFIG <- list(
       runtime_gates = list(active_windows = 444, reseeded_windows = 8, anchor_sourcefiles = 24),
       complete_case_missing = I(c("OQ770", "OQ771")),
       d2 = list(cc1_cage_epochs = 22, cc1_dyads = 123, tr_cage_epochs = 94, tr_dyads = 480, tr_rank = 102))
+  ),
+
+  # ---------------------------------------------------------------- outcome versions (v1.0.2; erratum E13)
+  # Binding of the Stage 29 outcome (CombZ and the RES/SUS labels) to a hashed CombZ table. Every entry is an outcome-version
+  # FACT (upstream workbook, classification lists, table hash and the counts the frozen models must see), never a design choice.
+  outcome_versions = list(
+    release = "ov2_corrected_workbook",
+    rule = paste("A RELEASE run reads analysis_ready/canonical/later_outcome_combz/tables/later_outcome_combz_animal_level.csv and stops",
+                 "before any model unless the file hashes to combz_table_sha256 of outcome_versions[[release]] and the CC1 RES/SUS counts of",
+                 "the SIS animals equal its expected_by_sex_group; a CONTROL or DRY run may bind another declared outcome version",
+                 "(MMM_STAGE29_OUTCOME_VERSION) and read that version's table from MMM_STAGE29_OUTCOME_TABLE, under the same hash gate;",
+                 "Stage 16b bundles only a RELEASE run of outcome_versions[[release]]. An outcome version is immutable: a further",
+                 "correction of the endpoint needs a new outcome version and a new configuration version."),
+    ov1_original = list(
+      tag = "ov1",
+      status = "superseded by ov2 (the outcome of configs v1.0.0 and v1.0.1; Stage 29 runs 0555c90, f3a25da and v101_dv2_b2ce507)",
+      producer = paste("Analysis/build_later_outcome_combz.R version 1 (git blob d850859e, commit bac46bf): sheet zScore of",
+                       "E9_Behavior_Data_before_restructure.xlsx (SHA-256 bf257c2c) with three corrections applied in the producer"),
+      combz_table_sha256 = "1f6a2a69c6b0781b8de8da50ecdadf309b62bbc9c82106c0fa91d18119a7de54",
+      sus_list_sha256 = "dea3804b71b479f84900f946e5494b204ed0e8801498da459a6fc781beb9f391",
+      con_list_sha256 = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
+      archived_table = "analysis_ready/history/retired/later_outcome_combz_v1_1f6a2a69/tables/later_outcome_combz_animal_level.csv",
+      n_sus_listed = 35,
+      expected_by_sex_group = list(Female = list(RES = 28, SUS = 18), Male = list(RES = 25, SUS = 16))),
+    ov2_corrected_workbook = list(
+      tag = "ov2",
+      status = "release: manuscript-facing Stage 29 outcome from config v1.0.2 (user decision 2026-10-17)",
+      producer = paste("Analysis/build_later_outcome_combz.R version 2 (git blob 3303304e, commit 708e615): sheet combz_canonical of the",
+                       "corrected E9_Behavior_Data.xlsx, no correction applied in the producer"),
+      workbook_sha256 = "e6b7bf1d437e093be81842768385a8e81e231d85963a5f60f37f97b6d2455d8d",  # RETRACK-PIN
+      combz_table_sha256 = "cc646a58adc5f2f574a05722c63b83597531562a30949994c629d75b499c5317",  # RETRACK-PIN
+      sus_list_sha256 = "65821453e64264b55cccdc86db2b161788e09fd1b5a4ee56e2786b513b00f131",  # RETRACK-PIN
+      con_list_sha256 = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
+      corrections = paste("SIS_Analysis/WORKBOOK_LOG.csv: batch 1 novel-object D2 = analysed SLEAP value; blank adrenal weights (00314;",
+                          "OR126 in the male reference) unscored; damaged or missing organs carry no organ score and leave the CON reference",
+                          "(OQ765 kept); female corticosterone sex-pooled reference rebuilt; 00317's novel object re-tracked"),  # RETRACK-PIN
+      changed_groups_rfid = "OR419 and OR434 RES -> SUS (OQ750 and OQ752 also move to SUS but are not RFID-tracked)",  # RETRACK-PIN
+      n_sus_listed = 39,  # RETRACK-PIN
+      expected_by_sex_group = list(Female = list(RES = 26, SUS = 20), Male = list(RES = 25, SUS = 16)))  # RETRACK-PIN
   )
 )
 
