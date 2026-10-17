@@ -64,6 +64,40 @@ S33_UNITS <- list(rate = "position changes/hour", ru = "per 6 position changes/h
                   per_sd_occ = "per frozen SD (0.0607 shared occupancy)")
 S33_LEVELS <- c("cohort", "cage_within_cohort", "source_cage_within_cohort", "animal_within_cohort", "within_animal",
                 "descriptive_record")
+# ---------------------------------------------------------------- the bound outcome version (plan v1.0 and addendum 1)
+# The expected values that restate the outcome. ov1_original: plan v1.0 as run (v1.0_ABCDE_6b50c1f; canonical CombZ
+# 1f6a2a69, sus list dea3804b). ov2_corrected_workbook: addendum 1 (docs/STAGE33_POSTHOC_COHORT_FOLLOWUPS_ADDENDUM_1.md,
+# erratum E13): the corrected workbook. Every gate that restates the outcome reads S33_OUTCOME when it runs. Defaults:
+# a CON reference has SD 1 (tolerance 1e-9) on 12 animals per sex and component; a component map is exact (residual 1e-9).
+# IDs as in the canonical table (canonical_animal_id). The synthetic tests bind ov1, whose structure their fixtures follow.
+S33_OUTCOME_SPECS <- list(
+  ov1_original = list(
+    version = "ov1_original", lists = c(sus = 35L, con = 24L, excluded = 8L),
+    canonical = c(CON = 24L, RES = 58L, SUS = 35L), tracked = c(CON = 24L, RES = 53L, SUS = 34L),
+    sis_87 = c(RES = 53L, SUS = 34L), focal_85 = c(RES = 53L, SUS = 32L),
+    missing = list(NOR = character(), sucrose_pref = character(), weight_dev = character(), delta_cort = "OQ762",
+                   adrenal_weight = "OR126", spleen_weight = character()),
+    con_reference = list(sd = c(Female.delta_cort = 0.8826), sd_tol = c(Female.delta_cort = 1e-4), n = c(Male.adrenal_weight = 11L)),
+    dcort_map = list(slope = c(Male = -0.0149566, Female = -0.0258772), resid_tol = c(Female = 0.02)),
+    recorded_gates = character()),
+  ov2_corrected_workbook = list(
+    version = "ov2_corrected_workbook", lists = c(sus = 39L, con = 24L, excluded = 8L),  # RETRACK-PIN
+    canonical = c(CON = 24L, RES = 54L, SUS = 39L), tracked = c(CON = 24L, RES = 51L, SUS = 36L),  # RETRACK-PIN
+    sis_87 = c(RES = 51L, SUS = 36L), focal_85 = c(RES = 51L, SUS = 34L),  # RETRACK-PIN
+    missing = list(NOR = "317", sucrose_pref = character(), weight_dev = character(), delta_cort = "OQ762",  # RETRACK-PIN (NOR: 00317 until its re-track)
+                   adrenal_weight = c("1546", "314", "OQ750", "OQ764", "OR126", "OR414", "OR416", "OR419", "OR425", "OR429", "OR434"),
+                   spleen_weight = c("OR414", "OR419")),
+    con_reference = list(sd = numeric(), sd_tol = numeric(), n = c(Female.adrenal_weight = 10L, Female.spleen_weight = 11L, Male.adrenal_weight = 11L)),
+    dcort_map = list(slope = c(Male = -0.0149566, Female = -0.0293084), resid_tol = numeric()),
+    recorded_gates = c("GA-11", "GA-15")))
+S33_OUTCOME_VERSION <- "ov2_corrected_workbook"   # addendum 1
+S33_OUTCOME <- S33_OUTCOME_SPECS[[S33_OUTCOME_VERSION]]
+#' The outcome value of one sex x component cell (key "<Sex>.<component>"), else the default.
+s33_outcome_cell <- function(x, key, default) if (key %in% names(x)) x[[key]] else default
+#' TRUE per component when its missing animals are exactly the declared ones.
+s33_outcome_missing_ok <- function(tab, ids, comps = S33_COMPONENTS, outcome = S33_OUTCOME)
+  vapply(comps, function(k) setequal(ids[!is.finite(tab[[k]])], outcome$missing[[k]] %s33or% character()), TRUE)
+
 S33_OUTCOME_COLUMNS <- c("CombZ", "outcome_group", "NOR", "sucrose_pref", "weight_dev", "delta_cort", "adrenal_weight",
                          "spleen_weight", "n_components_present", "combz_as_recorded", "tp3", "tp4", "tp5", "tp6",
                          "tp3_date", "tp4_date", "tp5_date", "tp6_date", "cort_baseline", "cort_response",
@@ -401,8 +435,9 @@ s33_design <- function(paths, canon) {
   cz[, Batch := bt(Batch)]
   con <- s33_read_id_list(paths$con_list, canon); sus <- s33_read_id_list(paths$sus_list, canon)
   excl <- s33_read_id_list(paths$excluded_list, canon)
-  gate("GC-6a", "canonical 117 animals, IDs canonical, lists 35 / 24 / 8",
-       c(nrow(cz) == 117L, all(cz$AnimalNum == canon(cz$AnimalNum)), length(sus) == 35L, length(con) == 24L, length(excl) == 8L),
+  L <- S33_OUTCOME$lists
+  gate("GC-6a", sprintf("canonical 117 animals, IDs canonical, lists %d / %d / %d (%s)", L[["sus"]], L[["con"]], L[["excluded"]], S33_OUTCOME$version),
+       c(nrow(cz) == 117L, all(cz$AnimalNum == canon(cz$AnimalNum)), length(sus) == L[["sus"]], length(con) == L[["con"]], length(excl) == L[["excluded"]]),
        sprintf("n %d sus %d con %d excluded %d", nrow(cz), length(sus), length(con), length(excl)))
   cz[, condition := data.table::fifelse(AnimalNum %in% con, "CON", "SIS")]
   gate("GC-6b", "condition = con list = canonical experimental_condition", cz$condition == cz$experimental_condition)
@@ -581,14 +616,14 @@ s33_attach_outcomes <- function(design, paths, canon) {
   j <- merge(a1, cz[, .(AnimalNum, cz = CombZ, og = outcome_group)], by = "AnimalNum")
   comp_mean <- rowMeans(as.matrix(cz[, S33_COMPONENTS, with = FALSE]), na.rm = TRUE)
   thr <- data.table::fread(paths$combz_thresholds, showProgress = FALSE)
-  gate("GC-7a", "outcome groups 24/58/35 and list Group = outcome_group = bundle Group",
-       c(identical(as.integer(table(factor(cz$outcome_group, c("CON", "RES", "SUS")))), c(24L, 58L, 35L)), lst == cz$outcome_group,
+  gate("GC-7a", sprintf("outcome groups %s (%s) and list Group = outcome_group = bundle Group", paste(S33_OUTCOME$canonical, collapse = "/"), S33_OUTCOME$version),
+       c(identical(as.integer(table(factor(cz$outcome_group, c("CON", "RES", "SUS")))), unname(S33_OUTCOME$canonical[c("CON", "RES", "SUS")])), lst == cz$outcome_group,
          j$Group == j$og))
   gate("GC-7b", "CombZ(A1) = canonical (1e-12); CombZ = mean of the present components (1e-12)",
        c(nrow(j) == 111L, abs(j$CombZ - j$cz) < 1e-12, abs(comp_mean - cz$CombZ) < 1e-12))
-  gate("GC-7c", "missingness: delta_cort only OQ762; adrenal_weight only OR126; others complete",
-       c(identical(cz[is.na(delta_cort), AnimalNum], "OQ762"), identical(cz[is.na(adrenal_weight), AnimalNum], "OR126"),
-         !anyNA(cz[, c("NOR", "sucrose_pref", "weight_dev", "spleen_weight"), with = FALSE])))
+  miss <- s33_outcome_missing_ok(cz, cz$AnimalNum)
+  gate("GC-7c", sprintf("missingness of each component exactly as declared (%s)", S33_OUTCOME$version), miss,
+       detail = paste(names(miss)[!miss], collapse = ","))
   bw <- s33_read_sheet_cols(paths$workbook, "bodyWeight_long", c("animal_id", "timepoint", "weigh_date", "body_weight_g"))
   bw <- bw[timepoint %in% 3:6][, AnimalNum := canon(animal_id)][AnimalNum %in% design$animals$AnimalNum]
   w <- data.table::dcast(bw, AnimalNum ~ timepoint, value.var = c("body_weight_g", "weigh_date"))

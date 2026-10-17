@@ -64,8 +64,8 @@ S33A_OMIT_SETS <- list(omit_B2_B6 = c("B2", "B6"), omit_B5_B6 = c("B5", "B6"))
 S33A_MECH_COUPLING <- c(NOR = "none", sucrose_pref = "none", weight_dev = "shared_term", delta_cort = "none",
                         adrenal_weight = "ratio_denominator", spleen_weight = "ratio_denominator", dcort_response_part = "none",
                         dcort_baseline_part = "none", dcort_residual_part = "none", CombZ = "mixed")
-# delta_cort map slopes within sex (z per ng/ml), plan section 8 table conventions; GA-10 checks the fitted slopes
-S33A_DCORT_SLOPE <- c(Male = -0.0149566, Female = -0.0258772)
+# delta_cort map slopes within sex (z per ng/ml), plan section 8 table conventions: S33_OUTCOME$dcort_map$slope (they follow
+# the CON reference, so the outcome version fixes them); GA-10 checks the fitted slopes
 S33A_DCORT_SLOPE_TOL <- 1e-7
 # raw measures of the components in the workbook sheet master_wide (weight_dev: tp6 - tp2, B6 tp6 - tp3)
 S33A_RAW <- data.table::data.table(
@@ -97,6 +97,11 @@ S33A_REFERENCE <- data.table::data.table(
   value = c(-0.6394, -9.0234, 7.7446, 4.0, -0.1066, -1.5039, 1.2908, -1.1156, -3.0908, 0.8596, -0.0058, -0.0328, 0.0212, -0.0348,
             -0.307, -0.565, -0.050, 9.4),
   tolerance = c(6e-5, 6e-5, 6e-5, 0.06, 6e-5, 6e-5, 6e-5, 6e-5, 6e-5, 6e-5, 6e-5, 6e-5, 6e-5, 3.6e-4, 6e-4, 6e-4, 6e-4, 0.06))
+# Addendum 1: the same rows of the bound corrected-outcome runs (Stage 32 v1.2 estimates / multiplicity, Stage 29 v102
+# continuous estimates), filled in from those tables before the rerun; NA fails GA-T8 until then.
+S33A_REFERENCE_OV2 <- data.table::copy(S33A_REFERENCE)[, value := NA_real_]  # RETRACK-PIN (the values of the v1.2 / v102 rows)
+#' The GA-T8 reference rows of the bound outcome version.
+s33a_reference <- function(outcome = S33_OUTCOME) if (identical(outcome$version, "ov1_original")) S33A_REFERENCE else S33A_REFERENCE_OV2
 # GA-9: sucrose test windows (Timeline 'SucPref'), test dates and the tp6 offset after CC4 (source plan G9)
 S33A_DATES <- data.table::data.table(
   Batch = S33_COHORTS,
@@ -143,18 +148,18 @@ S33A_PLANNING_TARGETS <- data.table::data.table(
   tolerance = c(0.0005, 0.0005, rep(0.05, 12), rep(0.1, 3), rep(0.001, 6), 0.001, rep(0.0005, 4), rep(0.002, 12), rep(0.002, 6)))
 S33A_GATE_NAMES <- c(
   "GA-4a" = "counts (design): 117 canonical, 111 tracked, 444 animal-episodes, 4 CON per cohort, tracked SIS 10/16/16/15/15/15",
-  "GA-4b" = "counts (outcome groups): tracked CON/RES/SUS 24/53/34, canonical 24/58/35",
+  "GA-4b" = "counts (outcome groups): tracked and canonical CON/RES/SUS of the bound outcome version (S33_OUTCOME)",
   "GA-5" = "cages: CC1 and CC4 cage structure, CON boards, planned cages of the six untracked B1 SIS",
   "GA-6" = "identities: CombZ = sum of the contributions c_k (1e-12); delta_cort parts add up (1e-12); rates = bundle (1e-9)",
   "GA-7" = "missingness exactly as declared",
-  "GA-8" = "pooled same-sex CON reference: mean 0 and SD 1 (female delta_cort 0.8826); male adrenal_weight on 11 CON",
+  "GA-8" = "pooled same-sex CON reference: mean 0, SD and number of CON as the bound outcome version declares (S33_OUTCOME)",
   "GA-9a" = "dates (outcome-free): tp2 = CC1 A1 date; tp1 2-5 d before; sucrose test windows = S33A_DATES; test start = CC4 + 2 d",
   "GA-9b" = "dates: tp3-tp5 = CC2-CC4 A1 dates; tp6 5 d after CC4 (8 in B6); tp6 = sucrose test day 4 (B6: day after the test)",
-  "GA-10" = "component maps: exact linear maps of the raw measures within sex; delta_cort map slopes = plan values; copies = canonical",
-  "GA-11" = "continuity with the 2026-10-01 diagnostic (S33A_CONTINUITY)",
+  "GA-10" = "component maps: linear maps of the raw measures within sex; delta_cort map slopes of the bound outcome version; copies = canonical",
+  "GA-11" = "continuity with the 2026-10-01 diagnostic (S33A_CONTINUITY; recorded under addendum 1)",
   "GA-13" = "cohort descriptors = a4 technical fields (method, rack, marking, line counts, CON board, recording start)",
-  "GA-15" = "planning targets of the A plan (S33A_PLANNING_TARGETS)",
-  "GA-T8" = "a10/a11 verbatim copies of the registered Stage 32 rows; reference values = plan values")
+  "GA-15" = "planning targets of the A plan (S33A_PLANNING_TARGETS; recorded under addendum 1)",
+  "GA-T8" = "a10/a11 verbatim copies of the registered Stage 32 rows; reference values = those of the bound runs (s33a_reference())")
 S33A_U <- list(
   z = "CON-SD units (pooled same-sex CON reference)", z_ru = "CON-SD units per 6 position changes/hour",
   c_ru = "CON-SD units per 6 position changes/hour (contribution scale)", ru = "RU (6 position changes/hour)",
@@ -326,10 +331,11 @@ s33a_target_checks <- function(gate_id, targets, obs) {
 }
 
 #' Gate rows from check rows (s33_gate_rows; a gate without checks fails).
-s33a_gates <- function(ck, ids) {
-  data.table::rbindlist(lapply(ids, function(g) { x <- ck[gate_id == g]
-    s33_gate_rows(g, S33A_GATE_NAMES[[g]], x$ok, n_expected = nrow(x),
-                  detail = if (nrow(x)) sprintf("%d of %d checks passed", sum(x$ok %in% TRUE), nrow(x)) else "no check evaluated") }))
+s33a_gates <- function(ck, ids, recorded = character()) {
+  data.table::rbindlist(lapply(ids, function(g) { x <- ck[gate_id == g]; rec <- g %in% recorded
+    s33_gate_rows(g, S33A_GATE_NAMES[[g]], x$ok, hard = !rec, n_expected = nrow(x),
+                  detail = paste0(if (rec) "pre-correction target; not held (recorded, addendum 1): " else "",
+                                  if (nrow(x)) sprintf("%d of %d checks passed", sum(x$ok %in% TRUE), nrow(x)) else "no check evaluated")) }))
 }
 
 #' Column order: descriptors, the declared estimate columns, extras, tier last. A descriptor that is also a declared
@@ -368,15 +374,15 @@ s33a_maps <- function(a, mw) {
   for (s in c("Female", "Male")) for (m in S33_COMPONENTS) {
     raw <- if (m == "weight_dev") "wd_raw" else S33A_RAW[measure == m, raw_col]
     f <- fit_map(m, raw, s); slopes[[length(slopes) + 1L]] <- data.table::data.table(Sex = s, measure = m, map_slope = f$slope, n = f$n)
-    tol <- if (m == "delta_cort" && s == "Female") 0.02 else 1e-9
+    rt <- S33_OUTCOME$dcort_map$resid_tol; tol <- if (m == "delta_cort" && s %in% names(rt)) rt[[s]] else 1e-9
     ck[[length(ck) + 1L]] <- s33a_chk("GA-10", sprintf("%s linear in %s within %s (max |resid| <= %g)", m, raw, s, tol),
                                        is.finite(f$max_resid) && f$max_resid <= tol, paste("<=", tol), f$max_resid, tol)
   }
   sl <- data.table::rbindlist(slopes)
   b_dcort <- stats::setNames(sl[measure == "delta_cort", map_slope], sl[measure == "delta_cort", Sex])
-  ck[[length(ck) + 1L]] <- s33a_chk("GA-10", "delta_cort map slopes within sex = plan values (M -0.0149566, F -0.0258772)",
-    abs(b_dcort[names(S33A_DCORT_SLOPE)] - S33A_DCORT_SLOPE) <= S33A_DCORT_SLOPE_TOL, S33A_DCORT_SLOPE, b_dcort[names(S33A_DCORT_SLOPE)],
-    S33A_DCORT_SLOPE_TOL)
+  sl0 <- S33_OUTCOME$dcort_map$slope
+  ck[[length(ck) + 1L]] <- s33a_chk("GA-10", sprintf("delta_cort map slopes within sex = %s (M %g, F %g)", S33_OUTCOME$version, sl0[["Male"]], sl0[["Female"]]),
+    abs(b_dcort[names(sl0)] - sl0) <= S33A_DCORT_SLOPE_TOL, sl0, b_dcort[names(sl0)], S33A_DCORT_SLOPE_TOL)
   dd <- x[is.finite(cort_delta_ng_ml) | is.finite(cort_response)]
   ck[[length(ck) + 1L]] <- s33a_chk("GA-10", "master_wide cort_delta = cort_response - cort_baseline (1e-9)",
     abs(dd$cort_delta_ng_ml - (dd$cort_response - dd$cort_baseline)) <= 1e-9, "<= 1e-9",
@@ -1228,8 +1234,9 @@ s33a_checks_p3 <- function(d, design_out, inp2, inp3, maps) {
   tr <- d[tracked == TRUE]; ep <- data.table::as.data.table(design_out$episodes)
   # GA-4b outcome-group counts
   g1 <- as.integer(table(factor(tr$outcome_group, c("CON", "RES", "SUS")))); g2 <- as.integer(table(factor(d$outcome_group, c("CON", "RES", "SUS"))))
-  add("GA-4b", "tracked CON/RES/SUS 24/53/34", identical(g1, c(24L, 53L, 34L)), "24/53/34", g1)
-  add("GA-4b", "canonical CON/RES/SUS 24/58/35", identical(g2, c(24L, 58L, 35L)), "24/58/35", g2)
+  e1 <- unname(S33_OUTCOME$tracked[c("CON", "RES", "SUS")]); e2 <- unname(S33_OUTCOME$canonical[c("CON", "RES", "SUS")])
+  add("GA-4b", paste("tracked CON/RES/SUS", paste(e1, collapse = "/")), identical(g1, e1), paste(e1, collapse = "/"), g1)
+  add("GA-4b", paste("canonical CON/RES/SUS", paste(e2, collapse = "/")), identical(g2, e2), paste(e2, collapse = "/"), g2)
   add("GA-4b", "condition CON = outcome_group CON", (d$condition == "CON") == (d$outcome_group == "CON"), 117L, sum((d$condition == "CON") == (d$outcome_group == "CON")))
   # GA-6 identities
   cs <- rowSums(as.matrix(d[, paste0("c_", S33_COMPONENTS), with = FALSE]))
@@ -1244,12 +1251,13 @@ s33a_checks_p3 <- function(d, design_out, inp2, inp3, maps) {
       abs(tr$x_RU - tr$crossing_rate / S33_RU) <= 1e-12), "<= 1e-9", max(abs(tr$crossing_rate - r1)), 1e-9)
   # GA-7 missingness
   na_ids <- function(v) sort(d[!is.finite(get(v)), AnimalNum])
-  add("GA-7", "delta_cort missing only for OQ762", identical(na_ids("delta_cort"), "OQ762"), "OQ762", na_ids("delta_cort"))
-  add("GA-7", "adrenal_weight missing only for OR126", identical(na_ids("adrenal_weight"), "OR126"), "OR126", na_ids("adrenal_weight"))
+  for (k in S33_COMPONENTS) { want <- sort(S33_OUTCOME$missing[[k]] %s33or% character())
+    add("GA-7", sprintf("%s missing exactly for the declared animals (%s): %s", k, S33_OUTCOME$version, if (length(want)) paste(want, collapse = " ") else "none"),
+        identical(na_ids(k), want), paste(want, collapse = " "), paste(na_ids(k), collapse = " ")) }
   add("GA-7", "cort_response missing only for OQ762", identical(na_ids("cort_response"), "OQ762"), "OQ762", na_ids("cort_response"))
-  add("GA-7", "NOR, sucrose_pref, weight_dev, spleen_weight, CombZ, tp1-tp6, cort_baseline complete (117)",
-      vapply(c("NOR", "sucrose_pref", "weight_dev", "spleen_weight", "CombZ", paste0("tp", 1:6), "cort_baseline"), function(v) all(is.finite(d[[v]])), TRUE), 0L,
-      sum(!is.finite(as.matrix(d[, c("NOR", "sucrose_pref", "weight_dev", "spleen_weight", "CombZ", paste0("tp", 1:6), "cort_baseline"), with = FALSE]))))
+  add("GA-7", "CombZ, tp1-tp6, cort_baseline complete (117)",
+      vapply(c("CombZ", paste0("tp", 1:6), "cort_baseline"), function(v) all(is.finite(d[[v]])), TRUE), 0L,
+      sum(!is.finite(as.matrix(d[, c("CombZ", paste0("tp", 1:6), "cort_baseline"), with = FALSE]))))
   add("GA-7", "Mark date missing only in B6 (all of B6)", c(all(is.na(d[Batch == "B6", mark_date])), !anyNA(d[Batch != "B6", mark_date])), "B6 only",
       d[is.na(mark_date), paste(unique(Batch), collapse = ",")])
   add("GA-7", "dob, cc4_cage, method, rack complete (117); x present for the 111 tracked", c(!anyNA(d$dob), !anyNA(d$cc4_cage), !anyNA(d$method),
@@ -1257,8 +1265,8 @@ s33a_checks_p3 <- function(d, design_out, inp2, inp3, maps) {
   # GA-8 pooled same-sex CON reference
   for (s in c("Female", "Male")) for (m in S33_COMPONENTS) {
     y <- d[arm == "CON" & Sex == s][[m]]; y <- y[is.finite(y)]; mu <- mean(y); psd <- sqrt(mean((y - mu)^2))
-    exp_sd <- if (s == "Female" && m == "delta_cort") 0.8826 else 1; tol <- if (s == "Female" && m == "delta_cort") 1e-4 else 1e-9
-    exp_n <- if (s == "Male" && m == "adrenal_weight") 11L else 12L
+    key <- paste(s, m, sep = "."); cr <- S33_OUTCOME$con_reference
+    exp_sd <- s33_outcome_cell(cr$sd, key, 1); tol <- s33_outcome_cell(cr$sd_tol, key, 1e-9); exp_n <- as.integer(s33_outcome_cell(cr$n, key, 12L))
     add("GA-8", sprintf("%s %s: CON mean 0, population SD %g, n %d", s, m, exp_sd, exp_n), c(abs(mu) <= 1e-9, abs(psd - exp_sd) <= tol, length(y) == exp_n),
         c(0, exp_sd, exp_n), c(mu, psd, length(y)), tol)
   }
@@ -1635,7 +1643,7 @@ s33a_phase3 <- function(design_out, p2, ctx, inputs3 = NULL) {
                         s33a_verbatim_check(rc$a10, inp$paths$s32_multiplicity, "HypothesisID"), TRUE, NA)
   ckt[[4L]] <- s33a_chk("GA-T8", "a11 = source rows, cell for cell (independent re-read)",
                         s33a_verbatim_check(rc$a11, inp$paths$s32_estimates, "model_id"), TRUE, NA)
-  rv <- S33A_REFERENCE[, .(ok = abs(refv[[ref]][[field]] - value) <= tolerance, o = refv[[ref]][[field]]), by = .(ref, field, value, tolerance)]
+  rv <- s33a_reference()[, .(ok = abs(refv[[ref]][[field]] - value) <= tolerance, o = refv[[ref]][[field]]), by = .(ref, field, value, tolerance)]
   ckt[[5L]] <- s33a_chk("GA-T8", "reference rows = plan values (H01, RU, H03, Stage 29 parent, H13; rounding tolerance)", rv$ok, rv$value, rv$o)
   # GA-10 weight_dev link (plan E5: exact): the weight_dev interval gain = the sum of its episode gains
   wl <- tabs$a08_weight_episode_gains[episode == "weight_dev_interval"]
@@ -1646,7 +1654,8 @@ s33a_phase3 <- function(design_out, p2, ctx, inputs3 = NULL) {
                                     lapply(ck11, function(z) z[, phase := "3"]), list(ck15[, phase := "3"]), lapply(ckt, function(z) z[, phase := "3"])),
                                   fill = TRUE)
   ck_all[, tier := S33_TIER]
-  gates <- s33a_gates(ck_all[phase == "3"], c("GA-4b", "GA-6", "GA-7", "GA-8", "GA-9b", "GA-10", "GA-11", "GA-15", "GA-T8"))
+  gates <- s33a_gates(ck_all[phase == "3"], c("GA-4b", "GA-6", "GA-7", "GA-8", "GA-9b", "GA-10", "GA-11", "GA-15", "GA-T8"),
+                      recorded = S33_OUTCOME$recorded_gates)
   # ---- audit
   streams <- data.table::copy(st2$streams)
   bs_all <- data.table::rbindlist(bsum, fill = TRUE)
