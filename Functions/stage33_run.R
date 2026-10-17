@@ -15,6 +15,13 @@ S33_PLAN <- list(
   sha256_lf = "dd070a950d9084b0db3219ec4013a71f5329728d833273c79ec6311831b30746",
   blob = "8632be0da3a9b4bd25b85f15db824309cf7f1f97")
 
+# Addenda: frozen re-execution records of plan v1.0 (each committed alone; LF sha256 and blob pinned; GC-2 checks them).
+# Addendum 1: the rerun on the corrected outcome (S33_OUTCOME_VERSION ov2_corrected_workbook, erratum E13).
+S33_ADDENDA <- list(
+  list(id = "1", path = "docs/STAGE33_POSTHOC_COHORT_FOLLOWUPS_ADDENDUM_1.md", outcome_version = "ov2_corrected_workbook",
+       freeze_commit = "PHASE-B", sha256_lf = "PHASE-B", blob = "PHASE-B"))  # RETRACK-PIN
+S33_RERUN_REASON_ADDENDUM1 <- "addendum 1: corrected outcome (erratum E13)"
+
 S33_STAGE_FOLDER <- "posthoc_cohort_followups"
 S33_MODULES <- c(A = "A_components", B = "B_presis_arena", C = "C_cc1_cage", D = "D_hourly", E = "E_cagemates")
 S33_RUN_ID_PATTERN <- "^v1[.]0_[A-E]{1,5}_[0-9a-f]{7}$"
@@ -64,46 +71,58 @@ S33_B <- c(nonparametric = 4000L, parametric = 1999L, parametric_sensitivity = 9
 S33_CODE_PINS <- list(
   sha256 = c("Functions/stage30_movement.R" = "9a368491", "Functions/rfid_canonical_inference.R" = "886d8bc0",
              "Functions/rfid_event_stream.R" = "3fda3d40", "Functions/rfid_binfree_metrics.R" = "ffc1235d",
-             "Functions/stage30_figure_bundle.R" = "db396fcd",
-             "Functions/behavior_analysis_config.R" = "f34c762488279f38322f649d2ac6398ebb1f820675436b610cd48417f98fcb2d"),
-  blob_commit = "f4c7a31",
+             "Functions/stage30_figure_bundle.R" = "PHASE-B",  # RETRACK-PIN (addendum 1 item 2; plan v1.0: db396fcd)
+             "Functions/behavior_analysis_config.R" = "PHASE-B"),  # RETRACK-PIN (the v1.0.2 R file; plan v1.0: f34c7624...)
+  blob_commit = "PHASE-B",  # RETRACK-PIN (the commit that implements addendum 1 with the final Stage 30 / 32 pins; plan v1.0: f4c7a31)
   blob_globs = c("Functions/stage32_*.R", "Functions/stage30_*.R", "Functions/rfid_*.R", "Functions/behavior_analysis_config.R"),
   canonical_id_srcref_sha256 = "f7f22a336c219eb8483afcc3ab3ec3318888c9f3911131a0908e2209ba26b622",
   bout_criterion_s = 39.3970988275363)
 
-# ---------------------------------------------------------------- inputs (plan section 4)
+# ---------------------------------------------------------------- inputs (plan section 4; addendum 1 item 1)
+# The inputs that addendum 1 re-pins to the corrected outcome (plan v1.0 values in git history, run v1.0_ABCDE_6b50c1f).
+# The timeline workbook is the live file since the batch 6 SIS-start correction of 2026-10-12 (fsb pins the same bytes).
+S33_A1_INPUTS <- list(
+  bundle_id = "ebb_v102_PHASE-B", s32_run = "v1.2_PHASE-B", s29_run = "v102_dv2_PHASE-B",  # RETRACK-PIN
+  sha256 = c(bundle_manifest = "PHASE-B", bundle_a1 = "PHASE-B", bundle_b1 = "PHASE-B", bundle_a2 = "PHASE-B", bundle_a4 = "PHASE-B",
+             bundle_g = "PHASE-B", bundle_h = "PHASE-B", combz_table = "PHASE-B", combz_components = "PHASE-B", combz_thresholds = "PHASE-B",
+             s32_window_metrics = "PHASE-B", s32_coverage = "PHASE-B", s32_diagnostics = "PHASE-B", s32_estimates = "PHASE-B",
+             s32_multiplicity = "PHASE-B", s32_output_manifest = "PHASE-B", s29_continuous_estimates = "PHASE-B", s29_output_manifest = "PHASE-B",
+             sus_list = "PHASE-B", workbook = "PHASE-B",  # RETRACK-PIN
+             timeline = "098f22db860253712e58423c20987c15a5e136ddb37d69bfb9bd03b3da8ec582"))
 #' Every declared input with its expected sha256. Roots come from the project-root accessors, never from a literal.
 s33_input_spec <- function(root, ep, pl, sl, a4 = NA_character_, repo) {
   ar <- file.path(root, "analysis_ready")
-  bun <- file.path(ar, "canonical/behavior_bundle/ebb_v101_20260929_b2ce507")
-  s32 <- file.path(ar, "pipeline/32_behavior_exposure_adaptation/v1.1_f4c7a31")
-  s29 <- file.path(ar, "pipeline/29_canonical_behavior_releases/v101_dv2_b2ce507")
+  # addendum 1 (S33_A1_INPUTS; plan v1.0 read ebb_v101_20260929_b2ce507, Stage 32 v1.1_f4c7a31, Stage 29 v101_dv2_b2ce507)
+  bun <- file.path(ar, "canonical/behavior_bundle", S33_A1_INPUTS$bundle_id)
+  s32 <- file.path(ar, "pipeline/32_behavior_exposure_adaptation", S33_A1_INPUTS$s32_run)
+  s29 <- file.path(ar, "pipeline/29_canonical_behavior_releases", S33_A1_INPUTS$s29_run)
+  p <- S33_A1_INPUTS$sha256
   czt <- file.path(ar, "canonical/later_outcome_combz/tables")
   v2 <- file.path(root, "MMMSociability/data_versions/v2_cage_label_correction_2026-09-28")
   row <- function(role, path, sha, module = "core") data.table::data.table(role = role, path = path, sha256 = sha, module = module)
   x <- rbind(
-    row("bundle_manifest", file.path(bun, "00_manifest.csv"), "ec59aa337fc63511de4aa2bf3e1ee1f4b34b84d6d671565f74e0bb3939f7226c"),
-    row("bundle_a1", file.path(bun, "A1_animal_cc1.csv"), "c782b38796ad35cc45d246520869ab6f7fd327afd2e197fb4d00407e326b50a4"),
-    row("bundle_b1", file.path(bun, "B1_animal_longitudinal.csv"), "2a710a8ad90f98a4bf2f9f1460bf47c8d59e1bbfdc707533a4e68e864b679860"),
-    row("bundle_a2", file.path(bun, "A2_prediction_animals.csv"), "5b8ee3fbb92edf06aab1e18b1cee8cc31361f165cbe748fdfaeb1fd9f39d2c22"),
-    row("bundle_a4", file.path(bun, "A4_combz_animals.csv"), "50681052284c6ccc3fadf3b5394400062920e15641870f68e1f8069e8625bb38"),
-    row("bundle_g", file.path(bun, "G_sample_sizes.csv"), "77a3789b7a4ed3fa57ef19cf83c77e4ac8135dd2445686152b2282e0d4395278"),
-    row("bundle_h", file.path(bun, "H_provenance.csv"), "5f77f37e605baad5a427bb59918b24a1a2275ef9f9b9c70e9537972517c62c73"),
-    row("combz_table", file.path(czt, "later_outcome_combz_animal_level.csv"), "1f6a2a69c6b0781b8de8da50ecdadf309b62bbc9c82106c0fa91d18119a7de54"),
-    row("combz_components", file.path(czt, "combz_component_definition.csv"), "af3c273434c7457b7b28ba39bbc231afc5f161435cf04b588c9de820fab6f70f"),
-    row("combz_thresholds", file.path(czt, "combz_classification_thresholds.csv"), "e1536f0c6e45a708770b0b78139232ebf9077eed4b884fd3e03524aad861afc9"),
-    row("s32_window_metrics", file.path(s32, "tables/window_metrics_long.csv"), "7f2bfdcc25a9331dc68bc93eddfc03599908208723b94b16c8e753d03c5b2f93"),
-    row("s32_coverage", file.path(s32, "tables/coverage_manifest.csv"), "e5352ac5add6a7dc02521952e77c4ce9ed921dbc537026c592bbd363d955e493"),
-    row("s32_diagnostics", file.path(s32, "tables/diagnostics.csv"), "d39ef652675a86d4094ee2593635e059fa0acf8ae1ecd533abff7b98166e8fe4"),
-    row("s32_estimates", file.path(s32, "tables/estimates.csv"), "76f262ffad6b8f7a184fccc0cbe4852f3bfe59549cf2ad8745a0691ea6dcfc40"),
-    row("s32_multiplicity", file.path(s32, "tables/multiplicity.csv"), "3544bcd052e66cef7535eff3ed21d3f7e37e35fe94fd3168bda7c322e0e9b81b"),
-    row("s32_output_manifest", file.path(s32, "audit/output_manifest.csv"), "454a794460cdcac34fedf3adace59961c9da17f5247606dcb65a8e7fe78dfc68"),
-    row("s29_continuous_estimates", file.path(s29, "tables/continuous_estimates.csv"), "cc549c248778a735f1e79ba2b33e59443778ef200e480ad7479b4150f2b15200"),
-    row("s29_output_manifest", file.path(s29, "audit/output_manifest.csv"), "6928bc63b16b3632cf86b5bca85e3b42c929a540898218fea23753c517f87331"),
-    row("sus_list", file.path(ep, "sus_animals.csv"), "dea3804b71b479f84900f946e5494b204ed0e8801498da459a6fc781beb9f391"),
+    row("bundle_manifest", file.path(bun, "00_manifest.csv"), p[["bundle_manifest"]]),
+    row("bundle_a1", file.path(bun, "A1_animal_cc1.csv"), p[["bundle_a1"]]),
+    row("bundle_b1", file.path(bun, "B1_animal_longitudinal.csv"), p[["bundle_b1"]]),
+    row("bundle_a2", file.path(bun, "A2_prediction_animals.csv"), p[["bundle_a2"]]),
+    row("bundle_a4", file.path(bun, "A4_combz_animals.csv"), p[["bundle_a4"]]),
+    row("bundle_g", file.path(bun, "G_sample_sizes.csv"), p[["bundle_g"]]),
+    row("bundle_h", file.path(bun, "H_provenance.csv"), p[["bundle_h"]]),
+    row("combz_table", file.path(czt, "later_outcome_combz_animal_level.csv"), p[["combz_table"]]),
+    row("combz_components", file.path(czt, "combz_component_definition.csv"), p[["combz_components"]]),
+    row("combz_thresholds", file.path(czt, "combz_classification_thresholds.csv"), p[["combz_thresholds"]]),
+    row("s32_window_metrics", file.path(s32, "tables/window_metrics_long.csv"), p[["s32_window_metrics"]]),
+    row("s32_coverage", file.path(s32, "tables/coverage_manifest.csv"), p[["s32_coverage"]]),
+    row("s32_diagnostics", file.path(s32, "tables/diagnostics.csv"), p[["s32_diagnostics"]]),
+    row("s32_estimates", file.path(s32, "tables/estimates.csv"), p[["s32_estimates"]]),
+    row("s32_multiplicity", file.path(s32, "tables/multiplicity.csv"), p[["s32_multiplicity"]]),
+    row("s32_output_manifest", file.path(s32, "audit/output_manifest.csv"), p[["s32_output_manifest"]]),
+    row("s29_continuous_estimates", file.path(s29, "tables/continuous_estimates.csv"), p[["s29_continuous_estimates"]]),
+    row("s29_output_manifest", file.path(s29, "audit/output_manifest.csv"), p[["s29_output_manifest"]]),
+    row("sus_list", file.path(ep, "sus_animals.csv"), p[["sus_list"]]),
     row("con_list", file.path(ep, "con_animals.csv"), "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d"),
-    row("workbook", file.path(ep, "SIS_Analysis/E9_Behavior_Data.xlsx"), "980bc8c68dc015ce241d3b5ef0662ba69471b3abf1f8c02c0b0cf50192b1b337"),
-    row("timeline", file.path(pl, "E9_Experimental Timeline.xlsx"), "2b785435bc1083800d3cbef0d13bcc1542499a037aff5554a98c731b738973bb"),
+    row("workbook", file.path(ep, "SIS_Analysis/E9_Behavior_Data.xlsx"), p[["workbook"]]),
+    row("timeline", file.path(pl, "E9_Experimental Timeline.xlsx"), p[["timeline"]]),
     row("groupcomp_b2", file.path(pl, "GroupCompBatch2.xlsx"), "9e46ba4d4ebbd331c32f59d7ebbcad72c7e6b381f01bb24a850dfdf181ccc865"),
     row("groupcomp_b456", file.path(pl, "GroupComposition.xlsx"), "214f07173199624456fdc47f65c7176ac451c19e55889c18676707c067c73cf4"),
     row("groupcomp_b3", file.path(pl, "GroupCompBatch3.xlsx"), "599f993da245c1be7b35aab8d6eb2040908b383980c89bc55d532c04903e5d63"),
@@ -345,9 +364,18 @@ s33_plan_gates <- function(repo) {
                                                  stdout = FALSE, stderr = FALSE)), "status") %s33or% 0L, 0L)
   blob_head <- s33_git(repo, "rev-parse", paste0("HEAD:", S33_PLAN$path))[1]
   log <- s33_git(repo, "log", "--format=%H", paste0(S33_PLAN$freeze_commit, "..HEAD"), "--", S33_PLAN$path)
-  s33_gate_rows("GC-2", "plan: LF sha256 and blob pinned; unchanged since the freeze commit (an ancestor of HEAD); status FROZEN",
+  ad <- unlist(lapply(S33_ADDENDA, function(a) {   # each addendum the same way, and it binds the outcome version
+    p <- file.path(repo, a$path); if (!file.exists(p) || !grepl("^[0-9a-f]{40}$", a$freeze_commit)) return(rep(FALSE, 6L))
+    x <- s33_plan_sha_lf(p)
+    a_anc <- identical(attr(suppressWarnings(system2("git", c("-C", shQuote(repo), "merge-base", "--is-ancestor", a$freeze_commit, "HEAD"),
+                                                     stdout = FALSE, stderr = FALSE)), "status") %s33or% 0L, 0L)
+    c(identical(x$sha256, a$sha256_lf), identical(s33_git(repo, "rev-parse", paste0("HEAD:", a$path))[1], a$blob), a_anc,
+      length(s33_git(repo, "log", "--format=%H", paste0(a$freeze_commit, "..HEAD"), "--", a$path)) == 0L,
+      grepl("**Status.** FROZEN", x$text, fixed = TRUE), identical(a$outcome_version, S33_OUTCOME$version)) }))
+  s33_gate_rows("GC-2", paste("plan and addenda: LF sha256 and blob pinned; unchanged since their freeze commits (ancestors of HEAD); status FROZEN;",
+                              "the addendum binds the outcome version"),
                 c(identical(sha, S33_PLAN$sha256_lf), identical(blob_head, S33_PLAN$blob), anc, length(log) == 0L,
-                  grepl("**Status.** FROZEN", lf, fixed = TRUE)))
+                  grepl("**Status.** FROZEN", lf, fixed = TRUE), ad))
 }
 
 #' GC-3: R version and the frozen package versions.
@@ -437,9 +465,13 @@ s33_readme <- function(run_id, modules, commit, tables_by_module, gate_counts, d
     "POST HOC, descriptive estimation only; not registered; not a re-test of any registered hypothesis.",
     paste0("Modules: ", paste(modules, collapse = ", "), if (partial) " (partial run: cross-module gates without a partner are recorded as not evaluated)" else ""),
     paste0("Code commit: ", commit, "; plan ", S33_PLAN$path, " (LF sha256 ", S33_PLAN$sha256_lf, ", frozen at ", substr(S33_PLAN$freeze_commit, 1, 7), ")."),
+    vapply(S33_ADDENDA, function(a) paste0("Addendum ", a$id, ": ", a$path, " (LF sha256 ", a$sha256_lf, ", frozen at ", substr(a$freeze_commit, 1, 7),
+                                           "); outcome version ", a$outcome_version, ". This run reruns plan v1.0 on that outcome: no estimand, model, ",
+                                           "bootstrap, window, module or display rule changed."), ""),
     paste0("Written: ", format(Sys.time(), "%Y-%m-%d %H:%M %Z")),
     "Stage 33 reports no p-value; p-values produced internally by the frozen engine are discarded before any table is built; registered Stage 32 p-values appear only as verbatim copies in A_components/tables/a10 and a11 (runs that include module A).",
-    "Inputs: the ebb_v101 bundle, the canonical later-outcome tables, Stage 29 run v101_dv2_b2ce507, Stage 32 run v1.1_f4c7a31, the endpoint lists and workbook, the planning files, the raw and v2 RFID files; sha256 of every input in audit/input_hashes.csv.",
+    paste0("Inputs: the ", S33_A1_INPUTS$bundle_id, " bundle, the canonical later-outcome tables, Stage 29 run ", S33_A1_INPUTS$s29_run, ", Stage 32 run ",
+           S33_A1_INPUTS$s32_run, ", the endpoint lists and workbook, the planning files, the raw and v2 RFID files; sha256 of every input in audit/input_hashes.csv."),
     "Intervals: nominal 95% (method and basis in each row: interval_method, interval_basis). Percentile intervals from about 4 cages per cohort undercover (about 80% coverage) and are labelled cage_resampling_range. Intervals that use a CON cohort mean depend on the single CON cage of the cohort and are anti-conservative.",
     "Rates are RFID position-change rates: position changes per observed hour, counting vendor position updates of at least 200 grid units.",
     "With no association anywhere, about 1 in 20 nominal 95% intervals, and more of the cage-resampling ranges, would exclude 0.",

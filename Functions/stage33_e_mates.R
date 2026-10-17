@@ -56,7 +56,7 @@ S33E_LINT_EXEMPT_COLUMNS <- c("engine_messages")
 # Readings of the plan recorded in the README (s33_deviations()).
 S33E_DEVIATIONS <- c(
   paste("GE-05 checks the labels in design_out (CombZ finite; RES/SUS from the within-sex thresholds; components counted;",
-        "53/34 in sis_87 and 53/32 in focal_85); their identity with the bundle is GC-7a/GC-7b's, because outcomes are read once."),
+        "of the bound outcome version, S33_OUTCOME: ov2 51/36 in sis_87 and 51/34 in focal_85); their identity with the bundle is GC-7a/GC-7b's, because outcomes are read once."),
   "N1 grid: pt = 0.48 - ps (the plan gives pt for N0, N2 and N4 only; this matches N2, N4 and the source plan).",
   paste("Coverage contrasts (not listed in the frozen plan) are the source plan's seven: Delta_NM, Delta_later, Delta_NMdc,",
         "Delta_later_FE, Delta_v2L, Delta_w_later, Delta_w_later_FE; the first 20 coverage replicates per scenario are",
@@ -105,7 +105,6 @@ S33E_EXPECT <- list(
   units_by_cohort = c(B1 = 4L, B2 = 6L, B3 = 6L, B4 = 5L, B5 = 6L, B6 = 6L), unit_singletons = "OR568",
   fe_cols = 37L, fe_df = 47L,
   s1 = 5.1698, sL = 6.2383, sW = 1.6143, tol_s1 = 1e-4, tol_sLW = 1e-3, vif_max = 4,
-  sis_res = 53L, sis_sus = 34L, focal_res = 53L, focal_sus = 32L,
   s13_cohort = "B2", s3_cohort = "B3", s2_pair = c("B1", "B6"), s10_animal = "OR646")
 
 # ---------------------------------------------------------------- classes of cohort-mates (plan section 12)
@@ -1031,8 +1030,11 @@ s33e_gate_labels <- function(design_out, expect) {
   rep_ok <- sis$outcome_group == data.table::fifelse(sis$CombZ < tv, "SUS", "RES")
   npres <- rowSums(is.finite(as.matrix(sis[, S33_COMPONENTS, with = FALSE])))
   np_ok <- sis$n_components_present == npres
-  cnt <- c(sum(sis$outcome_group == "RES", na.rm = TRUE) == expect$sis_res, sum(sis$outcome_group == "SUS", na.rm = TRUE) == expect$sis_sus,
-           sum(foc$outcome_group == "RES", na.rm = TRUE) == expect$focal_res, sum(foc$outcome_group == "SUS", na.rm = TRUE) == expect$focal_sus)
+  # RES / SUS counts: the bound outcome version (S33_OUTCOME), unless the context declares its own
+  ex <- list(sis_res = expect$sis_res %s33or% S33_OUTCOME$sis_87[["RES"]], sis_sus = expect$sis_sus %s33or% S33_OUTCOME$sis_87[["SUS"]],
+             focal_res = expect$focal_res %s33or% S33_OUTCOME$focal_85[["RES"]], focal_sus = expect$focal_sus %s33or% S33_OUTCOME$focal_85[["SUS"]])
+  cnt <- c(sum(sis$outcome_group == "RES", na.rm = TRUE) == ex$sis_res, sum(sis$outcome_group == "SUS", na.rm = TRUE) == ex$sis_sus,
+           sum(foc$outcome_group == "RES", na.rm = TRUE) == ex$focal_res, sum(foc$outcome_group == "SUS", na.rm = TRUE) == ex$focal_sus)
   ok <- c(nrow(sis) == sum(expect$sis_by_cohort), is.finite(sis$CombZ), rep_ok %in% TRUE, np_ok %in% TRUE, cnt)
   det <- sprintf(paste("CombZ finite %d/%d; thresholds reproduce RES/SUS %d/%d; n_components_present = present components %d/%d (%d with fewer",
                        "than 6); label counts as declared: %s; CombZ and outcome_group = bundle: GC-7a, GC-7b (outcomes read once)"),

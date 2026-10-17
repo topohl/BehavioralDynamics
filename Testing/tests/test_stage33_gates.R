@@ -191,5 +191,13 @@ check(!isTRUE(s33_gate_rows("X", "x", NA)$passed) && !isTRUE(s33_gate_rows("X", 
 check(isTRUE(s33_stop_on_gates(s33_gate_not_evaluated("X1", "x", "partner absent"))), "not-evaluated rows never stop")
 ok("NA, empty, not evaluated")
 
+cat("\nGC-2: plan and addendum 1\n")
+g2 <- s33_plan_gates(getwd())
+if (identical(S33_ADDENDA[[1]]$freeze_commit, "PHASE-B")) {   # RETRACK-PIN: until addendum 1 is frozen (runbook B14)
+  check(!isTRUE(g2$passed) && g2$n_checked == 11L && g2$n_ok == 5L, "GC-2 fails closed while addendum 1 is not frozen (the plan's 5 checks pass)")
+} else check(isTRUE(g2$passed) && g2$n_checked == 11L, "GC-2: the plan and the frozen addendum 1 pass")
+check(identical(S33_ADDENDA[[1]]$outcome_version, S33_OUTCOME_VERSION), "addendum 1 binds the outcome version the code binds")
+ok("GC-2 covers the addenda")
+
 unlink(fx, recursive = TRUE)
 cat("\nPASS: stage 33 core gates\n")

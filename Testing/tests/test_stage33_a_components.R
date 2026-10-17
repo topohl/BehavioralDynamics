@@ -33,6 +33,9 @@ for (f in c("Functions/rfid_canonical_inference.R", "Functions/stage32_inference
             "Functions/stage33_run.R", "Functions/behavior_analysis_config.R", "Functions/stage33_a_components.R")) source(f)
 fx <- file.path(tempdir(), paste0("s33a_", Sys.getpid())); dir.create(fx, recursive = TRUE, showWarnings = FALSE)
 pats <- s33_lint_patterns(MMM_BEHAVIOR_CONFIG)
+# the bound outcome: the real run binds ov2 (addendum 1); the synthetic fixture follows plan v1.0's declared structure (ov1)
+check(identical(S33_OUTCOME$version, "ov2_corrected_workbook") && identical(S33_OUTCOME_VERSION, S33_OUTCOME$version), "the run binds ov2 (addendum 1)")
+S33_OUTCOME <- S33_OUTCOME_SPECS$ov1_original
 
 # ---------------------------------------------------------------- synthetic design (declared structure, invented values)
 mk_design <- function(seed = 7L) {
@@ -146,7 +149,7 @@ mk_outcomes <- function(des, seed = 11L) {
   # corticosterone: delta_cort = b_s (Delta - centre) with the plan's map slopes; CON SD 1 (male) and 0.8826 (female)
   tsd <- c(Male = 1, Female = 0.8826); u <- rnorm(n) + sh
   for (s in names(tsd)) { k <- a$Sex == s & !sis; u[k] <- (u[k] - mean(u[k])) / sqrt(mean((u[k] - mean(u[k]))^2)) }
-  bs <- unname(S33A_DCORT_SLOPE[a$Sex]); delta <- 250 + tsd[a$Sex] / abs(bs) * u
+  bs <- unname(S33_OUTCOME$dcort_map$slope[a$Sex]); delta <- 250 + tsd[a$Sex] / abs(bs) * u
   a[, cort_baseline := ifelse(Batch == "B3", runif(.N, 0.01, 1.5), runif(.N, 5, 40))][, cort_response := cort_baseline + delta]
   dc <- bs * (delta - 250)
   fs <- which(a$Sex == "Female" & sis); X <- cbind(1, delta[fs]); e <- runif(length(fs), -1, 1); e <- e - X %*% solve(crossprod(X), crossprod(X, e))
@@ -200,7 +203,7 @@ mk_inputs3 <- function(dout, mw, dir) {
 }
 
 des <- mk_design(); inp2 <- mk_inputs2(des); oc <- mk_outcomes(des); dout <- oc$design_out; inp3 <- mk_inputs3(dout, oc$mw, fx)
-ft <- s33a_frame(dout$animals, S33A_DCORT_SLOPE, inp3$movement)
+ft <- s33a_frame(dout$animals, S33_OUTCOME$dcort_map$slope, inp3$movement)
 
 cat("1. contract and labels\n")
 check(identical(S33A_OUTCOME_FREE_PRODUCTS, "a12_cohort_descriptors_phase2"), "one declared outcome-free product")
@@ -296,7 +299,7 @@ check(max(abs(ft$dcort_response_part + ft$dcort_baseline_part + ft$dcort_residua
 check(max(abs(ft[Sex == "Male" | condition == "CON", dcort_residual_part]), na.rm = TRUE) < 1e-9 && max(abs(ft[Sex == "Female", dcort_residual_part])) > 1e-6,
       "e = 0 where the map is exact (males, CON); the near-exact female map leaves a residual")
 mR <- mean(ft[Sex == "Male" & condition == "CON", cort_response]); i1 <- ft[Sex == "Male" & condition == "SIS" & is.finite(delta_cort), which = TRUE][1]
-check(near(ft$dcort_response_part[i1], S33A_DCORT_SLOPE[["Male"]] * (ft$cort_response[i1] - mR)), "r = b_s (R - mR_s) with the same-sex CON mean")
+check(near(ft$dcort_response_part[i1], S33_OUTCOME$dcort_map$slope[["Male"]] * (ft$cort_response[i1] - mR)), "r = b_s (R - mR_s) with the same-sex CON mean")
 ok("contributions, conventions, delta_cort parts")
 
 cat("\n6. resampling\n")
@@ -353,6 +356,19 @@ cat("\n9. gate helpers\n")
 check(isTRUE(s33a_chk("G", "x", c(TRUE, TRUE))$ok) && !isTRUE(s33a_chk("G", "x", c(TRUE, NA))$ok) && !isTRUE(s33a_chk("G", "x", logical())$ok), "check rows: NA and empty fail")
 gg <- s33a_gates(s33a_chk("GA-6", "x", TRUE), c("GA-6", "GA-7"))
 check(isTRUE(gg[gate_id == "GA-6", passed]) && !isTRUE(gg[gate_id == "GA-7", passed]) && gg[gate_id == "GA-7", detail] == "no check evaluated", "a gate without checks fails")
+gr <- s33a_gates(rbind(s33a_chk("GA-11", "x", FALSE), s33a_chk("GA-6", "y", FALSE)), c("GA-6", "GA-11"), recorded = c("GA-11", "GA-15"))
+check(identical(gr$hard, c(TRUE, FALSE)) && !isTRUE(gr[gate_id == "GA-11", passed]) && grepl("^pre-correction target; not held", gr[gate_id == "GA-11", detail]),
+      "a recorded gate (addendum 1: GA-11, GA-15) keeps its result but cannot stop the run; the others stay hard")
+o2 <- S33_OUTCOME_SPECS$ov2_corrected_workbook
+check(setequal(names(o2$missing), S33_COMPONENTS) && setequal(names(S33_OUTCOME_SPECS$ov1_original$missing), S33_COMPONENTS) &&
+        identical(o2$recorded_gates, c("GA-11", "GA-15")) && !length(S33_OUTCOME_SPECS$ov1_original$recorded_gates) &&
+        sum(o2$canonical) == 117L && sum(o2$tracked) == 111L && sum(o2$sis_87) == 87L && sum(o2$focal_85) == 85L &&
+        identical(o2$lists[["sus"]], o2$canonical[["SUS"]]) && o2$sis_87[["SUS"]] == o2$tracked[["SUS"]] && !length(o2$con_reference$sd),
+      "outcome versions: every component declared; ov2 counts add up (117 / 111 / 87 / 85), sus list = canonical SUS, CON SD 1 throughout")
+tz <- data.table(AnimalNum = c("a", "b", "c"), NOR = c(1, NA, 2), delta_cort = c(NA, 1, 1))
+check(identical(unname(s33_outcome_missing_ok(tz, tz$AnimalNum, c("NOR", "delta_cort"), list(missing = list(NOR = "b", delta_cort = "a")))), c(TRUE, TRUE)) &&
+        identical(unname(s33_outcome_missing_ok(tz, tz$AnimalNum, c("NOR", "delta_cort"), list(missing = list(NOR = character(), delta_cort = "a")))), c(FALSE, TRUE)),
+      "missingness: exactly the declared animals, an undeclared gap fails")
 tg <- data.table(target_id = c("a", "b", "c"), value = c(1, 2, 3), tolerance = 0.01)
 tc <- s33a_target_checks("GA-15", tg, c(a = 1.005, b = 2.5))
 check(identical(tc$ok, c(TRUE, FALSE, FALSE)), "target checks: within tolerance, outside, missing")
