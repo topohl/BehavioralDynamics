@@ -20,8 +20,8 @@ ok    <- function(msg) cat("  ok  ", msg, "\n")
 
 PRODUCER  <- "Analysis/build_later_outcome_combz.R"
 STAGE09   <- "Analysis/09_early_prediction_model_ladder.R"
-CANON_SHEET <- "zScore"
-NONCANON  <- c("combZScore", "CombZScore_noBatch", "sus_animals_batchCorrected")
+CANON_SHEET <- "combz_canonical"
+NONCANON  <- c("combZScore", "CombZScore_noBatch", "combz_alternative_long", "sus_animals_batchCorrected")
 skipped <- character()
 
 code_lines <- function(p) {
@@ -46,8 +46,8 @@ for (r in c("animal_level", "component_definition", "classification_thresholds",
 ok("producer present; both upstream and canonical keys registered with all roles")
 
 prod <- code_lines(PRODUCER)
-check(any(grepl('CANONICAL_SHEET\\s*<-\\s*"zScore"', prod)),
-      "the producer must pin the canonical sheet to 'zScore'")
+check(any(grepl('CANONICAL_SHEET\\s*<-\\s*"combz_canonical"', prod)),
+      "the producer must pin the canonical sheet to 'combz_canonical'")
 check(any(grepl("PARITY FAILURE", prod, fixed = TRUE)),
       "the producer must hard-stop on parity failure")
 check(any(grepl("population_sd", prod, fixed = TRUE)),
@@ -56,19 +56,25 @@ check(!any(grepl("stats::sd\\(|[^_a-zA-Z.]sd\\(", prod)),
       "the producer must not use sample SD anywhere in the classification path")
 ok("producer pins the canonical sheet, uses population SD, and gates on parity")
 
-# The workbook was restructured on 2026-09-23 without the zScore sheet. The
-# producer reads the hash-pinned pre-restructure original through one helper,
-# and records the step (0) workbook check as its CombZ parity.
+# Version 2 (2026-10-17) reads sheet combz_canonical of the corrected workbook
+# through one hash-pinned helper and applies no correction itself. Version 1 read
+# sheet zScore of the pre-restructure original (bf257c2c, now archived and read
+# only by historical audit replays) and corrected three cells in the producer.
 check("source_workbook" %in% names(.mmm_path_specs()[["behavior.combz_upstream_workbook"]]$files),
       "the upstream workbook key lacks the pinned source_workbook role")
 check(identical(MMM_COMBZ_SOURCE_WORKBOOK_SHA256,
                 "bf257c2c8b77fa35e2a8068ff19e3053b4fe83c61f7c20d5a9434a20f829e33d"),
       "the pinned source-workbook hash changed")
-check(any(grepl("wb\\s*<-\\s*mmm_combz_source_workbook\\(", prod)),
-      "the producer must read the pinned source workbook through mmm_combz_source_workbook()")
-check(any(grepl("combz_abs_diff <- abs(asrec_combz - raw$combz_as_recorded)", prod, fixed = TRUE)),
-      "the recorded CombZ parity must be the workbook check, not the corrected CombZ against itself")
-ok("producer reads the hash-pinned pre-restructure workbook and records the real workbook parity")
+check(identical(MMM_COMBZ_WORKBOOK_SHA256,
+                "e6b7bf1d437e093be81842768385a8e81e231d85963a5f60f37f97b6d2455d8d"),  # RETRACK-PIN
+      "the pinned corrected-workbook hash changed")
+check(any(grepl("wb\\s*<-\\s*mmm_combz_workbook\\(", prod)),
+      "the producer must read the corrected workbook through mmm_combz_workbook()")
+check(!any(grepl("sucrosePreference|invertedD|or620", prod)),
+      "the producer must not correct components itself; corrections belong in the workbook")
+check(any(grepl("combz_abs_diff <- abs(dat$CombZ - dat$combz_upstream)", prod, fixed = TRUE)),
+      "the recorded CombZ parity must compare the recomputed composite with the workbook's comb_z")
+ok("producer reads the hash-pinned corrected workbook, corrects nothing and records the workbook parity")
 
 # =====================================================================
 cat("\n[B] noncanonical composites can never become the endpoint\n")
@@ -209,25 +215,28 @@ if (!have_out) {
   check(d <= 1e-12,
         paste0("CombZ is not the unweighted mean of the six components (max diff ",
                format(d), ")"))
-  check(all(a$n_components_present %in% c(5L, 6L)),
-        "every animal must have five or six components present")
-  check(sum(a$n_components_present == 5L) == 2L,
-        paste0("expected exactly 2 animals with 5 of 6 components, got ",
-               sum(a$n_components_present == 5L)))
+  # Since 2026-10-16 damaged, missing and blank organ weights carry no score:
+  # 104 animals have six components, 11 five and 2 four (OR414, OR419). Before,
+  # 2 animals had five and the rest six.
+  check(all(a$n_components_present %in% 4:6),
+        "every animal must have four to six components present")
+  n_by <- table(factor(a$n_components_present, levels = 4:6))
+  check(identical(as.integer(n_by), c(2L, 11L, 104L)),  # RETRACK-PIN
+        paste0("expected 2 / 11 / 104 animals with 4 / 5 / 6 components, got ",
+               paste(as.integer(n_by), collapse = " / ")))
   ok(paste0("CombZ = unweighted mean of six components (max diff ", format(d), ")"))
 
   cat("\n[D] the classification thresholds reproduce exactly\n")
   thr <- read_csv(mmm_path_get("behavior.later_outcome_combz",
                                "classification_thresholds", root = project_root),
                   show_col_types = FALSE, progress = FALSE)
-  # The Female threshold changed on 2026-09-20 from -0.222390844 when three
-  # documented errors in the upstream workbook were corrected in the producer:
-  # a row-position paste that gave 17 female animals another animal's sucrose
-  # component, two negative drinking-bottle readings that should have counted
-  # as zero, and one wrong corticosterone cell (OR620). Four female animals
-  # moved SUS -> RES (OR424, OR430, OR434, OR554). The Male threshold is
-  # unchanged because no male fed the female reference population.
-  EXPECT <- c(Male = -0.436641698, Female = -0.316628592)
+  # History. 2026-09-20: the Female threshold moved from -0.222390844 to
+  # -0.316628592 (sucrose alignment, zero-bottle rule, OR620; OR424, OR430,
+  # OR434 and OR554 SUS -> RES); Male -0.436641698. 2026-10-16 (workbook
+  # corrections 09-14: batch 1 novel-object D2, damaged and blank organ weights
+  # unscored, female corticosterone reference rebuilt; OQ765 kept): Female
+  # -0.333634857, Male -0.433242738; OQ750, OQ752, OR419 and OR434 RES -> SUS.
+  EXPECT <- c(Male = -0.433242738233, Female = -0.333634856715)
   for (sx in names(EXPECT)) {
     got <- thr$susceptibility_threshold[thr$Sex == sx]
     check(length(got) == 1L, paste0("no threshold row for Sex=", sx))
@@ -238,7 +247,7 @@ if (!have_out) {
   check(all(thr$n_control == 12L), "each sex must have 12 control reference animals")
   check(all(grepl("population", thr$sd_convention, ignore.case = TRUE)),
         "the recorded SD convention must be population SD")
-  ok("Male -0.436641698 and Female -0.316628592, 12 controls per sex, population SD")
+  ok("Male -0.433242738 and Female -0.333634857, 12 controls per sex, population SD")
 
   # the rule must reproduce the labels from CombZ alone
   pop_sd <- function(v) { v <- v[is.finite(v)]; sqrt(mean((v - mean(v))^2)) }
@@ -296,18 +305,11 @@ if (inherits(src_wb, "error") && grepl("not the pinned", conditionMessage(src_wb
 }
 
 if (have_wb && have_out) {
-  cat("\n[F] direct parity against the upstream workbook\n")
+  cat("\n[F] direct parity against the corrected workbook\n")
   sheets <- readxl::excel_sheets(wb)
   a <- read_csv(canon, show_col_types = FALSE, progress = FALSE)
-}
-if (have_wb && have_out && !CANON_SHEET %in% sheets) {
-  # The workbook restructured on 2026-09-23 replaced zScore with combz_canonical:
-  # comb_z_as_recorded is the former zScore CombZ, and comb_z carries the same
-  # three documented corrections the producer applies. Its original is kept as
-  # E9_Behavior_Data_before_restructure.xlsx next to it.
-  check("combz_canonical" %in% sheets,
-        "the restructured workbook has neither zScore nor combz_canonical")
-  z <- suppressWarnings(as.data.frame(readxl::read_excel(wb, sheet = "combz_canonical")))
+  check(CANON_SHEET %in% sheets, paste0("the workbook has no sheet ", CANON_SHEET))
+  z <- suppressWarnings(as.data.frame(readxl::read_excel(wb, sheet = CANON_SHEET)))
   m <- merge(data.frame(k = canonical_animal_id(z$animal_id), wb_combz = z$comb_z,
                         wb_asrec = z$comb_z_as_recorded, wb_group = z$outcome_group,
                         wb_corrected = z$corrected),
@@ -318,54 +320,15 @@ if (have_wb && have_out && !CANON_SHEET %in% sheets) {
   d_asrec <- max(abs(m$wb_asrec - m$repo_asrec), na.rm = TRUE)
   d_corr <- max(abs(m$wb_combz - m$repo_combz), na.rm = TRUE)
   check(d_asrec <= 1e-12, paste0("as-recorded CombZ differs from the workbook by ", format(d_asrec)))
-  check(d_corr <= 1e-12, paste0("corrected CombZ differs from the workbook by ", format(d_corr)))
+  check(d_corr <= 1e-12, paste0("CombZ differs from the workbook by ", format(d_corr)))
   check(all(m$wb_group == m$repo_group), "outcome_group differs between the workbook and the producer")
-  check(sum(m$wb_corrected %in% TRUE) == 19L,
-        paste0("expected 19 corrected animals in the workbook, found ", sum(m$wb_corrected %in% TRUE)))
+  # every animal's CombZ changed with the corrections of 2026-10-16 (19 with those of 2026-09-20)
+  check(sum(m$wb_corrected %in% TRUE) == 117L,
+        paste0("expected 117 corrected animals in the workbook, found ", sum(m$wb_corrected %in% TRUE)))
   check("combz_alternative_long" %in% sheets,
-        "the restructured workbook must keep the noncanonical composites (combz_alternative_long)")
-  ok(paste0("restructured workbook: as-recorded and corrected CombZ both match (max ",
-            format(max(d_asrec, d_corr)), "), labels identical, 19 corrected animals"))
-} else if (have_wb && have_out) {
-  z <- suppressWarnings(as.data.frame(
-        readxl::read_excel(wb, sheet = CANON_SHEET)))
-  z$k <- canonical_animal_id(z$ID)
-  # Since 2026-09-20 the producer applies three documented corrections to the
-  # upstream components, so the repo CombZ is deliberately NOT equal to the
-  # workbook's stored CombZ for the corrected animals. Parity is therefore
-  # asserted in two parts: the as-recorded column must still reproduce the
-  # workbook exactly, and the corrected column may differ only for animals the
-  # correction is documented to touch.
-  check("combz_as_recorded" %in% names(a),
-        "the canonical output must retain combz_as_recorded so parity against the workbook stays checkable")
-  m <- merge(data.frame(k = z$k, wb_combz = suppressWarnings(as.numeric(z$CombZ))),
-             data.frame(k = canonical_animal_id(a$AnimalNum),
-                        repo_combz = a$CombZ,
-                        repo_asrec = a$combz_as_recorded),
-             by = "k")
-  check(nrow(m) == 117L, paste0("workbook/repo join is ", nrow(m), ", expected 117"))
-  d_asrec <- max(abs(m$wb_combz - m$repo_asrec), na.rm = TRUE)
-  check(d_asrec <= 1e-12,
-        paste0("as-recorded CombZ differs from the workbook by ", format(d_asrec)))
-  ok(paste0("as-recorded parity: 117/117 animals, max |repo - workbook| = ", format(d_asrec)))
-
-  CORRECTED_EXPECTED <- 19L   # 18 sucrose components + OR620's corticosterone cell
-  n_diff <- sum(abs(m$repo_combz - m$repo_asrec) > 1e-9, na.rm = TRUE)
-  check(n_diff == CORRECTED_EXPECTED,
-        paste0("expected exactly ", CORRECTED_EXPECTED,
-               " animals whose CombZ was changed by the documented corrections, found ", n_diff))
-  ok(paste0("corrected CombZ differs from as-recorded for exactly ", n_diff,
-            " documented animals"))
-
-  # the canonical sheet must remain the only one carrying a column named CombZ
-  # that any consumer pins
-  sheets <- readxl::excel_sheets(wb)
-  for (nc in c("combZScore", "CombZScore_noBatch")) {
-    check(nc %in% sheets,
-          paste0("expected the noncanonical sheet '", nc,
-                 "' to still exist upstream (nothing may be deleted)"))
-  }
-  ok("noncanonical sheets still present upstream and untouched")
+        "the workbook must keep the noncanonical composites (combz_alternative_long)")
+  ok(paste0("corrected workbook: as-recorded and corrected CombZ both match (max ",
+            format(max(d_asrec, d_corr)), "), labels identical, 117 corrected animals"))
 } else if (!have_wb) {
   skipped <- c(skipped, "[F] direct workbook parity (workbook or readxl unavailable)")
 }

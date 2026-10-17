@@ -203,6 +203,28 @@ CombZ changes for 19 animals (by up to `0.448`), and four females move from SUS
 to RES (OR424, OR430, OR434, OR554). This is not a redefinition of the endpoint:
 each correction reproduces the workbook's own formulas and reference rows.
 
+### 4c. Version 2: the corrected workbook (corrections of 2026-10-16)
+
+The workbook was corrected again on 2026-10-16 by logged scripts (SISanalyzer
+`workbook_corrections` 09-14; `SIS_Analysis/WORKBOOK_LOG.csv`): batch 1
+novel-object D2 is the analysed SLEAP value (the sheet held a 2024 run); blank
+adrenal weights (00314; OR126 in the male reference) are no longer scored as 0;
+damaged or missing organs carry no organ z-score and leave the CON reference
+(OQ765, a larger adrenal with no recorded defect, stays); the female
+corticosterone z-scores are rebuilt (the sex-pooled SD range had included four
+batch 1 male CON animals and missed the batch 4 female CON); 00317's
+novel-object component is dropped until its video is re-tracked.
+
+The workbook carries every correction, including those of §4b, in sheet
+`combz_canonical`. Producer version 2 (2026-10-17) reads that sheet through
+`mmm_combz_workbook()` (SHA-256 pinned in `MMM_COMBZ_WORKBOOK_SHA256`) and
+corrects nothing. CombZ changes for all 117 animals; OQ750, OQ752, OR419 and
+OR434 move from RES to SUS (39 SUS). Up to two of six components can be
+missing (2 animals with four, 11 with five). The version 1 tables (SHA-256
+`1f6a2a69…`) are archived with a receipt before version 2 replaces them;
+`combz_as_recorded` keeps the former `zScore` CombZ in both versions. §4a still
+holds: the components are computed in the workbook, not here.
+
 ---
 
 ## 5. Later outcome classification (CON / RES / SUS)
@@ -220,12 +242,17 @@ RES  : any other SIS-exposed animal
 - **Population SD is required.** With sample SD, two animals misclassify
   (`OR625`, `13856`); before the §4b corrections it was four, including
   `OR434` and `OR554`.
-- Thresholds, recomputed by the producer from the corrected CombZ:
+- Thresholds, recomputed by the producer from CombZ (version 2, §4c):
 
 | Sex | n control | control mean | control population SD | susceptibility threshold |
 |---|---|---|---|---|
-| Male | 12 | `0.011033945` | `0.447675643` | **`−0.436641698`** |
-| Female | 12 | `0.000000000` | `0.316628592` | **`−0.316628592`** |
+| Male | 12 | `0.010908450` | `0.444151188` | **`−0.433242738`** |
+| Female | 12 | `0.003758844` | `0.337393701` | **`−0.333634857`** |
+
+  Version 1 (§4b): Male `−0.436641698`, Female `−0.316628592`; group counts
+  Female 12 / 28 / 18, Male 12 / 30 / 17 (35 SUS). Version 2: Female
+  12 / 26 / 20, Male 12 / 28 / 19 (39 SUS); RFID analysis set 24 / 51 / 36.
+  The rest of this section describes version 1 unless stated.
 
 - **Parity: 0 label mismatches** across all 93 SIS-exposed animals.
 - CON animals are retained and are never labelled RES or SUS.
@@ -316,12 +343,18 @@ separate from `outcome_group` (CON/RES/SUS, outcome-derived).
 
 ## 10. Parity gate
 
-`Analysis/build_later_outcome_combz.R` **hard-stops** unless:
+`Analysis/build_later_outcome_combz.R` (version 2) **hard-stops** unless:
 
-- the workbook's recorded CombZ equals the mean of its recorded components,
-  `≤ 1e-12` (observed: `2.22e-16`), before any correction is applied, and
-- after the §4b corrections, outcome-group label mismatches against the
-  identifier lists `== 0` (observed: `0` of 93).
+- the workbook is the pinned corrected file (`MMM_COMBZ_WORKBOOK_SHA256`);
+- sheet `combz_canonical` satisfies its own contract: `comb_z` equals the mean
+  of its component columns `≤ 1e-12` (observed `7.1e-15`) and
+  `n_components_present` counts them;
+- the recomputed CombZ equals `comb_z` `≤ 1e-12`; and
+- outcome-group label mismatches against the identifier lists and against the
+  sheet's `outcome_group` column are both `0`.
+
+Version 1 gated the zScore sheet the same way before applying the §4b
+corrections.
 
 The parity audit's CombZ row records the first check. Until 2026-09-26 it
 compared the corrected CombZ with itself and recorded `0`; the live audit file

@@ -922,14 +922,15 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
     # ------------------------------------------------- upstream endpoint source
     "behavior.combz_upstream_workbook" = list(
       description = paste(
-        "UPSTREAM, NOT PRODUCED BY THIS REPOSITORY. The hand-maintained SIS",
-        "endpoint workbook that supplies the six standardized outcome",
-        "components, plus the two phenotype-classification identifier lists.",
-        "'workbook' is the restructured file (2026-09-23; sheet",
-        "combz_canonical). 'source_workbook' is the pre-restructure original",
-        "(SHA-256 bf257c2c...), whose sheet 'zScore' is the ONLY canonical",
-        "composite and the producer's input; sheets 'combZScore' and",
-        "'CombZScore_noBatch' are noncanonical alternatives and must never be",
+        "UPSTREAM, NOT PRODUCED BY THIS REPOSITORY. The SIS endpoint workbook",
+        "that supplies the six standardized outcome components, plus the two",
+        "phenotype-classification identifier lists. 'workbook' is the corrected",
+        "file whose sheet 'combz_canonical' is the ONLY canonical composite and",
+        "the producer's input since version 2 (SHA-256 pinned in",
+        "MMM_COMBZ_WORKBOOK_SHA256). 'source_workbook' is the pre-restructure",
+        "original (SHA-256 bf257c2c..., sheet 'zScore'), archived on 2026-10-15",
+        "and read only by historical audit replays. The noncanonical composites",
+        "(combZScore, CombZScore_noBatch, combz_alternative_long) must never be",
         "read. See docs/COMBZ_CANONICAL_DEFINITION.md."),
       producer_stage = "external",
       producer_script = "none - hand-maintained Excel workbook",
@@ -937,7 +938,7 @@ mmm_endpoint_source_root <- function(project_root = mmm_project_root()) {
       analysis_role = "upstream endpoint source (external dependency)",
       dir = function(root) file.path(mmm_endpoint_source_root(root)),
       files = c(workbook = "SIS_Analysis/E9_Behavior_Data.xlsx",
-                source_workbook = "SIS_Analysis/E9_Behavior_Data_before_restructure.xlsx",
+                source_workbook = ".archive/_archive_behavior_2026-10-15/workbook_versions/E9_Behavior_Data_before_restructure.xlsx",
                 susceptible_ids = "sus_animals.csv",
                 control_ids = "con_animals.csv")
     ),
@@ -1219,6 +1220,20 @@ mmm_combz_source_workbook <- function(root = mmm_project_root()) {
   sha <- mmm_file_sha256(wb)
   if (is.na(sha) || !identical(tolower(sha), MMM_COMBZ_SOURCE_WORKBOOK_SHA256)) {
     stop("The CombZ source workbook is not the pinned pre-restructure file (SHA-256 ",
+         sha, "): ", wb, call. = FALSE)
+  }
+  wb
+}
+
+# The corrected endpoint workbook (sheet 'combz_canonical') that the canonical
+# CombZ producer reads since version 2. Its hash is pinned: a later workbook
+# correction stops the producer until this pin is moved on purpose.
+MMM_COMBZ_WORKBOOK_SHA256 <- "e6b7bf1d437e093be81842768385a8e81e231d85963a5f60f37f97b6d2455d8d"  # RETRACK-PIN
+mmm_combz_workbook <- function(root = mmm_project_root()) {
+  wb <- mmm_path_get("behavior.combz_upstream_workbook", "workbook", root = root)
+  sha <- mmm_file_sha256(wb)
+  if (is.na(sha) || !identical(tolower(sha), MMM_COMBZ_WORKBOOK_SHA256)) {
+    stop("The CombZ workbook is not the pinned corrected file (SHA-256 ",
          sha, "): ", wb, call. = FALSE)
   }
   wb
