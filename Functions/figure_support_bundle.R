@@ -36,7 +36,7 @@
 # Requires: data.table, digest, tibble (the producer's component table is a tibble::tribble), readxl (v4: the workbook).
 # ================================================================
 
-FSB_SCHEMA_VERSION <- "4"
+FSB_SCHEMA_VERSION <- "5"   # v5 adds E3 (the Stage 09 early-window coverage summary)
 FSB_BUNDLE_PREFIX <- "fsb_v5"   # v1 (fsb_v1_20260930_f06552c), v2 (fsb_v2_20260930_a23d699), v3 (fsb_v3_20261007_a2acd57) and v4 (fsb_v4_20261012_f4c2ba6), all FROZEN, are never rewritten
 # v5 = v4 on the corrected outcome (config v1.0.2, outcome version ov2); the PHASE-B pins come from the Phase B runs; the v4 values are in git history (f4c2ba6)
 FSB_STATUS_REAL <- "FROZEN"
@@ -90,6 +90,10 @@ FSB_STAGE09 <- list(root_rel = "pipeline/09_early_prediction/10min", file = "tab
                     # the same run's per-animal input (pinned by the Stage 29 v1.0.1 release run_inputs), read for an identity gate only
                     input_file = "tables/model_ladder_input.csv",
                     input_sha256 = "PHASE-B")  # RETRACK-PIN (v4 da78f80e...)
+# v5: Stage 09's early-window coverage summary (the 10-minute slots of the first dark phase after CC1; group-blind), copied
+# verbatim for Extended Data 5a; the bridge copy the manuscript drew before predates the first-night seeding fix of 2026-09-22.
+FSB_STAGE09_COVERAGE <- list(root_rel = "pipeline/09_early_prediction/10min", file = "tables/early_window_contract_summary.csv",
+                             sha256 = "PHASE-B", n_rows = 1L, expected_slots = 72L)  # RETRACK-PIN
 # v4: the post hoc run 29c (Analysis/29c_posthoc_movement_combz_fit.R, registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0), REAL, run once
 FSB_POSTHOC29C <- list(stage_dir = "29c_posthoc_movement_combz_fit", run_name = "PHASE-B",  # RETRACK-PIN (v1.1_<commit7>)
                        run_commit = "PHASE-B",  # RETRACK-PIN
@@ -155,7 +159,7 @@ FSB_TABLES <- c("F1_con_cage_means", "F1b_con_reference_means", "F2_combz_compon
                 "D1_domain_heatmap_cells", "M1_hmm_transition_difference", "M2_hmm_transition_flows",
                 "M3_hmm_dwell_distribution", "M4_hmm_resolution_sensitivity",
                 "E1_movement_combz_spearman_by_sex", "E2_movement_combz_fit_lines", "E2b_movement_combz_fit_coefficients",
-                "E2c_movement_combz_fit_diagnostics", "T1_design_ages", "T1b_design_ages_by_animal")
+                "E2c_movement_combz_fit_diagnostics", "E3_early_window_coverage", "T1_design_ages", "T1b_design_ages_by_animal")
 FSB_GATE_FILE <- "H3_gate_results.csv"
 FSB_GATE_COLS <- c("stage", "gate", "passed", "hard", "detail")
 FSB_REGISTRY_COLS <- c("bundle_id", "status", "manifest_sha256", "stage29_bundle_id", "combz_table_sha256", "mmm_git_commit", "created_at")
@@ -178,7 +182,8 @@ FSB_SCIENTIFIC_RECOMPUTATION <- paste(
   "dwell-time counts in fixed bins); no model is fitted, no test run, nothing smoothed and no p or q value produced here.",
   "E1 is a verbatim copy of Stage 09's sex-stratified correlation table (rho, p and BH q computed there); E2 / E2b / E2c are",
   "verbatim copies of the hash-gated post hoc run 29c (registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0), whose display line and band",
-  "were fitted there once; T1 / T1b are ages by date arithmetic from the pinned planning workbook. Nothing is fitted here.")
+  "were fitted there once; E3 is a verbatim copy of Stage 09's early-window coverage summary (slot counts, group-blind);",
+  "T1 / T1b are ages by date arithmetic from the pinned planning workbook. Nothing is fitted here.")
 FSB_DESCRIPTIVE_COMPUTATIONS <- c(
   "F1 cage_mean: arithmetic mean of the measure over the CON animals of one cage epoch (Batch|System|CC) in ebb_v101 B1 (values as stored); n_animals = count of those animals",
   "F1b: n and mean copied from ebb_v101 B2_descriptive_summaries (Group CON); nothing computed",
@@ -194,6 +199,7 @@ FSB_DESCRIPTIVE_COMPUTATIONS <- c(
   "M4: the stored Stage 14 HMM-resolution sensitivity rows (systems_sis_hmm_resolution_sensitivity.csv) with wald_ci_low / wald_ci_high = mixed_model_estimate -/+ 1.96 x mixed_model_SE, the interval Stage 14 draws",
   "E1: verbatim text copy of the Stage 09 table primary_movement_entropyacf1_correlations_by_sex.csv (10min; every cell as stored); source_run, source_file and source_sha256 appended; gates only (nothing computed): the Movement_mean rows' n = the ebb_v101 A2 animals per sex, and the same Stage 09 run's per-animal input model_ladder_input.csv (pinned by the Stage 29 v1.0.1 release) = A2 Movement_mean and observed_CombZ for every animal within 1e-12",
   "E2 / E2b / E2c: verbatim text copies of the post hoc run 29c tables fit_lines.csv / coefficients.csv / diagnostics.csv (every cell as stored); source_run, source_file and source_sha256 appended; nothing computed",
+  "E3: verbatim text copy of the Stage 09 table early_window_contract_summary.csv (10min; every cell as stored); source_run, source_file and source_sha256 appended; gates only: one row, n_animals = the RFID animals, 72 expected slots per animal",
   "T1b: per animal and design step, date_start / date_end (the date the workbook or the ebb_v101 cage-change time gives; shuffle stop = CC4 date + 1 day) and age_start / age_end = date - date of birth (workbook DoB), in days; gates: every age the workbook records itself (SocPref, OFT, NOR, EPM, sucrose window, Age at the end date) = the computed age; CC1 ages 22-29",
   "T1: per design step, n_animals and age_min / age_max = the minimum of age_start and the maximum of age_end over the 117 CombZ animals")
 # T1 event labels are the names of the behavioural tests in the experimental design (e.g. the social preference test), not
@@ -656,6 +662,22 @@ fsb_hmm_resolution_sensitivity <- function(rs) {
            phase_label = unname(FSB_HMM_PHASE_LABELS[Phase]))]
   if (anyNA(x$phase_label)) stop("Resolution sensitivity: an unknown phase.", call. = FALSE)
   x[]
+}
+
+# ---------------------------------------------------------------- E3 (v5): Stage 09 early-window coverage (copied verbatim)
+#' Gate rows on E3: every source cell carried verbatim; one row; n_animals = the RFID animals; the expected slot count.
+fsb_coverage_gates <- function(E3, src_path, pin = FSB_STAGE09_COVERAGE) {
+  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("6-E3", name, passed, detail)
+  src <- data.table::fread(src_path, colClasses = "character", na.strings = "", encoding = "UTF-8")
+  cp <- E3[, setdiff(names(E3), FSB_POSTHOC_ADDED), with = FALSE]
+  add("E3: every source cell carried verbatim (text) in source column order", identical(names(cp), names(src)) && identical(as.list(cp), as.list(src)))
+  need <- c("n_animals", "expected_target_slots_per_animal", "n_animals_complete", "n_animals_missing_leading_only", "n_animals_interior_missing",
+            "n_animals_trailing_missing", "mean_coverage_fraction", "min_coverage_fraction")
+  add("E3: the coverage columns are present", all(need %in% names(E3)), paste(setdiff(need, names(E3)), collapse = ","))
+  add(sprintf("E3: %d row; n_animals = %d; %d expected slots per animal", pin$n_rows, FSB_N$rfid_animals, pin$expected_slots),
+      nrow(E3) == pin$n_rows && identical(as.integer(E3$n_animals), FSB_N$rfid_animals) &&
+        identical(as.integer(E3$expected_target_slots_per_animal), pin$expected_slots), paste(nrow(E3), E3$n_animals, E3$expected_target_slots_per_animal))
+  data.table::rbindlist(g)
 }
 
 # ---------------------------------------------------------------- E1 (v4): Stage 09 sex-stratified correlations (copied verbatim)

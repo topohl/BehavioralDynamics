@@ -18,6 +18,7 @@
 #       Stage 08 10-minute mean dwell times counted in doubling bins. Stage 14 is not re-run: every Stage 14 file must
 #       match its pinned SHA-256 and the promotion record docs/behavior_output_producer_reruns/stage14_20261006c.csv.
 #   E1  (v4) a verbatim copy of Stage 09's sex-stratified correlations (pipeline/09_early_prediction/10min; pinned SHA-256),
+#   E3  (v5) a verbatim copy of Stage 09's early-window coverage summary (same folder; pinned SHA-256; group-blind),
 #   E2-E2c (v4) verbatim copies of the post hoc run 29c (registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0, fitted there once): the
 #       Figure 1d least-squares display line with its 95% band, its coefficients (no t, no P) and diagnostics;
 #   T1 / T1b (v4) the postnatal age at each design step (shuffle start and stop, the five tests, sampling) by date
@@ -143,6 +144,10 @@ s09_in_sha <- if (file.exists(S09_IN)) s30fb_sha(S09_IN) else NA_character_
 gate("1d-stage09", "Stage 09 model_ladder_input.csv: on-disk SHA-256 = pinned (= the Stage 29 v1.0.1 release input pin)",
      identical(s09_in_sha, FSB_STAGE09$input_sha256), paste(S09_IN, s09_in_sha))
 inp(S09_IN, "stage09_model_ladder_input (identity gate for E1 only)", s09_in_sha)
+S09_COV <- file.path(S09_DIR, FSB_STAGE09_COVERAGE$file)
+s09_cov_sha <- if (file.exists(S09_COV)) s30fb_sha(S09_COV) else NA_character_
+gate("1d-stage09", "Stage 09 early-window coverage summary: on-disk SHA-256 = pinned", identical(s09_cov_sha, FSB_STAGE09_COVERAGE$sha256), paste(S09_COV, s09_cov_sha))
+inp(S09_COV, "stage09_early_window_contract_summary (copied verbatim as E3)", s09_cov_sha)
 
 # ---------------------------------------------------------------- 1e. post hoc run 29c (v4; copied verbatim)
 P29C_DIR <- file.path(AR, "pipeline", FSB_POSTHOC29C$stage_dir, FSB_POSTHOC29C$run_name)
@@ -280,6 +285,8 @@ gate("6-M", "M4: 24 rows = 2 HMM resolutions x 2 sexes x 2 phases x 3 contrasts,
        nrow(unique(M4[, .(resolution, Sex, Phase, contrast)])) == 24L, paste(nrow(M4), paste(unique(M4$Domain), collapse = ",")))
 E1 <- fsb_posthoc_copy(S09_DIR, FSB_STAGE09$file, FSB_STAGE09$sha256, FSB_STAGE09$root_rel)
 gate_rows(fsb_stage09_gates(E1, S09, A2, fread(S09_IN, colClasses = list(character = "AnimalNum"))))
+E3 <- fsb_posthoc_copy(S09_DIR, FSB_STAGE09_COVERAGE$file, FSB_STAGE09_COVERAGE$sha256, FSB_STAGE09_COVERAGE$root_rel)
+gate_rows(fsb_coverage_gates(E3, S09_COV))
 P29C_LABEL <- paste("pipeline", FSB_POSTHOC29C$stage_dir, FSB_POSTHOC29C$run_name, sep = "/")
 P29C <- lapply(FSB_POSTHOC29C_TABLES, function(rel) fsb_posthoc_copy(P29C_DIR, rel, VP29C$check[file == rel, observed_sha256], P29C_LABEL))
 gate_rows(fsb_posthoc29c_gates(P29C, P29C_DIR, A2))
@@ -288,7 +295,7 @@ gate_rows(fsb_design_age_gates(DA, TL))
 TABLES <- c(list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b), PT,
             list(D1_domain_heatmap_cells = D1, M1_hmm_transition_difference = M1, M2_hmm_transition_flows = M2,
                  M3_hmm_dwell_distribution = M3, M4_hmm_resolution_sensitivity = M4, E1_movement_combz_spearman_by_sex = E1),
-            P29C, list(T1_design_ages = DA$T1, T1b_design_ages_by_animal = DA$T1b))
+            P29C, list(E3_early_window_coverage = E3, T1_design_ages = DA$T1, T1b_design_ages_by_animal = DA$T1b))
 gate("6-tables", "display text free of banned wording (labels, F2b text)", { fsb_check_display(F1, c("measure_label", "unit"), "F1")
   fsb_check_display(F1b, c("measure_label", "unit"), "F1b"); TRUE })
 
@@ -321,6 +328,7 @@ H <- fsb_provenance(list(
   hmm_dwell_source = paste0(normalizePath(DWELL, winslash = "/", mustWork = FALSE), " (sha256 ", FSB_HMM_DWELL$sha256, ")"),
   hmm_resolution = paste0(FSB_HMM_RESOLUTION, " for M1-M3; M4 carries both resolutions"),
   stage09_table = paste0(normalizePath(S09, winslash = "/", mustWork = FALSE), " (sha256 ", s09_sha, "; copied verbatim as E1)"),
+  stage09_coverage_table = paste0(normalizePath(S09_COV, winslash = "/", mustWork = FALSE), " (sha256 ", s09_cov_sha, "; copied verbatim as E3)"),
   posthoc29c_run_dir = normalizePath(P29C_DIR, winslash = "/", mustWork = FALSE), posthoc29c_run_commit = FSB_POSTHOC29C$run_commit,
   posthoc29c_output_manifest_sha256 = VP29C$manifest_sha256, posthoc29c_registry_sha256 = FSB_POSTHOC29C$registry_sha256,
   posthoc29c_tier = paste(FSB_POSTHOC29C$tier, "(decision basis USER_REQUEST_AFTER_DESCRIPTIVE_INSPECTION, 2026-10-12); adds no test"),
@@ -343,7 +351,7 @@ IN <- unique(rbindlist(INPUTS), by = c("input", "role"))
 W <- fsb_write_bundle(TABLES, OUT_ROOT, bundle_id, H, IN, GT, STATUS, FSB_STAGE29$bundle_id, FSB_INPUT_SHA256[["combz_table"]], commit, GEN_AT,
                       verbatim = c(stats::setNames(file.path(PH_DIR, FSB_POSTHOC_TABLES), names(FSB_POSTHOC_TABLES)),
                                    D1_domain_heatmap_cells = file.path(S14_DIR, FSB_STAGE14$files[["domain_heatmap"]]),
-                                   E1_movement_combz_spearman_by_sex = S09,
+                                   E1_movement_combz_spearman_by_sex = S09, E3_early_window_coverage = S09_COV,
                                    stats::setNames(file.path(P29C_DIR, FSB_POSTHOC29C_TABLES), names(FSB_POSTHOC29C_TABLES))))
 gate_rows(W$post_gates)
 message("Stage 16c ", MODE, " complete: bundle ", bundle_id, " ", STATUS, " at ", W$dir, " (manifest sha256 ", W$manifest_sha256, ")")
