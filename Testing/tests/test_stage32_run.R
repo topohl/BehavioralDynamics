@@ -10,10 +10,11 @@
 #   3. the implemented hypothesis map = the frozen docs/STAGE32_HYPOTHESES_v1.0.csv (13 rows, 6 families of m = 2 + H13);
 #   4. forbidden-word scan; CSV preparation of POSIXct / factors / quotes and (addendum A1) whitespace trimming: the exact
 #      v1.0 failure string '0 removed; ' is refused by the frozen writer as is and written after s32r_prepare;
-#   5. writer (addendum A1): local staging of the tables, determinism check against pinned table hashes, completion and
-#      verification of the local folder, then the S: copy; manifest, read-only files, README, QC PNGs; a gate detail with a
-#      trailing space; a failure before the copy leaves nothing in the stage folder; refusal of a second run (any v1.1_* or
-#      .tmp_v1.1_* entry); a .tmp_v1.0_* folder does not block v1.1; aborted-folder and addendum gates on synthetic copies;
+#   5. writer (addendum A1 write step, addendum A2 run version 1.2): local staging of the tables, the A1 determinism helper and
+#      the A2 comparison with the registered v1.1 tables, completion and verification of the local folder, then the S: copy;
+#      manifest, read-only files, README, QC PNGs; a gate detail with a trailing space; a failure before the copy leaves nothing
+#      in the stage folder; refusal of a second run (any v1.2_* or .tmp_v1.2_* entry); neither .tmp_v1.0_* nor the v1.1 run
+#      blocks v1.2; aborted-folder (with the registered v1.1 run beside it) and addendum A1 / A2 gates on synthetic copies;
 #   6. QC plots render from synthetic descriptives and Module F tables; a single-phase panel draws no line.
 # Portable-suite idiom: plain Rscript, fail()/check()/ok(), no testthat. Run from the repo root:
 #   Rscript Testing/tests/test_stage32_run.R
@@ -57,7 +58,7 @@ ok("static: --real parsed first, opt-in, gates before fits, no estimate printed,
 
 # ---------------------------------------------------------------- 2. identity utilities and registry gates
 cm <- "0123456789abcdef0123456789abcdef01234567"
-check(identical(s32r_run_name(cm), "v1.1_0123456") && grepl("full git commit", errmsg(s32r_run_name("abc1234"))), "run name v1.1_<commit7> (addendum A1)")
+check(identical(s32r_run_name(cm), "v1.2_0123456") && grepl("full git commit", errmsg(s32r_run_name("abc1234"))), "run name v1.2_<commit7> (addendum A2)")
 check(identical(s32r_parse_mode("--real"), "REAL") && grepl("only mode is --real", errmsg(s32r_parse_mode(character()))) &&
       grepl("only mode", errmsg(s32r_parse_mode(c("--real", "--dry-run")))), "only --real is accepted")
 lf <- file.path(TMP, "lf.txt"); crlf <- file.path(TMP, "crlf.txt")
@@ -138,21 +139,31 @@ tabs <- setNames(lapply(S32_TABLES, function(k) data.table(k = k, v = 1.5, t = a
 aud <- setNames(lapply(S32_AUDIT, function(k) data.table(k = k, passed = TRUE)), S32_AUDIT)
 aud$gate_results <- data.table(stage = c("3-coverage", "3-coverage"), gate = c("strict variant", "empty detail"), passed = TRUE, hard = TRUE, detail = c("0 removed; ", ""))
 run1 <- s32r_run_name(cm)
-dir.create(file.path(out_root, ".tmp_v1.0_4f9c016"), recursive = TRUE)                # an aborted v1.0 staging folder does not block v1.1
-check(length(s32r_blocking_entries(out_root)) == 0L, "a .tmp_v1.0_* folder is not a v1.1 blocking entry")
+dir.create(file.path(out_root, ".tmp_v1.0_4f9c016"), recursive = TRUE)                # an aborted v1.0 staging folder does not block v1.2
+dir.create(file.path(out_root, "v1.1_f4c7a31"))                                         # nor does the registered v1.1 run
+check(length(s32r_blocking_entries(out_root)) == 0L, "neither .tmp_v1.0_* nor v1.1_* is a v1.2 blocking entry")
 st1 <- s32r_stage_tables(local_root, run1, tabs)
-check(identical(list.files(out_root, all.files = TRUE, no.. = TRUE), ".tmp_v1.0_4f9c016"), "table staging writes nothing to the stage folder")
+check(setequal(list.files(out_root, all.files = TRUE, no.. = TRUE), c(".tmp_v1.0_4f9c016", "v1.1_f4c7a31")), "table staging writes nothing to the stage folder")
 exp_sha <- setNames(vapply(S32_TABLES, function(k) s30fb_sha(file.path(st1, "tables", paste0(k, ".csv"))), ""), S32_TABLES)
 det <- s32r_determinism(st1, exp_sha)
 check(nrow(det) == 12L && all(det$identical), "determinism: every staged table = its pinned sha256")
 det2 <- s32r_determinism(st1, replace(exp_sha, "estimates", strrep("0", 64)))
 check(!all(det2$identical) && identical(det2[identical == FALSE, file], "tables/estimates.csv"), "determinism: a differing table is named")
+prior <- file.path(TMP, "prior_v11"); dir.create(file.path(prior, "audit"), recursive = TRUE)
+pm <- data.table(file = paste0("tables/", S32_TABLES, ".csv"), bytes = 1, sha256 = unname(exp_sha))
+pm[file == "tables/estimates.csv", sha256 := strrep("0", 64)]; fwrite(pm, file.path(prior, "audit", "output_manifest.csv"))
+pexp <- list(name = "v1.1_x", output_manifest_sha256 = s30fb_sha(file.path(prior, "audit", "output_manifest.csv")))
+pc <- s32r_prior_comparison(st1, prior, pexp)
+check(nrow(pc) == 12L && sum(pc$identical) == 11L && identical(pc[identical == FALSE, file], "tables/estimates.csv") && all(pc$run_compared == "v1.1_x"),
+      "prior-run comparison (addendum A2): 11 identical tables, the differing one named")
+check(grepl("differs from its pin", errmsg(s32r_prior_comparison(st1, prior, modifyList(pexp, list(output_manifest_sha256 = strrep("1", 64)))))),
+      "prior-run comparison: a v1.1 manifest that differs from its pin stops")
 check(grepl("already exists", errmsg(s32r_stage_tables(local_root, run1, tabs))), "an existing local staging folder is refused")
 W <- s32r_write_run(out_root, run1, st1, aud, c("Stage 32 synthetic", "line 2"), png_dir)
 fl <- list.files(W$dir, recursive = TRUE, full.names = TRUE)
 check(all(W$post_gates$passed) && length(fl) == length(S32_TABLES) + length(S32_AUDIT) + 5L + 2L && all(file.access(fl, 2L) != 0L),
       "writer: tables, audit, 5 PNGs, README, output manifest; every file read-only; post-write gates pass")
-check(identical(sort(list.files(out_root, all.files = TRUE, no.. = TRUE)), sort(c(".tmp_v1.0_4f9c016", run1))), "the run folder is renamed; no .tmp_v1.1_* left")
+check(identical(sort(list.files(out_root, all.files = TRUE, no.. = TRUE)), sort(c(".tmp_v1.0_4f9c016", "v1.1_f4c7a31", run1))), "the run folder is renamed; no .tmp_v1.2_* left")
 man <- fread(file.path(W$dir, S32_MANIFEST_FILE))
 check(nrow(man) == length(fl) - 1L && !("audit/output_manifest.csv" %in% man$file) && "README.txt" %in% man$file, "the manifest lists every other file")
 lm_ <- s30fb_manifest_check(W$local_dir, man)
@@ -162,10 +173,10 @@ check(identical(fread(file.path(W$dir, "audit", "gate_results.csv"), colClasses 
       "a gate detail with a trailing space ('0 removed; ', the v1.0 failure) is written")
 run2 <- s32r_run_name(sub("^0", "1", cm)); st2 <- s32r_stage_tables(local_root, run2, tabs)
 check(grepl("Refusing to write", errmsg(s32r_write_run(out_root, run2, st2, aud, "x", png_dir))), "a second run at any commit is refused")
-check(identical(s32r_blocking_entries(out_root), run1), "the blocking entry is the earlier v1.1_* folder")
-out2 <- file.path(TMP, "pipeline2"); dir.create(file.path(out2, ".tmp_v1.1_abcdef1"), recursive = TRUE)
+check(identical(s32r_blocking_entries(out_root), run1), "the blocking entry is the earlier v1.2_* folder")
+out2 <- file.path(TMP, "pipeline2"); dir.create(file.path(out2, ".tmp_v1.2_abcdef1"), recursive = TRUE)
 st3 <- s32r_stage_tables(file.path(TMP, "local3"), run1, tabs)
-check(grepl("Refusing to write", errmsg(s32r_write_run(out2, run1, st3, aud, "x", png_dir))), "a leftover .tmp_v1.1_* staging folder blocks the run")
+check(grepl("Refusing to write", errmsg(s32r_write_run(out2, run1, st3, aud, "x", png_dir))), "a leftover .tmp_v1.2_* staging folder blocks the run")
 out4 <- file.path(TMP, "pipeline4"); st4 <- s32r_stage_tables(file.path(TMP, "local4"), run1, tabs)
 bad_aud <- aud; bad_aud$coverage_counts <- data.table(x = list(1, 2))
 check(grepl("List column", errmsg(s32r_write_run(out4, run1, st4, bad_aud, "x", png_dir))) && !dir.exists(out4),
@@ -181,6 +192,9 @@ for (k in c("input_hashes", "gate_results")) writeLines(paste("audit", k), file.
 ab_exp <- list(name = ".tmp_v1.0_abc1234", commit = cm,
                table_sha256 = setNames(vapply(S32_TABLES, function(k) s30fb_sha(file.path(ab, "tables", paste0(k, ".csv"))), ""), S32_TABLES),
                audit_sha256 = setNames(vapply(c("input_hashes", "gate_results"), function(k) s30fb_sha(file.path(ab, "audit", paste0(k, ".csv"))), ""), c("input_hashes", "gate_results")))
+a_missing <- s32r_aborted_check(ab_root, ab_exp)
+check(!a_missing$gates$passed[1], "aborted folder: the registered v1.1 run folder must sit beside it (addendum A2)")
+dir.create(file.path(ab_root, S32_PRIOR_RUN$name))
 a0 <- s32r_aborted_check(ab_root, ab_exp)
 check(nrow(a0$gates) == 3L && a0$gates$passed[1] && a0$gates$passed[2] && !a0$gates$passed[3], "aborted folder: pinned files pass; writable files fail the read-only gate")
 Sys.chmod(list.files(ab, recursive = TRUE, full.names = TRUE), "0444")
@@ -206,6 +220,8 @@ check(nrow(ga) == 5L && all(ga$passed), "addendum gates pass on a synthetic froz
 wlf(c(add_md, "changed"), file.path(repo, "STAGE32_REGISTRY_v1.0_ADDENDUM_A1.md"))
 ga2 <- s32r_addendum_gates(canon, file.path(repo, "STAGE32_REGISTRY_v1.0_ADDENDUM_A1.md"), exa)
 check(!ga2$passed[2] && ga2$passed[1], "a changed repository copy of the addendum fails its gate")
+ga3 <- s32r_addendum_gates(canon, file.path(repo, "STAGE32_REGISTRY_v1.0_ADDENDUM_A2.md"), S32_ADDENDUM2)
+check(nrow(ga3) == 5L && !any(ga3$passed) && all(grepl("A2", ga3$gate)), "addendum A2 gates: named for A2 and failing while A2 is not frozen")
 ok("aborted-folder evidence and addendum gates")
 for (d0 in c(W$dir, ab, canon)) Sys.chmod(list.files(d0, recursive = TRUE, full.names = TRUE), "0644")
 cat("test_stage32_run: all checks passed\n")
