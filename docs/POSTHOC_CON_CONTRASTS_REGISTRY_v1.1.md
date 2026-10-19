@@ -1,6 +1,6 @@
 # Post hoc registry v1.1: three-group (CON / RES / SUS) contrasts in the first active phase after CC1, on the corrected outcome
 
-**Status.** DRAFT. It is frozen before the v1.1 run: committed alone in MMMSociability, hashed, and copied read-only to S: at analysis_ready/canonical/posthoc_con_contrasts_registry/v1.1/. The runner refuses to fit unless the frozen sha256 matches.
+**Status.** FROZEN 2026-10-19T18:04:17+0200, It is frozen before the v1.1 run: committed alone in MMMSociability, hashed, and copied read-only to S: at analysis_ready/canonical/posthoc_con_contrasts_registry/v1.1/. The runner refuses to fit unless the frozen sha256 matches.
 
 **What this version is.** A re-registration of v1.0 (FROZEN 2026-09-30T15:40:15+0200, sha256 a6435d8d..., commit 322be31; run `v1.0_7f1da1f`) on the corrected outcome (erratum E13 of `docs/BEHAVIOR_CONFIG_v1.0.0_ERRATA.md`), by user decision of 2026-10-17 to rerun every registered analysis on the corrected workbook. Version 1.0, its frozen copy and its run stay unchanged as provenance.
 
