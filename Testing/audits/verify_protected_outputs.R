@@ -92,7 +92,8 @@ VPO_REGISTERED_RUNS <- c(
                          "analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.1_f4c7a31",
                          "analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.2_7737eaa",
                          "analysis_ready/analyses/posthoc_cohort_followups/v1.0_ABCDE_6b50c1f",
-                         "analysis_ready/analyses/posthoc_cohort_followups/v1.0_D_fb52ad9")
+                         "analysis_ready/analyses/posthoc_cohort_followups/v1.0_D_fb52ad9",
+                         "analysis_ready/analyses/posthoc_cohort_followups/v1.0_ABCDE_3f99d4b")
 VPO_STAGE19_RECORDS <- c("docs/behavior_output_producer_reruns/stage19_20261012.csv",
                          "docs/behavior_output_producer_reruns/stage19_20261012b.csv")
 VPO_STAGE19_ROOT <- "analyses/spatial_occupancy"   # relative to analysis_ready, as the record's target_root_rel
