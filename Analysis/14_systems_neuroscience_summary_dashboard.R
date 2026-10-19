@@ -792,21 +792,23 @@ paths <- tibble(
 # Inputs that only the domain heatmaps read: the Stage 01 10-min table
 # (bin-based rows at 10 min); the canonical stream (data version 2 manifest;
 # the 24 raw seed files are hash-gated inside dhm_canonical_block_metrics());
-# and the frozen bundles whose values are gated or consumed (ebb_v101, the
+# and the frozen bundles whose values are gated or consumed (the pinned ebb, the
 # Stage 29 release table, the Stage 30 run features, the Stage 30 figure
 # bundle s30b). Every frozen input is hash-pinned where it is read.
-dhm_s30b_bundle_id <- "s30b_v10_20260929_5394f2f"
-dhm_s30b_manifest_sha256 <- "8930d8bf5ee93ace00f9d187377803f664036f858df4c7ae8d6b8f8804a3f87d"
+# s30b_v11 = the Stage 30 v1.1 screen on the corrected outcome (the 2026-10-06c promotion used s30b_v10_20260929_5394f2f, 8930d8bf...)
+dhm_s30b_bundle_id <- "s30b_v11_PHASE-B"  # RETRACK-PIN
+dhm_s30b_manifest_sha256 <- "PHASE-B"  # RETRACK-PIN
+dhm_s30_run <- "PHASE-B"  # RETRACK-PIN (the Stage 30 v1.1 run, v1.1_<commit7>)
 dhm_s30b_dir <- file.path(project_root, "analysis_ready", "canonical", "stage30_figure_bundle", dhm_s30b_bundle_id)
 dhm_input_paths <- dhm_canonical_paths(project_root)
 paths <- bind_rows(paths, tibble(
   Source = c("multiscale_metrics_10min", "data_version_v2_manifest", "canonical_sus_animals", "canonical_con_animals",
-             "later_outcome_combz_design", "ebb_v101_manifest", "stage29_canonical_window_metrics",
+             "later_outcome_combz_design", "ebb_manifest", "stage29_canonical_window_metrics",
              "stage30_features_full_precision", "stage30_figure_bundle_manifest"),
   Path = c(
     file.path(mmm_derived_metrics_output_root(project_root), "10min_based", "all_behavior_metrics.csv"),
     dhm_input_paths$dv2_manifest, dhm_input_paths$sus_animals, dhm_input_paths$con_animals,
-    dhm_input_paths$later_outcome_combz, file.path(dhm_input_paths$ebb_v101_dir, "00_manifest.csv"),
+    dhm_input_paths$later_outcome_combz, file.path(dhm_input_paths$ebb_dir, "00_manifest.csv"),
     dhm_input_paths$stage29_canonical_window_metrics, dhm_input_paths$stage30_features_full_precision,
     file.path(dhm_s30b_dir, "00_manifest.csv")
   )
@@ -6461,18 +6463,19 @@ dhm_fits <- tibble::as_tibble(data.table::rbindlist(map(dhm_test_results, "fits"
 # units; 29b models the CON cages and is the more conservative reference for
 # them (its p is usually, not always, larger). No cage-aware CON test exists
 # for the other rows or windows.
-dhm_ebb_dir <- file.path(project_root, "analysis_ready", "canonical", "behavior_bundle", "ebb_v101_20260929_b2ce507")
-dhm_c2 <- as.data.frame(data.table::fread(dhm_bundle_file(dhm_ebb_dir, "C2_estimates.csv", MMM_DHM_INPUT_SHA256[["ebb_v101_manifest"]])))
-dhm_em <- as.data.frame(data.table::fread(dhm_bundle_file(dhm_ebb_dir, "E_multiplicity.csv", MMM_DHM_INPUT_SHA256[["ebb_v101_manifest"]])))
+dhm_ebb_dir <- file.path(project_root, "analysis_ready", "canonical", "behavior_bundle", MMM_DHM_EBB_ID)
+dhm_fu_source <- paste0("Stage 29 FU-CC1 (run ", MMM_DHM_S29_RELEASE, ", bundle ", MMM_DHM_EBB_ID, ")")
+dhm_c2 <- as.data.frame(data.table::fread(dhm_bundle_file(dhm_ebb_dir, "C2_estimates.csv", MMM_DHM_INPUT_SHA256[["ebb_manifest"]])))
+dhm_em <- as.data.frame(data.table::fread(dhm_bundle_file(dhm_ebb_dir, "E_multiplicity.csv", MMM_DHM_INPUT_SHA256[["ebb_manifest"]])))
 dhm_s0 <- as.data.frame(data.table::fread(dhm_bundle_file(dhm_s30b_dir, "S0_master_hypotheses.csv", dhm_s30b_manifest_sha256)))
 dhm_registered_map <- tribble(
   ~heatmap_id, ~row_key, ~registered_source, ~construct, ~estimand_or_id_prefix,
-  "cc1_a1", "psychomotor_rate", "Stage 29 FU-CC1 (run v101_dv2_b2ce507, bundle ebb_v101)", "crossing_rate", "RS_by_sex_CC1",
-  "cc1_a1", "shared_occupancy", "Stage 29 FU-CC1 (run v101_dv2_b2ce507, bundle ebb_v101)", "shared_zone_use", "RS_by_sex_CC1",
-  "cc1_a1", "occupancy_dispersion", "Stage 29 FU-CC1 (run v101_dv2_b2ce507, bundle ebb_v101)", "occupancy_dispersion", "RS_by_sex_CC1",
-  "cc1_a1", "rest_like_posinact40", "Stage 30 SLEEP-CAT (run v1.0_be71e2f, bundle s30b)", "posinact40_active", "SLEEP-CAT-IA40A",
-  "cc1_l1", "rest_like_posinact40", "Stage 30 SLEEP-CAT (run v1.0_be71e2f, bundle s30b)", "posinact40_light", "SLEEP-CAT-IA40L",
-  "cc1_l1", "psychomotor_rate", "Stage 29 light-phase rate (estimation only; run v101_dv2_b2ce507)", "light_phase_crossing_rate", "RS_by_sex_CC1_light"
+  "cc1_a1", "psychomotor_rate", dhm_fu_source, "crossing_rate", "RS_by_sex_CC1",
+  "cc1_a1", "shared_occupancy", dhm_fu_source, "shared_zone_use", "RS_by_sex_CC1",
+  "cc1_a1", "occupancy_dispersion", dhm_fu_source, "occupancy_dispersion", "RS_by_sex_CC1",
+  "cc1_a1", "rest_like_posinact40", paste0("Stage 30 SLEEP-CAT (run ", dhm_s30_run, ", bundle s30b)"), "posinact40_active", "SLEEP-CAT-IA40A",
+  "cc1_l1", "rest_like_posinact40", paste0("Stage 30 SLEEP-CAT (run ", dhm_s30_run, ", bundle s30b)"), "posinact40_light", "SLEEP-CAT-IA40L",
+  "cc1_l1", "psychomotor_rate", paste0("Stage 29 light-phase rate (estimation only; run ", MMM_DHM_S29_RELEASE, ")"), "light_phase_crossing_rate", "RS_by_sex_CC1_light"
 )
 dhm_registered <- dhm_registered_map %>%
   tidyr::crossing(Sex = dhm_sex_levels) %>%
@@ -8010,7 +8013,7 @@ stats_reporting_guide <- bind_rows(
       "One row per fitted model: formula, n, rank, singularity, convergence, optimizer check and failure",
       "One row per heatmap x variant x row x animal x epoch: the displayed row score with Batch and the data-version-2 cage episode",
       "Canonical per-block metrics (data version 2): rate, shared zone use, occupancy dispersion, fragmentation, >= 40-s and >= 60-s positional inactivity",
-      "Hash and recomputation gates of the canonical metrics against ebb_v101, the Stage 29 release, s30b and the Stage 30 run",
+      "Hash and recomputation gates of the canonical metrics against the pinned ebb, the Stage 29 release, s30b and the Stage 30 run",
       "Declared bin width per component and variant, with its rationale (continuity with the frozen config and Stage 09; measurement grounds where a width is adequate)",
       "SIS batch means of early movement and CombZ, within-batch r and slope per sex, r of the batch means (descriptive)",
       "Per-animal share of bins per HMM display state, summed within label, mean over CC1-CC4, both resolutions",

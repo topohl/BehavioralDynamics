@@ -19,28 +19,30 @@
 
 # ---------------------------------------------------------------- frozen identities (DESIGN 2026-09-29 section 2)
 S30FB_SCHEMA_VERSION <- "1"
-S30FB_BUNDLE_PREFIX <- "s30b_v10"
+S30FB_BUNDLE_PREFIX <- "s30b_v11"   # s30b_v10 = Stage 30 v1.0_be71e2f on ebb_v101 (outcome version ov1)
 S30FB_STATUS_REAL <- "FROZEN"
 S30FB_STATUS_DRY <- "DRY_RUN_NOT_FOR_USE"
+# s30b_v10 pinned: Stage 30 v1.0_be71e2f (commit be71e2f07bfe..., registry 5c252bf6..., output manifest 77f271ad..., 27 files,
+# OK=48), ebb_v101_20260929_b2ce507 (ec59aa33...), sus dea3804b, combz 1f6a2a69. PHASE-B values: from the Stage 30 v1.1 run.
 S30FB_STAGE30 <- list(
-  run_name = "v1.0_be71e2f",
-  run_commit = "be71e2f07bfefeeb13c1e1f82cbc62cff2e052dc",
+  run_name = "PHASE-B",  # RETRACK-PIN (v1.1_<commit7>)
+  run_commit = "PHASE-B",  # RETRACK-PIN
   run_mode = "REAL_EXPLORATORY_POST_HOC_CONTEXT",
-  registry_sha256 = "5c252bf699bc0f517c5508854d710bbaa014d4b6fe98d128eb0071bde89dd05e",
-  registry_version = "1.0",
-  output_manifest_sha256 = "77f271ad022f8fec9680f09e0f29540ce0c02189cd68143749100c9eac9d68d2",
+  registry_sha256 = "PHASE-B",  # RETRACK-PIN
+  registry_version = "1.1",
+  output_manifest_sha256 = "PHASE-B",  # RETRACK-PIN
   output_manifest_n = 27L,
-  status_counts = "OK=48")
+  status_counts = "OK=48")  # RETRACK-PIN (check after the v1.1 run)
 S30FB_STAGE29 <- list(
-  bundle_id = "ebb_v101_20260929_b2ce507",
-  manifest_sha256 = "ec59aa337fc63511de4aa2bf3e1ee1f4b34b84d6d671565f74e0bb3939f7226c")
+  bundle_id = "ebb_v102_PHASE-B",  # RETRACK-PIN
+  manifest_sha256 = "PHASE-B")  # RETRACK-PIN
 # role in Stage 30 audit/input_hashes.csv -> pinned SHA-256 (the recorded and the on-disk hash must both equal it)
 S30FB_INPUT_SHA256 <- c(
-  "freeze_record:sus_list" = "dea3804b71b479f84900f946e5494b204ed0e8801498da459a6fc781beb9f391",
+  "freeze_record:sus_list" = "PHASE-B",  # RETRACK-PIN
   "freeze_record:con_list" = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
-  "freeze_record:combz_table" = "1f6a2a69c6b0781b8de8da50ecdadf309b62bbc9c82106c0fa91d18119a7de54",
+  "freeze_record:combz_table" = "PHASE-B",  # RETRACK-PIN
   "inactivity_reference" = "a533b239852fbe46c8a4ff776754984f4fe1f29c0c4277082487c1546f7acf8a",
-  "registry" = "5c252bf699bc0f517c5508854d710bbaa014d4b6fe98d128eb0071bde89dd05e")
+  "registry" = "PHASE-B")  # RETRACK-PIN
 S30FB_W104 <- list(file = "w1_04_gate_values.csv", sha_list = "w1_99_output_sha256.txt",
                    sha256 = "ae80b7e12beb2c4e6beb1570f8f45bd047937f88fcb1b8a207fe023b4efa46ef")
 

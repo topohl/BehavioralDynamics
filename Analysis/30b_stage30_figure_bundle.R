@@ -4,18 +4,19 @@
 # ================================================================
 # The ONLY writer of the Stage 30 figure bundle that Exp9_manuscript imports (record: docs/STAGE30_FIGURE_BUNDLE_v1.md).
 # It fits, tests and refits nothing and produces no p or q value. It copies frozen values from the Stage 30 REAL run
-# pipeline/30_exploratory_screen/v1.0_be71e2f and adds only descriptive summaries (counts, medians, quartiles, centroid
+# pipeline/30_exploratory_screen/<S30FB_STAGE30$run_name> (registry v1.1 on the corrected outcome; s30b_v10 was built from
+# v1.0_be71e2f) and adds only descriptive summaries (counts, medians, quartiles, centroid
 # means) and the unit rescaling of stored CIs (Functions/stage30_figure_bundle.R). Every input is hash-gated first:
 #   * the frozen Stage 30 run: audit/output_manifest.csv (pinned SHA-256) and its 27 files, README commit / registry lines;
-#   * the Stage 30 registry v1.0 JSON (5c252bf6...);
-#   * the Stage 29 bundle ebb_v101_20260929_b2ce507 (00_manifest ec59aa33..., every file, FROZEN registry row);
+#   * the Stage 30 registry JSON of S30FB_STAGE30$registry_version;
+#   * the Stage 29 bundle of S30FB_STAGE29 (00_manifest, every file, FROZEN registry row);
 #   * sus / con lists and the CombZ table (hash = Stage 30 audit/input_hashes.csv = pinned);
 #   * the x4_01 inactivity reference (a533b239..., = input_hashes) and w1_04_gate_values.csv (ae80b7e1..., = w1_99 list).
 # Group rule (the Stage 30 driver's): CON if on the con list, else SUS if on the sus list, else RES; it must equal the
-# v101 A1 / A4 Group of every SIS animal.
+# Stage 29 bundle's A1 / A4 Group of every SIS animal.
 #
 # Output (REAL): analysis_ready/canonical/stage30_figure_bundle/<bundle_id>/ with BUNDLE_REGISTRY.csv beside it;
-#   bundle_id = s30b_v10_<YYYYMMDD>_<commit7>; written once (refused if it, its staging folder, its registry row or its
+#   bundle_id = <S30FB_BUNDLE_PREFIX>_<YYYYMMDD>_<commit7>; written once (refused if it, its staging folder, its registry row or its
 #   gate log exists), files 0444. The bundle holds H3_gate_results.csv (the pre-write gates, listed in 00_manifest). The
 #   post-write gates (manifest re-verification, read-only) run BEFORE the registry row is appended; the complete gate
 #   table (pre-write, post-write, registration) goes to logs/<bundle_id>_gate_results.csv beside the registry (0444).
@@ -71,7 +72,8 @@ gate("0-code", "pinned registry / x4_01 hashes = the Stage 30 driver constants (
 
 ROOT <- mmm_project_root(); AR <- file.path(ROOT, "analysis_ready")
 S30 <- file.path(AR, "pipeline", "30_exploratory_screen", S30FB_STAGE30$run_name)
-REG_JSON <- file.path(AR, "canonical", "stage30_registry", "v1.0", "stage30_registry_v1.0.json")
+REG_JSON <- file.path(AR, "canonical", "stage30_registry", paste0("v", S30FB_STAGE30$registry_version),
+                      paste0("stage30_registry_v", S30FB_STAGE30$registry_version, ".json"))
 B29_ROOT <- file.path(AR, "canonical", "behavior_bundle"); B29 <- file.path(B29_ROOT, S30FB_STAGE29$bundle_id)
 bundle_id <- s30fb_bundle_id(Sys.Date(), commit)
 DRY_DEFAULT <- "C:/Users/topohl/Documents/e9_behavior_rationalization_audit_2026-09-27/manuscript_integration_2026-09-29/evidence/s30b_dry"
@@ -99,9 +101,10 @@ V30 <- s30fb_verify_stage30_run(S30); gate_rows(V30$gates)
 for (i in seq_len(nrow(V30$check))) inp(file.path(S30, V30$check$file[i]), "stage30_run_output", V30$check$observed_sha256[i], V30$check$observed_bytes[i])
 inp(file.path(S30, "audit", "output_manifest.csv"), "stage30_output_manifest", V30$manifest_sha256)
 reg_sha <- s30fb_sha(REG_JSON); inp(REG_JSON, "stage30_registry", reg_sha)
-gate("1-registry", "registry JSON SHA-256 = frozen v1.0", identical(reg_sha, S30FB_STAGE30$registry_sha256), reg_sha)
+gate("1-registry", paste0("registry JSON SHA-256 = frozen v", S30FB_STAGE30$registry_version), identical(reg_sha, S30FB_STAGE30$registry_sha256), reg_sha)
 REG <- jsonlite::fromJSON(REG_JSON, simplifyVector = FALSE)
-gate("1-registry", "registry status FROZEN, version 1.0", identical(REG$meta$status, "FROZEN") && identical(REG$meta$version, S30FB_STAGE30$registry_version))
+gate("1-registry", paste("registry status FROZEN, version", S30FB_STAGE30$registry_version),
+     identical(REG$meta$status, "FROZEN") && identical(REG$meta$version, S30FB_STAGE30$registry_version))
 IH <- fread(file.path(S30, "audit", "input_hashes.csv"), colClasses = "character")    # hash-verified through the output manifest
 rec_reg <- s30fb_recorded_input(IH, "registry")
 gate("1-registry", "registry path and hash = Stage 30 input_hashes (role registry)",
@@ -122,13 +125,13 @@ gate("2-inputs", "w1_04_gate_values.csv SHA-256 = pinned = w1_99_output_sha256.t
      paste(w104_sha, w199_rec))
 inp(W104, "inactivity_gate_values_full_precision", w104_sha); inp(W199, "inactivity_gate_sha_list")
 
-# ---------------------------------------------------------------- 3. Stage 29 bundle ebb_v101
+# ---------------------------------------------------------------- 3. the pinned Stage 29 bundle
 V29 <- s30fb_verify_stage29_bundle(B29, file.path(B29_ROOT, "BUNDLE_REGISTRY.csv")); gate_rows(V29$gates)
 for (i in seq_len(nrow(V29$check))) inp(file.path(B29, V29$check$file[i]), "stage29_bundle_file", V29$check$observed_sha256[i], V29$check$observed_bytes[i])
 inp(file.path(B29, "00_manifest.csv"), "stage29_bundle_manifest", V29$manifest_sha256)
 inp(file.path(B29_ROOT, "BUNDLE_REGISTRY.csv"), "stage29_bundle_registry (read for the FROZEN row; appended by later bundles)")
 H29 <- fread(file.path(B29, "H_provenance.csv"), colClasses = "character")
-gate("3-stage29", "Stage 30 README Stage 29 folder = ebb_v101 H_provenance stage29_output_dir",
+gate("3-stage29", "Stage 30 README Stage 29 folder = Stage 29 bundle H_provenance stage29_output_dir",
      identical(s30fb_norm_path(V30$stage29_folder), s30fb_norm_path(H29[key == "stage29_output_dir", value])), V30$stage29_folder)
 
 # ---------------------------------------------------------------- 4. read the frozen values (copies; full precision where an rds exists)
@@ -160,16 +163,16 @@ AN <- unique(FW[, .(AnimalNum, Batch, Sex)]); CK <- FK[, .(AnimalNum, Batch, Sex
 GRP <- data.table(AnimalNum = union(AN$AnimalNum, CK$AnimalNum)); GRP[, Group := s30fb_group_from_lists(AnimalNum, SUS, CON)]
 gate("5-labels", "group rule = Stage 30 driver s30sc_labels_from_lists (every SIS animal)",
      identical(GRP$Group, s30sc_labels_from_lists(GRP, SUS, CON)$Group) && !any(GRP$Group == "CON"), paste(GRP[, .N, by = Group][, paste(Group, N)], collapse = ", "))
-gate("5-labels", "Group = ebb_v101 A1 Group for the 87 SIS CC1 animals", {
+gate("5-labels", "Group = Stage 29 bundle A1 Group for the 87 SIS CC1 animals", {
   m <- merge(GRP, A1[, .(AnimalNum, G1 = Group)], by = "AnimalNum"); nrow(m) == nrow(AN) && all(m[AnimalNum %in% AN$AnimalNum, Group == G1]) })
-gate("5-labels", "Group = ebb_v101 A4 Group for every SIS animal (87 CC1 + 77 cookie)", {
+gate("5-labels", "Group = Stage 29 bundle A4 Group for every SIS animal (87 CC1 + 77 cookie)", {
   m <- merge(GRP, A4[, .(AnimalNum, G4 = Group)], by = "AnimalNum"); nrow(m) == nrow(GRP) && all(m$Group == m$G4) })
 gate("5-labels", "Group = CombZ-table outcome_group for every SIS animal", {
   m <- merge(GRP, CZ[, .(AnimalNum, og = outcome_group)], by = "AnimalNum"); nrow(m) == nrow(GRP) && all(m$Group == m$og) })
 LC <- s30sc_label_count_checks(merge(AN, GRP, by = "AnimalNum"), CK, REG$populations)
 for (i in seq_len(nrow(LC))) gate("5-labels", paste(LC$gate[i], "(Stage 30 helper)"), LC$passed[i], LC$detail[i])
 CZS <- CZ[AnimalNum %in% GRP$AnimalNum, .(AnimalNum, CombZ)]
-gate("5-labels", "CombZ (canonical table) = ebb_v101 A1 CombZ (87) and A4 CombZ (all SIS) within 1e-12", {
+gate("5-labels", "CombZ (canonical table) = Stage 29 bundle A1 CombZ (87) and A4 CombZ (all SIS) within 1e-12", {
   m1 <- merge(CZS, A1[, .(AnimalNum, c1 = CombZ)], by = "AnimalNum"); m4 <- merge(CZS, A4[, .(AnimalNum, c4 = CombZ)], by = "AnimalNum")
   nrow(m1) == S30FB_N$sis_cc1 && nrow(m4) == nrow(GRP) && max(abs(m1$CombZ - m1$c1)) <= 1e-12 && max(abs(m4$CombZ - m4$c4)) <= 1e-12 })
 
@@ -181,7 +184,7 @@ S0b <- s30fb_pool_table(POOL)
 gate("6-tables", "S0b: standardized estimate reproduced within 1e-12 (16 POOL rows)", attr(S0b, "std_max_abs_diff") <= S30FB_STD_TOL, attr(S0b, "std_max_abs_diff"))
 S0c <- s30fb_drop_run_mode(LCOMP); S0d <- s30fb_drop_run_mode(SENS); S0e <- s30fb_drop_run_mode(LOBO)
 S1 <- s30fb_light_animals(FW, GRP, CZS)
-gate("6-tables", "S1 = ebb_v101 A1 (Sex, Batch, CageEpisodeID identical; light_phase_crossing_rate within 1e-9)", {
+gate("6-tables", "S1 = Stage 29 bundle A1 (Sex, Batch, CageEpisodeID identical; light_phase_crossing_rate within 1e-9)", {
   m <- merge(S1, A1[, .(AnimalNum, Sex1 = Sex, Batch1 = Batch, Cage1 = CageEpisodeID, lp1 = light_phase_crossing_rate)], by = "AnimalNum")
   nrow(m) == S30FB_N$sis_cc1 && all(m$Sex == m$Sex1) && all(m$Batch == m$Batch1) && all(m$CageEpisodeID == m$Cage1) &&
     max(abs(m$light_phase_crossing_rate - m$lp1)) <= S30FB_ID_TOL })

@@ -1,11 +1,11 @@
 # ================================================================
-# Post hoc CON / RES / SUS contrasts, first active phase after CC1 (registry v1.0): helpers
+# Post hoc CON / RES / SUS contrasts, first active phase after CC1 (registry v1.1): helpers
 # MMMSociability -- Functions/posthoc_con_contrasts.R
 # ================================================================
 # Pure constants and functions for Analysis/29b_posthoc_con_contrasts.R. Sourcing this file reads and writes nothing.
-# Implements docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.0.md (FROZEN 2026-09-30T15:40:15+0200, commit 322be31, sha256 a6435d8d...)
-# and nothing else:
-#   * data: ebb_v101 A1_animal_cc1 (first full active phase after CC1), crossing_rate and shared_zone_use; rows with a
+# Implements docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.1.md: registry v1.0 (FROZEN 2026-09-30T15:40:15+0200, commit 322be31,
+# sha256 a6435d8d...; run v1.0_7f1da1f) on the corrected outcome (config v1.0.2, outcome version ov2), and nothing else:
+#   * data: A1_animal_cc1 of the Stage 29 bundle in PHC_STAGE29 (first full active phase after CC1), crossing_rate and shared_zone_use; rows with a
 #     non-finite value are excluded (as Stage 29: OQ770 / OQ771 for shared_zone_use);
 #   * one fit per measure x sex (4 fits): y ~ Batch + group + (0 + conCage | CageEpisodeID) + (0 + sisCage | CageEpisodeID),
 #     group = factor(CON [reference], RES, SUS), conCage = 1 if every animal of the cage epoch is CON (mmm_ci_code_design);
@@ -22,21 +22,24 @@
 # Functions/stage30_figure_bundle.R (s30fb_* hash and writer utilities) sourced first.
 # ================================================================
 
-PHC_VERSION <- "1.0"
+# v1.0 (run v1.0_7f1da1f): registry sha256 a6435d8d84b164671b59486f7a3eb9af2bff29bd251c58866cd4b777f9fa0604, freeze commit
+# 322be31af04003b1a573f5ec3ee09b013046175c, ebb_v101_20260929_b2ce507 (manifest ec59aa33..., A1 c782b387...).
+# The PHASE-B values are set when v1.1 is frozen and ebb_v102 exists; until then every REAL-run gate fails closed.
+PHC_VERSION <- "1.1"
 PHC_REGISTRY <- list(
-  version = "1.0", file = "POSTHOC_CON_CONTRASTS_REGISTRY_v1.0.md", repo_path = "docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.0.md",
-  sha256 = "a6435d8d84b164671b59486f7a3eb9af2bff29bd251c58866cd4b777f9fa0604",
-  canonical_rel = file.path("canonical", "posthoc_con_contrasts_registry", "v1.0"), sha_file = "REGISTRY_SHA256.txt",
-  freeze_commit = "322be31af04003b1a573f5ec3ee09b013046175c", frozen_at = "2026-09-30T15:40:15+0200")
-PHC_STAGE29 <- list(bundle_id = "ebb_v101_20260929_b2ce507",
-                    manifest_sha256 = "ec59aa337fc63511de4aa2bf3e1ee1f4b34b84d6d671565f74e0bb3939f7226c",
-                    a1_file = "A1_animal_cc1.csv", a1_sha256 = "c782b38796ad35cc45d246520869ab6f7fd327afd2e197fb4d00407e326b50a4",
+  version = "1.1", file = "POSTHOC_CON_CONTRASTS_REGISTRY_v1.1.md", repo_path = "docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.1.md",
+  sha256 = "PHASE-B",  # RETRACK-PIN
+  canonical_rel = file.path("canonical", "posthoc_con_contrasts_registry", "v1.1"), sha_file = "REGISTRY_SHA256.txt",
+  freeze_commit = "PHASE-B", frozen_at = "PHASE-B")  # RETRACK-PIN
+PHC_STAGE29 <- list(bundle_id = "ebb_v102_PHASE-B",  # RETRACK-PIN
+                    manifest_sha256 = "PHASE-B",  # RETRACK-PIN
+                    a1_file = "A1_animal_cc1.csv", a1_sha256 = "PHASE-B",  # RETRACK-PIN
                     config_file = "I_analysis_config.json")
 # the frozen engine versions (Stage 29 v1.0.1 / Stage 30 package gate)
 PHC_PACKAGES <- c(lme4 = "2.0.1", lmerTest = "3.2.1", pbkrtest = "0.5.5")
 PHC_STAGE_DIR <- "29b_posthoc_con_contrasts"
 # any earlier REAL output or staging folder (at any commit) blocks a REAL run: the registry allows exactly one
-PHC_REAL_OUT_PATTERN <- "^(\\.tmp_)?v1\\.0_"
+PHC_REAL_OUT_PATTERN <- "^(\\.tmp_)?v1\\.1_"
 PHC_KR_FALLBACK_PATTERN <- "Unable to compute Kenward-Roger"
 PHC_OPTIN_ENV <- "MMM_POSTHOC29B_REAL_RUN"
 
@@ -45,7 +48,7 @@ PHC_SEXES <- c("Female", "Male")
 PHC_GROUPS <- c("CON", "RES", "SUS")
 PHC_SEX_BATCHES <- list(Female = c("B3", "B4", "B6"), Male = c("B1", "B2", "B5"))
 PHC_N <- list(animals = 111L, con_cages_per_sex = 3L, con_per_cage = 4L,
-              by_sex_group = list(Female = c(CON = 12L, RES = 28L, SUS = 18L), Male = c(CON = 12L, RES = 25L, SUS = 16L)))
+              by_sex_group = list(Female = c(CON = 12L, RES = 26L, SUS = 20L), Male = c(CON = 12L, RES = 25L, SUS = 16L)))  # RETRACK-PIN (v1.0: Female 12 / 28 / 18)
 PHC_NONFINITE_EXPECTED <- list(crossing_rate = character(), shared_zone_use = c("OQ770", "OQ771"))
 PHC_MODELS <- list(
   primary = list(model = "primary_separate_cage_variances",
@@ -80,7 +83,7 @@ PHC_README <- "README.txt"
 phc_parse_mode <- function(args) {
   args <- as.character(args)
   if (!identical(args, "--real"))
-    stop("Refusing to run: the only mode is --real (registry v1.0 section 7: fitted once; no dry run on project data). ",
+    stop("Refusing to run: the only mode is --real (registry section 7: fitted once; no dry run on project data). ",
          "Synthetic checks: Rscript Testing/tests/test_posthoc_con_contrasts.R", call. = FALSE)
   "REAL"
 }
@@ -311,10 +314,10 @@ phc_run_all <- function(d, labels = NULL, measures = PHC_MEASURES, sexes = PHC_S
   list(estimates = est, sensitivity = sen, diagnostics = data.table::rbindlist(dg, fill = TRUE))
 }
 
-#' Display labels (label, unit) of the measures, copied from the ebb_v101 configuration `metrics`.
+#' Display labels (label, unit) of the measures, copied from the Stage 29 bundle configuration `metrics`.
 phc_metric_labels <- function(cfg_metrics, measures = PHC_MEASURES) {
   data.table::rbindlist(lapply(measures, function(k) { x <- cfg_metrics[[k]]
-    if (is.null(x$label) || is.null(x$unit)) stop("ebb_v101 config has no label / unit for ", k, call. = FALSE)
+    if (is.null(x$label) || is.null(x$unit)) stop("Stage 29 bundle config has no label / unit for ", k, call. = FALSE)
     data.table::data.table(measure = k, measure_label = x$label, unit = x$unit) }))
 }
 

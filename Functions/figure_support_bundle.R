@@ -36,19 +36,20 @@
 # Requires: data.table, digest, tibble (the producer's component table is a tibble::tribble), readxl (v4: the workbook).
 # ================================================================
 
-FSB_SCHEMA_VERSION <- "4"
-FSB_BUNDLE_PREFIX <- "fsb_v4"   # v1 (fsb_v1_20260930_f06552c), v2 (fsb_v2_20260930_a23d699) and v3 (fsb_v3_20261007_a2acd57), all FROZEN, are never rewritten
+FSB_SCHEMA_VERSION <- "5"   # v5 adds E3 (the Stage 09 early-window coverage summary)
+FSB_BUNDLE_PREFIX <- "fsb_v5"   # v1 (fsb_v1_20260930_f06552c), v2 (fsb_v2_20260930_a23d699), v3 (fsb_v3_20261007_a2acd57) and v4 (fsb_v4_20261012_f4c2ba6), all FROZEN, are never rewritten
+# v5 = v4 on the corrected outcome (config v1.0.2, outcome version ov2); the PHASE-B pins come from the Phase B runs; the v4 values are in git history (f4c2ba6)
 FSB_STATUS_REAL <- "FROZEN"
 FSB_STATUS_DRY <- "DRY_RUN_NOT_FOR_USE"
 FSB_TOL <- 1e-12
 
-FSB_STAGE29 <- list(bundle_id = "ebb_v101_20260929_b2ce507",
-                    manifest_sha256 = "ec59aa337fc63511de4aa2bf3e1ee1f4b34b84d6d671565f74e0bb3939f7226c")
+FSB_STAGE29 <- list(bundle_id = "ebb_v102_PHASE-B",  # RETRACK-PIN
+                    manifest_sha256 = "PHASE-B")  # RETRACK-PIN
 # v2: the post hoc run 29b (Analysis/29b_posthoc_con_contrasts.R, registry POSTHOC_CON_CONTRASTS v1.0), REAL, run once
-FSB_POSTHOC <- list(stage_dir = "29b_posthoc_con_contrasts", run_name = "v1.0_7f1da1f",
-                    run_commit = "7f1da1f6cea098a97cd0b06e3a37140826dda2f1",
-                    output_manifest_sha256 = "4c079ecfb31db159ea7c28379fac48ac6fbb27e6e7af00762840f7fdf0367faa", output_manifest_n = 7L,
-                    registry_version = "1.0", registry_sha256 = "a6435d8d84b164671b59486f7a3eb9af2bff29bd251c58866cd4b777f9fa0604",
+FSB_POSTHOC <- list(stage_dir = "29b_posthoc_con_contrasts", run_name = "PHASE-B",  # RETRACK-PIN (v1.1_<commit7>)
+                    run_commit = "PHASE-B",  # RETRACK-PIN
+                    output_manifest_sha256 = "PHASE-B", output_manifest_n = 7L,  # RETRACK-PIN
+                    registry_version = "1.1", registry_sha256 = "PHASE-B",  # RETRACK-PIN
                     status_counts = "primary_separate_cage_variances OK=4; sensitivity_common_cage_variance OK=4",
                     tier = "POST HOC exploratory")
 # bundle table -> post hoc run file (copied verbatim) and its expected row count
@@ -60,19 +61,16 @@ FSB_POSTHOC_DISPLAY_COLS <- c("measure_label", "unit", "estimand_label", "displa
 # v3: the Stage 14 display tables of the run promoted 2026-10-06c (the promotion record lists every file with this SHA-256;
 # Stage 14 is not re-run for the bundle) and the Stage 08 10-minute dwell-time table Stage 14 reads
 FSB_STAGE14 <- list(
-  root_rel = "analyses/systems_dashboard/5min", record = "docs/behavior_output_producer_reruns/stage14_20261006c.csv",
+  root_rel = "analyses/systems_dashboard/5min", record = "PHASE-B",  # RETRACK-PIN (docs/behavior_output_producer_reruns/stage14_<date>.csv of the Phase B promotion)
   files = c(domain_heatmap = "stats_tables/systems_sis_domain_heatmap_source_data.csv",
             transition_means = "tables/systems_hmm_transition_probability_summary.csv",
             transition_differences = "tables/systems_hmm_transition_probability_differences.csv",
             resolution_sensitivity = "stats_tables/systems_sis_hmm_resolution_sensitivity.csv",
             state_display_labels = "tables/systems_hmm_state_display_labels.csv"),
-  sha256 = c(domain_heatmap = "fa4c613260a157ffd6044ce27ab733d583741a65597a32b7031ca691347d2271",
-             transition_means = "0279d418ceca5c6b43f60c02574dca24537712925ac4c63a654af25b42b39837",
-             transition_differences = "222208fb9742b4e45b3b2c7c806843765fd5a59e78a534193415cf20d645a568",
-             resolution_sensitivity = "d3a79a1afd938e7f63ce0e054125d2affd3a34c9159b42e3ecb772645b58ffa5",
-             state_display_labels = "60ec75e62b4b407fef8c3ef8750cd816b821d231df473c3f5cb72e18b1132c29"))
+  sha256 = c(domain_heatmap = "PHASE-B", transition_means = "PHASE-B", transition_differences = "PHASE-B",
+             resolution_sensitivity = "PHASE-B", state_display_labels = "PHASE-B"))  # RETRACK-PIN
 FSB_HMM_DWELL <- list(root_rel = "analyses/hmm_states/10min", file = "tables/hmm_state_dwell_times.csv",
-                      sha256 = "be4ba0cf6095726326cad6eb8896e6e84509f41edceb5a64887b265fa16dc03d", bin_size_sec = 600, n_records = 3346L)
+                      sha256 = "PHASE-B", bin_size_sec = 600, n_records = 3346L)  # RETRACK-PIN (sha256; v4 be4ba0cf...)
 FSB_HMM_RESOLUTION <- "10min_based"           # the HMM resolution of the Stage 14 HMM figures (hmm_primary_bin_level)
 FSB_HMM_STATES <- as.character(1:4)
 FSB_HMM_GROUPS <- c("CON", "RES", "SUS")
@@ -87,16 +85,20 @@ FSB_D1_DISPLAY_COLS <- c("window_label", "row_label", "row_description", "displa
 # v4: Stage 09's sex-stratified correlations (10-minute resolution, the Stage 09 output root the inventory declares;
 # the Movement_mean rows are identical at 5 minutes). Copied verbatim; the file's SHA-256 is pinned.
 FSB_STAGE09 <- list(root_rel = "pipeline/09_early_prediction/10min", file = "tables/primary_movement_entropyacf1_correlations_by_sex.csv",
-                    sha256 = "aeec1749e8ede6c2300c055f25d5d9f6ca66636d28610dffda2825532fd98819", n_rows = 6L,
+                    sha256 = "PHASE-B", n_rows = 6L,  # RETRACK-PIN (v4 aeec1749...)
                     features = c("Movement_mean", "Movement_rmssd", "Entropy_acf1"), feature = "Movement_mean",
                     # the same run's per-animal input (pinned by the Stage 29 v1.0.1 release run_inputs), read for an identity gate only
                     input_file = "tables/model_ladder_input.csv",
-                    input_sha256 = "da78f80e4b7867cbabe7847a7da2667459a690a1b25f8ff97ef919cc8d2426dd")
+                    input_sha256 = "PHASE-B")  # RETRACK-PIN (v4 da78f80e...)
+# v5: Stage 09's early-window coverage summary (the 10-minute slots of the first dark phase after CC1; group-blind), copied
+# verbatim for Extended Data 5a; the bridge copy the manuscript drew before predates the first-night seeding fix of 2026-09-22.
+FSB_STAGE09_COVERAGE <- list(root_rel = "pipeline/09_early_prediction/10min", file = "tables/early_window_contract_summary.csv",
+                             sha256 = "PHASE-B", n_rows = 1L, expected_slots = 72L)  # RETRACK-PIN
 # v4: the post hoc run 29c (Analysis/29c_posthoc_movement_combz_fit.R, registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0), REAL, run once
-FSB_POSTHOC29C <- list(stage_dir = "29c_posthoc_movement_combz_fit", run_name = "v1.0_fd61cd9",
-                       run_commit = "fd61cd99787e9ce207a650b8c6a6f1ef3764ac30",
-                       output_manifest_sha256 = "fc0d13db4faa936522347ccf56aa001bc021fde2fe2c48d19b30153f3e463ffd", output_manifest_n = 7L,
-                       registry_version = "1.0", registry_sha256 = "a617bb5be709b558ed628a61fab0095b598345912c86e9c25070d07b02cb8098",
+FSB_POSTHOC29C <- list(stage_dir = "29c_posthoc_movement_combz_fit", run_name = "PHASE-B",  # RETRACK-PIN (v1.1_<commit7>)
+                       run_commit = "PHASE-B",  # RETRACK-PIN
+                       output_manifest_sha256 = "PHASE-B", output_manifest_n = 7L,  # RETRACK-PIN
+                       registry_version = "1.1", registry_sha256 = "PHASE-B",  # RETRACK-PIN
                        status_counts = "Female OK; Male OK", tier = "POST HOC descriptive display")
 FSB_POSTHOC29C_TABLES <- c(E2_movement_combz_fit_lines = "tables/fit_lines.csv", E2b_movement_combz_fit_coefficients = "tables/coefficients.csv",
                            E2c_movement_combz_fit_diagnostics = "tables/diagnostics.csv")
@@ -125,14 +127,15 @@ FSB_DESIGN_CC1_AGE <- c(22L, 29L)   # Stage 33 gate GC-6l: every one of the 117 
 FSB_DESIGN_UNIT <- "postnatal day (event date - date of birth, in days)"
 # canonical CombZ tables and label lists: the on-disk SHA-256 must equal these (the first three = Stage 30 input_hashes)
 FSB_INPUT_SHA256 <- c(
-  combz_table = "1f6a2a69c6b0781b8de8da50ecdadf309b62bbc9c82106c0fa91d18119a7de54",
-  sus_list = "dea3804b71b479f84900f946e5494b204ed0e8801498da459a6fc781beb9f391",
+  combz_table = "PHASE-B",  # RETRACK-PIN
+  sus_list = "PHASE-B",  # RETRACK-PIN
   con_list = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
-  combz_component_definition = "af3c273434c7457b7b28ba39bbc231afc5f161435cf04b588c9de820fab6f70f",
-  combz_classification_thresholds = "e1536f0c6e45a708770b0b78139232ebf9077eed4b884fd3e03524aad861afc9")
+  combz_component_definition = "PHASE-B",  # RETRACK-PIN
+  combz_classification_thresholds = "PHASE-B")  # RETRACK-PIN
 # the frozen CombZ definition code: the producer, pinned by its git blob (git hash-object; line-ending independent)
-FSB_COMBZ_CODE <- list(path = "Analysis/build_later_outcome_combz.R", git_blob = "d850859e088de991946f0e9b1f5230b24cccfab7",
-                       last_commit = "bac46bf", doc = "docs/COMBZ_CANONICAL_DEFINITION.md")
+# (version 2 since 708e615; fsb_v1-v4 were built with version 1, blob d850859e at bac46bf)
+FSB_COMBZ_CODE <- list(path = "Analysis/build_later_outcome_combz.R", git_blob = "3303304ec9309f6361326c9e7acc7e023c134715",
+                       last_commit = "708e615", doc = "docs/COMBZ_CANONICAL_DEFINITION.md")
 FSB_COMBZ_CONSTANTS <- c("COMBZ_DEFINITION_ID", "COMBZ_REFERENCE_POP_ID", "COMBZ_CLASSIFICATION_ID", "COMBZ_CORRECTION_ID",
                          "COMBZ_COMPONENTS", "COMBZ_COMPONENT_META", "PARITY_TOL_COMBZ")
 # the producer's composite rule, evaluated verbatim (build_later_outcome_combz.R, "recompute the composite")
@@ -148,13 +151,15 @@ FSB_SEXES <- c("Female", "Male")
 FSB_CCS <- paste0("CC", 1:4)
 FSB_SEX_BATCHES <- list(Female = c("B3", "B4", "B6"), Male = c("B1", "B2", "B5"))
 FSB_N <- list(con_cages = 3L, con_per_cage = 4L, con_per_sex = 12L, combz_animals = 117L, components = 6L,
-              rfid_animals = 111L, con_rfid_animals = 24L)
+              rfid_animals = 111L, con_rfid_animals = 24L,
+              sus_list = 39L, con_list = 24L,  # RETRACK-PIN (v4: 35 / 24)
+              n_components_present = c(`4` = 2L, `5` = 11L, `6` = 104L))  # RETRACK-PIN (v4: 2 animals with 5 of 6, the rest 6)
 FSB_TABLES <- c("F1_con_cage_means", "F1b_con_reference_means", "F2_combz_components", "F2b_combz_definition",
                 "P1_posthoc_con_contrasts", "P1b_posthoc_sensitivity", "P1c_posthoc_diagnostics",
                 "D1_domain_heatmap_cells", "M1_hmm_transition_difference", "M2_hmm_transition_flows",
                 "M3_hmm_dwell_distribution", "M4_hmm_resolution_sensitivity",
                 "E1_movement_combz_spearman_by_sex", "E2_movement_combz_fit_lines", "E2b_movement_combz_fit_coefficients",
-                "E2c_movement_combz_fit_diagnostics", "T1_design_ages", "T1b_design_ages_by_animal")
+                "E2c_movement_combz_fit_diagnostics", "E3_early_window_coverage", "T1_design_ages", "T1b_design_ages_by_animal")
 FSB_GATE_FILE <- "H3_gate_results.csv"
 FSB_GATE_COLS <- c("stage", "gate", "passed", "hard", "detail")
 FSB_REGISTRY_COLS <- c("bundle_id", "status", "manifest_sha256", "stage29_bundle_id", "combz_table_sha256", "mmm_git_commit", "created_at")
@@ -177,7 +182,8 @@ FSB_SCIENTIFIC_RECOMPUTATION <- paste(
   "dwell-time counts in fixed bins); no model is fitted, no test run, nothing smoothed and no p or q value produced here.",
   "E1 is a verbatim copy of Stage 09's sex-stratified correlation table (rho, p and BH q computed there); E2 / E2b / E2c are",
   "verbatim copies of the hash-gated post hoc run 29c (registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0), whose display line and band",
-  "were fitted there once; T1 / T1b are ages by date arithmetic from the pinned planning workbook. Nothing is fitted here.")
+  "were fitted there once; E3 is a verbatim copy of Stage 09's early-window coverage summary (slot counts, group-blind);",
+  "T1 / T1b are ages by date arithmetic from the pinned planning workbook. Nothing is fitted here.")
 FSB_DESCRIPTIVE_COMPUTATIONS <- c(
   "F1 cage_mean: arithmetic mean of the measure over the CON animals of one cage epoch (Batch|System|CC) in ebb_v101 B1 (values as stored); n_animals = count of those animals",
   "F1b: n and mean copied from ebb_v101 B2_descriptive_summaries (Group CON); nothing computed",
@@ -193,6 +199,7 @@ FSB_DESCRIPTIVE_COMPUTATIONS <- c(
   "M4: the stored Stage 14 HMM-resolution sensitivity rows (systems_sis_hmm_resolution_sensitivity.csv) with wald_ci_low / wald_ci_high = mixed_model_estimate -/+ 1.96 x mixed_model_SE, the interval Stage 14 draws",
   "E1: verbatim text copy of the Stage 09 table primary_movement_entropyacf1_correlations_by_sex.csv (10min; every cell as stored); source_run, source_file and source_sha256 appended; gates only (nothing computed): the Movement_mean rows' n = the ebb_v101 A2 animals per sex, and the same Stage 09 run's per-animal input model_ladder_input.csv (pinned by the Stage 29 v1.0.1 release) = A2 Movement_mean and observed_CombZ for every animal within 1e-12",
   "E2 / E2b / E2c: verbatim text copies of the post hoc run 29c tables fit_lines.csv / coefficients.csv / diagnostics.csv (every cell as stored); source_run, source_file and source_sha256 appended; nothing computed",
+  "E3: verbatim text copy of the Stage 09 table early_window_contract_summary.csv (10min; every cell as stored); source_run, source_file and source_sha256 appended; gates only: one row, n_animals = the RFID animals, 72 expected slots per animal",
   "T1b: per animal and design step, date_start / date_end (the date the workbook or the ebb_v101 cage-change time gives; shuffle stop = CC4 date + 1 day) and age_start / age_end = date - date of birth (workbook DoB), in days; gates: every age the workbook records itself (SocPref, OFT, NOR, EPM, sucrose window, Age at the end date) = the computed age; CC1 ages 22-29",
   "T1: per design step, n_animals and age_min / age_max = the minimum of age_start and the maximum of age_end over the 117 CombZ animals")
 # T1 event labels are the names of the behavioural tests in the experimental design (e.g. the social preference test), not
@@ -405,20 +412,21 @@ fsb_combz_definition_table <- function(defn, compdef, f2, combz_table_path, comb
   np <- f2[, .(n_present = sum(present), n_missing = sum(!present), missing_animals = paste(sort(AnimalNum[!present]), collapse = ";")), by = component]
   np <- np[match(meta$component, component)]
   n5 <- f2[, .(n = n_components_present[1]), by = AnimalNum][, table(n)]
-  corr <- c(sucrose_pref = paste("rebuilt by the producer from the sucrosePreference sheet keyed by animal (not by row position), negative bottle",
-                                 "readings counted as zero; standardised with the reference rows the workbook's own formulas name (upstream correction",
-                                 paste0(cst$COMBZ_CORRECTION_ID, "; 18 animals, ", FSB_COMBZ_CODE$doc, " section 4b)")),
-            delta_cort = paste("OR620's value replaced by the exact linear map every other batch-5 male follows (upstream correction",
-                               paste0(cst$COMBZ_CORRECTION_ID, "; 1 animal, ", FSB_COMBZ_CODE$doc, " section 4b)")))
+  # the corrections are applied in the corrected workbook, not by the producer (version 2)
+  src <- paste0(" (in the corrected workbook; upstream correction ", cst$COMBZ_CORRECTION_ID, "; ", FSB_COMBZ_CODE$doc, " sections 4b-4c)")
+  organ <- "damaged, missing or blank organ weights carry no score and leave the CON reference (2026-10-16)"
+  corr <- c(NOR = paste0("batch 1 values are the analysed SLEAP D2 (2026-10-16); 00317's value is missing until its novel-object video is re-tracked", src),  # RETRACK-PIN
+            sucrose_pref = paste0("rebuilt keyed by animal, not by row position, with negative bottle readings counted as zero (2026-09-20)", src),
+            delta_cort = paste0("OR620's value from the linear map every other batch-5 male follows (2026-09-20); the female sex-pooled reference rebuilt (2026-10-16)", src),
+            adrenal_weight = paste0(organ, src), spleen_weight = paste0(organ, src))
   out <- data.table::data.table(
     component = meta$component, component_order = seq_len(k), display_label = meta$raw_measure, domain = meta$domain,
     source_table = combz_table_path, source_table_sha256 = combz_table_sha256, source_column = meta$component,
-    upstream_source = paste0("E9_Behavior_Data_before_restructure.xlsx (pinned) :: sheet zScore column ", meta$xlsx_column),
+    upstream_source = paste0("E9_Behavior_Data.xlsx (pinned corrected workbook) :: sheet combz_canonical column ", meta$xlsx_column),
     raw_measure = meta$raw_measure, raw_derivation = meta$raw_derivation,
-    standardisation = "z = (x - mean(x | reference)) / populationSD(x | reference), computed upstream in the endpoint workbook",
-    reference_population = paste0("as implemented upstream: the within-sex CON animals (12 per sex), encoded as per-sex positional formula blocks whose ",
-                                  "row ranges only approximately coincide with sex (", FSB_COMBZ_CODE$doc, " section 4a); reference_population_id ",
-                                  cst$COMBZ_REFERENCE_POP_ID),
+    standardisation = "z = (x - mean(x | reference)) / populationSD(x | reference), computed upstream in the corrected endpoint workbook",
+    reference_population = paste0("the within-sex CON animals (12 per sex) with a valid value for the component, as computed in the corrected ",
+                                  "workbook (", FSB_COMBZ_CODE$doc, " sections 4a and 4c); reference_population_id ", cst$COMBZ_REFERENCE_POP_ID),
     sd_convention = as.character(cd$sd_convention[match(meta$component, cd$component)]),
     standardisation_reproducible_in_repository = as.logical(cd$reproducible_in_repository[match(meta$component, cd$component)]),
     raw_value_reference_columns = "NA in F2: the producer carries the stored z-scores verbatim; re-deriving raw -> z would change the endpoint",
@@ -654,6 +662,22 @@ fsb_hmm_resolution_sensitivity <- function(rs) {
            phase_label = unname(FSB_HMM_PHASE_LABELS[Phase]))]
   if (anyNA(x$phase_label)) stop("Resolution sensitivity: an unknown phase.", call. = FALSE)
   x[]
+}
+
+# ---------------------------------------------------------------- E3 (v5): Stage 09 early-window coverage (copied verbatim)
+#' Gate rows on E3: every source cell carried verbatim; one row; n_animals = the RFID animals; the expected slot count.
+fsb_coverage_gates <- function(E3, src_path, pin = FSB_STAGE09_COVERAGE) {
+  g <- list(); add <- function(name, passed, detail = "") g[[length(g) + 1L]] <<- s30fb_gate_row("6-E3", name, passed, detail)
+  src <- data.table::fread(src_path, colClasses = "character", na.strings = "", encoding = "UTF-8")
+  cp <- E3[, setdiff(names(E3), FSB_POSTHOC_ADDED), with = FALSE]
+  add("E3: every source cell carried verbatim (text) in source column order", identical(names(cp), names(src)) && identical(as.list(cp), as.list(src)))
+  need <- c("n_animals", "expected_target_slots_per_animal", "n_animals_complete", "n_animals_missing_leading_only", "n_animals_interior_missing",
+            "n_animals_trailing_missing", "mean_coverage_fraction", "min_coverage_fraction")
+  add("E3: the coverage columns are present", all(need %in% names(E3)), paste(setdiff(need, names(E3)), collapse = ","))
+  add(sprintf("E3: %d row; n_animals = %d; %d expected slots per animal", pin$n_rows, FSB_N$rfid_animals, pin$expected_slots),
+      nrow(E3) == pin$n_rows && identical(as.integer(E3$n_animals), FSB_N$rfid_animals) &&
+        identical(as.integer(E3$expected_target_slots_per_animal), pin$expected_slots), paste(nrow(E3), E3$n_animals, E3$expected_target_slots_per_animal))
+  data.table::rbindlist(g)
 }
 
 # ---------------------------------------------------------------- E1 (v4): Stage 09 sex-stratified correlations (copied verbatim)

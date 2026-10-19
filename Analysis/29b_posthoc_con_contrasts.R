@@ -1,21 +1,22 @@
 # ================================================================
-# Stage 29b - post hoc CON / RES / SUS contrasts, first active phase after CC1 (registry v1.0)
+# Stage 29b - post hoc CON / RES / SUS contrasts, first active phase after CC1 (registry v1.1)
 # MMMSociability -- Analysis/29b_posthoc_con_contrasts.R
 # ================================================================
 # POST HOC exploratory (decision basis USER_REQUEST_AFTER_DESCRIPTIVE_INSPECTION, 2026-09-30). Implements exactly
-# docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.0.md (FROZEN before any fit; sha256 a6435d8d...; read-only copy on S: at
-# analysis_ready/canonical/posthoc_con_contrasts_registry/v1.0/). It changes none of the frozen Stage 29 families or results.
+# docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.1.md (registry v1.0 on the corrected outcome; FROZEN before any fit; read-only copy
+# on S: at analysis_ready/canonical/posthoc_con_contrasts_registry/v1.1/). It changes none of the frozen Stage 29 families
+# or results. v1.0 ran once as v1.0_7f1da1f (ebb_v101).
 #   4 fits (crossing_rate, shared_zone_use x Female, Male) of y ~ Batch + group + (0 + conCage | CageEpisodeID) +
-#   (0 + sisCage | CageEpisodeID) on ebb_v101 A1_animal_cc1; batch-balanced CON / RES / SUS means (KR CI) and RES - CON,
+#   (0 + sisCage | CageEpisodeID) on A1_animal_cc1 of the pinned Stage 29 bundle (PHC_STAGE29); batch-balanced CON / RES / SUS means (KR CI) and RES - CON,
 #   SUS - CON, SUS - RES (KR t, Holm m = 3 per measure x sex); sensitivity with one common cage variance; diagnostics.
 #   All model code is in Functions/posthoc_con_contrasts.R on the frozen engine Functions/rfid_canonical_inference.R.
 #
 # Gates before any fit: code committed and clean and this is the committed runner; registry freeze commit is an ancestor
 # and the registry file is unchanged since it; registry sha256 (S: copy, S: REGISTRY_SHA256.txt, repository copy);
-# engine package versions; ebb_v101 (00_manifest ec59aa33..., every file, FROZEN registry row); A1 sha256 (pinned = the
+# engine package versions; the pinned Stage 29 bundle (00_manifest, every file, FROZEN registry row); A1 sha256 (pinned = the
 # manifest entry); population / cage structure; no earlier REAL output or staging folder (fitted ONCE).
 #
-# Output: analysis_ready/pipeline/29b_posthoc_con_contrasts/v1.0_<commit7>/ with tables/{estimates,
+# Output: analysis_ready/pipeline/29b_posthoc_con_contrasts/v<PHC_VERSION>_<commit7>/ with tables/{estimates,
 #   sensitivity_common_cage_variance,diagnostics}.csv, audit/{output_manifest,input_hashes,run_manifest,gate_results}.csv and
 #   README.txt; files read-only (0444).
 # Mode: exactly `--real`, and the environment variable MMM_POSTHOC29B_REAL_RUN must equal the HEAD commit7. There is no
@@ -80,15 +81,15 @@ gate("1-output", "no earlier REAL run or staging folder in the 29b stage folder 
 longest <- max(nchar(file.path(OUT_ROOT, paste0(".tmp_", RUN), c(PHC_TABLE_FILES, PHC_AUDIT_FILES, PHC_MANIFEST_FILE, PHC_README))))
 gate("1-output", "every output path shorter than 250 characters (Windows R path limit)", longest < 250, longest)
 
-# ---------------------------------------------------------------- 2. inputs: ebb_v101 and A1
+# ---------------------------------------------------------------- 2. inputs: the Stage 29 bundle and A1
 B29_ROOT <- file.path(AR, "canonical", "behavior_bundle"); B29 <- file.path(B29_ROOT, PHC_STAGE29$bundle_id)
 V29 <- s30fb_verify_stage29_bundle(B29, file.path(B29_ROOT, "BUNDLE_REGISTRY.csv"), PHC_STAGE29[c("bundle_id", "manifest_sha256")]); gate_rows(V29$gates)
 a1r <- V29$check[file == PHC_STAGE29$a1_file]
-gate("2-inputs", "A1_animal_cc1.csv: pinned SHA-256 = ebb_v101 manifest entry = on disk",
+gate("2-inputs", "A1_animal_cc1.csv: pinned SHA-256 = Stage 29 bundle manifest entry = on disk",
      nrow(a1r) == 1L && isTRUE(a1r$ok) && identical(a1r$expected_sha256, PHC_STAGE29$a1_sha256) && identical(a1r$observed_sha256, PHC_STAGE29$a1_sha256),
      paste(a1r$observed_sha256))
 cfr <- V29$check[file == PHC_STAGE29$config_file]
-gate("2-inputs", "I_analysis_config.json listed in the ebb_v101 manifest and verified (display labels only)", nrow(cfr) == 1L && isTRUE(cfr$ok), cfr$observed_sha256)
+gate("2-inputs", "I_analysis_config.json listed in the Stage 29 bundle manifest and verified (display labels only)", nrow(cfr) == 1L && isTRUE(cfr$ok), cfr$observed_sha256)
 inp(file.path(B29, "00_manifest.csv"), "stage29_bundle_manifest", V29$manifest_sha256)
 inp(file.path(B29, PHC_STAGE29$a1_file), "stage29_bundle_file A1 (data)", a1r$observed_sha256)
 inp(file.path(B29, PHC_STAGE29$config_file), "stage29_bundle_file config (measure label / unit)", cfr$observed_sha256)
@@ -99,7 +100,7 @@ DES <- phc_prepare(A1)
 gate_rows(phc_population_gates(DES))
 CFG29 <- jsonlite::fromJSON(file.path(B29, PHC_STAGE29$config_file), simplifyVector = FALSE)
 LAB <- phc_metric_labels(CFG29$metrics)
-gate("2-inputs", "measure labels copied from the ebb_v101 config (label, unit)", nrow(LAB) == length(PHC_MEASURES) && !anyNA(LAB$measure_label), paste(LAB$measure_label, collapse = "; "))
+gate("2-inputs", "measure labels copied from the Stage 29 bundle config (label, unit)", nrow(LAB) == length(PHC_MEASURES) && !anyNA(LAB$measure_label), paste(LAB$measure_label, collapse = "; "))
 
 # ---------------------------------------------------------------- 3. fit (once; nothing is printed until written)
 FIT_AT <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
@@ -128,14 +129,14 @@ RUNM <- data.table(
   started_at = STARTED, fitted_at = FIT_AT, finished_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"), r_version = R.version.string,
   packages = paste(sprintf("%s %s", pk, vapply(pk, function(p) as.character(utils::packageVersion(p)), "")), collapse = "; "))
 README <- c(
-  "Stage 29b - post hoc CON / RES / SUS contrasts, first active phase after CC1 (registry v1.0)",
+  paste0("Stage 29b - post hoc CON / RES / SUS contrasts, first active phase after CC1 (registry v", PHC_REGISTRY$version, ")"),
   paste("tier", PHC_TIER, "; decision basis", PHC_DECISION_BASIS, "; not part of the frozen Stage 29 families; changes none of its results"),
   paste("commit", commit),
   paste("registry sha256", PHC_REGISTRY$sha256),
   paste("registry", normalizePath(file.path(REG_DIR, PHC_REGISTRY$file), winslash = "/", mustWork = FALSE)),
   paste("Stage 29 bundle", PHC_STAGE29$bundle_id, "manifest sha256", V29$manifest_sha256),
   paste("A1 sha256", a1r$observed_sha256),
-  "run mode REAL (fitted once; a later run is refused while any v1.0_* or .tmp_v1.0_* folder exists here)",
+  paste0("run mode REAL (fitted once; a later run is refused while any v", PHC_VERSION, "_* or .tmp_v", PHC_VERSION, "_* folder exists here)"),
   paste("generated_at", RUNM$finished_at),
   paste("models:", PHC_MODELS$primary$formula, "(primary);", PHC_MODELS$sensitivity$formula, "(sensitivity); REML, bobyqa, KR via lmerTest::contest"),
   "tables/estimates.csv: batch-balanced CON / RES / SUS means (KR CI, estimation only) and RES - CON, SUS - CON, SUS - RES (KR t, Holm m = 3 per measure x sex)",

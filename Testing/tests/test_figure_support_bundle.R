@@ -6,7 +6,7 @@
 #   1. static: no model / test / adjustment call in the helper or the runner; the runner parses its mode before any read,
 #      sources no Analysis/ file other than _pipeline_setup.R and never sources or evaluates the CombZ producer file; the
 #      helper parses (never sources) it; this test sources only Analysis/_pipeline_setup.R;
-#   2. run mode and bundle id fsb_v4_<YYYYMMDD>_<commit7>;
+#   2. run mode and bundle id fsb_v5_<YYYYMMDD>_<commit7>;
 #   3. frozen CombZ definition parser: constants and composite rule read without executing the file; refusal of a missing,
 #      duplicated or non-literal constant and of a missing / non-consecutive rule; the real producer source yields the
 #      six components and three inversions;
@@ -74,7 +74,7 @@ check(grepl("Both", errmsg(fsb_parse_mode(c("--dry-run", "--real")))), "both mod
 check(identical(fsb_parse_mode("--dry-run"), "DRY") && identical(fsb_parse_mode("--real"), "REAL"), "modes parse")
 cm <- "0123456789abcdef0123456789abcdef01234567"
 bid <- fsb_bundle_id(as.Date("2026-09-30"), cm)
-check(identical(bid, "fsb_v4_20260930_0123456") && grepl("^fsb_v[0-9]+_[0-9]{8}_[0-9a-f]{7}$", bid), "bundle id fsb_v4_<YYYYMMDD>_<commit7>")
+check(identical(bid, "fsb_v5_20260930_0123456") && grepl("^fsb_v[0-9]+_[0-9]{8}_[0-9a-f]{7}$", bid), "bundle id fsb_v5_<YYYYMMDD>_<commit7>")
 check(grepl("full git commit", errmsg(fsb_bundle_id(Sys.Date(), "abc1234"))), "a short commit is refused")
 ok("run mode and bundle id")
 
@@ -222,7 +222,7 @@ s30fb_write_csv(ph_rows("sensitivity_common_cage_variance")[, same_sign := TRUE]
 s30fb_write_csv(data.table(model_id = paste0("m", 1:8), singular = c(TRUE, rep(FALSE, 7)), vc_con_cage = c(0, runif(7)), error = NA_character_), file.path(PHR, "tables", "diagnostics.csv"))
 s30fb_write_csv(data.table(stage = "s", gate = "g", passed = TRUE), file.path(PHR, "audit", "gate_results.csv"))
 s30fb_write_csv(data.table(input = "x", sha256 = "y"), file.path(PHR, "audit", "input_hashes.csv"))
-s30fb_write_csv(data.table(mode = "REAL", git_commit = FSB_POSTHOC$run_commit, registry_sha256 = FSB_POSTHOC$registry_sha256, registry_version = "1.0",
+s30fb_write_csv(data.table(mode = "REAL", git_commit = FSB_POSTHOC$run_commit, registry_sha256 = FSB_POSTHOC$registry_sha256, registry_version = FSB_POSTHOC$registry_version,
                            status_counts = FSB_POSTHOC$status_counts, n_failed = 0L), file.path(PHR, "audit", "run_manifest.csv"))
 writeLines(c("Stage 29b", paste("commit", FSB_POSTHOC$run_commit), paste("registry sha256", FSB_POSTHOC$registry_sha256)), file.path(PHR, "README.txt"))
 phf <- sort(setdiff(s30fb_files_on_disk(PHR), "audit/output_manifest.csv"))
@@ -341,7 +341,7 @@ s30fb_write_csv(tag29(data.table(Sex = rep(c("Female", "Male"), each = 2), term 
 s30fb_write_csv(tag29(data.table(Sex = c("Female", "Male"), n = 6L, status = "OK")), file.path(P29, "tables", "diagnostics.csv"))
 s30fb_write_csv(data.table(stage = "s", gate = "g", passed = TRUE), file.path(P29, "audit", "gate_results.csv"))
 s30fb_write_csv(data.table(input = "x", sha256 = "y"), file.path(P29, "audit", "input_hashes.csv"))
-s30fb_write_csv(data.table(mode = "REAL", git_commit = FSB_POSTHOC29C$run_commit, registry_sha256 = FSB_POSTHOC29C$registry_sha256, registry_version = "1.0",
+s30fb_write_csv(data.table(mode = "REAL", git_commit = FSB_POSTHOC29C$run_commit, registry_sha256 = FSB_POSTHOC29C$registry_sha256, registry_version = FSB_POSTHOC29C$registry_version,
                            status_counts = FSB_POSTHOC29C$status_counts), file.path(P29, "audit", "run_manifest.csv"))
 writeLines(c("Stage 29c", paste("commit", FSB_POSTHOC29C$run_commit), paste("registry sha256", FSB_POSTHOC29C$registry_sha256)), file.path(P29, "README.txt"))
 p29f <- sort(setdiff(s30fb_files_on_disk(P29), "audit/output_manifest.csv"))
@@ -386,12 +386,24 @@ check(grepl("lacks column", errmsg(fsb_design_ages(tl_s[, !"Age"], a4_s, v_s))),
 ok("v4: E1 copy and identity gates, 29c verification and copies, date parsers, design ages and their gates")
 
 # ---------------------------------------------------------------- 9. writer
+# E3 (v5): a synthetic Stage 09 early-window coverage summary, copied verbatim and gated
+COVD <- file.path(TMP, "s09cov"); dir.create(file.path(COVD, "tables"), recursive = TRUE)
+COVF <- file.path(COVD, FSB_STAGE09_COVERAGE$file)
+s30fb_write_csv(data.table(primary_window_definition = "fixed clock window", bin_level = "10min_based", n_animals = 111L, expected_target_slots_per_animal = 72L,
+                           n_animals_complete = 111L, n_animals_missing_leading_only = 0L, n_animals_interior_missing = 0L, n_animals_trailing_missing = 0L,
+                           min_coverage_fraction = 1, mean_coverage_fraction = 1), COVF)
+E3s <- fsb_posthoc_copy(COVD, FSB_STAGE09_COVERAGE$file, s30fb_sha(COVF), "pipeline/09_early_prediction/10min")
+g3 <- fsb_coverage_gates(E3s, COVF)
+check(nrow(g3) == 3L && all(g3$passed), "E3: verbatim copy, coverage columns and the one-row / 111-animal / 72-slot gates pass")
+E3bad <- copy(E3s)[, n_animals := "110"]
+check(!all(fsb_coverage_gates(E3bad, COVF)$passed), "E3: a changed cell or animal count fails")
 tabs <- c(list(F1_con_cage_means = F1, F1b_con_reference_means = F1b, F2_combz_components = F2, F2b_combz_definition = F2b), PTS,
           list(D1_domain_heatmap_cells = D1s, M1_hmm_transition_difference = M1s, M2_hmm_transition_flows = M2s,
                M3_hmm_dwell_distribution = M3s, M4_hmm_resolution_sensitivity = M4s, E1_movement_combz_spearman_by_sex = E1s),
-          P29s, list(T1_design_ages = Ds$T1, T1b_design_ages_by_animal = Ds$T1b))
+          P29s, list(E3_early_window_coverage = E3s, T1_design_ages = Ds$T1, T1b_design_ages_by_animal = Ds$T1b))
 VB <- c(setNames(file.path(PHR, FSB_POSTHOC_TABLES), names(FSB_POSTHOC_TABLES)), D1_domain_heatmap_cells = file.path(S14, "stats_tables", "domain.csv"),
-        E1_movement_combz_spearman_by_sex = S09F, setNames(file.path(P29, FSB_POSTHOC29C_TABLES), names(FSB_POSTHOC29C_TABLES)))
+        E1_movement_combz_spearman_by_sex = S09F, E3_early_window_coverage = COVF,
+        setNames(file.path(P29, FSB_POSTHOC29C_TABLES), names(FSB_POSTHOC29C_TABLES)))
 
 GTS <- rbind(s30fb_gate_row("0-code", "synthetic pre-write gate", TRUE, "c"), s30fb_gate_row("0-code", "soft gate", FALSE, "not met", hard = FALSE))
 pf <- setNames(as.list(paste0("v_", FSB_PROVENANCE_KEYS)), FSB_PROVENANCE_KEYS)
@@ -413,8 +425,8 @@ check(nrow(reg) == 1L && identical(names(reg), FSB_REGISTRY_COLS) && identical(r
 f2back <- fread(file.path(w$dir, "F2_combz_components.csv"))
 check(nrow(f2back) == nrow(F2) && isTRUE(all(f2back$signed_z == F2$signed_z, na.rm = TRUE)) && identical(is.na(f2back$signed_z), is.na(F2$signed_z)), "F2 written at full precision")
 lg <- fread(w$log, colClasses = "character")
-check(nrow(lg) == 2L + 13L && identical(lg$stage[3:15], c(rep("7-write", 12), "8-register")) && all(lg$passed[3:15] == "TRUE") && sum(grepl("the source line", lg$gate)) == 8L,
-      "gate log = pre-write + post-write (incl. 8 line-level verbatim gates: P1-P1c, D1, E1, E2-E2c) + registration")
+check(nrow(lg) == 2L + 14L && identical(lg$stage[3:16], c(rep("7-write", 13), "8-register")) && all(lg$passed[3:16] == "TRUE") && sum(grepl("the source line", lg$gate)) == 9L,
+      "gate log = pre-write + post-write (incl. 9 line-level verbatim gates: P1-P1c, D1, E1, E2-E2c, E3) + registration")
 p1w <- readLines(file.path(w$dir, "P1_posthoc_con_contrasts.csv"), encoding = "UTF-8"); p1s <- readLines(VB[["P1_posthoc_con_contrasts"]], encoding = "UTF-8")
 check(length(p1w) == 25L && all(startsWith(p1w, paste0(p1s, ","))) && grepl(paste("SUS", mn, "RES"), p1w[7], fixed = TRUE), "written P1 lines = the source lines + provenance cells (UTF-8 labels kept)")
 OUT5 <- file.path(TMP, "o5"); tb5 <- tabs; tb5$P1b_posthoc_sensitivity <- copy(tb5$P1b_posthoc_sensitivity)[2, estimate := "9"]

@@ -21,22 +21,26 @@
 #   REPRODUCED HERE, and gated:
 #     * the composite:      CombZ = mean of the six component z-scores,
 #                           unweighted, ignoring missing components
-#                           (Excel AVERAGE semantics) -> parity ~2e-16
+#                           (Excel AVERAGE semantics) -> parity ~1e-14
 #     * the classification: within Sex, among SIS-exposed animals,
 #                           SUS if CombZ < mean(CombZ | CON, same Sex)
 #                                        - populationSD(CombZ | CON, same Sex)
-#                           -> parity: zero label mismatches
+#                           -> parity: zero label mismatches against the
+#                              classification lists and the workbook
 #
 #   NOT REPRODUCED, and documented as an external dependency:
-#     * the six component z-scores themselves. In the workbook these are static
-#       pasted values whose upstream formulas standardize each raw measure
-#       against a WITHIN-SEX CONTROL reference, but the reference is written as
-#       hard-coded absolute ROW POSITIONS in per-sex formula blocks rather than
-#       as a semantic criterion. The block boundaries are row ranges, not sex
-#       predicates, so no single uniform rule reproduces all animals. Attempting
-#       to "tidy" that would CHANGE the primary endpoint, which this pass
-#       explicitly must not do. The components are therefore carried through
-#       verbatim and their provenance is recorded.
+#     * the six component z-scores themselves. They are computed in the
+#       corrected workbook (sheet combz_canonical) by the logged workbook
+#       corrections of SISanalyzer (SIS_Analysis/WORKBOOK_LOG.csv) and are
+#       carried through verbatim here.
+#
+# VERSION 2 (2026-10-17). Version 1 read sheet zScore of the pre-restructure
+# workbook and applied three corrections itself (sucrose alignment, the zero
+# bottle rule, OR620's corticosterone cell). The corrected workbook carries
+# those and the corrections of 2026-10-16 (batch 1 novel-object D2, blank and
+# damaged organ weights unscored, female corticosterone reference rebuilt), so
+# version 2 reads it and corrects nothing. The version 1 tables (SHA-256
+# 1f6a2a69...) are archived with a receipt before version 2 replaces them.
 #
 # See docs/COMBZ_CANONICAL_DEFINITION.md for the full audit, including the
 # noncanonical alternative composites that must never be substituted.
@@ -62,15 +66,19 @@ project_root <- mmm_project_root()
 
 # ------------------------------------------------------------------ contract
 COMBZ_DEFINITION_ID       <- "combz_v1_six_component_unweighted_mean"
-COMBZ_REFERENCE_POP_ID    <- "within_sex_control_reference__upstream_workbook_positional_blocks"
+COMBZ_REFERENCE_POP_ID    <- "within_sex_control_reference__corrected_workbook_combz_canonical"
 COMBZ_CLASSIFICATION_ID   <- "sus_if_combz_below_within_sex_control_mean_minus_1_population_sd"
-CANONICAL_SHEET           <- "zScore"
-NONCANONICAL_SHEETS       <- c("combZScore", "CombZScore_noBatch")
+CANONICAL_SHEET           <- "combz_canonical"
+NONCANONICAL_SHEETS       <- c("combZScore", "CombZScore_noBatch", "combz_alternative_long")
 NONCANONICAL_ID_LISTS     <- c("sus_animals_batchCorrected.csv")
 
-# zScore!K = AVERAGE(E:J); columns E..J in this exact order.
+# combz_canonical!N (comb_z) = mean of G..L; the components in this exact order.
 COMBZ_COMPONENTS <- c("NOR", "sucrose_pref", "weight_dev", "delta_cort",
                       "adrenal_weight", "spleen_weight")
+# their column names in sheet combz_canonical
+WORKBOOK_COMPONENT_COLUMNS <- c(NOR = "nor", sucrose_pref = "sucrose_pref", weight_dev = "weight_dev",
+                                delta_cort = "delta_cort", adrenal_weight = "adrenal_weight",
+                                spleen_weight = "spleen_weight")
 
 # Direction, as established from the upstream formulas. "inverted" means the
 # raw measure was multiplied by -1 after standardization, so that for EVERY
@@ -78,22 +86,22 @@ COMBZ_COMPONENTS <- c("NOR", "sucrose_pref", "weight_dev", "delta_cort",
 COMBZ_COMPONENT_META <- tibble::tribble(
   ~component,        ~xlsx_column, ~domain,                  ~raw_measure,
   ~raw_derivation,                                    ~sign_inverted, ~higher_means,
-  "NOR",             "E", "cognition / recognition memory", "NOR discrimination index",
+  "NOR",             "G", "cognition / recognition memory", "NOR discrimination index",
   "(contactNov - contactFam) / (contactNov + contactFam)", FALSE, "better recognition memory",
-  "sucrose_pref",    "F", "hedonic / anhedonia",            "combined sucrose preference (%)",
+  "sucrose_pref",    "H", "hedonic / anhedonia",            "combined sucrose preference (%)",
   "100 * sucrose intake / total fluid intake, pooled over three tests", FALSE, "less anhedonia",
-  "weight_dev",      "G", "somatic growth",                 "body-weight change",
-  "difference between two scheduled weighing days",   FALSE, "better somatic growth",
-  "delta_cort",      "H", "HPA-axis reactivity",            "corticosterone rise",
+  "weight_dev",      "I", "somatic growth",                 "body-weight change",
+  "weight gain from weighing 2 to weighing 6 (3 to 6 in batch 6)", FALSE, "better somatic growth",
+  "delta_cort",      "J", "HPA-axis reactivity",            "corticosterone rise",
   "response concentration minus baseline concentration", TRUE,  "smaller stress-induced rise",
-  "adrenal_weight",  "I", "endocrine organ load",           "adrenal weight ratio",
+  "adrenal_weight",  "K", "endocrine organ load",           "adrenal weight ratio",
   "100 * adrenal weight / body weight",               TRUE,  "less adrenal hypertrophy",
-  "spleen_weight",   "J", "immune organ load",              "spleen weight ratio",
+  "spleen_weight",   "L", "immune organ load",              "spleen weight ratio",
   "100 * spleen weight / body weight",                TRUE,  "less splenic involution/load"
 )
 stopifnot(identical(COMBZ_COMPONENT_META$component, COMBZ_COMPONENTS))
 
-PARITY_TOL_COMBZ <- 1e-12   # CSV/float round-trip only; observed agreement ~2e-16
+PARITY_TOL_COMBZ <- 1e-12   # CSV/float round-trip only; observed agreement ~1e-14
 N_EXPECTED_ANIMALS <- 117L
 
 out_dir <- dirname(mmm_path_get("behavior.later_outcome_combz", "animal_level",
@@ -106,13 +114,11 @@ cat("  endpoint source root:", mmm_endpoint_source_root(project_root), "\n")
 cat("  output               :", out_dir, "\n")
 
 # --------------------------------------------------------------- read upstream
-# The workbook was restructured on 2026-09-23: the zScore sheet was replaced
-# and values were rounded to 15 significant digits. The canonical tables were
-# built from the workbook as it was before, which is kept byte for byte as
-# E9_Behavior_Data_before_restructure.xlsx; the restructured workbook's README
-# names it for exact reproduction. Its hash is pinned, so any edit to that file
-# stops this producer.
-wb  <- mmm_combz_source_workbook(project_root)
+# Version 2 reads sheet combz_canonical of the corrected workbook. The workbook
+# is pinned by its SHA-256 (MMM_COMBZ_WORKBOOK_SHA256), so any later edit stops
+# this producer until the pin is moved on purpose. The pre-restructure original
+# that version 1 read stays pinned for the historical audit replays only.
+wb  <- mmm_combz_workbook(project_root)
 sus_file <- mmm_path_get("behavior.combz_upstream_workbook", "susceptible_ids",
                          root = project_root)
 con_file <- mmm_path_get("behavior.combz_upstream_workbook", "control_ids",
@@ -132,128 +138,53 @@ if (!CANONICAL_SHEET %in% available) {
        call. = FALSE)
 }
 
-raw <- suppressWarnings(as.data.frame(
+sheet <- suppressWarnings(as.data.frame(
   readxl::read_excel(wb, sheet = CANONICAL_SHEET)))
 
-required_cols <- c("ID", "Group", "Sex", "Batch", COMBZ_COMPONENTS, "CombZ")
-missing_cols <- setdiff(required_cols, names(raw))
+required_cols <- c("animal_id", "sex", "batch", "experimental_condition", "outcome_group",
+                   unname(WORKBOOK_COMPONENT_COLUMNS), "n_components_present", "comb_z",
+                   "comb_z_as_recorded")
+missing_cols <- setdiff(required_cols, names(sheet))
 if (length(missing_cols) > 0L) {
   stop("Upstream contract violation: sheet '", CANONICAL_SHEET,
        "' is missing column(s): ", paste(missing_cols, collapse = ", "),
-       "\nPresent: ", paste(names(raw), collapse = ", "), call. = FALSE)
+       "\nPresent: ", paste(names(sheet), collapse = ", "), call. = FALSE)
 }
-if (nrow(raw) != N_EXPECTED_ANIMALS) {
+if (nrow(sheet) != N_EXPECTED_ANIMALS) {
   stop("Upstream contract violation: expected ", N_EXPECTED_ANIMALS,
-       " animals in sheet '", CANONICAL_SHEET, "', found ", nrow(raw), ".",
+       " animals in sheet '", CANONICAL_SHEET, "', found ", nrow(sheet), ".",
        call. = FALSE)
 }
-cat("  read", nrow(raw), "animals from sheet", CANONICAL_SHEET, "\n")
+cat("  read", nrow(sheet), "animals from sheet", CANONICAL_SHEET, "\n")
 
-# ------------------------------------------ documented upstream corrections
-# Three errors in the upstream workbook were established by direct audit on
-# 2026-09-20 and are corrected here. The workbook itself is unmodified; this is
-# the single place the corrections are applied, so every consumer of this
-# producer sees the same endpoint.
-#
-#   1. The sucrose component in `zScore` was pasted in by ROW POSITION, but
-#      `zScore` and `sucrosePreference` order 17 female animals differently, so
-#      those 17 carried another animal's value. Comparing the sheets row-by-row
-#      gives max diff 0; animal-by-animal gives 17 differences up to 2.69. A
-#      z-score must correlate +1 with the quantity it standardises within its
-#      stratum: the pasted column gave +1.000000 for males, +0.881 for females.
-#   2. A drinking bottle cannot gain fluid, so a negative consumption counts as
-#      zero. Two cells had escaped that rule (WatCon3 for OR555 and OR630),
-#      producing third-test preferences of 275% and 102.9%.
-#   3. OR620's `invertedD` was -3.8125; its own corticosterone rise implies
-#      -1.6355578560, the linear map every other batch-5 male follows to 8e-16.
-#
-# Per this producer's own doctrine the workbook endpoint is authoritative and
-# must not be redefined to make the producer pass. These are not redefinitions:
-# they are the "investigate the component columns instead" path, and each is
-# verified against the workbook's own formulas and reference rows.
-COMBZ_CORRECTION_ID <- "upstream_corrections_v1_sucrose_alignment_bottle_zero_or620_cort"
-
-strip_key <- function(x) sub("^(OQ|OR|O)?0*", "", toupper(trimws(as.character(x))))
-pop_sd    <- function(x) { x <- x[!is.na(x)]; sqrt(sum((x - mean(x))^2) / length(x)) }
-
-# (0) first confirm we read the workbook faithfully, using the UNCORRECTED
-#     values. This preserves the original protection: if the sheet ever stops
-#     satisfying CombZ = mean(components), we stop before correcting anything.
-asrec_mat <- as.matrix(suppressWarnings(
-  vapply(raw[, COMBZ_COMPONENTS], as.numeric, numeric(nrow(raw)))))
-asrec_combz <- rowMeans(asrec_mat, na.rm = TRUE)
-asrec_diff <- max(abs(asrec_combz - suppressWarnings(as.numeric(raw$CombZ))), na.rm = TRUE)
-if (!is.finite(asrec_diff) || asrec_diff > PARITY_TOL_COMBZ) {
-  stop("UPSTREAM CONTRACT FAILURE: the workbook's own CombZ column is not the ",
-       "mean of its own component columns (max difference ", format(asrec_diff),
-       "). Refusing to apply corrections to a sheet that no longer satisfies ",
-       "its own definition.", call. = FALSE)
+raw <- data.frame(ID = as.character(sheet$animal_id), Group = as.character(sheet$experimental_condition),
+                  Sex = as.character(sheet$sex), Batch = sheet$batch, stringsAsFactors = FALSE)
+for (cc in COMBZ_COMPONENTS) {
+  raw[[cc]] <- suppressWarnings(as.numeric(sheet[[WORKBOOK_COMPONENT_COLUMNS[[cc]]]]))
 }
-raw$combz_as_recorded <- suppressWarnings(as.numeric(raw$CombZ))
-for (cc in COMBZ_COMPONENTS) raw[[paste0(cc, "_as_recorded")]] <- asrec_mat[, cc]
+raw$CombZ <- suppressWarnings(as.numeric(sheet$comb_z))
+# the CombZ of the former zScore sheet before any correction, kept so the
+# uncorrected values remain reachable (version 1 kept the same values)
+raw$combz_as_recorded <- suppressWarnings(as.numeric(sheet$comb_z_as_recorded))
+raw$outcome_group_workbook <- as.character(sheet$outcome_group)
 
-# (1)+(2) sucrose: rebuild the component from the sucrose sheet, keyed on
-#         animal, with the zero-bottle rule applied. Standardisation uses the
-#         reference rows the workbook's own AF formulas name; which of the two
-#         blocks a row uses is decided by which reproduces its stored z, so
-#         this cannot drift if rows move.
-spref <- suppressWarnings(as.data.frame(readxl::read_excel(wb, sheet = "sucrosePreference")))
-bottle <- c("SucCon1", "WatCon1", "SucCon2", "WatCon2", "SucCon3", "WatCon3")
-spref[bottle] <- lapply(spref[bottle], function(v) suppressWarnings(as.numeric(v)))
-n_negative_bottle <- sum(spref$WatCon3 < 0, na.rm = TRUE)
-spref$WatCon3[which(spref$WatCon3 < 0)] <- 0
-REF_MALE   <- c(12, 13, 15, 17, 30:33, 82:85) - 1L   # Excel rows -> data rows
-REF_FEMALE <- c(42:45, 73:76, 100:103) - 1L
-z_against <- function(v, ref) (v - mean(v[ref], na.rm = TRUE)) / pop_sd(v[ref])
-stored_z  <- suppressWarnings(as.numeric(spref$OVERALLZSCORE))
-use_female <- abs(z_against(spref$CombRatio, REF_FEMALE) - stored_z) <
-              abs(z_against(spref$CombRatio, REF_MALE)   - stored_z)
-if (max(abs(ifelse(use_female,
-                   z_against(spref$CombRatio, REF_FEMALE),
-                   z_against(spref$CombRatio, REF_MALE)) - stored_z), na.rm = TRUE) > 1e-9) {
-  stop("Cannot reproduce sucrosePreference!OVERALLZSCORE from CombRatio using ",
-       "the reference rows named in its formulas; refusing to correct it.",
-       call. = FALSE)
+# (0) the sheet's own contract, on the values as read: comb_z is the mean of its
+#     component columns and n_components_present counts them.
+wb_mat <- as.matrix(raw[, COMBZ_COMPONENTS])
+wb_diff <- max(abs(rowMeans(wb_mat, na.rm = TRUE) - raw$CombZ), na.rm = TRUE)
+if (!is.finite(wb_diff) || wb_diff > PARITY_TOL_COMBZ) {
+  stop("UPSTREAM CONTRACT FAILURE: the workbook's comb_z is not the mean of its ",
+       "own component columns (max difference ", format(wb_diff), ").", call. = FALSE)
 }
-suc_num <- rowSums(cbind(spref$SucCon1, spref$SucCon2, spref$SucCon3), na.rm = TRUE)
-wat_num <- rowSums(cbind(spref$WatCon1, spref$WatCon2, spref$WatCon3), na.rm = TRUE)
-comb_ratio_fixed <- suc_num / (suc_num + wat_num) * 100
-suc_z_fixed <- ifelse(use_female,
-                      z_against(comb_ratio_fixed, REF_FEMALE),
-                      z_against(comb_ratio_fixed, REF_MALE))
-raw$sucrose_pref <- suc_z_fixed[match(strip_key(raw$ID), strip_key(spref$ID))]
-if (anyNA(raw$sucrose_pref) && !all(is.na(raw$sucrose_pref_as_recorded[is.na(raw$sucrose_pref)]))) {
-  stop("Sucrose component became NA for an animal that previously had one.", call. = FALSE)
+if (!identical(as.integer(sheet$n_components_present), as.integer(rowSums(is.finite(wb_mat))))) {
+  stop("UPSTREAM CONTRACT FAILURE: the workbook's n_components_present does not ",
+       "count its own component columns.", call. = FALSE)
 }
 
-# (3) OR620's corticosterone component, from the map its batch-mates obey
-cort <- suppressWarnings(as.data.frame(readxl::read_excel(wb, sheet = "corticosterone")))
-# select by position: the sheet has three identically-named invertedD columns
-# (batch / sex-pooled / male-referenced) which readxl de-duplicates, so a name
-# lookup is not stable. Excel J = delta concentration, V = sex-pooled invertedD,
-# which is the column the zScore sheet's delta_cort component is taken from.
-cort_k <- strip_key(cort[[1]])
-cort_d <- suppressWarnings(as.numeric(cort[[10]]))
-cort_i <- suppressWarnings(as.numeric(cort[[22]]))
-stopifnot(ncol(cort) >= 22, sum(is.finite(cort_d)) > 100, sum(is.finite(cort_i)) > 100)
-b5 <- which(cort$Sex == "m" & suppressWarnings(as.numeric(cort$Batch)) == 5 &
-              cort_k != "620" & is.finite(cort_d) & is.finite(cort_i))
-b5_fit <- stats::lm(cort_i[b5] ~ cort_d[b5])
-# residual RMS, not a sample SD: this is a goodness-of-fit diagnostic on the
-# regression, and the classification path must stay free of sample-SD calls
-b5_resid_rms <- sqrt(mean(stats::resid(b5_fit)^2))
-if (b5_resid_rms > 1e-12) {
-  stop("The batch-5 male corticosterone map is not exact; refusing to infer ",
-       "a replacement value for OR620.", call. = FALSE)
-}
-or620_fixed <- unname(coef(b5_fit)[1] + coef(b5_fit)[2] * cort_d[cort_k == "620"])
-raw$delta_cort[strip_key(raw$ID) == "620"] <- or620_fixed
-
-n_corrected_sucrose <- sum(abs(raw$sucrose_pref - raw$sucrose_pref_as_recorded) > 1e-9, na.rm = TRUE)
-raw$CombZ <- rowMeans(as.matrix(suppressWarnings(
-  vapply(raw[, COMBZ_COMPONENTS], as.numeric, numeric(nrow(raw))))), na.rm = TRUE)
-cat("  applied upstream corrections:", n_corrected_sucrose, "sucrose components (",
-    n_negative_bottle, "of them from the zero-bottle rule ), 1 corticosterone cell\n")
+# No correction is applied here. The corrections of 2026-09-20 (sucrose
+# alignment, zero-bottle rule, OR620) and of 2026-10-16 are in the workbook and
+# logged in SIS_Analysis/WORKBOOK_LOG.csv.
+COMBZ_CORRECTION_ID <- "upstream_corrections_v2_in_corrected_workbook__see_SIS_Analysis_WORKBOOK_LOG"
 
 # -------------------------------------------------- normalise identity and sex
 SEX_MAP <- c(m = "Male", f = "Female", M = "Male", F = "Female",
@@ -293,21 +224,19 @@ dat$n_components_present <- rowSums(is.finite(comp_mat))
 dat$CombZ <- rowMeans(comp_mat, na.rm = TRUE)
 dat$CombZ[dat$n_components_present == 0L] <- NA_real_
 
-# Workbook parity is the step (0) check: the workbook's recorded CombZ against
-# the mean of its recorded components. After the corrections combz_upstream
-# holds the corrected mean, so comparing it with dat$CombZ would compare a value
-# with itself.
-combz_abs_diff <- abs(asrec_combz - raw$combz_as_recorded)
+# Workbook parity: the composite recomputed by the rule above against the
+# workbook's comb_z, and every component against the sheet as read.
+combz_abs_diff <- abs(dat$CombZ - dat$combz_upstream)
 max_combz_diff <- max(combz_abs_diff, na.rm = TRUE)
 
 component_parity <- tibble(
   quantity = COMBZ_COMPONENTS,
   n_compared = vapply(COMBZ_COMPONENTS,
                       function(c) sum(is.finite(dat[[c]])), integer(1)),
-  # the components as read from the workbook (the *_as_recorded columns) are
-  # its values verbatim; the documented corrections then change sucrose_pref
-  # for 18 animals and delta_cort for one, which these rows do not describe
-  max_abs_difference = 0)
+  max_abs_difference = vapply(COMBZ_COMPONENTS, function(c) {
+    a <- dat[[c]]; b <- raw[[c]]
+    if (!identical(is.na(a), is.na(b))) Inf else max(c(0, abs(a - b)), na.rm = TRUE)
+  }, numeric(1)))
 
 # ------------------------------------------- derive the later outcome group
 read_ids <- function(path, label) {
@@ -371,12 +300,16 @@ dat <- dat %>%
 
 label_mismatch <- dat %>%
   filter(.data$outcome_group_derived != .data$outcome_group_upstream)
+# the workbook's own outcome_group column is a third, independent record
+workbook_group <- raw$outcome_group_workbook[match(dat$AnimalNum, canonical_animal_id(raw$ID))]
+workbook_label_mismatch <- dat$AnimalNum[is.na(workbook_group) | workbook_group != dat$outcome_group_derived]
 
 # ------------------------------------------------------------- PARITY GATE
 cat("\n--- workbook parity gate ---\n")
 cat("  animals compared              :", nrow(dat), "\n")
 cat("  max |CombZ - workbook CombZ|  :", format(max_combz_diff), "\n")
 cat("  outcome-group mismatches      :", nrow(label_mismatch), "\n")
+cat("  workbook outcome_group mismatch:", length(workbook_label_mismatch), "\n")
 cat("  thresholds:\n")
 for (i in seq_len(nrow(thresholds))) {
   cat(sprintf("     %-7s n_control=%2d  mean=%.9f  popSD=%.9f  threshold=%.9f\n",
@@ -402,6 +335,11 @@ if (nrow(label_mismatch) > 0L) {
                      label_mismatch$outcome_group_derived), collapse = "\n"),
        call. = FALSE)
 }
+if (length(workbook_label_mismatch) > 0L) {
+  stop("PARITY FAILURE: the derived outcome group differs from the workbook's ",
+       "outcome_group column for: ", paste(workbook_label_mismatch, collapse = ", "),
+       call. = FALSE)
+}
 cat("  PARITY GATE: PASS\n")
 
 # --------------------------------------- noncanonical alternative composites
@@ -419,6 +357,7 @@ alt_audit <- tibble(
   note = c(
     "Five-domain composite that also includes social preference, EPM and OFT; materially different values. Never read by any repository script.",
     "Within-batch-referenced variant of the component z-scores. Never read by any repository script.",
+    "Long table of the noncanonical composites in the corrected workbook (successor of the two sheets above). Never read by any repository script.",
     "Batch-corrected susceptible list. Not the list used by Analysis/01_build_multiscale_behavior_metrics.R."))
 stopifnot(nrow(alt_audit) == length(NONCANONICAL_SHEETS) + length(NONCANONICAL_ID_LISTS))
 
@@ -448,16 +387,15 @@ component_definition <- COMBZ_COMPONENT_META %>%
   mutate(
     combz_definition_id = COMBZ_DEFINITION_ID,
     weight_in_composite = 1 / length(COMBZ_COMPONENTS),
-    standardization = "z-score against the within-sex control reference in the upstream workbook",
+    standardization = "z-score against the within-sex control reference (population SD), computed in the corrected workbook; damaged or missing organ weights carry no score",
     reference_population_id = COMBZ_REFERENCE_POP_ID,
     sd_convention = "population SD (n divisor), Excel STDEVPA",
     reproducible_in_repository = FALSE,
     reproducibility_note = paste(
-      "Carried through verbatim from the upstream workbook. The upstream",
-      "standardization is written as hard-coded absolute row positions in",
-      "per-sex formula blocks, not as a semantic criterion, so no single",
-      "uniform rule reproduces every animal. Re-deriving it would change the",
-      "primary endpoint."))
+      "Carried through verbatim from sheet combz_canonical of the corrected",
+      "workbook. The component z-scores are computed there by the logged",
+      "workbook corrections of SISanalyzer (SIS_Analysis/WORKBOOK_LOG.csv),",
+      "not in this repository."))
 write_csv(component_definition,
           file.path(out_dir, "combz_component_definition.csv"))
 
@@ -490,7 +428,9 @@ saveRDS(list(definition_id = COMBZ_DEFINITION_ID,
              label_mismatches = nrow(label_mismatch),
              thresholds = thresholds,
              upstream_workbook = wb,
-             upstream_sheet = CANONICAL_SHEET),
+             upstream_workbook_sha256 = mmm_file_sha256(wb),
+             upstream_sheet = CANONICAL_SHEET,
+             upstream_correction_id = COMBZ_CORRECTION_ID),
         file.path(audit_dir, "combz_build_record.rds"))
 
 cat("\nWrote canonical later-outcome tables ->", out_dir, "\n")

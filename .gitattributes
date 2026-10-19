@@ -12,6 +12,10 @@ Functions/rfid_canonical_inference.R eol=crlf
 # and docs/stage30/REGISTRY_SHA256.txt.
 docs/stage30/stage30_registry_v1.0.json eol=crlf
 docs/stage30/STAGE30_REGISTRY_v1.0.md eol=crlf
+# Stage 30 registry v1.1 (built in Phase B by Analysis/_supporting/stage30_registry_v1_1.R --build, which writes CRLF):
+# S30SC_REGISTRY_SHA256 / S30SC_REGISTRY_MD_SHA256 pin those bytes.
+docs/stage30/stage30_registry_v1.1.json eol=crlf
+docs/stage30/STAGE30_REGISTRY_v1.1.md eol=crlf
 # Frozen configuration v1.0.1: the R file sha256 f34c7624... recorded in docs/STAGE29_RELEASE_v1.0.1_dv2.md.
 Functions/behavior_analysis_config.R eol=lf
 # The frozen 2026-09 Figure 1 bridge export: figure1_panel_source_manifest.csv records the SHA-256 and byte size of the

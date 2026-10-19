@@ -1,11 +1,12 @@
 # ================================================================
-# Post hoc per-sex least-squares display line, CombZ on early movement (registry v1.0): helpers
+# Post hoc per-sex least-squares display line, CombZ on early movement (registry v1.1): helpers
 # MMMSociability -- Functions/posthoc_movement_combz_fit.R
 # ================================================================
 # Pure constants and functions for Analysis/29c_posthoc_movement_combz_fit.R. Sourcing this file reads and writes nothing.
-# Implements docs/POSTHOC_MOVEMENT_COMBZ_FIT_REGISTRY_v1.0.md (FROZEN 2026-10-12T11:30:00+0200, commit 2be501d, sha256 a617bb5b...)
+# Implements docs/POSTHOC_MOVEMENT_COMBZ_FIT_REGISTRY_v1.1.md: registry v1.0 (FROZEN 2026-10-12T11:30:00+0200, commit 2be501d,
+# sha256 a617bb5b...; run v1.0_fd61cd9) on the corrected outcome (config v1.0.2, outcome version ov2)
 # and nothing else:
-#   * data: ebb_v101 A2_prediction_animals, y = observed_CombZ, x = Movement_mean; per sex every animal with finite x and y;
+#   * data: A2_prediction_animals of the Stage 29 bundle in PMF_STAGE29, y = observed_CombZ, x = Movement_mean; per sex every animal with finite x and y;
 #   * one stats::lm(y ~ x) per sex; the fitted line on 101 equally spaced x from that sex's minimum to its maximum x;
 #     the pointwise 95% confidence band fit +- qt(0.975, n - 2) x se.fit (stats::predict(se.fit = TRUE)), i.e. the band
 #     ggplot2::geom_smooth(method = "lm", level = 0.95) draws;
@@ -17,18 +18,21 @@
 # (phc_registry_gates, phc_gate) sourced first.
 # ================================================================
 
-PMF_VERSION <- "1.0"
+# v1.0 (run v1.0_fd61cd9): registry sha256 a617bb5be709b558ed628a61fab0095b598345912c86e9c25070d07b02cb8098, freeze commit
+# 2be501d8b849346bdde47e246fb738a9df05ad98, ebb_v101_20260929_b2ce507 (manifest ec59aa33..., A2 5b8ee3fb...).
+# The PHASE-B values are set when v1.1 is frozen and ebb_v102 exists; until then every REAL-run gate fails closed.
+PMF_VERSION <- "1.1"
 PMF_REGISTRY <- list(
-  version = "1.0", file = "POSTHOC_MOVEMENT_COMBZ_FIT_REGISTRY_v1.0.md", repo_path = "docs/POSTHOC_MOVEMENT_COMBZ_FIT_REGISTRY_v1.0.md",
-  sha256 = "a617bb5be709b558ed628a61fab0095b598345912c86e9c25070d07b02cb8098",
-  canonical_rel = file.path("canonical", "posthoc_movement_combz_fit_registry", "v1.0"), sha_file = "REGISTRY_SHA256.txt",
-  freeze_commit = "2be501d8b849346bdde47e246fb738a9df05ad98", frozen_at = "2026-10-12T11:30:00+0200")
-PMF_STAGE29 <- list(bundle_id = "ebb_v101_20260929_b2ce507",
-                    manifest_sha256 = "ec59aa337fc63511de4aa2bf3e1ee1f4b34b84d6d671565f74e0bb3939f7226c",
-                    a2_file = "A2_prediction_animals.csv", a2_sha256 = "5b8ee3fbb92edf06aab1e18b1cee8cc31361f165cbe748fdfaeb1fd9f39d2c22")
+  version = "1.1", file = "POSTHOC_MOVEMENT_COMBZ_FIT_REGISTRY_v1.1.md", repo_path = "docs/POSTHOC_MOVEMENT_COMBZ_FIT_REGISTRY_v1.1.md",
+  sha256 = "PHASE-B",  # RETRACK-PIN
+  canonical_rel = file.path("canonical", "posthoc_movement_combz_fit_registry", "v1.1"), sha_file = "REGISTRY_SHA256.txt",
+  freeze_commit = "PHASE-B", frozen_at = "PHASE-B")  # RETRACK-PIN
+PMF_STAGE29 <- list(bundle_id = "ebb_v102_PHASE-B",  # RETRACK-PIN
+                    manifest_sha256 = "PHASE-B",  # RETRACK-PIN
+                    a2_file = "A2_prediction_animals.csv", a2_sha256 = "PHASE-B")  # RETRACK-PIN
 PMF_STAGE_DIR <- "29c_posthoc_movement_combz_fit"
 # any earlier REAL output or staging folder (at any commit) blocks a REAL run: the registry allows exactly one
-PMF_REAL_OUT_PATTERN <- "^(\\.tmp_)?v1\\.0_"
+PMF_REAL_OUT_PATTERN <- "^(\\.tmp_)?v1\\.1_"
 PMF_OPTIN_ENV <- "MMM_POSTHOC29C_REAL_RUN"
 
 PMF_X <- "Movement_mean"
@@ -53,7 +57,7 @@ PMF_README <- "README.txt"
 pmf_parse_mode <- function(args) {
   args <- as.character(args)
   if (!identical(args, "--real"))
-    stop("Refusing to run: the only mode is --real (registry v1.0 section 7: fitted once; no dry run on project data). ",
+    stop("Refusing to run: the only mode is --real (registry section 7: fitted once; no dry run on project data). ",
          "Synthetic checks: Rscript Testing/tests/test_posthoc_movement_combz_fit.R", call. = FALSE)
   "REAL"
 }

@@ -1,6 +1,6 @@
 # Contract test for the analytic-identity gate (Functions/behavior_config_identity.R).
 #
-# The current configuration (v1.0.1) must be analytically identical to the frozen v1.0.0, and every kind of
+# The current configuration (v1.0.2) must be analytically identical to the frozen v1.0.0, and every kind of
 # analytic edit must be rejected. The frozen parent is read from analysis_ready/canonical/behavior_config/v1.0.0
 # when the project root is reachable, otherwise it is rebuilt from the freeze commit a9b7a2c (git show); both
 # must hash to the recorded 33d22430... Nothing is written; no behavioural data are read; no Analysis/ stage runs.
@@ -29,7 +29,7 @@ if (file.exists(frozen_json)) {
 ok(paste("frozen parent v1.0.0 loaded from", src))
 
 cur <- mmm_cfg_tree(MMM_BEHAVIOR_CONFIG)
-check(identical(cur$meta$config_version, "1.0.1"), "the repository config is v1.0.1")
+check(identical(cur$meta$config_version, "1.0.2"), "the repository config is v1.0.2")
 
 # 0. token extraction
 tk <- mmm_cfg_tokens("sandwich::vcovCL(cluster = ~ AnimalID, type = 'HC3', cadjust = TRUE); rank 101 (93 cage epochs).")
@@ -41,18 +41,20 @@ r0 <- mmm_cfg_analytic_identity(parent, parent, parent_sha256 = PARENT_SHA)
 check(nrow(r0$differences) == 0, "a frozen config has 0 differing leaves with itself")
 ok("parent vs itself: 0 differing leaves")
 
-# 2. the repository v1.0.1 passes
+# 2. the repository v1.0.2 passes
 r1 <- mmm_cfg_analytic_identity(parent, cur, parent_sha256 = PARENT_SHA)
-check(r1$ok, paste("v1.0.1 must pass:", paste(r1$disallowed$path, r1$disallowed$reason, collapse = "; "),
+check(r1$ok, paste("v1.0.2 must pass:", paste(r1$disallowed$path, r1$disallowed$reason, collapse = "; "),
                    paste(r1$checks$check[!r1$checks$ok], collapse = "; ")))
 d <- r1$differences
 check(!any(d$status == "changed" & d$class %in% c("number", "logical", "type")), "no numeric/logical leaf changed")
 check(!any(d$status == "removed" & d$class != "populated_empty"), "no parent leaf removed")
-check(all(grepl("^/(data_versions|meta|metrics|population)/", d$path[d$status == "added"])), "added leaves only in whitelisted nodes")
-ok(sprintf("v1.0.1 accepted: %d leaves differ (%s), 0 disallowed; %d/%d semantic checks", nrow(d),
+check(all(grepl("^/(data_versions|outcome_versions|meta|metrics|population)/", d$path[d$status == "added"])), "added leaves only in whitelisted nodes")
+check(all(c("outcome_versions_complete", "parent_outcome_version_counts", "outcome_version_count_structure") %in% r1$checks$check),
+      "the outcome-version checks run for v1.0.2")
+ok(sprintf("v1.0.2 accepted: %d leaves differ (%s), 0 disallowed; %d/%d semantic checks", nrow(d),
            paste(names(table(d$class)), table(d$class), sep = " ", collapse = ", "), sum(r1$checks$ok), nrow(r1$checks)))
 
-# 3. every analytic edit is rejected (each applied to the accepted v1.0.1 tree)
+# 3. every analytic edit is rejected (each applied to the accepted v1.0.2 tree)
 bad <- list(
   formula            = function(x) { x$models$TR_POOLED$formula <- sub("(1 | CageEpisodeID)", "(1 | Batch)", x$models$TR_POOLED$formula, fixed = TRUE); x },
   expected_rank      = function(x) { x$models$CC1_POOLED$expected_rank <- 9L; x },
@@ -78,9 +80,17 @@ bad <- list(
   parent_binding     = function(x) { x$data_versions$v1_original$expected_counts$shared_zone_use$windows <- 346L; x },
   parent_cc_set      = function(x) { x$data_versions$v1_original$complete_case_missing <- list("OQ770", "OQ771"); x },
   release_undeclared = function(x) { x$data_versions$release <- "v3_unknown"; x },
-  change_log_label   = function(x) { x$meta$change_log[[1]]$label <- "documentation"; x },
+  change_log_label   = function(x) { x$meta$change_log[[length(x$meta$change_log)]]$label <- "documentation"; x },
   pre_outcome_claim  = function(x) { x$meta$frozen_before_res_sus_outcome_models <- TRUE; x },
-  parent_sha         = function(x) { x$meta$analytic_parent$config_sha256 <- paste(rep("0", 64), collapse = ""); x })
+  parent_sha         = function(x) { x$meta$analytic_parent$config_sha256 <- paste(rep("0", 64), collapse = ""); x },
+  # outcome versions (v1.0.2)
+  group_count_leaf   = function(x) { x$population$primary$expected_by_sex_group$Female$RES <- 26L; x },
+  ov_missing         = function(x) { x$outcome_versions <- NULL; x },
+  ov_release         = function(x) { x$outcome_versions$release <- "ov9_unknown"; x },
+  ov_parent_counts   = function(x) { x$outcome_versions$ov1_original$expected_by_sex_group$Female$RES <- 26L; x },
+  ov_count_total     = function(x) { x$outcome_versions$ov2_corrected_workbook$expected_by_sex_group$Female$RES <- 25L; x },
+  ov_table_hash      = function(x) { x$outcome_versions$ov2_corrected_workbook$combz_table_sha256 <- "to be filled"; x },
+  ov_parent_binding  = function(x) { x$meta$analytic_parent$outcome_version <- "ov2_corrected_workbook"; x })
 for (k in names(bad)) {
   r <- mmm_cfg_analytic_identity(parent, bad[[k]](cur), parent_sha256 = PARENT_SHA)
   why <- c(if (nrow(r$disallowed)) paste(r$disallowed$path, collapse = ", "), r$checks$check[!r$checks$ok])

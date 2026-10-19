@@ -69,7 +69,7 @@ check(!s30fb_code_clean(" M Functions/b.R", files, files)$ok, "a modified file -
 check(!s30fb_code_clean(character(), files[1], files)$ok, "an untracked file -> not clean")
 cm <- "0123456789abcdef0123456789abcdef01234567"
 bid <- s30fb_bundle_id(as.Date("2026-09-29"), cm)
-check(identical(bid, "s30b_v10_20260929_0123456") && grepl("^s30b_v[0-9]+_[0-9]{8}_[0-9a-f]{7}$", bid), "bundle id s30b_v10_<YYYYMMDD>_<commit7>")
+check(identical(bid, "s30b_v11_20260929_0123456") && grepl("^s30b_v[0-9]+_[0-9]{8}_[0-9a-f]{7}$", bid), "bundle id s30b_v11_<YYYYMMDD>_<commit7>")
 check(grepl("full git commit", errmsg(s30fb_bundle_id(Sys.Date(), "abc1234"))), "a short commit is refused")
 ok("run mode, clean-code check, bundle id")
 

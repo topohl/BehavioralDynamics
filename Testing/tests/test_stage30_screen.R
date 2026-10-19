@@ -360,13 +360,14 @@ ok("KR fidelity: a Kenward-Roger -> Satterthwaite fallback is FAILED, never repo
 tr <- file.path(tempdir(), "s30sc_outroot"); dir.create(tr, showWarnings = FALSE)
 check(!length(s30sc_real_out_conflicts(file.path(tr, "absent"))) && !length(s30sc_real_out_conflicts(tr)), "no conflict in an absent / empty output root")
 dir.create(file.path(tr, "v0.9_old")); dir.create(file.path(tr, "notes")); check(!length(s30sc_real_out_conflicts(tr)), "unrelated entries do not block")
-dir.create(file.path(tr, ".tmp_v1.0_abc1234")); check(identical(s30sc_real_out_conflicts(tr), ".tmp_v1.0_abc1234"), "an aborted REAL staging folder (any commit) blocks")
-dir.create(file.path(tr, "v1.0_def5678")); check(setequal(s30sc_real_out_conflicts(tr), c(".tmp_v1.0_abc1234", "v1.0_def5678")), "an earlier REAL output at another commit blocks")
+dir.create(file.path(tr, "v1.0_be71e2f")); check(!length(s30sc_real_out_conflicts(tr)), "the v1.0 REAL run does not block a v1.1 run")
+dir.create(file.path(tr, ".tmp_v1.1_abc1234")); check(identical(s30sc_real_out_conflicts(tr), ".tmp_v1.1_abc1234"), "an aborted REAL staging folder (any commit) blocks")
+dir.create(file.path(tr, "v1.1_def5678")); check(setequal(s30sc_real_out_conflicts(tr), c(".tmp_v1.1_abc1234", "v1.1_def5678")), "an earlier REAL output at another commit blocks")
 unlink(tr, recursive = TRUE)
-check(identical(s30sc_release_commit("S:/x/analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_b2ce507"), "b2ce507") &&
-      identical(s30sc_release_commit("S:\\x\\analysis_ready\\pipeline\\29_canonical_behavior_releases\\v101_dv2_b2ce507\\"), "b2ce507") &&
-      is.na(s30sc_release_commit("C:/ev/cage_fix_rerun/out")) && is.na(s30sc_release_commit("S:/x/analysis_ready/pipeline/29_canonical_behavior_releases/v100_dv1_0555c90")) &&
-      is.na(s30sc_release_commit("S:/x/analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_B2CE507")), "release folder path -> commit7 (v101_dv2 only)")
+check(identical(s30sc_release_commit("S:/x/analysis_ready/pipeline/29_canonical_behavior_releases/v102_dv2_a1b2c3d"), "a1b2c3d") &&
+      identical(s30sc_release_commit("S:\\x\\analysis_ready\\pipeline\\29_canonical_behavior_releases\\v102_dv2_a1b2c3d\\"), "a1b2c3d") &&
+      is.na(s30sc_release_commit("C:/ev/cage_fix_rerun/out")) && is.na(s30sc_release_commit("S:/x/analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_b2ce507")) &&
+      is.na(s30sc_release_commit("S:/x/analysis_ready/pipeline/29_canonical_behavior_releases/v102_dv2_A1B2C3D")), "release folder path -> commit7 (v102_dv2 only)")
 mf <- data.table(file = c(names(S30SC_S29_TABLE_SHA256), "other.csv"), bytes = 1, sha256 = c(unname(S30SC_S29_TABLE_SHA256), "x"))
 check(s30sc_release_manifest_check(mf)$passed && !s30sc_release_manifest_check(mf[-2])$passed &&
       !s30sc_release_manifest_check(copy(mf)[1, sha256 := "0"])$passed && !s30sc_release_manifest_check(rbind(mf, mf[1][, sha256 := "0"]))$passed,

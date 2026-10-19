@@ -2,18 +2,18 @@
 # Stage 30 - Exploratory outcome screen (Exp9 SIS RFID)
 # MMMSociability -- Analysis/30_exploratory_screen.R
 # ================================================================
-# Runs the FROZEN Stage 30 registry v1.0 (analysis_ready/canonical/stage30_registry/v1.0/stage30_registry_v1.0.json,
-# sha256 5c252bf6...; identical copy docs/stage30/) exactly once: 48 DISCOVERY hypotheses (F, M, INT; local BH per family,
+# Runs the FROZEN Stage 30 registry v1.1 (analysis_ready/canonical/stage30_registry/v1.1/stage30_registry_v1.1.json;
+# identical copy docs/stage30/; v1.0 on the corrected outcome, v1.0 ran once as v1.0_be71e2f) exactly once: 48 DISCOVERY hypotheses (F, M, INT; local BH per family,
 # global BH over the 48 as a descriptive column), 16 POOL ESTIMATION_ONLY entries (no p), every declared sensitivity,
 # leave-one-batch-out refits, animal influence, classification (D, A, B, C) and wording flags, plus the Stage 29
 # carry-over rows. Tier: exploratory, decision basis POST_HOC_CONTEXT; never primary, confirmatory or preregistered.
 #
 #   0. mode opt-in and identity gates: registry SHA-256 (S: and repo copy), every FREEZE_RECORD.csv input hash (config: its
-#      analytic constants only, so config v1.0.1 documentation edits do not block), frozen code hashes, clean committed
+#      analytic constants only, so config documentation edits do not block), frozen code hashes, clean committed
 #      code (REAL), no earlier REAL output or staging folder at any commit (REAL)
 #   1. data gates: data version v2 manifest + 24 files, raw_data seed files, cookie_postEPM_v1 manifest + files, Stage 29
-#      tables, the X4 inactivity reference table; the Stage 29 v1.0.1 release folder (path, ancestry, manifest, read-only,
-#      run_manifest) and the R / package versions of that release; the CombZ table header (first line only); the Stage 29
+#      tables, the X4 inactivity reference table; the Stage 29 config v1.0.2 release folder (path, ancestry, manifest, read-only,
+#      run_manifest incl. the outcome version) and the R / package versions of that release; the CombZ table header (first line only); the Stage 29
 #      carry-over rows and their count gate (all before any label or outcome contact)
 #   2. measures through Functions/stage30_movement.R (s30mv_*): CC1-CC4 canonical window metrics must equal the Stage 29 v2
 #      reference table (tolerance 1e-9); >= 40 s / >= 60 s positional-inactivity fractions from the canonical occupancy
@@ -27,10 +27,10 @@
 #
 # RUN MODES (exactly one must be selected explicitly; with neither variable set the driver refuses to run)
 #   REAL (the single registered run): MMM_STAGE30_REAL_RUN = the HEAD commit7 (explicit opt-in) AND
-#     MMM_STAGE30_S29_RELEASE_DIR = the Stage 29 v1.0.1 release folder. Refuses unless the registry and every FREEZE_RECORD
-#     hash match, the driver and its code are committed and clean, analysis_ready/pipeline/30_exploratory_screen/ holds no
-#     v1.0_* output or .tmp_v1.0_* staging folder (any commit), and every gate passes; writes only to
-#     analysis_ready/pipeline/30_exploratory_screen/v1.0_<commit7>/ (staged in .tmp_v1.0_<commit7>/, created before the
+#     MMM_STAGE30_S29_RELEASE_DIR = the Stage 29 config v1.0.2 release folder. Refuses unless the registry and every
+#     FREEZE_RECORD hash match, the driver and its code are committed and clean, analysis_ready/pipeline/30_exploratory_screen/
+#     holds no v1.1_* output or .tmp_v1.1_* staging folder (any commit), and every gate passes; writes only to
+#     analysis_ready/pipeline/30_exploratory_screen/v1.1_<commit7>/ (staged in .tmp_v1.1_<commit7>/, created before the
 #     label lists are read and never deleted by the driver: an aborted REAL run leaves a documented blocking folder that
 #     needs a user decision; renamed at the end, then made read-only).
 #   DRY (code testing only): MMM_STAGE30_DRY_RUN_DIR = a new folder on C: under <evidence root>/evidence and outside the
@@ -42,7 +42,7 @@
 # Environment:
 #   MMM_STAGE30_REAL_RUN               REAL opt-in: must equal substr(HEAD, 1, 7)
 #   MMM_STAGE30_DRY_RUN_DIR            DRY mode + output folder (must not exist)
-#   MMM_STAGE30_S29_RELEASE_DIR        Stage 29 v1.0.1 release folder (REAL: required); DRY default: evidence/cage_fix_rerun/out
+#   MMM_STAGE30_S29_RELEASE_DIR        Stage 29 config v1.0.2 release folder (REAL: required; DRY: pass it, the default is the v1.0 evidence copy)
 #   MMM_STAGE30_SCREEN_HELPER          DRY only: explicit path to a (proposed) Functions/stage30_screen.R
 #   MMM_STAGE30_EVIDENCE_ROOT          root of the relative evidence/ paths in FREEZE_RECORD.csv
 #   MMM_STAGE30_ACK_PACKAGE_MISMATCH   "1" = the user explicitly accepts R / package versions differing from the release
@@ -65,13 +65,13 @@ DRY_DIR <- Sys.getenv("MMM_STAGE30_DRY_RUN_DIR"); REAL_OPTIN <- Sys.getenv("MMM_
 if (nzchar(DRY_DIR) && nzchar(REAL_OPTIN)) stop("Both MMM_STAGE30_DRY_RUN_DIR and MMM_STAGE30_REAL_RUN are set: set exactly one.", call. = FALSE)
 if (!nzchar(DRY_DIR) && !nzchar(REAL_OPTIN))
   stop("Refusing to run: no mode selected. DRY (code testing): MMM_STAGE30_DRY_RUN_DIR=<new C: folder under the evidence root>. ",
-       "REAL (the single registered run): MMM_STAGE30_REAL_RUN=<HEAD commit7> and MMM_STAGE30_S29_RELEASE_DIR=<Stage 29 v1.0.1 release folder>.", call. = FALSE)
+       "REAL (the single registered run): MMM_STAGE30_REAL_RUN=<HEAD commit7> and MMM_STAGE30_S29_RELEASE_DIR=<Stage 29 config v1.0.2 release folder>.", call. = FALSE)
 DRY <- nzchar(DRY_DIR); MODE <- if (DRY) "DRY" else "REAL"
 if (!DRY && !(grepl("^[0-9a-f]{40}$", commit) && identical(REAL_OPTIN, substr(commit, 1, 7))))
   stop("REAL opt-in refused: MMM_STAGE30_REAL_RUN must equal the 7-character HEAD commit of this repo.", call. = FALSE)
 S29_ENV <- Sys.getenv("MMM_STAGE30_S29_RELEASE_DIR")
 if (!DRY && !nzchar(S29_ENV))
-  stop("REAL requires MMM_STAGE30_S29_RELEASE_DIR = the Stage 29 v1.0.1 release folder (analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_<commit7>).", call. = FALSE)
+  stop("REAL requires MMM_STAGE30_S29_RELEASE_DIR = the Stage 29 config v1.0.2 release folder (analysis_ready/pipeline/29_canonical_behavior_releases/v102_dv2_<commit7>).", call. = FALSE)
 
 for (h in c("project_paths.R", "behavior_analysis_config.R", "rfid_event_stream.R", "rfid_binfree_metrics.R", "rfid_canonical_inference.R",
             "stage30_movement.R")) source_mmm_helper(h)
@@ -93,9 +93,10 @@ sha_or_na <- function(p) if (!is.na(p) && file.exists(p)) s30sc_sha(p) else NA_c
 
 # ---------------------------------------------------------------- paths
 RFID_ROOT <- mmm_project_root(); AR <- file.path(RFID_ROOT, "analysis_ready")
-REG_DIR <- file.path(AR, "canonical", "stage30_registry", "v1.0")
-REG_JSON <- file.path(REG_DIR, "stage30_registry_v1.0.json"); REG_MD <- file.path(REG_DIR, "STAGE30_REGISTRY_v1.0.md")
-REG_REPO <- file.path(MMM_REPO_ROOT, "docs", "stage30", "stage30_registry_v1.0.json")
+REG_V <- paste0("v", S30SC_REGISTRY_VERSION)
+REG_DIR <- file.path(AR, "canonical", "stage30_registry", REG_V)
+REG_JSON <- file.path(REG_DIR, paste0("stage30_registry_", REG_V, ".json")); REG_MD <- file.path(REG_DIR, paste0("STAGE30_REGISTRY_", REG_V, ".md"))
+REG_REPO <- file.path(MMM_REPO_ROOT, "docs", "stage30", paste0("stage30_registry_", REG_V, ".json"))
 FREEZE_FILE <- file.path(REG_DIR, "FREEZE_RECORD.csv")
 EVIDENCE_ROOT <- Sys.getenv("MMM_STAGE30_EVIDENCE_ROOT", "C:/Users/topohl/Documents/e9_behavior_rationalization_audit_2026-09-27/stage30_sleep_cookie")
 S29_IS_ARG <- nzchar(S29_ENV)
@@ -124,10 +125,10 @@ tick("start")
 # ---------------------------------------------------------------- 0. identity gates
 gate("0-identity", "explicit run-mode opt-in", TRUE, if (DRY) "MMM_STAGE30_DRY_RUN_DIR set" else paste("MMM_STAGE30_REAL_RUN =", REAL_OPTIN, "= HEAD commit7"))
 RG <- s30sc_read_registry(REG_JSON); reg <- RG$reg
-gate("0-identity", "registry JSON (S:) SHA-256 = frozen v1.0", RG$sha == S30SC_REGISTRY_SHA256, RG$sha); inp(REG_JSON, "registry", RG$sha)
+gate("0-identity", paste("registry JSON (S:) SHA-256 = frozen", REG_V), RG$sha == S30SC_REGISTRY_SHA256, RG$sha); inp(REG_JSON, "registry", RG$sha)
 gate("0-identity", "registry JSON repo copy (docs/stage30) identical", file.exists(REG_REPO) && s30sc_sha(REG_REPO) == S30SC_REGISTRY_SHA256, REG_REPO)
 gate("0-identity", "registry companion .md SHA-256", s30sc_sha(REG_MD) == S30SC_REGISTRY_MD_SHA256, REG_MD); inp(REG_MD, "registry_md")
-gate("0-identity", "registry status FROZEN, version 1.0", identical(reg$meta$status, "FROZEN") && identical(reg$meta$version, S30SC_REGISTRY_VERSION))
+gate("0-identity", paste("registry status FROZEN, version", S30SC_REGISTRY_VERSION), identical(reg$meta$status, "FROZEN") && identical(reg$meta$version, S30SC_REGISTRY_VERSION))
 fr <- fread(FREEZE_FILE, colClasses = "character"); inp(FREEZE_FILE, "freeze_record")
 resolve_fr <- function(p) if (grepl("^[A-Za-z]:/", p)) p else if (startsWith(p, "evidence/")) file.path(EVIDENCE_ROOT, p) else file.path(REG_DIR, p)
 for (i in seq_len(nrow(fr))) {
@@ -135,7 +136,7 @@ for (i in seq_len(nrow(fr))) {
   if (ok_file) inp(pth, paste0("freeze_record:", fr$item[i]), sha)
   if (fr$item[i] == "config_at_freeze") {
     gate("0-identity", "FREEZE_RECORD config_at_freeze: file hash recorded (gated on analytic constants instead)", ok_file,
-         paste("sha now", sha, if (identical(sha, fr$sha256[i])) "(= freeze)" else "(differs from freeze: expected after config v1.0.1)"), hard = FALSE)
+         paste("sha now", sha, if (identical(sha, fr$sha256[i])) "(= freeze)" else "(differs from freeze: expected after a config documentation revision)"), hard = FALSE)
   } else gate("0-identity", paste("FREEZE_RECORD", fr$item[i], "SHA-256"), ok_file && identical(sha, fr$sha256[i]), pth)
 }
 gate("0-identity", "FREEZE_RECORD lists every bound input", all(c("sus_list", "con_list", "combz_table", "v2_manifest", "cookie_manifest_staged",
@@ -151,7 +152,7 @@ SPEC <- s30sc_spec(reg)
 gate("0-identity", "registry specification: 48 discovery + 16 POOL, families, focal terms, engines, measures", TRUE, paste(names(attr(SPEC, "checks")), collapse = ","))
 CODE_FILES <- c("Analysis/30_exploratory_screen.R", "Functions/stage30_screen.R", "Functions/stage30_movement.R", "Functions/rfid_canonical_inference.R",
                 "Functions/rfid_event_stream.R", "Functions/rfid_binfree_metrics.R", "Functions/behavioral_dynamics_helpers.R",
-                "Functions/behavior_analysis_config.R", "Functions/project_paths.R", "Analysis/_pipeline_setup.R", "docs/stage30/stage30_registry_v1.0.json")
+                "Functions/behavior_analysis_config.R", "Functions/project_paths.R", "Analysis/_pipeline_setup.R", file.path("docs", "stage30", basename(REG_REPO)))
 dirty <- git("status", "--porcelain", "--untracked-files=all", "--", CODE_FILES)
 tracked <- git("ls-files", "--", CODE_FILES); untracked <- setdiff(CODE_FILES, tracked)
 gate("0-identity", "driver code committed and clean (git status / ls-files)", !length(dirty) && !length(untracked) && grepl("^[0-9a-f]{40}$", commit),
@@ -161,10 +162,10 @@ if (!DRY) {
        identical(s30sc_norm_path(DRIVER), s30sc_norm_path(file.path(MMM_REPO_ROOT, "Analysis", "30_exploratory_screen.R"))), DRIVER)
   gate("0-identity", "REAL run uses the committed Functions/stage30_screen.R",
        identical(s30sc_norm_path(HELPER), s30sc_norm_path(file.path(MMM_REPO_ROOT, "Functions", "stage30_screen.R"))), HELPER)
-  NAME <- paste0("v1.0_", substr(commit, 1, 7))
+  NAME <- paste0(REG_V, "_", substr(commit, 1, 7))
   OUT <- file.path(OUT_ROOT, NAME); WORK <- file.path(OUT_ROOT, paste0(".tmp_", NAME))
   conf <- s30sc_real_out_conflicts(OUT_ROOT)
-  gate("0-identity", "REAL output root holds no v1.0_* output or .tmp_v1.0_* staging folder (any commit; run once)", !length(conf), paste(c(OUT_ROOT, conf), collapse = ": "))
+  gate("0-identity", paste0("REAL output root holds no ", REG_V, "_* output or .tmp_", REG_V, "_* staging folder (any commit; run once)"), !length(conf), paste(c(OUT_ROOT, conf), collapse = ": "))
   gate("0-identity", "REAL output folder does not exist (immutable)", !dir.exists(OUT), OUT)
   gate("0-identity", "no partial REAL staging folder", !dir.exists(WORK), WORK)
 } else {
@@ -200,16 +201,16 @@ gate("1-data", "cookie_postEPM_v1: every file hash and size = manifest", all(ck_
 for (f in names(S30SC_COOKIE_FILE_SHA256)) gate("1-data", paste("cookie", f, "SHA-256 = registry"), s30sc_sha(file.path(CK_DIR, f)) == S30SC_COOKIE_FILE_SHA256[[f]])
 for (i in seq_len(nrow(ckm))) inp(file.path(CK_DIR, ckm$file[i]), "cookie_data_version", ck_sha[i])
 for (f in names(S30SC_S29_TABLE_SHA256)) { p <- file.path(S29_TABLES, f)
-  gate("1-data", paste("Stage 29 v1.0.1 table", f, "SHA-256"), file.exists(p) && s30sc_sha(p) == S30SC_S29_TABLE_SHA256[[f]], p); inp(p, "stage29_release_table") }
+  gate("1-data", paste("Stage 29 release table", f, "SHA-256"), file.exists(p) && s30sc_sha(p) == S30SC_S29_TABLE_SHA256[[f]], p); inp(p, "stage29_release_table") }
 gate("1-data", "X4 inactivity reference table SHA-256", s30sc_sha(X401) == S30SC_X401_SHA256, X401); inp(X401, "inactivity_reference")
 # CombZ table header only (first line; no value is read): the label pre-flight and the outcome read will find their columns
 cz_head <- gsub('^"|"$', "", strsplit(readLines(COMBZ, n = 1L, warn = FALSE), ",", fixed = TRUE)[[1]])
 gate("1-data", "CombZ table header (first line only) has the label and outcome columns", all(c(S30SC_COMBZ_LABEL_COLS, S30SC_COMBZ_OUTCOME_COLS) %in% cz_head),
      paste(length(cz_head), "columns"))
-# Stage 29 v1.0.1 release folder (G2-05): required in REAL; in DRY enforced whenever the folder is passed explicitly
+# Stage 29 config v1.0.2 release folder (G2-05): required in REAL; in DRY enforced whenever the folder is passed explicitly
 REL_HARD <- !DRY || S29_IS_ARG
 REL_C7 <- s30sc_release_commit(S29_DIR)
-gate("1-release", "Stage 29 folder = .../29_canonical_behavior_releases/v101_dv2_<commit7> (registry stage29_release)", !is.na(REL_C7), S29_DIR, hard = REL_HARD)
+gate("1-release", "Stage 29 folder = .../29_canonical_behavior_releases/v102_dv2_<commit7> (registry stage29_release)", !is.na(REL_C7), S29_DIR, hard = REL_HARD)
 gate("1-release", "Stage 29 release commit is an ancestor of HEAD (git merge-base --is-ancestor)", !is.na(REL_C7) && git_ok("merge-base", "--is-ancestor", REL_C7, "HEAD"),
      paste(REL_C7, "->", commit), hard = REL_HARD)
 REL_MAN <- file.path(S29_DIR, "audit", "output_manifest.csv"); REL_RUN <- file.path(S29_DIR, "audit", "run_manifest.csv")
@@ -218,12 +219,13 @@ gate("1-release", "release audit/output_manifest.csv lists the 5 carried tables 
 ro <- vapply(file.path(S29_TABLES, names(S30SC_S29_TABLE_SHA256)), function(p) file.exists(p) && file.access(p, 2L) != 0L, TRUE)
 gate("1-release", "the 5 carried release tables are read-only", all(ro), paste(names(S30SC_S29_TABLE_SHA256)[!ro], collapse = ","), hard = REL_HARD)
 RM <- if (file.exists(REL_RUN)) fread(REL_RUN, colClasses = "character") else NULL
-gate("1-release", "release run_manifest: RELEASE mode, git_commit = folder commit7, data manifest = v2 (bb33a111)",
+gate("1-release", "release run_manifest: RELEASE mode, git_commit = folder commit7, data manifest = v2 (bb33a111), outcome version ov2",
      !is.null(RM) && identical(RM$run_mode[1], "RELEASE") && !is.na(REL_C7) && startsWith(RM$git_commit[1], REL_C7) &&
-       identical(RM$data_manifest_sha256[1], S30SC_V2_MANIFEST_SHA256), REL_RUN, hard = REL_HARD)
+       identical(RM$data_manifest_sha256[1], S30SC_V2_MANIFEST_SHA256) && identical(RM$outcome_version[1], S30SC_S29_OUTCOME_VERSION),
+     REL_RUN, hard = REL_HARD)
 if (file.exists(REL_MAN)) inp(REL_MAN, "stage29_release_output_manifest")
 if (file.exists(REL_RUN)) inp(REL_RUN, "stage29_release_run_manifest")
-# R / package versions (G2-10): the KR / CR2 numerics must run on the versions of the Stage 29 v1.0.1 release (and the E4 calibration)
+# R / package versions (G2-10): the KR / CR2 numerics must run on the versions of the Stage 29 release (and the E4 calibration)
 PKG <- s30sc_package_gate(if (is.null(RM)) NA_character_ else RM$packages[1], if (is.null(RM)) NA_character_ else RM$r_version[1])
 gate("1-release", "R and numerics package versions = Stage 29 release run_manifest (R, lme4, lmerTest, pbkrtest, clubSandwich, Matrix, reformulas)",
      all(PKG$passed), paste(PKG[, sprintf("%s %s|%s", item, expected, observed)], collapse = "; "), hard = !ACK_PKG)
@@ -358,7 +360,7 @@ tick("4 design gate")
 
 # ---------------------------------------------------------------- 4b. staging folder + RUN_STARTED marker, BEFORE any label / outcome contact (G2-02)
 if (!DRY) { conf <- s30sc_real_out_conflicts(OUT_ROOT)
-  gate("4-staging", "REAL output root still holds no v1.0_* / .tmp_v1.0_* entry", !length(conf), paste(c(OUT_ROOT, conf), collapse = ": ")) }
+  gate("4-staging", paste0("REAL output root still holds no ", REG_V, "_* / .tmp_", REG_V, "_* entry"), !length(conf), paste(c(OUT_ROOT, conf), collapse = ": ")) }
 gate("4-staging", "output and staging folders still do not exist", !dir.exists(OUT) && !dir.exists(WORK), WORK)
 dir.create(file.path(WORK, "tables"), recursive = TRUE, showWarnings = FALSE); dir.create(file.path(WORK, "audit"), recursive = TRUE, showWarnings = FALSE)
 TW <- file.path(WORK, "tables"); AW <- file.path(WORK, "audit")
@@ -475,7 +477,7 @@ DOC <- c("", paste("commit", commit), paste("registry sha256", RG$sha), paste("S
          "", paste("Output protection:", PROTECTION))
 writeLines(c(if (DRY) c("DRY_RUN_NOT_RESULTS", "", "This folder is a DRY run of Analysis/30_exploratory_screen.R: CombZ is synthetic, RES/SUS labels are permuted within",
                         "Batch x Sex, Stage 29 carry-over values are not read (NA). No number here is a Stage 30 result.") else
-               c("Stage 30 exploratory outcome screen (registry v1.0, FROZEN). Tier: exploratory; decision basis POST_HOC_CONTEXT.",
+               c(paste0("Stage 30 exploratory outcome screen (registry ", REG_V, ", FROZEN; v1.0 on the corrected outcome). Tier: exploratory; decision basis POST_HOC_CONTEXT."),
                  "Never primary, confirmatory or preregistered. Classification uses the local BH families only; the global BH is descriptive."),
              DOC), file.path(WORK, if (DRY) "DRY_RUN_NOT_RESULTS.txt" else "README.txt"))
 outs <- setdiff(list.files(WORK, recursive = TRUE, full.names = TRUE), file.path(AW, "output_manifest.csv"))

@@ -1,4 +1,4 @@
-# Contract test for the post hoc CON / RES / SUS contrast helpers (Functions/posthoc_con_contrasts.R; registry v1.0).
+# Contract test for the post hoc CON / RES / SUS contrast helpers (Functions/posthoc_con_contrasts.R; registry v1.1).
 #
 # Synthetic data in memory / tempdir() only: nothing here reads project data, the S: registry, a bundle or any S: path,
 # and no Analysis/ runner is sourced or executed (the runner is only read as text / parsed).
@@ -6,7 +6,7 @@
 #   1. static: the runner has one mode (--real) parsed before any read, an explicit commit opt-in, sources no Analysis/
 #      file other than _pipeline_setup.R and writes nothing itself; the helper holds no S: path; this test sources only
 #      Analysis/_pipeline_setup.R;
-#   2. mode, run name v1.0_<commit7>, LF-form hashing and the sha list lookup; registry gates on a synthetic frozen copy;
+#   2. mode, run name v1.1_<commit7>, LF-form hashing and the sha list lookup; registry gates on a synthetic frozen copy;
 #   3. population gates (counts, Sex nested in Batch, 3 CON-only cages per sex, non-finite sets) and their failures;
 #   4. L-vectors: batch-balanced means and the three contrasts;
 #   5. primary fits = a direct lmerTest::lmer + contest(ddf = "Kenward-Roger") with hand-built L (estimate, SE, df, CI, p),
@@ -14,7 +14,7 @@
 #      diagnostics (counts, cages, variance components, KR df); sensitivity agreement columns;
 #   6. failure rule: an erroring design -> FAILED rows without estimates; a non-converged fit -> FAILED; the KR ->
 #      Satterthwaite fallback -> FAILED row; Holm keeps m = 3 when a member FAILED;
-#   7. writer: manifest, read-only files, README, refusal of a second run (any v1.0_* or .tmp_v1.0_* entry), post-write check.
+#   7. writer: manifest, read-only files, README, refusal of a second run (any v1.1_* or .tmp_v1.1_* entry; a v1.0 folder does not block), post-write check.
 #
 # Portable-suite idiom: plain Rscript, fail()/check()/ok(), no testthat. Run from the repo root:
 #   Rscript Testing/tests/test_posthoc_con_contrasts.R
@@ -55,7 +55,7 @@ ok("static: one --real mode parsed first, opt-in, gates before the fit, no Analy
 check(grepl("only mode is --real", errmsg(phc_parse_mode(character()))) && grepl("only mode", errmsg(phc_parse_mode("--dry-run"))) &&
       grepl("only mode", errmsg(phc_parse_mode(c("--real", "--real")))) && identical(phc_parse_mode("--real"), "REAL"), "only --real is accepted")
 cm <- "0123456789abcdef0123456789abcdef01234567"
-check(identical(phc_run_name(cm), "v1.0_0123456") && grepl("full git commit", errmsg(phc_run_name("abc1234"))), "run name v1.0_<commit7>")
+check(identical(phc_run_name(cm), "v1.1_0123456") && grepl("full git commit", errmsg(phc_run_name("abc1234"))), "run name v1.1_<commit7>")
 txt <- c("# Registry", "", "**Status.** FROZEN 2026-09-30T15:40:15+0200, before any model was fitted.", "body")
 lf <- file.path(TMP, "lf.md"); crlf <- file.path(TMP, "crlf.md")
 con <- file(lf, "wb"); writeLines(txt, con, sep = "\n"); close(con); con <- file(crlf, "wb"); writeLines(txt, con, sep = "\r\n"); close(con)
@@ -204,20 +204,22 @@ AUD <- list(gates = data.table(stage = "s", gate = "g", passed = TRUE, hard = TR
 TB <- list(estimates = E, sensitivity = S, diagnostics = D)
 w <- phc_write_run(OUT, RUN, TB, AUD, c("Stage 29b synthetic", paste("commit", cm), paste("registry sha256", PHC_REGISTRY$sha256)))
 man <- fread(file.path(w$dir, PHC_MANIFEST_FILE))
-check(identical(basename(w$dir), "v1.0_0123456") && setequal(man$file, c(PHC_TABLE_FILES, PHC_AUDIT_FILES, PHC_README)) && all(s30fb_manifest_check(w$dir, man)$ok) &&
+check(identical(basename(w$dir), "v1.1_0123456") && setequal(man$file, c(PHC_TABLE_FILES, PHC_AUDIT_FILES, PHC_README)) && all(s30fb_manifest_check(w$dir, man)$ok) &&
       setequal(s30fb_files_on_disk(w$dir), c(man$file, PHC_MANIFEST_FILE)), "output_manifest lists every other file; bytes / sha256 match; nothing else")
 check(all(file.access(list.files(w$dir, recursive = TRUE, full.names = TRUE), 2L) != 0L) && all(w$post_gates$passed), "files read-only; post-write gates pass")
 eb <- fread(file.path(w$dir, PHC_TABLE_FILES[["estimates"]]), encoding = "UTF-8")
 check(identical(eb$estimate, E$estimate) && identical(eb$p_holm, E$p_holm) && identical(eb$estimand_label, E$estimand_label), "estimates written at full precision (UTF-8 labels)")
 check(any(readLines(file.path(w$dir, PHC_README)) == paste("commit", cm)), "README carries the commit line")
-check(grepl("earlier REAL run", errmsg(phc_write_run(OUT, "v1.0_fedcba9", TB, AUD, "x"))), "a second run (any commit) is refused")
-OUT2 <- file.path(TMP, "o2"); dir.create(file.path(OUT2, ".tmp_v1.0_1111111"), recursive = TRUE)
+check(grepl("earlier REAL run", errmsg(phc_write_run(OUT, "v1.1_fedcba9", TB, AUD, "x"))), "a second run (any commit) is refused")
+OUT2 <- file.path(TMP, "o2"); dir.create(file.path(OUT2, ".tmp_v1.1_1111111"), recursive = TRUE)
 check(grepl("earlier REAL run or staging", errmsg(phc_write_run(OUT2, RUN, TB, AUD, "x"))), "an aborted staging folder blocks a run")
 check(grepl("declared set", errmsg(phc_write_run(file.path(TMP, "o3"), RUN, TB[-1], AUD, "x"))), "a missing table is refused")
 OUT4 <- file.path(TMP, "o4"); tamper <- function(bd) { f <- file.path(bd, PHC_TABLE_FILES[["diagnostics"]]); Sys.chmod(f, "0666"); cat("x\n", file = f, append = TRUE) }
 check(grepl("Post-write verification failed", errmsg(phc_write_run(OUT4, RUN, TB, AUD, "x", .before_verify = tamper))), "a post-write mismatch stops")
 check(identical(phc_no_dquote(data.table(a = "x\"y", b = 1))$a, "x'y"), "embedded double quotes in text are replaced before writing")
-check(length(phc_blocking_entries(OUT)) == 1L && !length(phc_blocking_entries(file.path(TMP, "none"))), "blocking entries")
+OUT5 <- file.path(TMP, "o5"); dir.create(file.path(OUT5, "v1.0_7f1da1f"), recursive = TRUE)
+check(length(phc_blocking_entries(OUT)) == 1L && !length(phc_blocking_entries(file.path(TMP, "none"))) && !length(phc_blocking_entries(OUT5)),
+      "blocking entries (the v1.0 run does not block v1.1)")
 ok("writer: manifest, read-only, README, refusal of a second run / staging folder, post-write check")
 
 Sys.chmod(list.files(TMP, recursive = TRUE, full.names = TRUE, all.files = TRUE), "0666"); unlink(TMP, recursive = TRUE, force = TRUE)

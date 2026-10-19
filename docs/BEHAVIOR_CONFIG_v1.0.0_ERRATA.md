@@ -247,3 +247,15 @@ Two aspects changed from the proposal:
 
 - **The complete-case set and the shared-position window count** now live in `data_versions`. The frozen v1.0.0 values stay in `population$expected_counts` as the data-version v1 facts.
 - **Terminology.** The shared-position display name is "shared RFID-position occupancy" (user decision 2026-09-29, item 31). The metric is strictly simultaneous, so "occupancy" replaces the earlier proposal "use".
+
+## E13. The outcome was corrected upstream; outcome versions and config v1.0.2 (2026-10-17)
+
+The endpoint workbook was corrected on 2026-10-16 by logged scripts (SISanalyzer `workbook_corrections` 09-14; `SIS_Analysis/WORKBOOK_LOG.csv`), and 00317's novel-object video is re-tracked:
+
+- batch 1 novel-object D2 had come from a 2024 tracking run; it is now the analysed SLEAP value;
+- blank adrenal weights (00314; OR126 in the male reference) had been scored as 0; damaged or missing organs now carry no organ score and leave the CON reference (OQ765, a larger adrenal with no recorded defect, stays);
+- the female corticosterone sex-pooled reference had included four batch 1 male CON animals and missed the batch 4 female CON.
+
+CombZ changes for every animal. The whole cohort has 39 SUS instead of 35 (OQ750, OQ752, OR419 and OR434 move from RES to SUS); among the 111 RFID animals only OR419 and OR434 change group. The CombZ producer reads the corrected workbook from version 2 on (`docs/COMBZ_CANONICAL_DEFINITION.md` section 4c).
+
+Every frozen run used the earlier outcome (CombZ table `1f6a2a69...`, list `dea3804b...`). Config v1.0.2 therefore binds Stage 29 to a hashed outcome version (`outcome_versions`), as v1.0.1 bound it to a data version: `ov1_original` is that earlier outcome and carries the frozen v1.0.0 RES/SUS counts, `ov2_corrected_workbook` the corrected one. No numeric or logical leaf changes; `population$primary$expected_by_sex_group` keeps the v1.0.0 values. Release record: `docs/STAGE29_RELEASE_v1.0.2_ov2.md`.
