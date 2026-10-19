@@ -34,7 +34,8 @@ s33_main <- function(args) {
     stop("Set ", S33_OPTIN_ENV, " to the HEAD commit7 (", substr(commit, 1L, 7L), ") to run.", call. = FALSE)
   run_id <- s33_run_id(modules, commit)
   root <- mmm_project_root(); ep <- mmm_endpoint_source_root(); pl <- file.path(dirname(ep), "Planning")
-  sl <- file.path(dirname(root), "SLEAPanalyzer_v2/releases/2026-09-22_exp9_all-batches_canonical-complete-figures-v3")
+  # the SLEAP v3 release (the plan's <SL>) was archived on 2026-10-15 with unchanged bytes (Analysis/.archive README and MANIFEST)
+  sl <- file.path(ep, ".archive/_archive_behavior_2026-10-15/SLEAPanalyzer_v2_releases/2026-09-22_exp9_all-batches_canonical-complete-figures-v3")
   a4 <- Sys.getenv("MMM_S33_A4_DIR", "")
   if ("A" %in% modules && !nzchar(a4)) stop("Module A needs MMM_S33_A4_DIR.", call. = FALSE)
   local_root <- normalizePath(Sys.getenv("MMM_S33_LOCAL_STAGING", file.path(tools::R_user_dir("MMMSociability", "cache"), "stage33")),
