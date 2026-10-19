@@ -102,7 +102,7 @@ s33_input_spec <- function(root, ep, pl, sl, a4 = NA_character_, repo) {
     row("s29_output_manifest", file.path(s29, "audit/output_manifest.csv"), "6928bc63b16b3632cf86b5bca85e3b42c929a540898218fea23753c517f87331"),
     row("sus_list", file.path(ep, "sus_animals.csv"), "dea3804b71b479f84900f946e5494b204ed0e8801498da459a6fc781beb9f391"),
     row("con_list", file.path(ep, "con_animals.csv"), "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d"),
-    row("workbook", file.path(ep, "SIS_Analysis/E9_Behavior_Data.xlsx"), "38d200a2062cb01db4817d9bddfd4079ad0d812657506c98c5c1e15d0a6e1127"),
+    row("workbook", file.path(ep, "SIS_Analysis/E9_Behavior_Data.xlsx"), "980bc8c68dc015ce241d3b5ef0662ba69471b3abf1f8c02c0b0cf50192b1b337"),
     row("timeline", file.path(pl, "E9_Experimental Timeline.xlsx"), "2b785435bc1083800d3cbef0d13bcc1542499a037aff5554a98c731b738973bb"),
     row("groupcomp_b2", file.path(pl, "GroupCompBatch2.xlsx"), "9e46ba4d4ebbd331c32f59d7ebbcad72c7e6b381f01bb24a850dfdf181ccc865"),
     row("groupcomp_b456", file.path(pl, "GroupComposition.xlsx"), "214f07173199624456fdc47f65c7176ac451c19e55889c18676707c067c73cf4"),
