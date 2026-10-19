@@ -9,8 +9,8 @@
 #   Stage 30                 analysis_ready/pipeline/30_exploratory_screen/v1.0_be71e2f/audit/input_hashes.csv
 #   Stage 32 v1.1            analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.1_f4c7a31/audit/input_hashes.csv
 # Output pin lists in the repository (paths relative to the repository root) pin outputs that no run recorded:
-#   Stage 08 HMM outputs     docs/frozen_output_pins/stage08_hmm_states_20260922.csv (the 72 live files of
-#                            analysis_ready/analyses/hmm_states/{10min,5min}, written 2026-09-22; pinned 2026-10-13)
+#   Stage 08 HMM outputs     docs/frozen_output_pins/stage08_hmm_states_20261019.csv (the 72 live files of
+#                            analysis_ready/analyses/hmm_states/{10min,5min}, rerun 2026-10-19; historical pins and backups retained)
 # Some of those inputs are ordinary outputs that a producer stage rewrites in place:
 #   Stage 01  analysis_ready/foundations/behavior_metrics/10min_based/all_behavior_metrics.csv
 #   Stage 08  analysis_ready/analyses/hmm_states/{10min,5min}/... (every file)
@@ -35,11 +35,12 @@
 # Earlier registered runs and their input lists are retained; replacement
 # receipts preserve the former producer outputs under _migration_control.
 MMM_FROZEN_PIN_LISTS <- c(
+  stage30_v11 = "analysis_ready/pipeline/30_exploratory_screen/v1.1_8f47527/audit/input_hashes.csv",
   stage29_v102 = "analysis_ready/pipeline/29_canonical_behavior_releases/v102_dv2_a46be6a/audit/run_inputs.csv")
 # Same format (input = absolute path on the recorded root, sha256), read from the repository: always present, so the
 # protection cannot be lost with a file on the data drive. Like every pin list, they apply only on the recorded root.
 MMM_REPO_PIN_LISTS <- c(
-  stage08_hmm_20260922 = "docs/frozen_output_pins/stage08_hmm_states_20260922.csv")
+  stage08_hmm_20261019 = "docs/frozen_output_pins/stage08_hmm_states_20261019.csv")
 
 # Output folders (relative to the project root) of the stages that write pinned files. A stage that knows its actual
 # output folder passes it instead (Stage 01 honours options(mmm.derived_metrics_dir), e.g. for the cookie data).

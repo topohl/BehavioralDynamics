@@ -1,7 +1,7 @@
 # Overwrite protection of the live Stage 08 HMM outputs (Functions/frozen_input_guard.R; pin list
-# docs/frozen_output_pins/stage08_hmm_states_20260922.csv; Analysis/08_hmm_behavioral_states_optional.R).
+# docs/frozen_output_pins/stage08_hmm_states_20261019.csv; Analysis/08_hmm_behavioral_states_optional.R).
 #
-# A. the pin list: 72 files (36 per resolution) on the live root, hashes equal to the migration plan, the 10-min dwell
+# A. the pin list: 72 files (36 per resolution) on the live root, historical hashes equal to the migration plan, current hashes equal to the rerun record; the 10-min dwell
 #    table equal to the figure-support pin; registered once, with Stage 08 as a self-guarded writer
 # B. a fixture standing in for the live root (activated layout receipts, the 72 files, the live root as an alias):
 #    Stage 08's own statements, evaluated in a child environment as run_all_analysis.R sources a stage, stop at the
@@ -21,7 +21,7 @@ errors_with <- function(expr, pattern) { m <- tryCatch({ force(expr); "" }, erro
 source("Functions/project_paths.R")
 source("Functions/frozen_input_guard.R")
 sha <- function(f) digest::digest(file = f, algo = "sha256")
-PIN <- MMM_REPO_PIN_LISTS[["stage08_hmm_20260922"]]
+PIN <- MMM_REPO_PIN_LISTS[["stage08_hmm_20261019"]]
 LIVE <- MMM_PROJECT_ROOT_DEFAULT
 
 # ---------------------------------------------------------------- A. pin list
@@ -31,17 +31,25 @@ rel <- sub(paste0("^", LIVE, "/"), "", pl$input)
 check(nrow(pl) == 72 && !anyDuplicated(pl$input) && all(startsWith(pl$input, paste0(LIVE, "/analysis_ready/analyses/hmm_states/"))) &&
         sum(grepl("/hmm_states/10min/", pl$input)) == 36 && sum(grepl("/hmm_states/5min/", pl$input)) == 36,
       "A: 72 distinct live files, 36 per resolution")
+# Historical migration pins remain immutable; current pins follow the reviewed producer rerun.
 plan <- utils::read.csv("docs/BEHAVIOR_OUTPUT_MIGRATION_PLAN.csv", stringsAsFactors = FALSE)
 plan <- plan[plan$group %in% c("hmm_states_10min", "hmm_states_5min"), ]
-m <- match(rel, paste0("analysis_ready/", plan$target_root_rel, "/", plan$target_file))
-check(!anyNA(m) && all(pl$sha256 == plan$source_sha256[m]), "A: every hash equals the migration plan")
+historical <- utils::read.csv("docs/frozen_output_pins/stage08_hmm_states_20260922.csv", stringsAsFactors = FALSE)
+historical_rel <- sub(paste0("^", LIVE, "/"), "", historical$input)
+hm <- match(historical_rel, paste0("analysis_ready/", plan$target_root_rel, "/", plan$target_file))
+check(!anyNA(hm) && all(historical$sha256 == plan$source_sha256[hm]), "A: historical pins equal the preserved migration plan")
+record <- utils::read.csv("docs/behavior_output_producer_reruns/stage08_20261019.csv", stringsAsFactors = FALSE)
+m <- match(rel, paste0("analysis_ready/", record$target_root_rel, "/", record$target_file))
+check(nrow(record) == 72L && !anyNA(m) && all(pl$sha256 == record$sha256[m]), "A: current pins equal the reviewed producer rerun record")
+check(all(record$prior_sha256[m] == historical$sha256[match(rel, historical_rel)]), "A: rerun prior hashes preserve the historical pins")
+
 fsb <- Filter(function(e) is.call(e) && identical(e[[1]], as.name("<-")) && identical(e[[2]], as.name("FSB_HMM_DWELL")),
               as.list(parse("Functions/figure_support_bundle.R")))
 dwell <- eval(fsb[[1]][[3]], baseenv())
 check(pl$sha256[endsWith(pl$input, "/10min/tables/hmm_state_dwell_times.csv")] == dwell$sha256, "A: the dwell table equals the figure-support pin")
 check(sum(grepl("stage08", c(names(MMM_FROZEN_PIN_LISTS), names(MMM_REPO_PIN_LISTS)))) == 1 && "08" %in% MMM_SELF_GUARDED_STAGES &&
         identical(MMM_PINNED_WRITER_ROOTS[["08"]], "analysis_ready/analyses/hmm_states"), "A: registered once; Stage 08 guards its own folders")
-ok("72 pinned files, consistent with the migration plan and the figure-support pin")
+ok("72 pinned files, consistent with historical migration, rerun record and figure-support pin")
 
 # ---------------------------------------------------------------- fixtures
 make_root <- function(name, with_files = TRUE) {
@@ -82,7 +90,7 @@ live <- make_root(paste0("s08live_", as.integer(Sys.time())))
 options(mmm.live_root_aliases = c(LIVE, live), mmm.allow_pinned_overwrite = FALSE); Sys.setenv(MMM_ALLOW_PINNED_OVERWRITE = "")
 check(nrow(mmm_frozen_guard_pins(live)) == 72, "B: on the stand-in live root the 72 pins map onto its files")
 before <- snapshot_files(live)
-check(errors_with(suppressMessages(stage08_prologue(live)), "Stage 08 rewrites 72 file.*hmm_states/10min.*hmm_states/5min.*stage08_hmm_20260922"),
+check(errors_with(suppressMessages(stage08_prologue(live)), "Stage 08 rewrites 72 file.*hmm_states/10min.*hmm_states/5min.*stage08_hmm_20261019"),
       "B: Stage 08 stops at its guard, naming both resolutions and the pin list")
 check(errors_with(suppressMessages(stage08_prologue(live, list(mmm.hmm.sensitivity_bin_levels = character(0)))), "Stage 08 rewrites 36 file"),
       "B: a primary-only run is refused for its 36 files")

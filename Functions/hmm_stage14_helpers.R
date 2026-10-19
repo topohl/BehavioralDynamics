@@ -784,13 +784,13 @@ dhm_resolution <- function(variant, component) {
 # The bundle and the Stage 29 release of config v1.0.2 (corrected outcome; the 2026-10-06c promotion used ebb_v101_20260929_b2ce507,
 # manifest ec59aa33..., release v101_dv2_b2ce507 with canonical_window_metrics fc053468..., sus list dea3804b..., CombZ 1f6a2a69...).
 # The Stage 30 v1.0 features stay the source of the group-blind inactivity values (v1.1 recomputes the same features).
-MMM_DHM_EBB_ID <- "ebb_v102_PHASE-B"  # RETRACK-PIN
+MMM_DHM_EBB_ID <- "ebb_v102_20261019_677ed97"  # RETRACK-PIN
 MMM_DHM_S29_RELEASE <- "v102_dv2_a46be6a"  # RETRACK-PIN
 MMM_DHM_INPUT_SHA256 <- c(
   sus_animals = "65821453e64264b55cccdc86db2b161788e09fd1b5a4ee56e2786b513b00f131",  # RETRACK-PIN
   con_animals = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
   later_outcome_combz = "5acb9a25a05cb32e44ce9523f9477a0bc307f52287e6d8cbd8d05110b9a40e10",  # RETRACK-PIN
-  ebb_manifest = "PHASE-B",  # RETRACK-PIN
+  ebb_manifest = "41b8ce8170de64b739b4c3517e7280d4c1282332d873b75794e674220c6b7ff9",  # RETRACK-PIN
   stage29_canonical_window_metrics = "0e8b4498d852fadd26f3c669f37c1fa2834fb0a24f80f3f9c13ebd2fb8c86ecb",  # RETRACK-PIN
   stage30_features_full_precision = "5d196b218ea6e441bc346a2f3d494fa5419742199e2d367b664ec8e7e599bb83"
 )

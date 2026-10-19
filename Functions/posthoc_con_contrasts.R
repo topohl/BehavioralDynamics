@@ -28,12 +28,12 @@
 PHC_VERSION <- "1.1"
 PHC_REGISTRY <- list(
   version = "1.1", file = "POSTHOC_CON_CONTRASTS_REGISTRY_v1.1.md", repo_path = "docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.1.md",
-  sha256 = "PHASE-B",  # RETRACK-PIN
+  sha256 = "7885317c95d608284dc118380ebd449f6606a1efd182df7cd17b6b453a1e34a0",  # RETRACK-PIN
   canonical_rel = file.path("canonical", "posthoc_con_contrasts_registry", "v1.1"), sha_file = "REGISTRY_SHA256.txt",
-  freeze_commit = "PHASE-B", frozen_at = "PHASE-B")  # RETRACK-PIN
-PHC_STAGE29 <- list(bundle_id = "ebb_v102_PHASE-B",  # RETRACK-PIN
-                    manifest_sha256 = "PHASE-B",  # RETRACK-PIN
-                    a1_file = "A1_animal_cc1.csv", a1_sha256 = "PHASE-B",  # RETRACK-PIN
+  freeze_commit = "541c8f9bddee551aefac17780ac46466823b3a2c", frozen_at = "2026-10-19T18:04:17+0200")  # RETRACK-PIN
+PHC_STAGE29 <- list(bundle_id = "ebb_v102_20261019_677ed97",  # RETRACK-PIN
+                    manifest_sha256 = "41b8ce8170de64b739b4c3517e7280d4c1282332d873b75794e674220c6b7ff9",  # RETRACK-PIN
+                    a1_file = "A1_animal_cc1.csv", a1_sha256 = "61be3f00cd4c976fb0dc25c70f599bc8c3764031be5f7edbc77c23660de3580a",  # RETRACK-PIN
                     config_file = "I_analysis_config.json")
 # the frozen engine versions (Stage 29 v1.0.1 / Stage 30 package gate)
 PHC_PACKAGES <- c(lme4 = "2.0.1", lmerTest = "3.2.1", pbkrtest = "0.5.5")

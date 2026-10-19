@@ -24,12 +24,12 @@
 PMF_VERSION <- "1.1"
 PMF_REGISTRY <- list(
   version = "1.1", file = "POSTHOC_MOVEMENT_COMBZ_FIT_REGISTRY_v1.1.md", repo_path = "docs/POSTHOC_MOVEMENT_COMBZ_FIT_REGISTRY_v1.1.md",
-  sha256 = "PHASE-B",  # RETRACK-PIN
+  sha256 = "66471dd86456a8ca352c181c0430911989e5fd09f536e3576d9f395fee12c03c",  # RETRACK-PIN
   canonical_rel = file.path("canonical", "posthoc_movement_combz_fit_registry", "v1.1"), sha_file = "REGISTRY_SHA256.txt",
-  freeze_commit = "PHASE-B", frozen_at = "PHASE-B")  # RETRACK-PIN
-PMF_STAGE29 <- list(bundle_id = "ebb_v102_PHASE-B",  # RETRACK-PIN
-                    manifest_sha256 = "PHASE-B",  # RETRACK-PIN
-                    a2_file = "A2_prediction_animals.csv", a2_sha256 = "PHASE-B")  # RETRACK-PIN
+  freeze_commit = "953d52d2ef1be47ada8be9f1df3cbfcf7385dde4", frozen_at = "2026-10-19T18:04:19+0200")  # RETRACK-PIN
+PMF_STAGE29 <- list(bundle_id = "ebb_v102_20261019_677ed97",  # RETRACK-PIN
+                    manifest_sha256 = "41b8ce8170de64b739b4c3517e7280d4c1282332d873b75794e674220c6b7ff9",  # RETRACK-PIN
+                    a2_file = "A2_prediction_animals.csv", a2_sha256 = "bca1fd829a42d5920119c83e7da742ccdf3c8fcf22120edce712208bae52f792")  # RETRACK-PIN
 PMF_STAGE_DIR <- "29c_posthoc_movement_combz_fit"
 # any earlier REAL output or staging folder (at any commit) blocks a REAL run: the registry allows exactly one
 PMF_REAL_OUT_PATTERN <- "^(\\.tmp_)?v1\\.1_"

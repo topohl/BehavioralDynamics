@@ -43,8 +43,8 @@ FSB_STATUS_REAL <- "FROZEN"
 FSB_STATUS_DRY <- "DRY_RUN_NOT_FOR_USE"
 FSB_TOL <- 1e-12
 
-FSB_STAGE29 <- list(bundle_id = "ebb_v102_PHASE-B",  # RETRACK-PIN
-                    manifest_sha256 = "PHASE-B")  # RETRACK-PIN
+FSB_STAGE29 <- list(bundle_id = "ebb_v102_20261019_677ed97",  # RETRACK-PIN
+                    manifest_sha256 = "41b8ce8170de64b739b4c3517e7280d4c1282332d873b75794e674220c6b7ff9")  # RETRACK-PIN
 # v2: the post hoc run 29b (Analysis/29b_posthoc_con_contrasts.R, registry POSTHOC_CON_CONTRASTS v1.0), REAL, run once
 FSB_POSTHOC <- list(stage_dir = "29b_posthoc_con_contrasts", run_name = "PHASE-B",  # RETRACK-PIN (v1.1_<commit7>)
                     run_commit = "PHASE-B",  # RETRACK-PIN
@@ -70,7 +70,7 @@ FSB_STAGE14 <- list(
   sha256 = c(domain_heatmap = "PHASE-B", transition_means = "PHASE-B", transition_differences = "PHASE-B",
              resolution_sensitivity = "PHASE-B", state_display_labels = "PHASE-B"))  # RETRACK-PIN
 FSB_HMM_DWELL <- list(root_rel = "analyses/hmm_states/10min", file = "tables/hmm_state_dwell_times.csv",
-                      sha256 = "PHASE-B", bin_size_sec = 600, n_records = 3346L)  # RETRACK-PIN (sha256; v4 be4ba0cf...)
+                      sha256 = "6860bff82eef736d66f79a3737ed32c5f341a0e0327800fd256ff9af369169c8", bin_size_sec = 600, n_records = 3346L)  # RETRACK-PIN (sha256; v4 be4ba0cf...)
 FSB_HMM_RESOLUTION <- "10min_based"           # the HMM resolution of the Stage 14 HMM figures (hmm_primary_bin_level)
 FSB_HMM_STATES <- as.character(1:4)
 FSB_HMM_GROUPS <- c("CON", "RES", "SUS")
