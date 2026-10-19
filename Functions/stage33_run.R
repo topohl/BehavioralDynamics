@@ -71,9 +71,9 @@ S33_B <- c(nonparametric = 4000L, parametric = 1999L, parametric_sensitivity = 9
 S33_CODE_PINS <- list(
   sha256 = c("Functions/stage30_movement.R" = "9a368491", "Functions/rfid_canonical_inference.R" = "886d8bc0",
              "Functions/rfid_event_stream.R" = "3fda3d40", "Functions/rfid_binfree_metrics.R" = "ffc1235d",
-             "Functions/stage30_figure_bundle.R" = "PHASE-B",  # RETRACK-PIN (addendum 1 item 2; plan v1.0: db396fcd)
-             "Functions/behavior_analysis_config.R" = "PHASE-B"),  # RETRACK-PIN (the v1.0.2 R file; plan v1.0: f34c7624...)
-  blob_commit = "PHASE-B",  # RETRACK-PIN (the commit that implements addendum 1 with the final Stage 30 / 32 pins; plan v1.0: f4c7a31)
+             "Functions/stage30_figure_bundle.R" = "15509cb1",  # addendum 1 item 2 (s30b_v11, 5482c43; plan v1.0: db396fcd)
+             "Functions/behavior_analysis_config.R" = "491d41464a0098538a3ebb68899ec869e0b4c345e54473de90de29e250686bb7"),  # v1.0.2 (plan v1.0: f34c7624...)
+  blob_commit = "7737eaa",  # the Stage 32 v1.2 run commit: the frozen code as it ran (plan v1.0: f4c7a31)
   blob_globs = c("Functions/stage32_*.R", "Functions/stage30_*.R", "Functions/rfid_*.R", "Functions/behavior_analysis_config.R"),
   canonical_id_srcref_sha256 = "f7f22a336c219eb8483afcc3ab3ec3318888c9f3911131a0908e2209ba26b622",
   bout_criterion_s = 39.3970988275363)
@@ -82,12 +82,12 @@ S33_CODE_PINS <- list(
 # The inputs that addendum 1 re-pins to the corrected outcome (plan v1.0 values in git history, run v1.0_ABCDE_6b50c1f).
 # The timeline workbook is the live file since the batch 6 SIS-start correction of 2026-10-12 (fsb pins the same bytes).
 S33_A1_INPUTS <- list(
-  bundle_id = "ebb_v102_PHASE-B", s32_run = "v1.2_PHASE-B", s29_run = "v102_dv2_PHASE-B",  # RETRACK-PIN
-  sha256 = c(bundle_manifest = "PHASE-B", bundle_a1 = "PHASE-B", bundle_b1 = "PHASE-B", bundle_a2 = "PHASE-B", bundle_a4 = "PHASE-B",
-             bundle_g = "PHASE-B", bundle_h = "PHASE-B", combz_table = "PHASE-B", combz_components = "PHASE-B", combz_thresholds = "PHASE-B",
-             s32_window_metrics = "PHASE-B", s32_coverage = "PHASE-B", s32_diagnostics = "PHASE-B", s32_estimates = "PHASE-B",
-             s32_multiplicity = "PHASE-B", s32_output_manifest = "PHASE-B", s29_continuous_estimates = "PHASE-B", s29_output_manifest = "PHASE-B",
-             sus_list = "PHASE-B", workbook = "PHASE-B",  # RETRACK-PIN
+  bundle_id = "ebb_v102_20261019_677ed97", s32_run = "v1.2_7737eaa", s29_run = "v102_dv2_a46be6a",
+  sha256 = c(bundle_manifest = "41b8ce8170de64b739b4c3517e7280d4c1282332d873b75794e674220c6b7ff9", bundle_a1 = "61be3f00cd4c976fb0dc25c70f599bc8c3764031be5f7edbc77c23660de3580a", bundle_b1 = "56ac66082f8e2ac98326f9963454ee24b38ac69990485284164593690d0dc923", bundle_a2 = "bca1fd829a42d5920119c83e7da742ccdf3c8fcf22120edce712208bae52f792", bundle_a4 = "802b06b9a0315fbe0de896a9660f04b06b7cd1df9648821f8d2d3dbd3ffafc45",
+             bundle_g = "edc862797922b8eba8992426d6971ec9e3c4cc253d2bbc07bc05207e9c1fe2e1", bundle_h = "bbf9d3b8496b73cc517dc7d8534da2947558a016c1a5c136906da4528b98b647", combz_table = "5acb9a25a05cb32e44ce9523f9477a0bc307f52287e6d8cbd8d05110b9a40e10", combz_components = "a3696795a7362f86afc6e1eeb05e095509a3083cc6b715f8944b81539eae2b49", combz_thresholds = "70950e4aa3c36cd3ffb3e27d3e3060af07db72eb1b7ba5048062a9d562ef035b",
+             s32_window_metrics = "91a65f481b5094828a29e17f72f0828e5cd0af98583a04485882bdb625aad4f7", s32_coverage = "e5352ac5add6a7dc02521952e77c4ce9ed921dbc537026c592bbd363d955e493", s32_diagnostics = "9305837b77ff9735b22e3035d745a96193f5f64b06396c620c65b3b41cf8d75f", s32_estimates = "3b4de5fe0338b7894f2f5b83467dca602891ee7f103e7576ac989bad280798b4",
+             s32_multiplicity = "6c8bd37cfc43f734f4ae31ad52fe1da807ae75469343b52156be6f9d37b99362", s32_output_manifest = "4f8e8c68823b3574d6a2f3a83a6eb42b52eee99c4688ded20448082ab2bc014e", s29_continuous_estimates = "1449106ff483cf8ee19e3e4b3380239343c2fe81aa35ed343322e857ad283dff", s29_output_manifest = "bb6ff791d763d50ed5942b59f66880d54108973ae7c3d06ba711e067f8a68cb3",
+             sus_list = "65821453e64264b55cccdc86db2b161788e09fd1b5a4ee56e2786b513b00f131", workbook = "30ab408cb0539b6c85ab7242d9bf5d09312210ccb149d58c3e9775c252c12efa",
              timeline = "098f22db860253712e58423c20987c15a5e136ddb37d69bfb9bd03b3da8ec582"))
 #' Every declared input with its expected sha256. Roots come from the project-root accessors, never from a literal.
 s33_input_spec <- function(root, ep, pl, sl, a4 = NA_character_, repo) {
@@ -343,7 +343,7 @@ s33_code_gates <- function(repo, stage33_files, canon_info, config) {
   now <- vapply(frozen, function(p) s33_git(repo, "hash-object", "--", p)[1], "")
   then <- vapply(frozen, function(p) s33_git(repo, "rev-parse", paste0(S33_CODE_PINS$blob_commit, ":", p))[1], "")
   head_blob <- vapply(frozen, function(p) s33_git(repo, "rev-parse", paste0("HEAD:", p))[1], "")
-  gate("GC-1c", "frozen code: working tree and HEAD blob = blob at f4c7a31", c(length(frozen) > 0L, now == then, head_blob == then),
+  gate("GC-1c", paste0("frozen code: working tree and HEAD blob = blob at ", S33_CODE_PINS$blob_commit), c(length(frozen) > 0L, now == then, head_blob == then),
        paste(frozen[now != then | head_blob != then], collapse = ","))
   gate("GC-1d", "canonical_animal_id: one assignment, srcref sha256 pinned, probe answer",
        c(identical(canon_info$srcref_sha256, S33_CODE_PINS$canonical_id_srcref_sha256), isTRUE(canon_info$probe_ok)))

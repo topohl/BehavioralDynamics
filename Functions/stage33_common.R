@@ -81,10 +81,10 @@ S33_OUTCOME_SPECS <- list(
     dcort_map = list(slope = c(Male = -0.0149566, Female = -0.0258772), resid_tol = c(Female = 0.02)),
     recorded_gates = character()),
   ov2_corrected_workbook = list(
-    version = "ov2_corrected_workbook", lists = c(sus = 39L, con = 24L, excluded = 8L),  # RETRACK-PIN
-    canonical = c(CON = 24L, RES = 54L, SUS = 39L), tracked = c(CON = 24L, RES = 51L, SUS = 36L),  # RETRACK-PIN
-    sis_87 = c(RES = 51L, SUS = 36L), focal_85 = c(RES = 51L, SUS = 34L),  # RETRACK-PIN
-    missing = list(NOR = "317", sucrose_pref = character(), weight_dev = character(), delta_cort = "OQ762",  # RETRACK-PIN (NOR: 00317 until its re-track)
+    version = "ov2_corrected_workbook", lists = c(sus = 39L, con = 24L, excluded = 8L),
+    canonical = c(CON = 24L, RES = 54L, SUS = 39L), tracked = c(CON = 24L, RES = 51L, SUS = 36L),
+    sis_87 = c(RES = 51L, SUS = 36L), focal_85 = c(RES = 51L, SUS = 34L),
+    missing = list(NOR = character(), sucrose_pref = character(), weight_dev = character(), delta_cort = "OQ762",  # NOR: 00317 re-tracked 2026-10-19
                    adrenal_weight = c("1546", "314", "OQ750", "OQ764", "OR126", "OR414", "OR416", "OR419", "OR425", "OR429", "OR434"),
                    spleen_weight = c("OR414", "OR419")),
     con_reference = list(sd = numeric(), sd_tol = numeric(), n = c(Female.adrenal_weight = 10L, Female.spleen_weight = 11L, Male.adrenal_weight = 11L)),

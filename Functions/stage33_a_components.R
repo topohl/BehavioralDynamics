@@ -97,9 +97,11 @@ S33A_REFERENCE <- data.table::data.table(
   value = c(-0.6394, -9.0234, 7.7446, 4.0, -0.1066, -1.5039, 1.2908, -1.1156, -3.0908, 0.8596, -0.0058, -0.0328, 0.0212, -0.0348,
             -0.307, -0.565, -0.050, 9.4),
   tolerance = c(6e-5, 6e-5, 6e-5, 0.06, 6e-5, 6e-5, 6e-5, 6e-5, 6e-5, 6e-5, 6e-5, 6e-5, 6e-5, 3.6e-4, 6e-4, 6e-4, 6e-4, 0.06))
-# Addendum 1: the same rows of the bound corrected-outcome runs (Stage 32 v1.2 estimates / multiplicity, Stage 29 v102
-# continuous estimates), filled in from those tables before the rerun; NA fails GA-T8 until then.
-S33A_REFERENCE_OV2 <- data.table::copy(S33A_REFERENCE)[, value := NA_real_]  # RETRACK-PIN (the values of the v1.2 / v102 rows)
+# Addendum 1: the same rows of the bound corrected-outcome runs (Stage 32 v1.2_7737eaa estimates, Stage 29 v102_dv2_a46be6a
+# continuous estimates), read with s33a_reference_values() and rounded as the plan rounds (tolerances unchanged); the
+# plan's values reproduce from the v1.1 / v101 tables in the same way. H01 does not depend on the outcome.
+S33A_REFERENCE_OV2 <- data.table::copy(S33A_REFERENCE)[, value := c(-0.6394, -9.0234, 7.7446, 4.0, -0.1066, -1.5039, 1.2908, -1.3872, -3.4000, 0.6257,
+                                                                     -0.0125, -0.0393, 0.0144, -0.0748, -0.289, -0.543, -0.036, 9.4)]
 #' The GA-T8 reference rows of the bound outcome version.
 s33a_reference <- function(outcome = S33_OUTCOME) if (identical(outcome$version, "ov1_original")) S33A_REFERENCE else S33A_REFERENCE_OV2
 # GA-9: sucrose test windows (Timeline 'SucPref'), test dates and the tp6 offset after CC4 (source plan G9)
@@ -203,7 +205,7 @@ S33A_LAB <- list(
   combz_tp2 = "CC1-day weight added; never an adjusted H03",
   decomp = "post hoc decomposition of a within-cohort association whose registered tests (H03, H11) were null",
   h03 = "registered Stage 32 H03 row (rate on CombZ_wb, sex-averaged), copied, not recomputed",
-  s29 = "Stage 29 v1.0.1 sex-averaged parent slope (SIS), copied, not recomputed",
+  s29 = "Stage 29 sex-averaged parent slope (SIS) of the bound release, copied, not recomputed",
   h13 = "registered Stage 32 H13 row (secondary), printed beside the sex-stratified component slopes; no female-minus-male difference is formed",
   s7 = "in-sample slope of the registered H11 model C (CombZ ~ Batch + Movement_mean)",
   continuity = "reproduces the 2026-10-01 diagnostic; not a re-test of Stage 32 H03",
@@ -217,7 +219,7 @@ S33A_LAB <- list(
   e1 = "E1: mean of present values", e2 = "E2: c_k = z_k / n_present, missing counted 0 (sum of c_k = CombZ)",
   con_between = "between the six CON cages: cage and cohort not separable",
   b3 = "B3 baselines cluster at about 1 ng/ml (assay limit unknown)",
-  a10 = "registered Stage 32 v1.1_f4c7a31 result, copied, not recomputed",
+  a10 = "registered Stage 32 result of the bound run, copied, not recomputed",
   denom = "|V| below a quarter of the all-six V; not interpreted",
   raw = "raw grams, not a component",
   rate_point = "rate SIS-minus-CON quantity: point value only, beside the registered H01 row",

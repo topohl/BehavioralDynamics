@@ -145,8 +145,8 @@ S33C_SEPARATE_FIT_TOL <- 1e-6
 S33C_NOTE <- c(
   sex_interaction = "female-cohort set minus male-cohort set; sex and cohort not separable; point value only",
   mech_coupling = "CombZ contains weight_dev (tp2 baseline) and two organ ratios to body weight",
-  parent = "Stage 29 v1.0.1 row reproduced; not a new estimate",
-  parent_did = "Stage 29 v1.0.1 row reproduced (the registered H13 quantity on the per-change/h scale); not a new estimate",
+  parent = "Stage 29 release row reproduced; not a new estimate",
+  parent_did = "Stage 29 release row reproduced (the registered H13 quantity on the per-change/h scale); not a new estimate",
   parent_85 = "parent-form OLS slope on the 85 analysed animals of the 22 CC1 cages; algebraic bridge only",
   bridge = "per sex, parent slope = (SSw beta_W + SSb beta_B) / (SSw + SSb) with OLS within-cage and between-cage slopes; sex-averaged = mean of the sexes; a re-slicing of an already seen association, not new evidence",
   spread = "spread under the fitted zero component, not a confidence limit",
@@ -1434,10 +1434,10 @@ s33c_estimate <- function(st, cz, frozen, ctx, seeds, B, log, stop_on_bridge = F
 s33c_bridge_gates <- function(br, check_frozen = TRUE) {
   rp <- br$reproduction; rc <- br$recombination
   rbind(
-    if (check_frozen) s33_gate_rows("GC-C13a", "8 SIS_ONLY rows of Stage 29 v1.0.1 continuous_estimates reproduced (estimate, se, df, ci, n; CR2 se and df of sexavg and DiD; 1e-9)",
+    if (check_frozen) s33_gate_rows("GC-C13a", "8 SIS_ONLY rows of the bound Stage 29 release continuous_estimates reproduced (estimate, se, df, ci, n; CR2 se and df of sexavg and DiD; 1e-9)",
                                     c(nrow(rp) == 56L, rp$diff <= 1e-9), n_expected = 57L,
                                     detail = sprintf("%s; max |diff| %.3g", S33C_NOTE[["parent_did"]], if (nrow(rp)) suppressWarnings(max(rp$diff, na.rm = TRUE)) else NA_real_)) else
-      s33_gate_not_evaluated("GC-C13a", "8 SIS_ONLY rows of Stage 29 v1.0.1 reproduced", "permuted (development or placebo) outcomes"),
+      s33_gate_not_evaluated("GC-C13a", "8 SIS_ONLY rows of the bound Stage 29 release reproduced", "permuted (development or placebo) outcomes"),
     s33_gate_rows("GC-C13b", "per-sex recombination (SSw beta_W + SSb beta_B) / (SSw + SSb) = parent OLS slope; sex average = pooled slope (1e-10)",
                   c(nrow(rc) == 9L, rc$diff <= 1e-10), n_expected = 10L,
                   detail = sprintf("max |diff| %.3g", if (nrow(rc)) max(rc$diff) else NA_real_)))
