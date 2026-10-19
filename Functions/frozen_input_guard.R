@@ -31,12 +31,11 @@
 # The CombZ producer (Analysis/build_later_outcome_combz.R) is pinned by its git blob and therefore cannot call it.
 # ================================================================
 
+# Current mutable inputs are bound to the corrected-outcome release.
+# Earlier registered runs and their input lists are retained; replacement
+# receipts preserve the former producer outputs under _migration_control.
 MMM_FROZEN_PIN_LISTS <- c(
-  stage29_v101 = "analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_b2ce507/audit/run_inputs.csv",
-  stage29b_v10 = "analysis_ready/pipeline/29b_posthoc_con_contrasts/v1.0_7f1da1f/audit/input_hashes.csv",
-  stage29c_v10 = "analysis_ready/pipeline/29c_posthoc_movement_combz_fit/v1.0_fd61cd9/audit/input_hashes.csv",
-  stage30_v10 = "analysis_ready/pipeline/30_exploratory_screen/v1.0_be71e2f/audit/input_hashes.csv",
-  stage32_v11 = "analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.1_f4c7a31/audit/input_hashes.csv")
+  stage29_v102 = "analysis_ready/pipeline/29_canonical_behavior_releases/v102_dv2_a46be6a/audit/run_inputs.csv")
 # Same format (input = absolute path on the recorded root, sha256), read from the repository: always present, so the
 # protection cannot be lost with a file on the data drive. Like every pin list, they apply only on the recorded root.
 MMM_REPO_PIN_LISTS <- c(

@@ -85,15 +85,15 @@ FSB_D1_DISPLAY_COLS <- c("window_label", "row_label", "row_description", "displa
 # v4: Stage 09's sex-stratified correlations (10-minute resolution, the Stage 09 output root the inventory declares;
 # the Movement_mean rows are identical at 5 minutes). Copied verbatim; the file's SHA-256 is pinned.
 FSB_STAGE09 <- list(root_rel = "pipeline/09_early_prediction/10min", file = "tables/primary_movement_entropyacf1_correlations_by_sex.csv",
-                    sha256 = "PHASE-B", n_rows = 6L,  # RETRACK-PIN (v4 aeec1749...)
+                    sha256 = "a3db010dea622340da8f3e41d2771467f307b5594f19fb1cb5937c66c0a716ec", n_rows = 6L,  # RETRACK-PIN (v4 aeec1749...)
                     features = c("Movement_mean", "Movement_rmssd", "Entropy_acf1"), feature = "Movement_mean",
                     # the same run's per-animal input (pinned by the Stage 29 v1.0.1 release run_inputs), read for an identity gate only
                     input_file = "tables/model_ladder_input.csv",
-                    input_sha256 = "PHASE-B")  # RETRACK-PIN (v4 da78f80e...)
+                    input_sha256 = "8870b35346e84e867589fea65bc8d367f99444dff156efc704bdc7d7718f5dac")  # RETRACK-PIN (v4 da78f80e...)
 # v5: Stage 09's early-window coverage summary (the 10-minute slots of the first dark phase after CC1; group-blind), copied
 # verbatim for Extended Data 5a; the bridge copy the manuscript drew before predates the first-night seeding fix of 2026-09-22.
 FSB_STAGE09_COVERAGE <- list(root_rel = "pipeline/09_early_prediction/10min", file = "tables/early_window_contract_summary.csv",
-                             sha256 = "PHASE-B", n_rows = 1L, expected_slots = 72L)  # RETRACK-PIN
+                             sha256 = "5e1adcbe56b9183ac81cc7d292ab805a697d206ddf3b8e4990ac2180d0c85cb2", n_rows = 1L, expected_slots = 72L)  # RETRACK-PIN
 # v4: the post hoc run 29c (Analysis/29c_posthoc_movement_combz_fit.R, registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0), REAL, run once
 FSB_POSTHOC29C <- list(stage_dir = "29c_posthoc_movement_combz_fit", run_name = "PHASE-B",  # RETRACK-PIN (v1.1_<commit7>)
                        run_commit = "PHASE-B",  # RETRACK-PIN
@@ -135,7 +135,7 @@ FSB_INPUT_SHA256 <- c(
 # the frozen CombZ definition code: the producer, pinned by its git blob (git hash-object; line-ending independent)
 # (version 2 since 708e615; fsb_v1-v4 were built with version 1, blob d850859e at bac46bf)
 FSB_COMBZ_CODE <- list(path = "Analysis/build_later_outcome_combz.R", git_blob = "3303304ec9309f6361326c9e7acc7e023c134715",
-                       last_commit = "708e615", doc = "docs/COMBZ_CANONICAL_DEFINITION.md")
+                       last_commit = "638c57d", doc = "docs/COMBZ_CANONICAL_DEFINITION.md")
 FSB_COMBZ_CONSTANTS <- c("COMBZ_DEFINITION_ID", "COMBZ_REFERENCE_POP_ID", "COMBZ_CLASSIFICATION_ID", "COMBZ_CORRECTION_ID",
                          "COMBZ_COMPONENTS", "COMBZ_COMPONENT_META", "PARITY_TOL_COMBZ")
 # the producer's composite rule, evaluated verbatim (build_later_outcome_combz.R, "recompute the composite")

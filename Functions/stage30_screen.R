@@ -32,15 +32,15 @@ S30SC_REGISTRY_SHA256 <- "PHASE-B"  # RETRACK-PIN
 S30SC_REGISTRY_MD_SHA256 <- "PHASE-B"  # RETRACK-PIN
 S30SC_V2_MANIFEST_SHA256 <- "bb33a111980913f4ddf97c40872ccdd96dd73accdbdc5c5867954b51aad2c571"
 S30SC_V2_N_FILES <- 24L
-S30SC_REF_TABLE_SHA256 <- "PHASE-B"  # RETRACK-PIN (the config v1.0.2 release canonical_window_metrics.csv)
+S30SC_REF_TABLE_SHA256 <- "0e8b4498d852fadd26f3c669f37c1fa2834fb0a24f80f3f9c13ebd2fb8c86ecb"  # RETRACK-PIN (the config v1.0.2 release canonical_window_metrics.csv)
 S30SC_X401_SHA256 <- "a533b239852fbe46c8a4ff776754984f4fe1f29c0c4277082487c1546f7acf8a"
 S30SC_COOKIE_MANIFEST_SHA256 <- "0abe20ee9bcf34b422c81202bf58409d133e26834d3d395d8aa608c3b2c19666"
 S30SC_COOKIE_FILE_SHA256 <- c(cookie_response.csv = "329e2455a243a8e393f60bfe600f2f8a267fb03714571432890f7beb488e16d8",
                               animals.csv = "ce66d07475cee8ea384ebbd7b6708c24a83e0aaba04a6a5fa6467914c9fb0163",
                               cookie_windows.csv = "e7e7e27edc6288405b84001aaff524355fd2ae1d5777be34105d656e0c289e1d")
 # Stage 29 config v1.0.2 release tables read for the carry-over rows (release folder v102_dv2_<commit7>/tables)
-S30SC_S29_TABLE_SHA256 <- c(canonical_window_metrics.csv = "PHASE-B", estimates.csv = "PHASE-B", continuous_estimates.csv = "PHASE-B",
-                            exposure_estimates.csv = "PHASE-B", multiplicity.csv = "PHASE-B")  # RETRACK-PIN
+S30SC_S29_TABLE_SHA256 <- c(canonical_window_metrics.csv = "0e8b4498d852fadd26f3c669f37c1fa2834fb0a24f80f3f9c13ebd2fb8c86ecb", estimates.csv = "4bd4686afd8a811be273f2e8274bb1a1c6d986bbcabd6f5432988c8fdb161d33", continuous_estimates.csv = "1449106ff483cf8ee19e3e4b3380239343c2fe81aa35ed343322e857ad283dff",
+                            exposure_estimates.csv = "49ba39d066257473fdf8b713fa8003d2201572a179cdb29afd4cb6108f2b1be8", multiplicity.csv = "cf3673241fdd4bc83629f713fe1760e565c3b8324d6bdb5807039d746cf91780")  # RETRACK-PIN
 # frozen code identities (FREEZE_RECORD.csv; the config is gated on its analytic constants, not on its file hash)
 S30SC_CODE_SHA256 <- c("Functions/stage30_movement.R" = "9a368491ff373194a22e6baacd4874bfa260c4e1296e81d9be5863ed6bfde659",
                        "Functions/rfid_canonical_inference.R" = "886d8bc06807b5958482a31449d0b8e5886db106cc7d02f63863d535dc78b92c",

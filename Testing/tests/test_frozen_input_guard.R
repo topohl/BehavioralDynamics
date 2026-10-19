@@ -13,6 +13,11 @@ check <- function(cond, msg) if (!isTRUE(cond)) fail(msg) else invisible(TRUE)
 ok <- function(msg) cat("  ok  ", msg, "\n")
 
 source("Functions/frozen_input_guard.R")
+check("stage29_v102" %in% names(MMM_FROZEN_PIN_LISTS), "current release inputs are registered")
+# Synthetic IDs keep fixture coverage independent of released run versions.
+MMM_FROZEN_PIN_LISTS <- c(fixture_release = "analysis_ready/pipeline/fixture_release/inputs.csv",
+                          fixture_followup = "analysis_ready/pipeline/fixture_followup/inputs.csv",
+                          fixture_conflict = "analysis_ready/pipeline/fixture_conflict/inputs.csv")
 sha <- function(f) digest::digest(file = f, algo = "sha256")
 put <- function(path, text) { dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE); writeLines(text, path); path }
 pin_list <- function(path, files, extra = NULL) {
@@ -30,16 +35,16 @@ f01 <- put(file.path(root, "analysis_ready/foundations/behavior_metrics/10min_ba
 f09 <- put(file.path(root, "analysis_ready/pipeline/09_early_prediction/10min/tables/model_ladder_input.csv"), "x,y")
 fcz <- put(file.path(root, "analysis_ready/canonical/later_outcome_combz/tables/combz.csv"), "z")
 fraw <- put(file.path(root, "MMMSociability/raw_data/B1/raw.csv"), "r")
-pin_list(file.path(root, MMM_FROZEN_PIN_LISTS[["stage29_v101"]]), c(f01, f09, fcz, fraw),
+pin_list(file.path(root, MMM_FROZEN_PIN_LISTS[["fixture_release"]]), c(f01, f09, fcz, fraw),
          extra = c("S:/elsewhere/sus_animals.csv" = strrep("0", 64)))
-pin_list(file.path(root, MMM_FROZEN_PIN_LISTS[["stage32_v11"]]), c(f09, fcz))
+pin_list(file.path(root, MMM_FROZEN_PIN_LISTS[["fixture_followup"]]), c(f09, fcz))
 
 # ------------------------------------------------------------------ A. pins
 cat("A. pinned files\n")
 p <- mmm_frozen_guard_pins(root)
 check(is.data.frame(p) && nrow(p) == 3L, "A: three derived pinned files (raw data and files outside the root ignored)")
 check(identical(p$pin_lists[p$rel == "analysis_ready/pipeline/09_early_prediction/10min/tables/model_ladder_input.csv"],
-                "stage29_v101,stage32_v11"), "A: a file pinned by two runs lists both")
+                "fixture_followup,fixture_release"), "A: a file pinned by two runs lists both")
 sandbox <- file.path(tempdir(), paste0("fig_sandbox_", as.integer(Sys.time())))
 dir.create(sandbox, showWarnings = FALSE)
 invisible(file.copy(file.path(root, "analysis_ready"), sandbox, recursive = TRUE))
@@ -49,9 +54,9 @@ check(is.null(mmm_frozen_guard_pins(file.path(tempdir(), "no_such_root"))), "A: 
 # The pin lists record the drive form (X:/...); the caller names the same folder differently (the real temp path).
 alias_root <- normalizePath(file.path(tempdir(), paste0("fig_alias_", as.integer(Sys.time()))), winslash = "/", mustWork = FALSE)
 fa <- put(file.path(alias_root, "analysis_ready/pipeline/09_early_prediction/t.csv"), "t")
-dir.create(dirname(file.path(alias_root, MMM_FROZEN_PIN_LISTS[["stage29_v101"]])), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(file.path(alias_root, MMM_FROZEN_PIN_LISTS[["fixture_release"]])), recursive = TRUE, showWarnings = FALSE)
 utils::write.csv(data.frame(input = "X:/live/RFID/analysis_ready/pipeline/09_early_prediction/t.csv", sha256 = sha(fa)),
-                 file.path(alias_root, MMM_FROZEN_PIN_LISTS[["stage29_v101"]]), row.names = FALSE)
+                 file.path(alias_root, MMM_FROZEN_PIN_LISTS[["fixture_release"]]), row.names = FALSE)
 check(is.null(mmm_frozen_guard_pins(alias_root)), "A: a root that is not a known alias of the recorded root is not pinned")
 pa <- mmm_frozen_guard_pins(alias_root, aliases = c("X:/live/RFID", alias_root))
 check(is.data.frame(pa) && nrow(pa) == 1L && identical(pa$path, fa), "A: a known alias maps the pinned files onto the caller's root")
@@ -65,7 +70,7 @@ cat("\nB. refusal before a stage\n")
 options(mmm.allow_pinned_overwrite = FALSE); Sys.setenv(MMM_ALLOW_PINNED_OVERWRITE = "")
 check(errors_with(mmm_frozen_guard_before("01", root), "Stage 01 rewrites 1 file.*all_behavior_metrics"),
       "B: Stage 01 is refused on the pinned root")
-check(errors_with(mmm_frozen_guard_before("09", root), "Stage 09 rewrites 1 file.*model_ladder_input.*stage29_v101,stage32_v11"),
+check(errors_with(mmm_frozen_guard_before("09", root), "Stage 09 rewrites 1 file.*model_ladder_input.*fixture_followup,fixture_release"),
       "B: Stage 09 is refused and the message names both runs")
 check(is.data.frame(mmm_frozen_guard_before("28", root)), "B: Stage 28 passes when none of its outputs is pinned")
 cookie <- file.path(root, "cookiehab", "analysis_ready", "03_derived_metrics")
@@ -101,7 +106,7 @@ Sys.sleep(1.1); writeLines("x,y,new", f09)
 w <- tryCatch({ mmm_frozen_guard_after(s09); "" }, warning = function(w) conditionMessage(w))
 check(grepl("changed 1 pinned file.*ACTIVATION_RECORD", w), "D: a permitted change warns and asks for an activation record")
 options(mmm.allow_pinned_overwrite = FALSE)
-pin_list(file.path(root, MMM_FROZEN_PIN_LISTS[["stage30_v10"]]), character(0), extra = setNames(strrep("1", 64), f01))
+pin_list(file.path(root, MMM_FROZEN_PIN_LISTS[["fixture_conflict"]]), character(0), extra = setNames(strrep("1", 64), f01))
 check(errors_with(mmm_frozen_guard_pins(root), "disagree"), "D: pin lists that disagree on a file stop the guard")
 ok("permission backs up first and warns; conflicting pins stop")
 
@@ -131,5 +136,8 @@ s09src <- readLines(list.files("Analysis", pattern = "^09_.*[.]R$", full.names =
 check(!any(grepl("frozen_guard", s09src)), "E: Stage 09 itself is unchanged (the runner guards it)")
 ok("no default run; 01 and 09 isolated in profiles; runner, Stage 01 and Stage 28 call the guard")
 
-unlink(c(root, sandbox, alias_root), recursive = TRUE)
+cleanup <- normalizePath(c(root, sandbox, alias_root), winslash = "/", mustWork = TRUE)
+check(all(startsWith(tolower(cleanup), paste0(tolower(normalizePath(tempdir(), winslash = "/")), "/"))),
+      "cleanup stays inside the test temporary directory")
+unlink(cleanup, recursive = TRUE)
 cat("\nPASS: frozen-input guard\n")

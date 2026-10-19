@@ -222,7 +222,7 @@ if (!have_out) {
         "every animal must have four to six components present")
   n_by <- table(factor(a$n_components_present, levels = 4:6))
   check(identical(as.integer(n_by), c(2L, 10L, 105L)),  # RETRACK-PIN
-        paste0("expected 2 / 11 / 104 animals with 4 / 5 / 6 components, got ",
+        paste0("expected 2 / 10 / 105 animals with 4 / 5 / 6 components, got ",
                paste(as.integer(n_by), collapse = " / ")))
   ok(paste0("CombZ = unweighted mean of six components (max diff ", format(d), ")"))
 
