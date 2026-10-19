@@ -127,11 +127,11 @@ FSB_DESIGN_CC1_AGE <- c(22L, 29L)   # Stage 33 gate GC-6l: every one of the 117 
 FSB_DESIGN_UNIT <- "postnatal day (event date - date of birth, in days)"
 # canonical CombZ tables and label lists: the on-disk SHA-256 must equal these (the first three = Stage 30 input_hashes)
 FSB_INPUT_SHA256 <- c(
-  combz_table = "PHASE-B",  # RETRACK-PIN
-  sus_list = "PHASE-B",  # RETRACK-PIN
+  combz_table = "5acb9a25a05cb32e44ce9523f9477a0bc307f52287e6d8cbd8d05110b9a40e10",  # RETRACK-PIN
+  sus_list = "65821453e64264b55cccdc86db2b161788e09fd1b5a4ee56e2786b513b00f131",  # RETRACK-PIN
   con_list = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
-  combz_component_definition = "PHASE-B",  # RETRACK-PIN
-  combz_classification_thresholds = "PHASE-B")  # RETRACK-PIN
+  combz_component_definition = "a3696795a7362f86afc6e1eeb05e095509a3083cc6b715f8944b81539eae2b49",  # RETRACK-PIN
+  combz_classification_thresholds = "70950e4aa3c36cd3ffb3e27d3e3060af07db72eb1b7ba5048062a9d562ef035b")  # RETRACK-PIN
 # the frozen CombZ definition code: the producer, pinned by its git blob (git hash-object; line-ending independent)
 # (version 2 since 708e615; fsb_v1-v4 were built with version 1, blob d850859e at bac46bf)
 FSB_COMBZ_CODE <- list(path = "Analysis/build_later_outcome_combz.R", git_blob = "3303304ec9309f6361326c9e7acc7e023c134715",

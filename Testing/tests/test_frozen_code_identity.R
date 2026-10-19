@@ -49,7 +49,7 @@ byte_pins <- c(s32$S32_FROZEN_CODE_SHA256, s30$S30SC_CODE_SHA256[setdiff(names(s
                "docs/stage30/stage30_registry_v1.0.json" = s30$S30SC_REGISTRY_SHA256,
                "docs/stage30/STAGE30_REGISTRY_v1.0.md" = s30$S30SC_REGISTRY_MD_SHA256,
                # corrected-outcome configuration v1.0.2; previous v1.0.1 byte pin f34c7624 is recorded in its frozen release
-               "Functions/behavior_analysis_config.R" = "2d46ed44c5df7c234bc78b1ef701bd693985d7fe3f2d38f9bb871e314d26352f")
+               "Functions/behavior_analysis_config.R" = "491d41464a0098538a3ebb68899ec869e0b4c345e54473de90de29e250686bb7")
 for (f in names(byte_pins)) {
   check(file.exists(f), paste0("pinned file missing: ", f))
   check(identical(sha_bytes(f), unname(byte_pins[[f]])),

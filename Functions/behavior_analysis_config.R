@@ -708,7 +708,7 @@ MMM_BEHAVIOR_CONFIG <- list(
       producer = paste("Analysis/build_later_outcome_combz.R version 2 (git blob 3303304e, commit 708e615): sheet combz_canonical of the",
                        "corrected E9_Behavior_Data.xlsx, no correction applied in the producer"),
       workbook_sha256 = "30ab408cb0539b6c85ab7242d9bf5d09312210ccb149d58c3e9775c252c12efa",  # RETRACK-PIN
-      combz_table_sha256 = "cc646a58adc5f2f574a05722c63b83597531562a30949994c629d75b499c5317",  # RETRACK-PIN
+      combz_table_sha256 = "5acb9a25a05cb32e44ce9523f9477a0bc307f52287e6d8cbd8d05110b9a40e10",  # RETRACK-PIN
       sus_list_sha256 = "65821453e64264b55cccdc86db2b161788e09fd1b5a4ee56e2786b513b00f131",  # RETRACK-PIN
       con_list_sha256 = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
       corrections = paste("SIS_Analysis/WORKBOOK_LOG.csv: batch 1 novel-object D2 = analysed SLEAP value; blank adrenal weights (00314;",
