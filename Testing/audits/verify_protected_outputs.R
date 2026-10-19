@@ -74,7 +74,7 @@ VPO_CHECKS <- c(
 # Row statuses that pass; every other status fails its check.
 VPO_OK <- c("ok", "partial_run", "baseline_only", "recorded", "prefix_ok", "expected_addition", "expected_removal", "identical_bytes",
             "first_run")
-VPO_EXPECTED_FROZEN_PINS <- 97L
+VPO_EXPECTED_FROZEN_PINS <- 121L
 VPO_STAGE29_V101 <- "analysis_ready/pipeline/29_canonical_behavior_releases/v101_dv2_b2ce507"
 # Present in a Stage 29 release folder without being in its output manifest: the audit files, and the archive note and
 # receipt added when v1.0.0 was superseded (2026-09-29). They are covered by the baseline snapshot.
@@ -90,6 +90,7 @@ VPO_REGISTERED_RUNS <- c(
                          "analysis_ready/pipeline/29c_posthoc_movement_combz_fit/v1.0_fd61cd9",
                          "analysis_ready/pipeline/30_exploratory_screen/v1.0_be71e2f",
                          "analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.1_f4c7a31",
+                         "analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.2_7737eaa",
                          "analysis_ready/analyses/posthoc_cohort_followups/v1.0_ABCDE_6b50c1f",
                          "analysis_ready/analyses/posthoc_cohort_followups/v1.0_D_fb52ad9")
 VPO_STAGE19_RECORDS <- c("docs/behavior_output_producer_reruns/stage19_20261012.csv",

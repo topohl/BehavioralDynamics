@@ -38,7 +38,8 @@ MMM_FROZEN_PIN_LISTS <- c(
   stage29c_v11 = "analysis_ready/pipeline/29c_posthoc_movement_combz_fit/v1.1_5482c43/audit/input_hashes.csv",
   stage29b_v11 = "analysis_ready/pipeline/29b_posthoc_con_contrasts/v1.1_5482c43/audit/input_hashes.csv",
   stage30_v11 = "analysis_ready/pipeline/30_exploratory_screen/v1.1_8f47527/audit/input_hashes.csv",
-  stage29_v102 = "analysis_ready/pipeline/29_canonical_behavior_releases/v102_dv2_a46be6a/audit/run_inputs.csv")
+  stage29_v102 = "analysis_ready/pipeline/29_canonical_behavior_releases/v102_dv2_a46be6a/audit/run_inputs.csv",
+  stage32_v12 = "analysis_ready/pipeline/32_behavior_exposure_adaptation/v1.2_7737eaa/audit/input_hashes.csv")
 # Same format (input = absolute path on the recorded root, sha256), read from the repository: always present, so the
 # protection cannot be lost with a file on the data drive. Like every pin list, they apply only on the recorded root.
 MMM_REPO_PIN_LISTS <- c(

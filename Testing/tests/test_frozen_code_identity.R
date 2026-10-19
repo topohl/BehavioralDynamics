@@ -158,7 +158,7 @@ if (!in_work_tree || shallow) {
     list(what = "Stage 30 figure bundle (s30b_v11)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set30b),  # RETRACK-PIN
     list(what = "Stage 29b (run v1.1_<commit7>)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set29b),  # RETRACK-PIN
     list(what = "Stage 29c (run v1.1_<commit7>)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set29c),  # RETRACK-PIN
-    list(what = "Stage 32 (run v1.2_<commit7>)", commit = "PHASE-B", files = set32))  # RETRACK-PIN
+    list(what = "Stage 32 (run v1.2_7737eaa)", commit = "7737eaa91d352e12353bea703fbe5d9135eea053", files = set32))
   for (cs in current) if (identical(cs$commit, PENDING)) note_pending(cs$what) else unchanged_since(cs$commit, cs$files, cs$what)
 
   cat("\n4. registry copies\n")

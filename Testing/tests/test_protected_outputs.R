@@ -371,7 +371,7 @@ fp <- vpo_check_frozen_pins(froot, repo, 1L, vpo_hasher())
 check(nrow(fp) == nrow(s08) + 1L && identical(fp[status == "count_mismatch"]$unit, "all"), "10: every repository pin is mapped onto the root; the pin count is checked")
 check(identical(fp[file == first]$status, "size_mismatch") && all(fp[file != first & status != "count_mismatch"]$status == "missing"),
       "10: recorded bytes are compared in tier 1; absent pinned files are missing")
-pl <- file.path(froot, MMM_FROZEN_PIN_LISTS[["stage29_v101"]])
+pl <- file.path(froot, MMM_FROZEN_PIN_LISTS[["stage29_v102"]])   # any registered list; v101 was retired 2026-10-19
 tags <- put(file.path(froot, "MMMSociability", "raw_data", "B1", "tags.csv"), "tag")
 dv <- put(file.path(froot, "MMMSociability", "data_versions", "v2", "p.csv"), "pre")
 dir.create(dirname(pl), recursive = TRUE)
