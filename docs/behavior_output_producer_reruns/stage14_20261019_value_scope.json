@@ -1,0 +1,15 @@
+{
+  "fixed_feature_columns_identical": 2655,
+  "unchanged_sucrose_weight_component_max_serialization_difference": 1.7763568394002505e-14,
+  "animals": 111,
+  "endpoint_and_labels_match_canonical": true,
+  "domain_animal_scores_and_canonical_windows_only_Group_changes": true,
+  "group_balance_rows_old_new": [
+    38,
+    37
+  ],
+  "group_collapsed_animal_system_totals_identical": true,
+  "network_selection_rule": "top25 group-discriminating features, source Stage14lines3258-3266; new groups change selection; shared-edge rho identical",
+  "network_shared_edges": 53,
+  "independent_checks_passed": 32
+}

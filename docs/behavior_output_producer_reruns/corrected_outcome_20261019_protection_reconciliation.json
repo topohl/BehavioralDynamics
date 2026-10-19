@@ -1,0 +1,18 @@
+{
+  "audit_run": "S:\\Lab_Member\\Tobi\\Experiments\\Exp9_Social-Stress\\Analysis\\Behavior\\RANM\\protected_output_checks\\runs\\vpo_t1_20261019_1842_8212df4",
+  "raw_audit_overall": "FAIL: strict baseline_diff",
+  "changed_rows": 504,
+  "all_changed_paths_within_explicit_rerun_scope": true,
+  "changed_file_snapshot_hashes_checked": 44,
+  "nonbaseline_checks": 12,
+  "nonbaseline_rows_passed": 3162,
+  "by_unit_status": {
+    "('repo_pin', 'modified')": 1,
+    "('repo_pin', 'added')": 1,
+    "('live_output', 'modified')": 259,
+    "('live_output', 'added')": 172,
+    "('manuscript', 'modified')": 4,
+    "('manuscript', 'added')": 67
+  },
+  "scope_limit": "Tier1 immutable/pin/registered-output checks;not a whole-raw-data audit. Stage14all374files are covered separately by exact prior/new hash receipts and32independent checks. Baseline was retained, not reset or weakened."
+}

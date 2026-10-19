@@ -1,0 +1,33 @@
+check,passed,detail
+source data has 3 heatmaps x 3 variants,TRUE,
+no duplicated cells,TRUE,
+bin-free row scores = independent recomputation (all variants),TRUE,"rows 13320, max |diff| 7.7e-14"
+bin-free rows identical in the three variants,TRUE,
+H3 bin-based rows = independent recomputation from the epoch tables,TRUE,"rows 5328, max |diff| 1.3e-15"
+all5min H3 flexibility / volatility = the engine's 5-min domain scores,TRUE,
+H1/H2 bin-based rows = independent recomputation from the window features,TRUE,"rows 1332, max |diff| 1.2e-15"
+every colour g = independent Hedges g from animal means,TRUE,"cells 468, max |diff| 2.2e-16"
+"every posted test reproduces (estimate, SE, df 1e-5; p 1e-5)",TRUE,n 462; max |dp| 2.1e-08; max |ddf| 1.8e-06
+BH q and family size reproduce,TRUE,
+families are heatmap x variant x tier x phase,TRUE,
+marker classes reproduce,TRUE,
+no global correction anywhere,TRUE,
+consumed registered values equal the frozen tables,TRUE,36 of 36
+only the expected cells are consumed,TRUE,
+no HMM cell in the single-window heatmaps,TRUE,
+every output path fits the 240-character budget under the live root,TRUE,230
+every post hoc test is a KR t; the CON contrasts state the animals as units,TRUE,"post hoc 432, CON 312"
+estimation-only cells carry no test fields (status and sign agreement NA),TRUE,cells 6
+sign agreement is NA exactly where no estimate exists,TRUE,
+the HMM row is not reportable and carries no marker; every other row is reportable,TRUE,"HMM cells 72, with evidence 2"
+RES-SUS-only q (phase families and phase-pooled) reproduce; NA for every other cell,TRUE,RES-SUS post hoc cells 120
+the zero-event table lists exactly the analysed light blocks without any position update,TRUE,"all blocks 25 (CON 19), cc1_l1 1"
+leave-one-CON-cage-out g = independent recomputation (every CON cell),TRUE,"cells 312, mismatches 0"
+the rate flag is set exactly where |animal r| >= 0.8,TRUE,flagged cells 126
+every light-phase cell carries KNOWN_LIMITATIONS 3; every HMM cell KNOWN_LIMITATIONS 1; H3 rest-like names the Stage 30 scope,TRUE,
+marker robustness reproduces the rule (assessable checks only; CON cage out; RES-SUS-only families),TRUE,"post hoc markers 34, not robust 10"
+"the legend table covers every heatmap, dashboard panel and standalone figure",TRUE,
+"legends state the CON unit, the Stage 29b scope per window and the endpoint caveat",TRUE,"H1 legends 6, H2/H3 legends 12"
+every non-robust marker is named in its heatmap legend,TRUE,non-robust markers 10
+no named journal style in the written text tables,TRUE,
+"every new figure: Arial, text >= 5 pt, width <= 183 mm, height <= 170 mm, no overlapping contrast labels",TRUE,figures 19; min text 5.02 pt; max width 183.0 mm; max height 165.0 mm; overlaps 0

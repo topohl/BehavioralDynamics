@@ -1,0 +1,17 @@
+{
+  "classification": "external_directory_metadata_only",
+  "findings": [
+    "shallow C:\\Users\\topohl\\Documents changed: C:\\Users\\topohl\\Documents\\Outlook Files"
+  ],
+  "unreviewed_findings": 0,
+  "r_exit": 0,
+  "postscan_sha256": "640d09a1c26366b6dac9d24ce9faf3683305c17730447f27cb21733f7ab0c422",
+  "guard_log_sha256": "06f94c1406e39cb45ca757e03abae13385a94f2b84c37f52ae4f92a68ff5dbe8",
+  "freeze_manifest_sha256": "c14c0f056e1c5e5d560d6684246fa0f2530423e362d801f84d23e18552c5466e",
+  "external_process_evidence_sha256": "7e64a137f5fdaab0afb4574bedc3b9c25f20984622d5f01da3d95c49b5d241cf",
+  "explicit_file_path_writes": 1019,
+  "outside_sandbox_file_path_writes": 0,
+  "independent_checks_passed": 32,
+  "scope": "Exactly the sibling Documents/Outlook Files directory timestamp; no change in the live RFID tree, SIS tree, repository source/state or traced sandbox file-write boundary was reported. Original postscan retained unchanged.",
+  "attribution_limit": "Running Outlook and its PST timestamp are consistent with background activity; process-specific causation was not directly traced. Acceptance rests on the isolated external directory and the independently enforced/checked write boundary, not on assuming causation."
+}

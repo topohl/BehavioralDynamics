@@ -1,0 +1,11 @@
+{
+  "tag": "run",
+  "endpoint": "canonical",
+  "exit": 0,
+  "t0": "2026-10-19T16:10:32.4215470Z",
+  "t1": "2026-10-19T16:20:24.9224643Z",
+  "findings": [
+    "shallow C:\\Users\\topohl\\Documents changed: C:\\Users\\topohl\\Documents\\Outlook Files"
+  ],
+  "benign": []
+}
