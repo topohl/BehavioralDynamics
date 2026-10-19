@@ -46,10 +46,10 @@ FSB_TOL <- 1e-12
 FSB_STAGE29 <- list(bundle_id = "ebb_v102_20261019_677ed97",  # RETRACK-PIN
                     manifest_sha256 = "41b8ce8170de64b739b4c3517e7280d4c1282332d873b75794e674220c6b7ff9")  # RETRACK-PIN
 # v2: the post hoc run 29b (Analysis/29b_posthoc_con_contrasts.R, registry POSTHOC_CON_CONTRASTS v1.0), REAL, run once
-FSB_POSTHOC <- list(stage_dir = "29b_posthoc_con_contrasts", run_name = "PHASE-B",  # RETRACK-PIN (v1.1_<commit7>)
-                    run_commit = "PHASE-B",  # RETRACK-PIN
-                    output_manifest_sha256 = "PHASE-B", output_manifest_n = 7L,  # RETRACK-PIN
-                    registry_version = "1.1", registry_sha256 = "PHASE-B",  # RETRACK-PIN
+FSB_POSTHOC <- list(stage_dir = "29b_posthoc_con_contrasts", run_name = "v1.1_5482c43",  # RETRACK-PIN (v1.1_<commit7>)
+                    run_commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e",  # RETRACK-PIN
+                    output_manifest_sha256 = "476aad959fc068ad4b20313a0c5194ce6e609d20957830d3cd67a5978790c0c5", output_manifest_n = 7L,  # RETRACK-PIN
+                    registry_version = "1.1", registry_sha256 = "7885317c95d608284dc118380ebd449f6606a1efd182df7cd17b6b453a1e34a0",  # RETRACK-PIN
                     status_counts = "primary_separate_cage_variances OK=4; sensitivity_common_cage_variance OK=4",
                     tier = "POST HOC exploratory")
 # bundle table -> post hoc run file (copied verbatim) and its expected row count
@@ -95,10 +95,10 @@ FSB_STAGE09 <- list(root_rel = "pipeline/09_early_prediction/10min", file = "tab
 FSB_STAGE09_COVERAGE <- list(root_rel = "pipeline/09_early_prediction/10min", file = "tables/early_window_contract_summary.csv",
                              sha256 = "5e1adcbe56b9183ac81cc7d292ab805a697d206ddf3b8e4990ac2180d0c85cb2", n_rows = 1L, expected_slots = 72L)  # RETRACK-PIN
 # v4: the post hoc run 29c (Analysis/29c_posthoc_movement_combz_fit.R, registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0), REAL, run once
-FSB_POSTHOC29C <- list(stage_dir = "29c_posthoc_movement_combz_fit", run_name = "PHASE-B",  # RETRACK-PIN (v1.1_<commit7>)
-                       run_commit = "PHASE-B",  # RETRACK-PIN
-                       output_manifest_sha256 = "PHASE-B", output_manifest_n = 7L,  # RETRACK-PIN
-                       registry_version = "1.1", registry_sha256 = "PHASE-B",  # RETRACK-PIN
+FSB_POSTHOC29C <- list(stage_dir = "29c_posthoc_movement_combz_fit", run_name = "v1.1_5482c43",  # RETRACK-PIN (v1.1_<commit7>)
+                       run_commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e",  # RETRACK-PIN
+                       output_manifest_sha256 = "ac7d6cefd6aadc70ccde686e50aeeede333f308c352f931f810d249b0bb689ac", output_manifest_n = 7L,  # RETRACK-PIN
+                       registry_version = "1.1", registry_sha256 = "66471dd86456a8ca352c181c0430911989e5fd09f536e3576d9f395fee12c03c",  # RETRACK-PIN
                        status_counts = "Female OK; Male OK", tier = "POST HOC descriptive display")
 FSB_POSTHOC29C_TABLES <- c(E2_movement_combz_fit_lines = "tables/fit_lines.csv", E2b_movement_combz_fit_coefficients = "tables/coefficients.csv",
                            E2c_movement_combz_fit_diagnostics = "tables/diagnostics.csv")
