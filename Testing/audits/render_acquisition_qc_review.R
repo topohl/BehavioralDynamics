@@ -1,4 +1,4 @@
-# New, isolated, unregistered review bundle: publication-style QC figures + eight-reader overlap.
+# New, isolated, unregistered review bundle: house-style QC figures + eight-reader overlap.
 # Saved inputs only; no raw reconstruction, phenotype labels, model refit or import.
 # Rscript Testing/audits/render_acquisition_qc_review.R --output-root=<absolute> --run-id=<new dev id>
 # The guard brackets all output writes. Existing run IDs are refused.

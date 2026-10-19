@@ -67,7 +67,7 @@ audits write only to a new
 folder, with the run id from `MMM_BEHAVIOR_AUDIT_REPLAY_ID`. They are
 **not** part of CI and will fail without the dataset.
 
-The isolated publication-style QC review renderer `render_acquisition_qc_review.R` reads saved QC/reconstruction tables and adds
+The isolated house-style QC review renderer `render_acquisition_qc_review.R` reads saved QC/reconstruction tables and adds
 an explicitly descriptive eight-reader spatial-overlap aggregation; it performs no raw reconstruction or model refit.
 Its output must be an isolated new review run. See `docs/RFID_QC_REVIEW.md` and
 `Testing/tests/test_acquisition_qc_review.R` for scope and fixture checks.

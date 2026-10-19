@@ -1,6 +1,10 @@
-# RFID QC: publication-style review figures and eight-reader spatial overlap
+# RFID QC: house-style review figures and eight-reader spatial overlap
 
 Status: unregistered, isolated review output (`aqr_v0.1`). Requested on 2026-10-15 after the documentation closeout.
+Names: until 2026-10-19 this layer was named after a journal figure style (`acquisition_qc_nature.R`, prefix `nqc_`,
+version `nqc_v0.1`). The five development review runs of 2026-10-15 were written under those names (`dev_nqc01` to
+`dev_nqc05` in the local Codex output folder `.../outputs/rfid_qc_nature/runs/`, with the zipped bundle) and are kept unchanged
+as history; the commit that renamed the code (47c4a67) wrongly said that no run existed.
 This is a new presentation and descriptive analysis layer; it does not activate the spatial candidate, replace any
 registered analysis, refit a biological model or change a manuscript import. Calibration remains declined.
 

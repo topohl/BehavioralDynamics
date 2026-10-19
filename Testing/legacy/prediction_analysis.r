@@ -1,5 +1,5 @@
 # ==============================================================================
-# Resilience Prediction: Sex-Specific Analysis (Nature Style)
+# Resilience Prediction: Sex-Specific Analysis (house figure style)
 # ==============================================================================
 
 library(tidyverse)
@@ -13,8 +13,8 @@ if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
 df <- read_csv(data_file, show_col_types = FALSE)
 
-# 2. Nature-Style Theme Helper
-theme_nature <- function() {
+# 2. House-Style Theme Helper
+theme_figure <- function() {
     theme_classic(base_size = 7) +
         theme(
             text = element_text(family = "sans", color = "black"),
@@ -66,7 +66,7 @@ run_prediction_comparison <- function(target_sex, plot_color, compare_groups, co
             x = "Outcome",
             y = "Mean Movement"
         ) +
-        theme_nature() +
+        theme_figure() +
         theme(legend.position = "none")
 
     p_roc <- ggroc(roc_obj, color = plot_color, linewidth = 0.8) +
@@ -82,7 +82,7 @@ run_prediction_comparison <- function(target_sex, plot_color, compare_groups, co
             x = "Specificity",
             y = "Sensitivity"
         ) +
-        theme_nature()
+        theme_figure()
 
     p_dist + p_roc + plot_annotation(tag_levels = "a")
 }

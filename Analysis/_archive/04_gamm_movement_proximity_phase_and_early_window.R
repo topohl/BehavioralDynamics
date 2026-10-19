@@ -7940,7 +7940,7 @@ if (RUN_ANALYSES) {
       list(param = param_tbl, smooth = smooth_tbl)
     }
 
-    plot_gamm_auc_contrasts_nature <- function(df, title, subtitle = NULL) {
+    plot_gamm_auc_contrasts <- function(df, title, subtitle = NULL) {
       if (is.null(df) || nrow(df) == 0 ||
           !all(c("pair", "AUC_diff", "AUC_ci_low", "AUC_ci_high") %in% names(df))) {
         return(NULL)
@@ -8340,7 +8340,7 @@ if (RUN_ANALYSES) {
             p_cols = c("p_AUC_BH", "p_AUC_raw")
           )
 
-          p_gamm_auc_contr <- plot_gamm_auc_contrasts_nature(
+          p_gamm_auc_contr <- plot_gamm_auc_contrasts(
             gamm_pw_auc_tbl,
             title = "GAMM AUC contrasts",
             subtitle = "Points show integrated group differences; bars show 95% simulation intervals"
@@ -8941,7 +8941,7 @@ if (RUN_ANALYSES) {
           p_cols = c("p_AUC_BH", "p_AUC_raw")
         )
 
-        p_var_auc_contr <- plot_gamm_auc_contrasts_nature(
+        p_var_auc_contr <- plot_gamm_auc_contrasts(
           var_pw_auc,
           title = paste0("GAMM AUC contrasts (", analysis_label, ")"),
           subtitle = paste0("window=", window_label, " | points = \u0394AUC; bars = 95% simulation intervals")

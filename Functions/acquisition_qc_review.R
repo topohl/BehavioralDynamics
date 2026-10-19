@@ -1,4 +1,4 @@
-# RFID acquisition QC review figures (publication-style) and eight-reader spatial-overlap summaries.
+# RFID acquisition QC review figures (house style) and eight-reader spatial-overlap summaries.
 # Pure definitions. New, unregistered, group-blind downstream analysis of saved tables.
 # No raw reconstruction, model fit, group contrast, manuscript import or activation.
 # Needs data.table; plot functions need ggplot2, patchwork and the manuscript palette.

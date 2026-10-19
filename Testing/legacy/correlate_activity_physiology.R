@@ -1,5 +1,5 @@
 # -------------------------------------------------
-# correlate_gamm_auc_CombZ_two_auc_files_nature_FIXED_SCALES_PADDED.R
+# correlate_gamm_auc_CombZ_two_auc_files_FIXED_SCALES_PADDED.R
 # -------------------------------------------------
 
 library(dplyr)
@@ -26,7 +26,7 @@ auc_files <- list(
 
 classic_data <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/SIS_Analysis/E9_Behavior_Data.xlsx"
 
-base_saving_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/statistics/correlation_gamm_auc_CombZ_sex_specific_nature/"
+base_saving_dir <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID/MMMSociability/statistics/correlation_gamm_auc_CombZ_sex_specific/"
 
 dir.create(base_saving_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -34,7 +34,7 @@ dir.create(base_saving_dir, recursive = TRUE, showWarnings = FALSE)
 # 2) STYLE
 # -------------------------------------------------
 
-theme_nature <- function(base_size = 7) {
+theme_figure <- function(base_size = 7) {
   theme_classic(base_size = base_size) +
     theme(
       text = element_text(color = "black", family = "sans"),
@@ -593,7 +593,7 @@ run_auc_analysis <- function(auc_file, analysis_name) {
         x = NULL,
         y = "Movement AUC, Z vs CON"
       ) +
-      theme_nature() +
+      theme_figure() +
       theme(legend.position = "none")
 
     save_svg(p, file.path(fig_dir, filename), width = 2.25, height = 2.35)
@@ -655,7 +655,7 @@ run_auc_analysis <- function(auc_file, analysis_name) {
         x = "Movement AUC, Z vs CON",
         y = "Composite stress burden (CombZ)"
       ) +
-      theme_nature() +
+      theme_figure() +
       theme(
         plot.margin = margin(5, 7, 5, 8)
       )
@@ -725,7 +725,7 @@ run_auc_analysis <- function(auc_file, analysis_name) {
         x = "Movement AUC, Z vs CON",
         y = "Composite stress burden (CombZ)"
       ) +
-      theme_nature() +
+      theme_figure() +
       theme(
         plot.margin = margin(5, 7, 5, 8)
       )
@@ -789,7 +789,7 @@ run_auc_analysis <- function(auc_file, analysis_name) {
         x = "Movement AUC, Z vs CON",
         y = y_label
       ) +
-      theme_nature() +
+      theme_figure() +
       theme(
         plot.margin = margin(5, 7, 5, 8)
       )
@@ -889,7 +889,7 @@ run_auc_analysis <- function(auc_file, analysis_name) {
       x = "Correlation coefficient",
       y = NULL
     ) +
-    theme_nature() +
+    theme_figure() +
     theme(legend.position = "none")
 
   save_svg(

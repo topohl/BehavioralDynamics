@@ -306,7 +306,7 @@ theme_publication <- function(base_size = 7, base_family = "sans") {
     )
 }
 
-theme_nature_gamm <- function(base_size = 9, base_family = "sans") {
+theme_figure_gamm <- function(base_size = 9, base_family = "sans") {
   theme_publication(base_size = base_size, base_family = base_family) +
     ggplot2::theme(
       legend.position = "top",
@@ -2664,7 +2664,7 @@ fig_cc1_active_individual_gamm <- if (!is.null(cc1_active_gamm_result) && nrow(c
       title = "CC1 active phase 1: individual trajectories",
       caption = cc1_active_gamm_caption
     ) +
-    theme_nature_gamm()
+    theme_figure_gamm()
 } else {
   NULL
 }
@@ -2687,7 +2687,7 @@ fig_cc1_active_group_gamm <- if (nrow(cc1_active_gamm_prediction_df) > 0) {
       title = "CC1 active phase 1: GAMM group estimates",
       caption = cc1_active_gamm_caption
     ) +
-    theme_nature_gamm()
+    theme_figure_gamm()
 } else {
   NULL
 }
@@ -2718,7 +2718,7 @@ fig_cc1_active_group_observed <- if (!is.null(cc1_active_gamm_result)) {
       title = "CC1 active phase 1: observed group means",
       caption = "Observed means are descriptive: points/lines show group mean individual entropy; ribbons show mean +/- SEM."
     ) +
-    theme_nature_gamm()
+    theme_figure_gamm()
 } else {
   NULL
 }
@@ -2763,7 +2763,7 @@ fig_cc1_active_auc <- if (nrow(cc1_active_gamm_auc) > 0) {
       title = "CC1 active phase 1: entropy AUC",
       caption = "Large points/ranges show GAMM-predicted AUC integrated over half-hours 0-23 using fitted values and pointwise 95% CI curves; small points show animal-level observed AUC."
     ) +
-    theme_nature_gamm() +
+    theme_figure_gamm() +
     theme(legend.position = "none")
 } else {
   NULL
@@ -2789,7 +2789,7 @@ fig_cc1_active_gamm_auc_contrasts <- if (nrow(cc1_active_gamm_auc_contrasts) > 0
       title = "CC1 active phase 1: GAMM AUC contrasts",
       caption = "Contrasts are pairwise differences between sex-stratified GAMM-predicted AUC values integrated over half-hours 0-23. Positive values indicate higher AUC for the first group in the contrast."
     ) +
-    theme_nature_gamm() +
+    theme_figure_gamm() +
     theme(
       legend.position = "none",
       axis.text.x = element_text(angle = 35, hjust = 1)

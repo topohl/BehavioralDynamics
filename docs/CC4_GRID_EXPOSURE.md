@@ -275,7 +275,7 @@ outcome snapshot, input hashes and an output manifest. Exp9_manuscript imports
 this bundle byte-exact and renders candidate figures; it does not calculate
 new estimates or intervals. When this bundle was rendered the behavioural palette
 was CON #3E3C6F, RES #C6C3BB, SUS #E63A48 (manuscript palette v2, as in the
-manuscript's vendored `plotting_nature.R`). The current palette is v3 (CON #6B7296,
+manuscript's vendored plotting helper, `R/vendor/plotting_figure_style.R` since 2026-10-19). The current palette is v3 (CON #6B7296,
 RES #BFBCB4, SUS #C74C56; `Functions/manuscript_palette.R`, 2026-10-06); the
 candidates take it when they are re-rendered.
 
