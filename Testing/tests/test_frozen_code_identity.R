@@ -39,7 +39,7 @@ pinned_constants <- function(file, names) {
 }
 
 s32 <- pinned_constants("Functions/stage32_run.R",
-                        c("S32_FROZEN_CODE_SHA256", "S32_NUMERIC_CODE", "S32_REGISTRY", "S32_ADDENDUM", "S32_ABORTED"))
+                        c("S32_FROZEN_CODE_SHA256", "S32_NUMERIC_CODE", "S32_REGISTRY", "S32_ADDENDUM", "S32_ADDENDUM2", "S32_ABORTED"))
 s30 <- pinned_constants("Functions/stage30_screen.R", c("S30SC_CODE_SHA256", "S30SC_REGISTRY_SHA256", "S30SC_REGISTRY_MD_SHA256"))
 phc <- pinned_constants("Functions/posthoc_con_contrasts.R", "PHC_REGISTRY")$PHC_REGISTRY
 pmf <- pinned_constants("Functions/posthoc_movement_combz_fit.R", "PMF_REGISTRY")$PMF_REGISTRY
@@ -58,10 +58,10 @@ cat("1. pinned bytes\n")
 shared <- intersect(names(s32$S32_FROZEN_CODE_SHA256), names(s30$S30SC_CODE_SHA256))
 check(length(shared) == 4L && identical(s32$S32_FROZEN_CODE_SHA256[shared], s30$S30SC_CODE_SHA256[shared]),
       "S32_FROZEN_CODE_SHA256 and S30SC_CODE_SHA256 must pin the four shared files to the same sha256")
-# The Stage32 pin on this exporter belongs to its retained historical run.
-# Current exporter bytes are frozen by the new Stage30b/29b/29c run at5482c43.
-byte_pins <- c(s32$S32_FROZEN_CODE_SHA256[setdiff(names(s32$S32_FROZEN_CODE_SHA256), "Functions/stage30_figure_bundle.R")],
-               "Functions/stage30_figure_bundle.R" = "15509cb1477b32885747637cff5f756f2bafb786a00d776d880b9f5daf08ce47",
+# Stage 32 v1.2 (addendum A2) pins the exporter as the s30b_v11 / 29b / 29c v1.1 runs left it (5482c43); the v1.1 pin of
+# the same file (db396fcd, the file at 5394f2f) is checked at its run commit in section 3.
+S32_V11_EXPORTER_SHA256 <- "db396fcd456e11e33908ecbb04233d9c4acaec960373d515cdcfba2a8fd0c05c"
+byte_pins <- c(s32$S32_FROZEN_CODE_SHA256,
                s30$S30SC_CODE_SHA256[setdiff(names(s30$S30SC_CODE_SHA256), shared)],
                # Stage 30 registry v1.0 (frozen; superseded by v1.1, never edited)
                "docs/stage30/stage30_registry_v1.0.json" = "5c252bf699bc0f517c5508854d710bbaa014d4b6fe98d128eb0071bde89dd05e",
@@ -135,7 +135,7 @@ if (!in_work_tree || shallow) {
     list(what = "Stage 30 figure bundle (s30b_v10_20260929_5394f2f)", by = "s30b_v11", commit = "5394f2f3fb6c58d0e1f337bb22c33fdac2203365", files = set30b),
     list(what = "Stage 29b (run v1.0_7f1da1f)", by = "registry v1.1", commit = "7f1da1f6cea098a97cd0b06e3a37140826dda2f1", files = set29b),
     list(what = "Stage 29c (run v1.0_fd61cd9)", by = "registry v1.1", commit = "fd61cd99787e9ce207a650b8c6a6f1ef3764ac30", files = set29c),
-    list(what = "Stage 32 (run v1.1_f4c7a31)", by = "retained historical run; outside this Figure 1 rerun", commit = "f4c7a31dfa76486b5af2fdc5024b0c023f0e1921", files = set32))
+    list(what = "Stage 32 (run v1.1_f4c7a31)", by = "run v1.2 (addendum A2)", commit = "f4c7a31dfa76486b5af2fdc5024b0c023f0e1921", files = set32))
   for (cs in superseded) {
     check(identical(attr(suppressWarnings(system2("git", c("merge-base", "--is-ancestor", cs$commit, "HEAD"), stdout = FALSE, stderr = FALSE)), "status"), NULL),
           paste0(cs$what, ": run commit ", substr(cs$commit, 1, 7), " is not in the history of HEAD"))
@@ -144,8 +144,8 @@ if (!in_work_tree || shallow) {
   }
   historical_exporter <- paste0(paste(git("show", "f4c7a31dfa76486b5af2fdc5024b0c023f0e1921:Functions/stage30_figure_bundle.R"), collapse = "\n"), "\n")
   check(identical(digest::digest(historical_exporter, algo = "sha256", serialize = FALSE),
-                  unname(s32$S32_FROZEN_CODE_SHA256[["Functions/stage30_figure_bundle.R"]])),
-        "retained Stage32 run: historical exporter bytes differ from its frozen pin")
+                  S32_V11_EXPORTER_SHA256),
+        "Stage 32 v1.1: the exporter at its run commit differs from its frozen pin db396fcd")
   check(identical(digest::digest(paste0(paste(git("show", paste0(CONFIG_R_V101$commit, ":Functions/behavior_analysis_config.R")), collapse = "\n"), "\n"),
                                  algo = "sha256", serialize = FALSE), CONFIG_R_V101$sha256),
         "config v1.0.1: Functions/behavior_analysis_config.R at the release commit differs from the frozen f34c7624")
@@ -157,7 +157,8 @@ if (!in_work_tree || shallow) {
     list(what = "Stage 30 (run v1.1_<commit7>)", commit = "8f47527d3815d1305ff049a2f8189f8c4aaccd3c", files = c(set30, "docs/stage30/stage30_registry_v1.1.json")),  # RETRACK-PIN
     list(what = "Stage 30 figure bundle (s30b_v11)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set30b),  # RETRACK-PIN
     list(what = "Stage 29b (run v1.1_<commit7>)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set29b),  # RETRACK-PIN
-    list(what = "Stage 29c (run v1.1_<commit7>)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set29c))  # RETRACK-PIN
+    list(what = "Stage 29c (run v1.1_<commit7>)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set29c),  # RETRACK-PIN
+    list(what = "Stage 32 (run v1.2_<commit7>)", commit = "PHASE-B", files = set32))  # RETRACK-PIN
   for (cs in current) if (identical(cs$commit, PENDING)) note_pending(cs$what) else unchanged_since(cs$commit, cs$files, cs$what)
 
   cat("\n4. registry copies\n")
@@ -165,6 +166,7 @@ if (!in_work_tree || shallow) {
     list(file = s32$S32_REGISTRY$repo_path, commit = s32$S32_REGISTRY$freeze_commit, sha = s32$S32_REGISTRY$sha256),
     list(file = s32$S32_REGISTRY$repo_csv, commit = s32$S32_REGISTRY$freeze_commit, sha = s32$S32_REGISTRY$csv_sha256),
     list(file = s32$S32_ADDENDUM$repo_path, commit = s32$S32_ADDENDUM$freeze_commit, sha = s32$S32_ADDENDUM$sha256),
+    list(file = s32$S32_ADDENDUM2$repo_path, commit = s32$S32_ADDENDUM2$freeze_commit, sha = s32$S32_ADDENDUM2$sha256),
     # the v1.0 registries of the superseded post hoc runs (frozen, never edited)
     list(file = "docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.0.md", commit = "322be31af04003b1a573f5ec3ee09b013046175c",
          sha = "a6435d8d84b164671b59486f7a3eb9af2bff29bd251c58866cd4b777f9fa0604"),

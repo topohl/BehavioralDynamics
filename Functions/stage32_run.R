@@ -72,17 +72,17 @@ S32_RUN_MODE <- "REAL_POST_HOC_CONTEXT"
 # stage09_input da78f80e..., Stage 29 v101_dv2_b2ce507 exposure 33d91929..., stage09_cv 6cc3027e..., continuous cc549c24....
 S32_INPUT_SHA256 <- c(
   v2_manifest = "bb33a111980913f4ddf97c40872ccdd96dd73accdbdc5c5867954b51aad2c571",
-  ebb_manifest = "PHASE-B",  # RETRACK-PIN
-  combz_table = "PHASE-B",  # RETRACK-PIN
-  sus_list = "PHASE-B",  # RETRACK-PIN
+  ebb_manifest = "41b8ce8170de64b739b4c3517e7280d4c1282332d873b75794e674220c6b7ff9",  # RETRACK-PIN
+  combz_table = "5acb9a25a05cb32e44ce9523f9477a0bc307f52287e6d8cbd8d05110b9a40e10",  # RETRACK-PIN
+  sus_list = "65821453e64264b55cccdc86db2b161788e09fd1b5a4ee56e2786b513b00f131",  # RETRACK-PIN
   con_list = "eddd2ee9c3a182f98211b4cbba689e2bb5f72985aeb178f72b25b7d25db1b75d",
-  stage09_input = "PHASE-B",  # RETRACK-PIN
-  stage29_exposure_estimates = "PHASE-B",  # RETRACK-PIN
-  stage29_stage09_cv_sensitivities = "PHASE-B",  # RETRACK-PIN
-  stage29_continuous_estimates = "PHASE-B")   # RETRACK-PIN (addendum A1: H13 comparator only)
-S32_EBB <- list(bundle_id = "ebb_v102_PHASE-B", manifest_sha256 = S32_INPUT_SHA256[["ebb_manifest"]],  # RETRACK-PIN
-                b1_file = "B1_animal_longitudinal.csv", b1_sha256 = "PHASE-B")  # RETRACK-PIN
-S32_S29_RELEASE <- "v102_dv2_PHASE-B"  # RETRACK-PIN
+  stage09_input = "8870b35346e84e867589fea65bc8d367f99444dff156efc704bdc7d7718f5dac",  # RETRACK-PIN
+  stage29_exposure_estimates = "49ba39d066257473fdf8b713fa8003d2201572a179cdb29afd4cb6108f2b1be8",  # RETRACK-PIN
+  stage29_stage09_cv_sensitivities = "1ea2b80c751ef2b76acd3be57a36dbfffd1731e061da64e98312b84ea135ea4d",  # RETRACK-PIN
+  stage29_continuous_estimates = "1449106ff483cf8ee19e3e4b3380239343c2fe81aa35ed343322e857ad283dff")   # RETRACK-PIN (addendum A1: H13 comparator only)
+S32_EBB <- list(bundle_id = "ebb_v102_20261019_677ed97", manifest_sha256 = S32_INPUT_SHA256[["ebb_manifest"]],  # RETRACK-PIN
+                b1_file = "B1_animal_longitudinal.csv", b1_sha256 = "56ac66082f8e2ac98326f9963454ee24b38ac69990485284164593690d0dc923")  # RETRACK-PIN
+S32_S29_RELEASE <- "v102_dv2_a46be6a"  # RETRACK-PIN
 S32_V2_DIR <- "v2_cage_label_correction_2026-09-28"
 S32_V2_N_FILES <- 24L
 # raw_data AnimalPos files: the canonical seed source and the raw records of the board observation interval
@@ -118,7 +118,7 @@ S32_FROZEN_CODE_SHA256 <- c(
   "Functions/rfid_canonical_inference.R" = "886d8bc06807b5958482a31449d0b8e5886db106cc7d02f63863d535dc78b92c",
   "Functions/rfid_event_stream.R" = "3fda3d40f154d2423c1a2e16b687a14369ac9f8c070d883534a713d9a5dceb68",
   "Functions/rfid_binfree_metrics.R" = "ffc1235dbef6b05e63ee6dee7b7b22f3e7107157be2c0a3ff491706079e0d8d0",
-  "Functions/stage30_figure_bundle.R" = "PHASE-B")  # RETRACK-PIN (addendum A2 item 5; v1.1: db396fcd..., the file at 5394f2f)
+  "Functions/stage30_figure_bundle.R" = "15509cb1477b32885747637cff5f756f2bafb786a00d776d880b9f5daf08ce47")  # addendum A2 item 5 (the file at 5482c43, s30b_v11; constants only changed since v1.1: db396fcd..., the file at 5394f2f)
 S32_BOUT_CRITERION_S <- 39.3970988275363
 S32_PACKAGES <- c(lme4 = "2.0.1", lmerTest = "3.2.1", pbkrtest = "0.5.5", clubSandwich = "0.7.0", Matrix = "1.7.5", reformulas = "0.4.4")
 S32_R_VERSION <- "R version 4.5.1 (2025-06-13 ucrt)"
