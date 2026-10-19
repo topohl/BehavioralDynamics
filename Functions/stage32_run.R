@@ -39,7 +39,8 @@ S32_ADDENDUM <- list(
 S32_ADDENDUM2 <- list(
   id = "A2", file = "STAGE32_REGISTRY_v1.0_ADDENDUM_A2.md", repo_path = "docs/STAGE32_REGISTRY_v1.0_ADDENDUM_A2.md",
   sha_file = "ADDENDUM_A2_SHA256.txt",
-  sha256 = "PHASE-B", freeze_commit = "PHASE-B", frozen_at = "PHASE-B")  # RETRACK-PIN
+  sha256 = "3ce81320e0d15ab03311dc4c186c3a76cb73c6ff1385b55be57da5449cfeafeb", freeze_commit = "dac358863516ca002f3954f01192d87e788c53e3",
+  frozen_at = "2026-10-19T22:06:29+0200")
 # the registered second execution (addendum A1): allowed in the stage folder; its tables are the recorded comparison of A2
 S32_PRIOR_RUN <- list(name = "v1.1_f4c7a31", commit = "f4c7a31dfa76486b5af2fdc5024b0c023f0e1921",
                       output_manifest_sha256 = "454a794460cdcac34fedf3adace59961c9da17f5247606dcb65a8e7fe78dfc68")
