@@ -3,7 +3,7 @@
 **Status.** UNREGISTERED, isolated, group-blind audit (2026-10-14).
 - Code: `Testing/audits/audit_cc4_reader_knockout.R` (driver; its header holds the pre-declared design) and `Functions/cc4_reader_knockout.R` (pure helpers).
 - Test: `Testing/tests/test_cc4_reader_knockout.R`.
-- Stages 29 and 31-31d, S13 and every registered or frozen output are unchanged. Nothing is refitted.
+- Stages 29 and 31-31d, S13 and every registered or frozen output are unchanged. Nothing is refitted by this audit (the later Stage 31b-31d QC-sensitivity reruns are in `docs/CC4_QC_RERUN_COMPARISON.md`).
 
 ## Question
 

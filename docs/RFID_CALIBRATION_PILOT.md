@@ -1,5 +1,11 @@
 # RFID calibration pilot (v1.1, 2026-10-14)
 
+> **Calibration will not be performed (Tobias, 2026-10-15).** This document is kept unchanged below as a historical record.
+> Nothing is booked, prepared or scheduled, no experiment is required, and nothing here is a pending task or a prerequisite
+> for the current pipeline status. The pinned schedules, criteria, report mappings and code in `docs/rfid_calibration/`
+> stay unchanged for provenance. The questions it was meant to answer remain accepted limitations:
+> `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md` (sections 0, 5).
+
 **Decision of 2026-10-14: start with the one-day pilot, subject to hardware availability.** Nothing is booked, no tag is
 placed and no animal is involved. The pilot estimates location-classification errors, missed reads and detection competition
 on the Exp9 hardware. Its decision criteria, the seeded schedule and the analysis code are fixed in the repository before any

@@ -1,6 +1,6 @@
 # CC4 outcome x cage-episode eligibility (rule cc4e_v1.0)
 
-*Written for: Tobias and reviewers. Status: rule fixed and implemented as an opt-in, versioned, isolated mechanism. No stage rerun and no model refit has been done. S13, Stage 29 and every frozen or registered output are unchanged.*
+*Written for: Tobias and reviewers. Status (2026-10-15, current): rule fixed and implemented as an opt-in, versioned, isolated mechanism (`MMM_CC4_OUTCOME_ELIGIBILITY`). The rule-applied Stage 31b-31d QC-sensitivity reruns were completed on 2026-10-15 in an isolated root (six runs under `<Behavior>/RANM/cc4_qc_reruns/runs/`; comparison `cqc_v1.0_defd263`, `docs/CC4_QC_RERUN_COMPARISON.md`), and the comparison was accepted with no further model rerun required. S13, Stage 29 and every frozen or registered output, including the historical Stage 31b-31d runs, are unchanged; manuscript imports remain historical. Closeout: `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`.*
 
 ## 1. Why
 
@@ -138,7 +138,7 @@ The frozen runs are the all-episode sensitivity analysis. They keep B2|sys.5|CC4
 - They are not the primary analysis under cc4e_v1.0 for the Male active contexts.
 - For all Female contexts and for Male Inactive, their rosters equal the rule-applied primary rosters. A rerun with the rule changes the Male Active fits and, through Holm and through 31c's secondary status (computed across all contexts), the adjusted P and the secondary label of every context.
 
-No rule-applied 31b-31d run exists yet. It needs a release audit run, ideally with the CC4 knockout, and Tobias's go-ahead for the compute-heavy 31c/31d bootstrap.
+Rule-applied 31b-31d runs: **done** (2026-10-15). When this section was first written no rule-applied run existed; the six isolated QC-sensitivity runs (`p31b_cc4e10_20261015`, `p31c_cc4e10_20261015`, `p31d_cc4e10_20261015` and their `_isens_` variants) were then made with the release audits `cc4e_v1.0_4aebc90` and `cc4e_v1.0_4aebc90_isens` (with the CC4 knockout `ckr_v1.0_4aebc90`) and compared with the frozen runs (`docs/CC4_QC_RERUN_COMPARISON.md`). The frozen runs above remain the record; the QC runs do not replace them (section 10).
 
 ## 9. Verification
 

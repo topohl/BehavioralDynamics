@@ -125,7 +125,8 @@ retained as such. The registered results stay as they are, read as
 relational spatial-overlap indices. Any new spatial or social analysis needs
 its own operational interpretation, justified separately (for example a
 column-level co-assignment against its time-shift expectation, with read
-competition stated; `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.1.md`).
+competition stated; `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.1.md`; current
+record `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`, construct S6).
 
 ---
 
@@ -212,6 +213,12 @@ rather than silently omitted, and is unchanged by this work.
 
 **This was a pipeline defect, and it has been corrected.** The description below
 is kept because it explains what the older artifacts contain.
+
+*Terminology note (2026-10-15):* in this section "RFID reads" means the vendor
+AnimalPos position records. The vendor emits one only after its 500-ms window
+mean of the raw reads has moved at least 200 grid units from the last written
+position (`docs/PHENOSYS_ANIMALPOS_RECONSTRUCTION.md`); they are thresholded
+displacement events, not the raw antenna reads.
 
 Previously only **50 of 111** animals had a complete 72-slot first-night window
 at 10-min resolution. All 61 others were missing **leading slots only** — 31
@@ -332,8 +339,10 @@ neighbours' co-read traffic rather than by its own read rate. Its hard failures
 are demonstrable acquisition defects, for example whole-session channel
 dropouts confirmed by placement scans and by other recordings. Its warnings and
 proposed exclusions are review items, and its rules (`aqc_rules_v0.2`) are
-provisional until a calibration (`docs/RFID_CALIBRATION_PROTOCOL.md`) replaces
-the data-derived thresholds.
+provisional and data-derived. Calibration will not be performed (decision of
+2026-10-15), so no calibrated thresholds will replace them; this is an accepted
+limitation (`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`). Stage 00b flags
+do not filter any downstream analysis.
 
 ---
 
@@ -373,7 +382,9 @@ The measurement validation of 2026-10-13 was unregistered and descriptive
 - Carry-forward positions are more than 60 s old for 18.5% and 47% of that
   time (event basis, validation of 2026-10-13). In the single-read
   reconstruction of the specification (v1.2), 19.5% of active and 45.1% of
-  light observed time has no read in the last 60 s and is reported as unknown.
+  light observed time has no read in the last 60 s and is reported as unknown
+  (over the reconstruction span; in the Stage 19 window of the candidate
+  s19c_v0.2: 19.84% and 46.85%).
 - A reader delivers one tag at a time. An animal's reads drop roughly as
   1/(k+1) with k cage-mates on its reader, so detection density depends on
   co-location.
@@ -413,7 +424,8 @@ The measurement validation of 2026-10-13 was unregistered and descriptive
   `docs/CC4_OUTCOME_ELIGIBILITY.md`): the active family of B2|sys.5|CC4 leaves
   the primary analyses, its inactive (light) family is kept and flagged.
 
-**Decision of 2026-10-14 (third round).** The single-read reconstruction is
+**Decision of 2026-10-14 (third round; its calibration clauses are superseded
+by the closeout below).** The single-read reconstruction is
 the provisional candidate and the event-based reconstruction the historical
 reference; the choice rests on independent measurement validity (the
 calibration pilot), never on agreement with the latest read or on group
@@ -421,6 +433,17 @@ effects. If the calibration is inconclusive, both are retained as sensitivity
 analyses; their estimates are not bounds on true physical occupancy. A
 "supported" position (a read no older than the age cap) is recently detected,
 not a validated location.
+
+**Closeout of 2026-10-15 (`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`).**
+Calibration will not be performed. No basis is chosen: the event-start and
+single-read reconstructions are both retained as sensitivity analyses, and
+neither is validated location accuracy. The 60-s and 300-s support conventions
+and the 2-s flip filter are reporting conventions, not validated thresholds.
+Read competition, house shielding and absence stay inseparable, and the board
+3/4 read deficit stays unattributed to hardware or cage. These are accepted
+limitations, not pending tasks. A controlled-tag bench calibration would have
+tested hardware and reconstruction performance only; it would not by itself
+have validated the positions of freely behaving mice or any social behaviour.
 
 **Forbids:**
 - calling same-reader co-assignment proximity, contact or social preference;

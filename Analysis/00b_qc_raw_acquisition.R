@@ -167,18 +167,19 @@ raqc_figures <- function(tab, ev, sm, fig_dir) {
                   caption = paste("* lab-reported resource. House end: light-phase resting at C1 in 120/120 cage x CC (R5 top in 110).",
                                   "Food (R1) and water (R8) rows inferred from dark-phase visits; no record of the physical orientation exists.", sep = "\n"))
   sv(p, "qc01_layout", 6, 3.6)
-  # 2. reader health: session co-read ratio per board-recording and reader
+  # 2. relative reader co-detection (docs/RFID_ACQUISITION_QC.md): session co-read ratio per board-recording and reader
   q <- data.table::copy(tab$reader_qc)
   q[, rec := paste(Batch, CC)]
-  q[, ratio := pmin(pmax(ifelse(zero_read_session, 0, session_best_ratio), 1 / 64), 64)]
+  # a reader with no read in the session is drawn grey with an x, off the continuous scale (not its low end)
+  q[, ratio := ifelse(zero_read_session, NA_real_, pmin(pmax(session_best_ratio, 1 / 64), 64))]
   q[, reader_lab := factor(lab(PositionID), levels = lab(c(5:8, 1:4)))]
   p <- ggplot2::ggplot(q, ggplot2::aes(reader_lab, rec, fill = log2(ratio))) + ggplot2::geom_tile(colour = "white") +
     ggplot2::geom_point(data = q[zero_read_session == TRUE], shape = 4, size = 2.5, stroke = 1) +
-    ggplot2::scale_fill_gradient2(low = MMM_PALETTE_DIVERGING[["low"]], mid = "white", high = MMM_PALETTE_DIVERGING[["high"]], midpoint = 0, name = "log2 best-neighbour co-read ratio") +
+    ggplot2::scale_fill_gradient2(low = MMM_PALETTE_DIVERGING[["low"]], mid = "white", high = MMM_PALETTE_DIVERGING[["high"]], midpoint = 0, na.value = "grey80", name = "log2 relative reader co-detection") +
     ggplot2::facet_wrap(~ paste("board", board), nrow = 1) + th +
     ggplot2::theme(axis.text.x = ggplot2::element_text(size = 6), axis.text.y = ggplot2::element_text(size = 6)) +
-    ggplot2::labs(x = NULL, y = NULL, title = "Reader health: best-neighbour co-read ratio of each reader against its homologous expectation (whole session)",
-                  subtitle = "x = no read in the session (H06). Expectations come from the same reader pair on the other boards; occupancy is not assumed uniform.")
+    ggplot2::labs(x = NULL, y = NULL, title = "Relative reader co-detection: best-neighbour co-read ratio against the same reader pair on the other boards (whole session)",
+                  subtitle = "Grey with x = no read in the session (H06). Depends on behaviour and board, not only hardware: low values alone are not failures.")
   sv(p, "qc02_reader_health", 11, 6.5)
   # 3. board signatures across recordings
   bh <- data.table::copy(ev$board_history)

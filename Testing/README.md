@@ -57,7 +57,7 @@ Forensic and validation analyses that **require the E9 local dataset** under
 S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID
 ```
 
-Fifty-three scripts. They read canonical pipeline outputs, and many of them also
+Seventy scripts. They read canonical pipeline outputs, and many of them also
 *write* audit tables into the local analysis tree. The saved originals of the
 older audits are retained under
 `analysis_ready/history/original_layout/12_systems_neuroscience_summary/5min_based/audit_*/`,
@@ -66,6 +66,11 @@ audits write only to a new
 `analysis_ready/analyses/historical_audit_replays/<run_id>/<script_id>/`
 folder, with the run id from `MMM_BEHAVIOR_AUDIT_REPLAY_ID`. They are
 **not** part of CI and will fail without the dataset.
+
+The isolated publication-style QC review renderer `render_acquisition_qc_review.R` reads saved QC/reconstruction tables and adds
+an explicitly descriptive eight-reader spatial-overlap aggregation; it performs no raw reconstruction or model refit.
+Its output must be an isolated new review run. See `docs/RFID_QC_REVIEW.md` and
+`Testing/tests/test_acquisition_qc_review.R` for scope and fixture checks.
 
 Grouped by subject:
 
@@ -94,19 +99,21 @@ release decision.
   `docs/ANTENNA_MEASUREMENT_VALIDATION.md`).
 - **Single-read spatial reconstruction (2026-10-14, unregistered)** — `build_single_read_spatial_reconstruction.R`
   (srs_v1.1: event and single-read bases with observation age and unknown time, vendor-stream knockout, parity with Stages 19 and 29;
-  isolated root `RANM/single_read_spatial/`; `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.1.md`),
+  isolated root `RANM/single_read_spatial/`; `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.1.md`, current record v1.5),
   `audit_board_group_identifiability.R` (design-only identifiability of group and board; `RANM/board_identifiability/`),
   `audit_cage_episode_presence.R` (animals housed, tags read and tracked animals per cage episode from
   detection-independent records; `RANM/cage_episode_presence/`) and `audit_board_adjustment_read_dependent.R`
   (technical board adjustment of read-dependent measures; `RANM/board_adjustment/`).
-- **RFID calibration pilot (pre-registered, not yet run)** — `analyse_rfid_calibration_pilot.R --date=<YYYYMMDD>`
+- **RFID calibration pilot (historical, unexecuted tooling: calibration will not be performed, decision of 2026-10-15;
+  `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`)** — `analyse_rfid_calibration_pilot.R --date=<YYYYMMDD>`
   (criteria `docs/rfid_calibration/acp_criteria_v1.2.csv`, schedule `schedule_one_day_v3.csv`, both hash-pinned; v1.0 / v1.1 and v1 / v2
   kept; isolated root `RANM/calibration/`; `docs/RFID_CALIBRATION_PILOT.md`); after a run, `report_rfid_calibration_pilot.R --acp-run=<run>`
   writes the resolved / uncertain / not-obtained report and the day-2 trace with the status mapping `acp_report_status_v1.1.csv`
   (`RANM/calibration_reports/`; `docs/RFID_CALIBRATION_LOGISTICS.md`). Tests: `test_antenna_calibration_pilot.R`,
-  `test_antenna_calibration_report.R` (synthetic logs only).
+  `test_antenna_calibration_report.R` (synthetic logs only; kept as regression checks of the unexecuted tooling).
 - **Revised spatial analysis, round 3 (2026-10-14, unregistered)** — `build_spatial_occupancy_candidate.R` (Stage 19 candidate
-  s19c_v0.1 from the srs_v1.1 release; `RANM/spatial_occupancy_candidate/`; `docs/STAGE19_CANDIDATE.md`),
+  from the srs_v1.1 release: s19c_v0.1 in round 3, the current but inactive s19c_v0.2_defd263 in round 4;
+  `RANM/spatial_occupancy_candidate/`; `docs/STAGE19_CANDIDATE.md`),
   `audit_cc4_reader_knockout.R` (pre-declared R3/R5 knockout over the CC4 Stage 31 phases; `RANM/cc4_reader_knockout/`;
   `docs/CC4_READER_KNOCKOUT.md`), `audit_cc4_outcome_eligibility.R [--variant=inactive_sensitivity]` (Stage 31b-31d
   outcome x cage-episode eligibility cc4e_v1.0 and sample sizes; `RANM/cc4_outcome_eligibility/`; `docs/CC4_OUTCOME_ELIGIBILITY.md`)

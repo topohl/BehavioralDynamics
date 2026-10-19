@@ -1,4 +1,4 @@
-# Stage 19 candidate s19c_v0.2 (revised spatial occupancy, for review)
+# Stage 19 candidate s19c_v0.2 (revised spatial occupancy; unregistered and inactive)
 
 Written for: Tobias and reviewers.
 
@@ -6,7 +6,9 @@ Written for: Tobias and reviewers.
 
 This candidate implements decision 4 of 2026-10-14: a **separate, versioned** revision of Stage 19 built from the pinned single-read spatial reconstruction release.
 
-**Fifth round (2026-10-15).** The candidate stays isolated until the results of the calibration pilot have been evaluated; manuscript figures are not replaced.
+**Closeout (2026-10-15; `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md` section 3).** Calibration will not be performed. The candidate `s19c_v0.2_defd263` is retained as descriptive and sensitivity evidence: built, **unregistered and inactive**. Live Stage 19 (the earlier raw event-start analysis), its live outputs and publication copies, the models and the manuscript imports are unchanged. Both reconstruction bases, the explicit unknown time, the observed and supported denominators and the separate `stage19_window` and `cc4_grid_period` sets are kept; neither basis is validated location accuracy, and the 60-s and 300-s support conventions are not validated thresholds. Any later activation, registration, group-descriptive layer, model or manuscript import needs a separate instruction.
+
+*Superseded status (fifth round): the candidate was to stay isolated until the calibration pilot had been evaluated.*
 
 **v0.2 (decision of 2026-10-15).** The existing Stage 19 block set is the primary window, for a like-for-like comparison of
 the original and the revised occupancy reconstruction. The CC4 blocks after it (I3 onward: the grid-exposure period) are
@@ -14,11 +16,11 @@ reported separately as `cc4_grid_period` and are never pooled with the primary w
 period with the pre-grid phases; the whole-span pooling of v0.1 (`whole_span`) is gone from the outputs and is computed only
 in memory for the gates that check against the srs release. Everything else is v0.1.
 
-- **Status:** candidate for review. It is UNREGISTERED, group-blind and isolated.
+- **Status:** unregistered, inactive candidate, group-blind and isolated; since the closeout of 2026-10-15 it is retained as descriptive and sensitivity evidence, not under review for activation.
 - **Untouched:** Stage 19 (`Analysis/19_spatial_occupancy_maps.R`), its outputs under `analysis_ready/analyses/spatial_occupancy` and `publication_ready/.../spatial_occupancy`, the manuscript figures, S13 and every registered result. Nothing is replaced, and Stage 29 is not rerun.
 - **No new preprocessing:** no raw log is read and nothing is reconstructed again. Every number is a seconds-weighted aggregation of the srs_v1.1 tables.
 - **Excluded from the build:** no group label, CombZ or outcome is read, and no model, p-value or effect size is computed.
-- **Reconstruction labels:** the single-read reconstruction is the provisional candidate and the event-start reconstruction is the historical reference. Their estimates are sensitivity analyses, **not bounds on true physical occupancy**. The final choice of reconstruction rests on independent measurement validity (calibration criterion a), never on group effects, prediction or significance.
+- **Reconstruction labels:** the single-read reconstruction is the provisional candidate and the event-start reconstruction is the historical reference. Their estimates are sensitivity analyses, **not bounds on true physical occupancy**. The final choice of reconstruction was to rest on independent measurement validity (calibration criterion a), never on group effects, prediction or significance. *Closeout (2026-10-15): calibration will not be performed, so no reconstruction is chosen; both are retained as sensitivity analyses, and neither has established localisation accuracy. The emitted `basis_label` values (`single-read (provisional candidate)`, `event-start (historical reference)`) are unchanged output labels.*
 
 **Code:**
 - builder: `Testing/audits/build_spatial_occupancy_candidate.R`
@@ -53,7 +55,7 @@ Each input is pinned by sha256 in the builder, and each pin is cross-checked aga
 
 **Units and bases**
 - **Units:** four columns are primary: C1 = R1 food + R5 house, C2 = R2 + R6, C3 = R3 + R7, C4 = R4 + R8 water (`amv_column()`). The eight readers are diagnostics. R1 food, R5 house and R8 water are lab-reported resource locations. Column or reader occupancy is **not** resource engagement, proximity or a validated location.
-- **Bases:** `event` = event-start (historical reference); `read` = single-read (provisional candidate). Both have tau 2 s and the same span, blocks, seeds, masks and carry-forward definitions.
+- **Bases:** `event` = event-start (historical reference); `read` = single-read (provisional candidate; since the closeout an alternative definition that is not chosen). Both have tau 2 s and the same span, blocks, seeds, masks and carry-forward definitions.
 
 **Bounds and support**
 - `LOCF` (`none (unrestricted LOCF)`) is the historical reference. Under LOCF, unknown time is only the unseeded time before an animal's first read, which is 0 here because all 444 animal-recordings are seeded.
@@ -138,7 +140,7 @@ Each input is pinned by sha256 in the builder, and each pin is cross-checked aga
 - G16-G21: layout, presence join, raw logs, censoring arithmetic, no negative unknown, phase labels.
 - Diagnostics: LOCF unknown time by basis; the 1-s grid against the exact unknown time (max 13.9 s per animal-block).
 
-**Release runs: `s19c_v0.1_4aebc90` (2026-10-14) and `s19c_v0.2_defd263` (2026-10-15; see specification v1.3): 25 of 25 gates each.** The stage19_window numbers below are identical in v0.1 and v0.2. On stage19_window, single-read (event-start), Active phase:
+**Release runs: `s19c_v0.1_4aebc90` (2026-10-14) and `s19c_v0.2_defd263` (2026-10-15; see specification v1.3; current record v1.5): 25 of 25 gates each.** The stage19_window numbers below are identical in v0.1 and v0.2. On stage19_window, single-read (event-start), Active phase:
 
 - LOCF: C1 66.0% (63.1%).
 - 60-s cap: C1 51.4% of observed time, unknown 19.8%; C1 64.2% (60.7%) of supported time.
@@ -157,9 +159,9 @@ These need a new reconstruction version from the raw logs (heavy; ask before run
 - The missingness grid (gaps, cage-mate context) at bounds other than 60 s and 300 s.
 - Positions of the six untagged B1 animals.
 
-## Decisions still open
+## Decisions (closed at the closeout of 2026-10-15)
 
 1. **Primary block set: decided** (2026-10-15): the existing Stage 19 window; the CC4 grid period separately, never pooled with it.
-2. **Group-descriptive layer:** gated. Side-by-side group means (specification section 8 item 5) would read the group lists behind an explicit flag; no models. Not built until Tobias approves.
-3. **Basis choice:** after the calibration pilot, by criterion (a) only. If the pilot is inconclusive, both bases are kept as sensitivity analyses. Bounds (60 s / 300 s) and tau stay reporting conventions until calibrated.
-4. **Manuscript figures:** whether revised figures replace the Stage 19 manuscript figures is decided only after these reviews (specification section 8 item 7).
+2. **Group-descriptive layer: not built** (closeout, 2026-10-15). It would need a separate instruction.
+3. **Basis choice: closed without a choice** (closeout, 2026-10-15). Calibration will not be performed, so no basis is chosen: both bases are kept as sensitivity analyses, and the 60-s / 300-s bounds and the 2-s tau stay reporting conventions. *(Superseded: "after the calibration pilot, by criterion (a) only".)*
+4. **Manuscript figures: not replaced** (closeout, 2026-10-15). Replacing or adding Stage 19 manuscript figures would need a separate instruction and a bounded specification (both bases, the support conventions and the released masks).

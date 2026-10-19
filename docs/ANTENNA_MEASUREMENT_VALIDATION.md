@@ -86,7 +86,11 @@ All outputs are in the isolated root `<Behavior>/RANM/measurement_validation/`.
 9. **Probabilistic HMM (pilot).** It identifies detection probabilities and the share of time undetectable (0.63), but not where animals are while unread. Its added value over carry-forward plus an age bound is at most 5.8 points of time per cell. It was not built.
 10. **Ground truth.** None exists. Agreement between RFID reconstructions is not accuracy.
 
-## Proposed final spatial and social specification (for decision, not applied)
+## Proposed final spatial and social specification (historical proposal of 2026-10-13; superseded)
+
+*Superseded by the specification chain v1 to v1.5; the current record is `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`.
+S8 was not carried out: calibration will not be performed (decision of 2026-10-15), and no fine-scale spatial or social
+claim is made; the unanswered questions are accepted limitations.*
 
 | | construct | source and rule | status |
 |---|---|---|---|
@@ -99,24 +103,40 @@ All outputs are in the isolated root `<Behavior>/RANM/measurement_validation/`.
 | S7 | group comparisons | cage as the unit; board recorded and reported; CON contrasts descriptive (3 cages per sex); detection covariates alongside | — |
 | S8 | validation before any fine-scale spatial or social claim | calibration on the same boards (static tags at surveyed positions with 1–4 tags present, moving tag, one filmed mouse), or tracking of the existing regroup video (`Y:/Tobi/E9_SIS/B<n>/Regroup/`, 118 of 120 cage × CC cells, first 1–2 h, daylight) | — |
 
-## Decisions for Tobias
+## Decisions for Tobias (historical questions of 2026-10-13; all resolved, see specification v1.5)
 
 1. **Raw carry-forward basis.** Choose between:
    - event starts: the current data versions and Stage 19;
    - single reads: which avoid the mis-timing of overlapping events.
 
    This affects 6.6–7.1% of active seconds and up to 38 points of one animal's time at a reader.
+   *Outcome:* single-read approved as the provisional candidate and the event basis preserved (2026-10-14); at the closeout
+   (2026-10-15) no basis was chosen: both are retained as sensitivity analyses, and the live Stage 19 and the data versions
+   keep the event basis.
 2. **B2 CC4 board 5 R3.** Should it be added to the dead-antenna exclusions of new analyses? The frozen S13 list cannot change.
+   *Outcome:* yes, as SX02 of the spatial exclusion manifest (v1.0; current v1.1) for new spatial analyses; for Stages 31b-31d
+   per outcome under rule cc4e_v1.0 (active family excluded, inactive family kept and flagged); S13 unchanged.
 3. **shared_zone_use.** It is a registered primary construct. Should a limitation or erratum entry state that it is chance-dominated co-assignment and not proximity (`docs/KNOWN_LIMITATIONS.md` §14 carries the measurement facts now)?
+   *Outcome:* yes (2026-10-14): co-assignment is not retained as proximity or affiliation (`docs/KNOWN_LIMITATIONS.md` §5 and
+   §14; construct S6); the registered results are unchanged.
 4. **Stage 19 resolution.** Should Stage 19 maps and contrasts move to column resolution, with reader level as a supplement?
+   *Outcome:* four columns are primary in the revised Stage 19 candidate, with the eight readers as diagnostics (2026-10-14).
+   The candidate `s19c_v0.2_defd263` is unregistered and inactive; live Stage 19 keeps its reader-level maps.
 5. **Independent validation.** Should one be commissioned (S8)?
+   *Outcome:* no. A calibration pilot was prepared and then declined on 2026-10-15: calibration will not be performed, no
+   validation is pending, and the unanswered questions are accepted limitations (`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`
+   section 5).
 
 **Follow-up (2026-10-13): Stage 00b acquisition QC** (`docs/RFID_ACQUISITION_QC.md`).
 - **The three silent antennas.** They are confirmed whole-session channel dropouts: each worked in the placement scans next to the session and in the 23 other recordings. The frozen S13 list covers only OR112 and OR141 of the B2 CC3 board 2 cage, not OR106 and OR131.
 - **The single-read basis.** It reassigns 8.5% of active and 4.8% of light seconds, mostly fresh border reads at corridor readers. Few R5 seconds are reassigned away, but R5 gains border time (+7.7% active, +2.6% light), so house occupancy is basis-sensitive.
 - **The house end of the layout** (R5 house, R1 food, R8 water as reported by the lab) is supported by light-phase resting. The food and water rows are inferred.
-- **Calibration.** A proposed protocol is in `docs/RFID_CALIBRATION_PROTOCOL.md`.
+- **Calibration.** A proposed protocol is in `docs/RFID_CALIBRATION_PROTOCOL.md`. *(Closeout, 2026-10-15: calibration will not be performed; its questions remain accepted limitations.)*
 
 **Follow-up (2026-10-14): revised specification.** The decisions of 2026-10-14 (exclusions of the three dead-channel cage
 episodes, the B5 CC4 board 1 censoring, a single-read reconstruction, board handling, a calibration pilot) are worked
 out in `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.md`, which replaces the table above for review.
+
+**Current status (closeout, 2026-10-15):** the specification chain v1 to v1.4 ends in
+`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`, the current record; the current exclusion manifest is
+`docs/spatial_exclusions/spatial_analysis_exclusions_v1.1.csv`. Calibration will not be performed.

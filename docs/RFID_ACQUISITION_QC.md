@@ -3,6 +3,13 @@
 **Status:** manual diagnostic, with provisional rules (`aqc_rules_v0.2_provisional`), 2026-10-13; integrated into the live QC
 root with append-only runs and output protection on 2026-10-14 (section "Live QC root and output protection").
 
+**Current status (closeout, 2026-10-15):** operational, run manually; it is not part of `run_all_analysis.R`, and its flags
+and proposed exclusions do not filter any downstream analysis. The exclusions adopted for new spatial analyses are the
+released manifest `docs/spatial_exclusions/spatial_analysis_exclusions_v1.1.csv`; the current specification is
+`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`. Calibration will not be performed, so the rules stay provisional and
+data-derived. The live root's `REVIEW_STATUS.md` still names manifest v1.0 and specification v1; it lies in the protected,
+append-only QC root and was left unchanged.
+
 - It is **group-blind**: no CON/RES/SUS label, CombZ or outcome is read, and no pass/fail decision depends on them.
 - Flags and proposed exclusions are **never applied**.
 - The frozen S13 exclusion list, the Stage 08/09/29 outputs, the data versions and the live RFID files are **unchanged**.
@@ -83,7 +90,8 @@ by hand. Its runs are append-only:
 - **No silent change to registered exclusions.** The QC manifest and its proposed exclusions are review items. No
   registered stage reads them (`Testing/tests/test_spatial_exclusion_manifest.R` checks the code). Exclusions adopted for
   new spatial analyses are recorded separately in the versioned spatial manifest
-  (`docs/spatial_exclusions/spatial_analysis_exclusions_v1.0.csv`); the frozen S13 list is unchanged.
+  (`docs/spatial_exclusions/spatial_analysis_exclusions_v1.0.csv`, since 2026-10-14 superseded by the released v1.1); the
+  frozen S13 list is unchanged.
 - **Keys.** Every board-level table carries `System` (sys.<board>) and `CageEpisodeID` (Batch|System|CC), the keys of
   Stage 29 and of the revised measurement tables.
 
@@ -125,7 +133,7 @@ does not list itself or the protection files written at publication (`protection
   - The summaries leave the dropout board-recordings out, except spatial_completeness, which flags them.
 - `figures/qc/`:
   - qc01 labelled 4 x 2 layout;
-  - qc02 reader health (best-neighbour co-read ratio);
+  - qc02 relative reader co-detection (best-neighbour co-read ratio);
   - qc03 board signatures;
   - qc04 support by reader;
   - qc05 column occupancy against the age of the supporting read;
@@ -191,9 +199,20 @@ A tag is read not only by the antenna under it. Within about a second, its row n
   - Only active minutes count, so silences during light-phase rest cannot trigger it.
   - **Calibration** (`stretch_calibration_summary.csv`, healthy readers, all minutes): the model is somewhat optimistic. Predicted co-read probabilities of 0.81 and 0.95 are observed at 0.72 and 0.88; at low predictions the overestimate is larger in relative terms.
 
+## Relative reader co-detection (formerly "reader health")
+
+The qc02 heatmap (and review panel QC01a) shows, per reader and session, observed / expected co-reads for the best informative neighbour pair: how often tags read at a neighbour are also read at this reader within 1 s, relative to the same reader pair on the other boards of the same recording. A value of 1 means "as on the other boards".
+
+- **The normalization removes** reader-pair geometry, the traffic at the neighbour and conditions shared within a recording.
+- **It does not remove behaviour or board.** The expectation comes from animals in other cages (one per batch is the CON-only cage), so occupancy, posture, shelter use, huddling and tag competition, and cage density all shift the score, as does board sensitivity (live-run medians 2.3, 1.4, 0.8, 0.8 and 2.0 for boards 1-5). Group-blind does not mean behaviour-independent.
+- **Low scores are diagnostic, not failures.** Nine of the ten lowest non-zero scores in `raqc_20261014_25804cb` (0.13-0.27) are food or house readers on boards 3 and 4 with 150,000-340,000 reads each. A hardware failure is only a corroborated whole-session dropout (H06): the three grey cells with an x.
+- **Not used for** exclusions, group comparisons or rescaling reads, occupancy or social measures. The QC rules are unchanged.
+
+Legacy names are kept (`qc02_reader_health.png`, `healthy_elsewhere`, `AQC_HEALTHY_ELSEWHERE`). There, and in "healthy reader-sessions" or "healthy board-recordings", "healthy" means only "without a confirmed dropout".
+
 ## Rules, thresholds and their basis
 
-No threshold was set from group effects, CombZ, prediction or significance. All of them are acquisition-only. Where no external basis exists, the basis is this run's acquisition distribution (stated), and the threshold is provisional until calibration (`docs/RFID_CALIBRATION_PROTOCOL.md`).
+No threshold was set from group effects, CombZ, prediction or significance. All of them are acquisition-only. Where no external basis exists, the basis is this run's acquisition distribution (stated), and the threshold is provisional: data-derived and not validated against known tag positions. Calibration will not be performed (decision of 2026-10-15), so these thresholds remain provisional and data-derived; no recalibration is pending (`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md` section 5). The calibration protocol (`docs/RFID_CALIBRATION_PROTOCOL.md`) is a historical record only.
 
 | check | severity | threshold | basis and uncertainty |
 |---|---|---|---|
@@ -297,7 +316,7 @@ Resting places out of range and tag problems cannot be told apart.
 - B1's acquisition signature does not differ from the other batches (mean within-event gap 392 ms, k1 0.243).
 - The read-density mechanism is inferred, but consistent with the tables.
 
-### Reader health and boards
+### Relative reader co-detection and boards
 
 **Healthy reader-sessions** (957): best co-read ratio minimum 0.127, 1st percentile 0.27, median 1.37. The lowest are R1 (food) on boards 4 and 3.
 
@@ -380,7 +399,7 @@ Reads per carry-forward second (active / light):
 | single reads | none | 159 | 51 |
 | single reads | 2 s | 103 | 27 |
 
-**Status of the read-level basis.** It is the better-founded representation: one read, one time and one antenna, with no event-closing artefact. Its disagreement with the event basis is not a measured error, because neither is validated without calibration. It is not adopted. The live Stage 19 outputs and the data versions keep the event basis until a versioned read-level reconstruction has been reviewed.
+**Status of the read-level basis.** It is the better-founded representation: one read, one time and one antenna, with no event-closing artefact. Its disagreement with the event basis is not a measured error, because neither is validated without calibration. It is not adopted. The live Stage 19 outputs and the data versions keep the event basis until a versioned read-level reconstruction has been reviewed. *(Status 2026-10-15: the versioned read-level reconstruction `srs_v1.1_9b18624` and the Stage 19 candidate `s19c_v0.2_defd263` were built. At the closeout neither basis was adopted: both are retained as sensitivity analyses, the candidate is unregistered and inactive, and the live Stage 19 outputs and the data versions keep the event basis; `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md` section 3.)*
 
 ### Co-assignment by reader (diagnostic only)
 
@@ -406,6 +425,8 @@ R3, R4, R7 and R8 lie above 1. Their expectations are small, and they offset the
 
 ### Which limitations are correctable from the available data
 
+*Assessment of 2026-10-13. The entries that need calibration are accepted limitations since 2026-10-15 (note below the table); they are not pending work.*
+
 | limitation | status |
 |---|---|
 | whole-session channel dropouts (3) | identified and documented; the board-recordings can be excluded from complete-coverage spatial measures; not recoverable |
@@ -422,13 +443,21 @@ R3, R4, R7 and R8 lie above 1. Their expectations are small, and they offset the
 
 A probabilistic location model would only help after calibration; it was not built (pilot: `docs/ANTENNA_MEASUREMENT_VALIDATION.md`).
 
-### Decisions for Tobias
+Calibration will not be performed (decision of 2026-10-15): the limitations above that need calibration stay accepted
+limitations (`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md` section 5).
+
+### Decisions for Tobias (all resolved; the questions are kept as asked on 2026-10-13)
 
 1. **Dropout exclusions.** Should the three confirmed dropouts (B2 CC3 board 2, B2 CC4 board 5, B5 CC4 board 1) become exclusions in new spatial analyses? And should S13's partial coverage of B2 CC3 board 2 be noted in the limitations? The frozen S13 list cannot change.
+   *Resolved:* adopted as SX01-SX04 in the spatial exclusion manifest (v1.0, 2026-10-14; current v1.1 adds the movement records SX05-SX07); S13 unchanged; its partial coverage is noted in `docs/KNOWN_LIMITATIONS.md` section 14.
 2. **Single-read reconstruction.** Should a versioned single-read reconstruction (data version) be built for future spatial summaries?
+   *Resolved:* built (srs_v1.0, then srs_v1.1_9b18624) as a provisional, isolated reconstruction; not activated in any registered stage.
 3. **Board covariate.** Should board be recorded as a covariate in future read-based measures, together with the cage change?
+   *Resolved:* board and presence metadata are recorded on the revised tables; board is a design covariate or stratum without a hardware claim (specification v1.4 section 6, construct S7).
 4. **Calibration.** Should the calibration protocol be commissioned?
+   *Resolved:* a one-day pilot was prepared and pre-registered (`docs/RFID_CALIBRATION_PILOT.md`), then declined on 2026-10-15: calibration will not be performed.
 5. **Live QC root.** Should Stage 00b run into the live QC root (`analysis_ready/quality_control/raw_acquisition/`) after review?
+   *Resolved:* yes, on 2026-10-14 (runs `raqc_20261014_6165adf` and `raqc_20261014_25804cb`).
 
 ## Changes from v0.1 (adversarial review, 2026-10-13)
 

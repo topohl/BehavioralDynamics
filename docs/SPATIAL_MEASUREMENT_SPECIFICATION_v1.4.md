@@ -1,5 +1,10 @@
 # Spatial measurement specification v1.4 (2026-10-15)
 
+**Superseded by `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`** (closeout, 2026-10-15): calibration will not be
+performed, and its questions remain accepted limitations. This file is the record of the fifth round; its definitions
+(sections 1-6, 9 and 10) remain valid as amended by v1.5. Two statements below were wrong and are corrected in place
+(marked "Corrected 2026-10-15"); the calibration status below is historical.
+
 **Status.** The decisions of 2026-10-15 (fifth round) are incorporated on top of v1.3. The single-read reconstruction stays
 the *provisional* candidate and the event-based reconstruction the historical reference; method and parameters are frozen
 only after the one-day calibration pilot has been assessed. In this round:
@@ -22,7 +27,9 @@ localisation remains unresolved until the calibration pilot. No further reconstr
 hypothesis is added at this stage.
 
 Nothing is applied to a registered analysis: the Stage 29 v1.0.1 release, its model specification, S13 and every registered
-output are unchanged; Stage 29 is not rerun; no biological model is refitted (Stages 31b-31d included); no manuscript figure
+output are unchanged; Stage 29 is not rerun; no biological model is refitted (Stages 31b-31d included) [Corrected
+2026-10-15: the Stage 31b-31d QC-sensitivity models were refitted in isolated roots on 2026-10-15 (section 2;
+`docs/CC4_QC_RERUN_COMPARISON.md`); the historical and registered runs were preserved and remain the record]; no manuscript figure
 is regenerated, and no full behavioural-model run is launched before this specification has been reviewed after the
 calibration pilot.
 
@@ -435,7 +442,9 @@ publication copies and the manuscript are unchanged.
   Light are never pooled. Keys: recording (SourceFile, raw log), board, System, cage episode, animal, tag, sex, batch, cage
   change, presence counts, exclusion and censoring flags.
 - **Block sets:** stage19_window (comparable with Stage 19: CC4 restricted to A1, I2, A2) is the primary set; whole_span
-  (with the CC4 grid days) is computed and labelled alongside.
+  (with the CC4 grid days) is computed and labelled alongside. [Corrected 2026-10-15: this describes v0.1. The current
+  candidate s19c_v0.2 reports `stage19_window` and `cc4_grid_period` separately and never pools them; whole-span
+  calculations are internal parity checks only (gates G12, G12b, G13), not outputs.]
 - **Gates** include: the event-basis LOCF reproduces Stage 19's phase table (21,312 cells, max 5.5e-11 s); whole-span pooling
   reproduces the srs tables of section 3; the exclusions equal manifest v1.1; no excluded episode contributes to any summary
   or figure input (G14 by episode id, G14b by observed-time arithmetic).

@@ -20,9 +20,9 @@ Repository: <https://github.com/topohl/BehavioralDynamics>
 Core analytical themes:
 
 - tracking integrity and RFID/position QC
-- multiscale movement, entropy and proximity metrics
+- multiscale movement, entropy and co-location ("proximity") metrics
 - cage-change and circadian phase annotation
-- dyadic contact and social network features
+- dyadic co-assignment ("contact") and social network features
 - temporal instability and behavioral state-space analyses
 - GAMM-derived trajectory features
 - optional HMM behavioral state modeling
@@ -40,6 +40,7 @@ Core analytical themes:
 | See the machine-readable analysis map | [`docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv`](docs/MANUSCRIPT_ANALYSIS_REGISTRY.csv), read with its [addendum](docs/MANUSCRIPT_ANALYSIS_REGISTRY_ADDENDUM.md) |
 | Re-run the pipeline | [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) |
 | Know what the caveats are | [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md) |
+| Know the current status of the RFID measurement work (what is live, optional, frozen or an inactive candidate) | [`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`](docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md) |
 | Find the data and outputs | [`docs/DATA_AND_OUTPUTS.md`](docs/DATA_AND_OUTPUTS.md) |
 | See what was retired on 2026-10-05, and why | [`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`](docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md) |
 | Understand the stage-by-stage pipeline | [`Analysis/README_pipeline.md`](Analysis/README_pipeline.md) |
@@ -63,10 +64,12 @@ Longitudinal analysis of mouse behavior during social instability stress and rel
 |---|---|
 | Psychomotor activity | movement, movement trajectories, raw movement phase statistics |
 | Spatial organization | occupancy, entropy, spatial dynamics |
-| Social behavior | proximity, dyadic RFID contacts, dynamic social networks |
+| Social behavior | co-location ("proximity"), dyadic RFID co-assignment ("contacts"), dynamic social networks built from it |
 | Temporal structure | instability, burstiness, autocorrelation-like dynamics, adaptation kinetics |
 | Behavioral states | state-space summaries, optional HMM states |
 | Systems-level integration | feature ladders, dashboards, behavior-physiology/proteomics bridges |
+
+> **RFID measures.** AnimalPos movement is thresholded displacement-event activity, not distance travelled; raw reader changes depend on detection; same-reader or same-column co-assignment ("proximity", "contacts" and the networks built from it) is a co-location proxy, not validated physical proximity, contact or affiliation. Current status and accepted limitations: [`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`](docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md) and [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md) sections 5 and 14.
 
 ---
 
@@ -78,8 +81,8 @@ BehavioralDynamics/
 ├── Functions/         Shared helpers: identity, preprocessing, windows, first-night, stats, HMM, output
 ├── Formatting/        Raw preprocessing and raw-level QC, upstream of the pipeline, plus _archive/
 ├── Testing/
-│   ├── tests/         78 portable regression/contract checks (CI runs all of them)
-│   ├── audits/        51 data-dependent scientific validations
+│   ├── tests/         112 portable regression/contract test scripts (CI runs all of them)
+│   ├── audits/        70 data-dependent scientific validations and audits
 │   └── legacy/        11 historical development scripts
 ├── manuscript/
 │   ├── README.md      Where the manuscript is built and what this repository supplies

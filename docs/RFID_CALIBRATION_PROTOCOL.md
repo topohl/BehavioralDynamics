@@ -1,5 +1,11 @@
 # Proposed RFID calibration protocol (PhenoSys MultiMouseMonitor, Exp9 set-up)
 
+> **Calibration will not be performed (Tobias, 2026-10-15).** This document is kept unchanged below as a historical record.
+> Nothing is booked, prepared or scheduled, no experiment is required, and nothing here is a pending task or a prerequisite
+> for the current pipeline status. The pinned schedules, criteria, report mappings and code in `docs/rfid_calibration/`
+> stay unchanged for provenance. The questions it was meant to answer remain accepted limitations:
+> `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md` (sections 0, 5).
+
 **Status: proposal only (2026-10-13).** Nothing has been started. It requires access to the same boards (AM1-AM5), the
 same PhenoSoft version (1.0.8147.28429) and the configuration used in Exp9. It uses no animals except, optionally, step 6.
 

@@ -162,7 +162,10 @@ whole_inactive_20260929_v1. The full-recording files, row accounting, population
 summary, bootstrap tables, candidate scores, candidates and all 14 figures are
 byte-identical; in the changed tables every row outside B5|sys.1|CC4 after the censor
 time is identical. Stages 31b-31d already leave the cage out through their
-complete-span rule, so no estimate changes and they were not rerun.
+complete-span rule, so no estimate changes and they were not rerun for this
+censoring. (The separate rule-applied QC reruns of Stages 31b-31d for
+B2|sys.5|CC4, made on 2026-10-15 under rule cc4e_v1.0, are described in
+`docs/CC4_QC_RERUN_COMPARISON.md`.)
 
 ## Run and test (PowerShell, repository root)
 
@@ -192,6 +195,11 @@ time, or the cage's last vendor record is earlier than that time by more than 5 
 (millisecond resolution). No row is dropped. `audit/censoring_applied.csv` keeps the
 manifest's time string (`ManifestFrom`); POSIX columns show it with float noise in the
 sixth decimal (14:00:42.961999 is 14:00:42.962).
+
+Run a censored variant only through this command-line block. Called directly as a function,
+`run_cc4_grid_exposure(..., censor_manifest = ...)` does not itself require an isolated output
+root; this guard gap is reported, not fixed (`docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md`
+section 6).
 
 ```powershell
 $env:MMM_GRID31_RUN_ID = 'whole_inactive_sx04v11_20261014'

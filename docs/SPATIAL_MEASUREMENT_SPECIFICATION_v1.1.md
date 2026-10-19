@@ -3,6 +3,9 @@
 **Superseded by `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.2.md`** (decisions of 2026-10-14, third round). This file is the
 record of the second round.
 
+*Current record: `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md` (closeout of 2026-10-15: calibration will not be
+performed). The status, plans and pending items below are historical and are not current instructions.*
+
 **Status.** The decisions of 2026-10-14 (second round) are incorporated. The single-read reconstruction is the *provisional*
 candidate representation; the method and its parameters are frozen only after the one-day calibration pilot has been
 assessed. Nothing is applied to a registered analysis:

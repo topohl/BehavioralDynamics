@@ -1,5 +1,11 @@
 # RFID calibration pilot: logistics (one day, boards 2 and 4)
 
+> **Calibration will not be performed (Tobias, 2026-10-15).** This document is kept unchanged below as a historical record.
+> Nothing is booked, prepared or scheduled, no experiment is required, and nothing here is a pending task or a prerequisite
+> for the current pipeline status. The pinned schedules, criteria, report mappings and code in `docs/rfid_calibration/`
+> stay unchanged for provenance. The questions it was meant to answer remain accepted limitations:
+> `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md` (sections 0, 5).
+
 **Written for:** Tobias and the two on-site operators.
 The pre-registered protocol, criteria (`acp_criteria_v1.2`), schedule (`schedule_one_day_v3`) and analysis code are in `docs/RFID_CALIBRATION_PILOT.md` and `docs/rfid_calibration/`. Schedule v3 and criteria v1.2 amend v2 and v1.1 before any data and before booking (Tobias, 2026-10-15, second decision of that day; section 6.2). Schedules v1 and v2 and criteria v1.0 and v1.1 are kept for provenance.
 

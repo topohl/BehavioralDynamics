@@ -3,6 +3,9 @@
 **Superseded by `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.1.md`** (decisions of 2026-10-14, second round). This file is the record of
 the first proposal and its numbers (release run srs_v1.0_6165adf).
 
+*Current record: `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md` (closeout of 2026-10-15: calibration will not be
+performed). The status, plans and pending items below are historical and are not current instructions.*
+
 **Status: proposal for review.** It works out Tobias's decisions of 2026-10-14 on the Stage 00b findings. Nothing in it is
 applied to a registered analysis:
 - Stage 19 and its outputs are unchanged and not replaced;

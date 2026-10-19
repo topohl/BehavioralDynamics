@@ -3,6 +3,9 @@
 **Superseded by `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.4.md`** (decisions of 2026-10-15, fifth round). This file is the
 record of the fourth round.
 
+*Current record: `docs/SPATIAL_MEASUREMENT_SPECIFICATION_v1.5.md` (closeout of 2026-10-15: calibration will not be
+performed). The status, plans and pending items below are historical and are not current instructions.*
+
 **Status.** The decisions of 2026-10-15 (fourth round) are incorporated on top of v1.2. The single-read reconstruction stays
 the *provisional* candidate and the event-based reconstruction the historical reference; method and parameters are frozen
 only after the one-day calibration pilot has been assessed. In isolated roots:
