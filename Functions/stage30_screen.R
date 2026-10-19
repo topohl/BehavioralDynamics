@@ -28,8 +28,8 @@
 # table fc053468f2a1..., release tables a2fc84db / cc549c24 / 33d91929 / efe2d1f8 (estimates, continuous, exposure,
 # multiplicity). The PHASE-B values come from the v1.1 freeze and the config v1.0.2 release; until then every gate fails.
 S30SC_REGISTRY_VERSION <- "1.1"
-S30SC_REGISTRY_SHA256 <- "PHASE-B"  # RETRACK-PIN
-S30SC_REGISTRY_MD_SHA256 <- "PHASE-B"  # RETRACK-PIN
+S30SC_REGISTRY_SHA256 <- "236f98682a2d8f671601d7eb00ac67cba8a9cc3925c26d75cc23f661f085af1a"  # RETRACK-PIN
+S30SC_REGISTRY_MD_SHA256 <- "c630a1bcf8d7652caaa0e156385a3d0bab237aca47fe0619cc51495b26915f27"  # RETRACK-PIN
 S30SC_V2_MANIFEST_SHA256 <- "bb33a111980913f4ddf97c40872ccdd96dd73accdbdc5c5867954b51aad2c571"
 S30SC_V2_N_FILES <- 24L
 S30SC_REF_TABLE_SHA256 <- "0e8b4498d852fadd26f3c669f37c1fa2834fb0a24f80f3f9c13ebd2fb8c86ecb"  # RETRACK-PIN (the config v1.0.2 release canonical_window_metrics.csv)
