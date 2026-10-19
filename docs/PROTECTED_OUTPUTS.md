@@ -120,3 +120,11 @@ compared with the fourth round's end snapshot `vpo_t1_20261015_0308_1a55644` (no
 first run was taken): 12 of 12 content checks PASS, every protected output unchanged; baseline_diff lists only the four
 repository files added by the approved amendment (`acp_criteria_v1.2.csv`, `schedule_one_day_v3.csv`,
 `make_schedule_one_day_v3.R`, `acp_report_status_v1.1.csv`), reported as added for review.
+
+Corrected-outcome round, second part (2026-10-19, Stage 32 v1.2 and the Stage 33 rerun): `vpo_t1_20261019_2305_971f6a7`,
+compared with `vpo_t1_20261019_1842_8212df4` (baseline unchanged): 12 of 12 content checks PASS (121 frozen pins, 378
+registered-run files, canonical bundles and manuscript imports intact). baseline_diff reports 109 paths, all in scope:
+the new runs `32_behavior_exposure_adaptation/v1.2_7737eaa` (28) and `posthoc_cohort_followups/v1.0_ABCDE_3f99d4b` (77),
+the read-only copy of Stage 32 addendum A2 (2), the Exp9_manuscript s30 candidate receipt re-rendered with house-style
+keys (1) and the publication registry as 7c1016a left it three minutes after the 18:42 check (1). Record:
+`docs/behavior_output_producer_reruns/corrected_outcome_20261019_round2_protection_reconciliation.csv` and `.json`.

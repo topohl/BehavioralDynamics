@@ -1483,3 +1483,15 @@ The original broad postscan retained one finding: a sibling Documents/Outlook Fi
 Support registries 29b/29c v1.1 and 30 v1.1 retain the original estimands and identify this as a rerun following earlier result inspection. Earlier runs and bundles remain available. Stage 19, 32 and 33 were not rerun by this Figure 1 task. The canonical manuscript figures were regenerated and locally registered from corrected bundles; no push or publication was performed. Existing unrelated repository edits were preserved.
 
 The final strict Tier 1 protection audit `vpo_t1_20261019_1842_8212df4` reports FAIL against its unchanged baseline: 264 modified and 240 added paths. All 504 paths were reconciled to the explicitly authorized rerun scope, with zero out-of-scope changes. All 3,162 non-baseline checks passed. The baseline was not reset, and this reconciliation does not convert the raw audit into a PASS. Stage 14's 374 files have their separate complete hash receipts and independent validation. See the adjacent `corrected_outcome_20261019_protection_reconciliation` CSV and JSON.
+
+## 2026-10-19 corrected outcome, second part: Stage 32 v1.2 and the Stage 33 rerun
+
+Both registered follow-ups ran once more on the corrected outcome, each under a re-execution addendum frozen before its
+run (Stage 32 addendum A2, 3ce81320, frozen at dac3588; Stage 33 plan v1.0 addendum 1, LF cbfc42a2, frozen at 548097b),
+with no change to any estimand, model, window or display rule. Stage 32 `v1.2_7737eaa`: all gates pass, A-exp and B-exp
+reproduce the v102 release within 1e-6 and Module F within 1e-9; no registered hypothesis is rejected (as in v1.1).
+Stage 33 `v1.0_ABCDE_3f99d4b`: all 108 hard gates pass; GA-11 and GA-15 are recorded as not held (pre-correction
+targets, as the addendum states); GB-14b is recorded FALSE because the workbook gained SLEAP three-chamber distance columns
+on 2026-10-15. A first Stage 33 attempt at e550497 stopped at GC-5 before computing or writing anything: the SLEAP v3
+release had been archived on 2026-10-15 (same bytes); 3f99d4b reads it there. The earlier runs (Stage 32 v1.1_f4c7a31 and
+.tmp_v1.0_4f9c016, Stage 33 v1.0_ABCDE_6b50c1f and v1.0_D_fb52ad9) stay. Protection: see `docs/PROTECTED_OUTPUTS.md`.

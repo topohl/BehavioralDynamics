@@ -1,0 +1,14 @@
+{
+  "audit_run": "S:\\Lab_Member\\Tobi\\Experiments\\Exp9_Social-Stress\\Analysis\\Behavior\\RANM\\protected_output_checks\\runs\\vpo_t1_20261019_2305_971f6a7",
+  "baseline_run": "vpo_t1_20261019_1842_8212df4 (unchanged, not reset)",
+  "raw_audit_overall": "FAIL: strict baseline_diff (12 of 12 content checks PASS)",
+  "changed_rows": 109,
+  "all_changed_paths_within_explicit_scope": true,
+  "by_scope": {
+    "Stage 32 v1.2_7737eaa (addendum A2, frozen dac3588): new registered run": 28,
+    "Stage 33 rerun v1.0_ABCDE_3f99d4b under addendum 1 (frozen 548097b): new run": 77,
+    "read-only S: copy of the frozen Stage 32 addendum A2": 2,
+    "Exp9_manuscript 8395f51: s30 candidates re-rendered with the house-style keys (every SVG byte-identical)": 1,
+    "Exp9_manuscript 7c1016a (18:45): registration of the rebuilt Figure 1 and ED5/9/10-12, three minutes after the baseline check of 18:42; the checkout is 7c1016a (CRLF)": 1
+  }
+}
