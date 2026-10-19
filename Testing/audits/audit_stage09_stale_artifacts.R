@@ -13,7 +13,7 @@ OUT <- mmm_behavior_audit_replay_output_root("stage09_stale_artifacts", RFID)
 AR <- file.path(RFID, "analysis_ready")
 DERIV <- mmm_behavior_numbered_source_root("03_derived_metrics", RFID)
 LEGACY <- mmm_behavior_numbered_source_root("06_behavioral_dynamics", RFID)
-SNAP <- "S:/Lab_Member/Tobi/Experiments/Exp9_Social-Stress/Analysis/Behavior/RFID_snapshot_stage09_erroneous_active_plus_inactive_24h_20260827"
+SNAP <- file.path(AR, "history/stage09_erroneous_24h_snapshot_20260827")
 
 roster <- build_canonical_identity_roster(
   read_csv(file.path(DERIV,"5min_based/all_behavior_metrics.csv"),
