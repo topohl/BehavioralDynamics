@@ -1,3 +1,19 @@
+# Re-frozen 2026-10-19 after the authorized corrected-outcome rerun (ov2).
+# Stage09 primary predictions independently checked by PRESS and 111 held-out OLS refits;
+# model registry, permutation draws and all111 target/labels checked before these pins changed.
+# Earlier numeric expectations (preserved for provenance):
+# 0.17270101408957383 -> 0.21775876111961623
+# 0.16840962855789862 -> 0.21380680898616605
+# 0.1249211153066056 -> 0.1742553452658027
+# 0.19311727195787765 -> 0.2384690225186311
+# -0.40816416261600141 -> -0.4434254742778181
+# -0.56060323819897995 -> -0.5902264823224753
+# -0.22601554433677001 -> -0.2703123373957221
+# 2.6140702791123884e-05 -> 3.2794125193676187e-06
+# -0.23738257890092868 -> -0.2650459154374205
+# -0.18832923832923831 -> -0.19185679185679186
+# 0.95093991122381161 -> 0.7769259271967435
+# 0.74901802530741635 -> 0.5950390708304534
 # Contract tests for the Figure 1 prediction provenance repair.
 #
 # Two defects motivated this file.
@@ -226,17 +242,17 @@ if (is.null(T10)) {
   # by leave-one-animal-out OLS computed two ways (an explicit n=111 refit loop
   # and the hat-matrix PRESS identity), and the derivation was reproduced a
   # second time from the raw workbook before being written here.
-  check(near(g("movement_mean", "cv_r2"), 0.17270101408957383),
+  check(near(g("movement_mean", "cv_r2"), 0.21775876111961623),
         "LOAO R2 for movement_mean moved")
   # mean_only is deliberately NOT re-frozen: it is the closed form
   # 1 - (111/110)^2 and is invariant to the endpoint.
   check(near(g("mean_only", "cv_r2"), -0.01826446280991756),
         "intercept-only baseline R2 moved")
-  check(near(g("movement_mean", "repeated_cv_mean_r2"), 0.16840962855789862),
+  check(near(g("movement_mean", "repeated_cv_mean_r2"), 0.21380680898616605),
         "repeated grouped CV mean R2 moved")
-  check(near(g("movement_mean", "cv_r2_q025"), 0.1249211153066056),
+  check(near(g("movement_mean", "cv_r2_q025"), 0.1742553452658027),
         "repeated CV lower quantile moved")
-  check(near(g("movement_mean", "cv_r2_q975"), 0.19311727195787765),
+  check(near(g("movement_mean", "cv_r2_q975"), 0.2384690225186311),
         "repeated CV upper quantile moved")
   check(all(perf$n_animals == 111L), "the analysed n must remain 111")
   ok("prediction performance, baseline and CV interval all frozen")
@@ -252,17 +268,17 @@ if (is.null(T10)) {
   as_ <- utils::read.csv(file.path(T10,
     "primary_movement_entropyacf1_associations.csv"), stringsAsFactors = FALSE)
   a <- function(f, col) as_[[col]][as_$feature == f]
-  check(near(a("Movement_mean", "spearman_rho"), -0.40816416261600141),
+  check(near(a("Movement_mean", "spearman_rho"), -0.4434254742778181),
         "Movement_mean rho moved")
-  check(near(a("Movement_mean", "spearman_boot_ci_low"), -0.56060323819897995),
+  check(near(a("Movement_mean", "spearman_boot_ci_low"), -0.5902264823224753),
         "Movement_mean CI lower moved")
-  check(near(a("Movement_mean", "spearman_boot_ci_high"), -0.22601554433677001),
+  check(near(a("Movement_mean", "spearman_boot_ci_high"), -0.2703123373957221),
         "Movement_mean CI upper moved")
-  check(near(a("Movement_mean", "spearman_p_bh"), 2.6140702791123884e-05),
+  check(near(a("Movement_mean", "spearman_p_bh"), 3.2794125193676187e-06),
         "Movement_mean q moved")
-  check(near(a("Movement_rmssd", "spearman_rho"), -0.23738257890092868),
+  check(near(a("Movement_rmssd", "spearman_rho"), -0.2650459154374205),
         "Movement_rmssd rho moved")
-  check(near(a("Entropy_acf1", "spearman_rho"), -0.18832923832923831),
+  check(near(a("Entropy_acf1", "spearman_rho"), -0.19185679185679186),
         "Entropy_acf1 rho moved")
   check(all(as_$n == 111L), "association n must remain 111")
   ok("all three association rho, CI and q values frozen")
@@ -276,11 +292,11 @@ if (is.null(T10)) {
   # contract. They are now two distinct values, so each is pinned separately.
   # All three remain far from significance, which is the property that matters.
   sxq <- function(f) sx[[qcol]][sx$feature == f]
-  check(near(sxq("Movement_mean"),  0.95093991122381161),
+  check(near(sxq("Movement_mean"),  0.7769259271967435),
         "the Movement_mean-by-sex interaction q moved")
-  check(near(sxq("Movement_rmssd"), 0.74901802530741635),
+  check(near(sxq("Movement_rmssd"), 0.5950390708304534),
         "the Movement_rmssd-by-sex interaction q moved")
-  check(near(sxq("Entropy_acf1"),   0.74901802530741635),
+  check(near(sxq("Entropy_acf1"),   0.5950390708304534),
         "the Entropy_acf1-by-sex interaction q moved")
   ok("sex-interaction q values frozen; all three remain non-significant")
 }

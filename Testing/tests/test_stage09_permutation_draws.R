@@ -1,3 +1,14 @@
+# Re-frozen 2026-10-19 after the authorized corrected-outcome rerun (ov2).
+# Stage09 primary predictions independently checked by PRESS and 111 held-out OLS refits;
+# model registry, permutation draws and all111 target/labels checked before these pins changed.
+# Earlier numeric expectations (preserved for provenance):
+# 0.1727010141 -> 0.21775876111961623
+# 0.1684096286 -> 0.21380680898616605
+# 0.1249211153 -> 0.1742553452658027
+# 0.1931172720 -> 0.2384690225186311
+# -0.031526754282 -> -0.031664454314448864
+# -0.043595913666 -> -0.04471034881803823
+# 0.005614733989 -> 0.0054943908931509005
 # Contract tests for the Stage 09 permutation-draw persistence.
 #
 # The change to Stage 09 in this pass is PERSISTENCE ONLY: it writes out the
@@ -191,9 +202,9 @@ if (!have) {
   # permutation_p is unchanged across all three: it sits at the 1/1001 floor for
   # 1000 draws, so it cannot move further.
   EXPECT <- list(
-    cv_r2 = 0.1727010141, permutation_p = 0.000999000999,
-    repeated_cv_mean_r2 = 0.1684096286, cv_r2_q025 = 0.1249211153,
-    cv_r2_q975 = 0.1931172720)
+    cv_r2 = 0.21775876111961623, permutation_p = 0.000999000999,
+    repeated_cv_mean_r2 = 0.21380680898616605, cv_r2_q025 = 0.1742553452658027,
+    cv_r2_q975 = 0.2384690225186311)
   for (nm in names(EXPECT)) {
     got <- head_perf[[nm]][1]
     check(abs(got - EXPECT[[nm]]) < 1e-8,
@@ -203,8 +214,8 @@ if (!have) {
   # Likewise re-frozen 2026-09-22; previously -0.031582947976 / -0.043790115141 /
   # 0.007011781831, and before that -0.03131646461 / -0.04420903341 /
   # 0.005863676405.
-  EXPECT_NULL <- list(null_median = -0.031526754282, null_q025 = -0.043595913666,
-                      null_q975 = 0.005614733989)
+  EXPECT_NULL <- list(null_median = -0.031664454314448864, null_q025 = -0.04471034881803823,
+                      null_q975 = 0.0054943908931509005)
   for (nm in names(EXPECT_NULL)) {
     got <- head_perm[[nm]][1]
     check(abs(got - EXPECT_NULL[[nm]]) < 1e-8,
@@ -218,7 +229,7 @@ if (!have) {
   check(head_perf$n_animals[1] == 111L, "the analysed n must remain 111")
   check(!("null_draws" %in% names(pt)),
         "the null_draws list-column leaked into the summary table")
-  ok("CV R2 0.15939, permutation p 1/1001, null summaries and baseline all frozen")
+  ok("CV R2 0.21776, permutation p 1/1001, null summaries and baseline all frozen")
 }
 
 if (length(skipped) > 0L) {

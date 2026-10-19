@@ -1,5 +1,5 @@
 # ================================================================
-# Figure-support bundle v3: helpers (source-data export for manuscript Figure 1, options 3 and 3b, and the Stage 14
+# Figure-support bundle v5: helpers (source-data export for manuscript Figure 1, options 3 and 3b, and the Stage 14
 # domain-heatmap and HMM figure candidates)
 # MMMSociability -- Functions/figure_support_bundle.R
 # ================================================================
@@ -19,7 +19,7 @@
 #     fitted there, once): estimates (batch-balanced means, contrasts, Holm, labels), the common-cage-variance sensitivity
 #     and the diagnostics. Every cell is carried as text; the written lines are checked to be the source lines plus the
 #     three provenance cells. The run is hash-gated on its audit/output_manifest.csv. Nothing is fitted or adjusted here.
-#   * D1 (v3): a verbatim copy of the Stage 14 domain-heatmap source table of the run promoted 2026-10-06c (Hedges g, the
+#   * D1 (v3): a verbatim copy of the Stage 14 domain-heatmap source table of the corrected-outcome run promoted 2026-10-19 (Hedges g, the
 #     post hoc tests and markers were computed there); line-level verbatim gate as for P1-P1c.
 #   * M1-M4 (v3): the stored Stage 14 HMM figure tables of the same run, with the state display labels joined by the
 #     stored semantic label: group mean transition probabilities and their differences (M1, M2; M2 adds the rank Stage 14
@@ -58,17 +58,17 @@ FSB_POSTHOC_TABLES <- c(P1_posthoc_con_contrasts = "tables/estimates.csv", P1b_p
 FSB_POSTHOC_ROWS <- c(P1_posthoc_con_contrasts = 24L, P1b_posthoc_sensitivity = 24L, P1c_posthoc_diagnostics = 8L)
 FSB_POSTHOC_ADDED <- c("source_run", "source_file", "source_sha256")
 FSB_POSTHOC_DISPLAY_COLS <- c("measure_label", "unit", "estimand_label", "display_note", "caveats", "registered_rs_note")
-# v3: the Stage 14 display tables of the run promoted 2026-10-06c (the promotion record lists every file with this SHA-256;
+# v3: the Stage 14 display tables of the corrected-outcome run promoted 2026-10-19 (the promotion record lists every file with this SHA-256;
 # Stage 14 is not re-run for the bundle) and the Stage 08 10-minute dwell-time table Stage 14 reads
 FSB_STAGE14 <- list(
-  root_rel = "analyses/systems_dashboard/5min", record = "PHASE-B",  # RETRACK-PIN (docs/behavior_output_producer_reruns/stage14_<date>.csv of the Phase B promotion)
+  root_rel = "analyses/systems_dashboard/5min", record = "docs/behavior_output_producer_reruns/stage14_20261019.csv",  # RETRACK-PIN (docs/behavior_output_producer_reruns/stage14_<date>.csv of the Phase B promotion)
   files = c(domain_heatmap = "stats_tables/systems_sis_domain_heatmap_source_data.csv",
             transition_means = "tables/systems_hmm_transition_probability_summary.csv",
             transition_differences = "tables/systems_hmm_transition_probability_differences.csv",
             resolution_sensitivity = "stats_tables/systems_sis_hmm_resolution_sensitivity.csv",
             state_display_labels = "tables/systems_hmm_state_display_labels.csv"),
-  sha256 = c(domain_heatmap = "PHASE-B", transition_means = "PHASE-B", transition_differences = "PHASE-B",
-             resolution_sensitivity = "PHASE-B", state_display_labels = "PHASE-B"))  # RETRACK-PIN
+  sha256 = c(domain_heatmap = "09623902bef7f3ec5d1dab8e1aaae355a9ca5cf3c593f797b7420f6fdc36bba4", transition_means = "bca83d0a98cb384e8719b746a580f70cb3e25be04aa96666a7c74f5eaf7243d6", transition_differences = "c15f8dc9a0e0c75910e49cacebaee441cbfb437db2f3bdc180efe6d9695cf448",
+             resolution_sensitivity = "6801951a639ab958b3c66a15c7bb3e9944c1963b6eb304d7754bce367e3cec58", state_display_labels = "60ec75e62b4b407fef8c3ef8750cd816b821d231df473c3f5cb72e18b1132c29"))  # RETRACK-PIN
 FSB_HMM_DWELL <- list(root_rel = "analyses/hmm_states/10min", file = "tables/hmm_state_dwell_times.csv",
                       sha256 = "6860bff82eef736d66f79a3737ed32c5f341a0e0327800fd256ff9af369169c8", bin_size_sec = 600, n_records = 3346L)  # RETRACK-PIN (sha256; v4 be4ba0cf...)
 FSB_HMM_RESOLUTION <- "10min_based"           # the HMM resolution of the Stage 14 HMM figures (hmm_primary_bin_level)
@@ -118,7 +118,7 @@ FSB_DESIGN_EVENTS <- data.table::data.table(
   event_label = c("Shuffle start", "Shuffle stop", "Sucrose preference test", "Social preference test", "Open field test",
                   "Novel object recognition test", "Elevated plus maze", "Blood and tissue collection"),
   source = c("CC1", "CC4", "SucPref", "SocPref", "OFT", "NOR", "EPM", "End date"),
-  definition = c("first cage change (CC1): the date of the CC1 cage-change time (ebb_v101 V_runtime_gates t0)",
+  definition = c("first cage change (CC1): the date of the CC1 cage-change time (pinned behaviour bundle V_runtime_gates t0)",
                  "end of the active phase after the last regrouping (CC4): the date of the CC4 cage-change time + 1 day",
                  "sucrose preference test window: first to last day, as the workbook records it (SucPref, 'start - end')",
                  "social preference test day (SocPref)", "open field test day (OFT)", "novel object recognition test day (NOR)",
@@ -178,7 +178,7 @@ FSB_SCIENTIFIC_RECOMPUTATION <- paste(
   "P1 / P1b / P1c are verbatim copies of the hash-gated post hoc run 29b (registry POSTHOC_CON_CONTRASTS v1.0), whose",
   "model was fitted there once; nothing is fitted, tested or adjusted in this bundle.",
   "D1 is a verbatim copy of the Stage 14 domain-heatmap source table and M1-M4 are the stored Stage 14 HMM figure tables",
-  "of the run promoted 2026-10-06c (display labels joined, a rank, the Wald interval from the stored estimate and SE, and",
+  "of the corrected-outcome run promoted 2026-10-19 (display labels joined, a rank, the Wald interval from the stored estimate and SE, and",
   "dwell-time counts in fixed bins); no model is fitted, no test run, nothing smoothed and no p or q value produced here.",
   "E1 is a verbatim copy of Stage 09's sex-stratified correlation table (rho, p and BH q computed there); E2 / E2b / E2c are",
   "verbatim copies of the hash-gated post hoc run 29c (registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0), whose display line and band",

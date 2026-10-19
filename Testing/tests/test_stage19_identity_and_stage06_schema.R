@@ -1,3 +1,10 @@
+# Re-frozen 2026-10-19 after the authorized corrected-outcome rerun (ov2).
+# Stage09 primary predictions independently checked by PRESS and 111 held-out OLS refits;
+# model registry, permutation draws and all111 target/labels checked before these pins changed.
+# Earlier numeric expectations (preserved for provenance):
+# g$n[g$Group == "RES"] == 53 -> g$n[g$Group == "RES"] == 51
+# g$n[g$Group == "SUS"] == 34 -> g$n[g$Group == "SUS"] == 36
+# 3: roster must be 24 CON / 53 RES / 34 SUS -> 3: roster must be 24 CON / 51 RES / 36 SUS
 # ===========================================================================
 # Regression tests for the final pre-rebuild pass.
 #
@@ -159,8 +166,8 @@ if (file.exists(s01)) {
   # errors in the upstream endpoint were corrected: OR424, OR430, OR434, OR554.
   # The +4/-4 shift is exactly those four animals, verified individually rather
   # than inferred from the totals matching.
-  check(g$n[g$Group == "CON"] == 24 && g$n[g$Group == "RES"] == 53 && g$n[g$Group == "SUS"] == 34,
-        "3: roster must be 24 CON / 53 RES / 34 SUS")
+  check(g$n[g$Group == "CON"] == 24 && g$n[g$Group == "RES"] == 51 && g$n[g$Group == "SUS"] == 36,
+        "3: roster must be 24 CON / 51 RES / 36 SUS")
   s <- r %>% distinct(AnimalNum, Sex) %>% count(Sex)
   check(s$n[s$Sex == "Female"] == 58 && s$n[s$Sex == "Male"] == 53,
         "3: roster must be 58 Female / 53 Male")

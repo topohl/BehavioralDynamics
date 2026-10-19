@@ -1,9 +1,9 @@
 # ================================================================
-# Stage 16c - figure-support bundle v4 (source-data export for manuscript Figure 1, its options 3 and 3b, and the Stage 14
+# Stage 16c - figure-support bundle v5 (source-data export for manuscript Figure 1, its options 3 and 3b, and the Stage 14
 # domain-heatmap and HMM figure candidates)
 # MMMSociability -- Analysis/16c_figure_support_bundle.R
 # ================================================================
-# The ONLY writer of the figure-support bundle that Exp9_manuscript imports (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md to _v4.md).
+# The ONLY writer of the figure-support bundle that Exp9_manuscript imports (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md to _v5.md).
 # It fits, tests and refits nothing and computes no p or q value. It exports:
 #   F1  descriptive CON cage means (ebb_v101 B1; 3 CON cages per sex per CC, 4 animals each),
 #   F1b the CON descriptive mean copied from ebb_v101 B2,
@@ -12,7 +12,7 @@
 #   P1  / P1b / P1c (v2) verbatim copies of the post hoc run 29b (registry POSTHOC_CON_CONTRASTS v1.0, fitted there once):
 #       estimates (batch-balanced means, contrasts, Holm, labels), the common-cage-variance sensitivity, the diagnostics;
 #       hash-gated on the run's audit/output_manifest.csv (4c079ecf...), every file, README and run_manifest.
-#   D1  (v3) a verbatim copy of the Stage 14 domain-heatmap source table of the run promoted 2026-10-06c;
+#   D1  (v3) a verbatim copy of the Stage 14 domain-heatmap source table of the corrected-outcome run promoted 2026-10-19;
 #   M1-M4 (v3) the stored Stage 14 HMM figure tables of that run with display labels (transition differences, transition
 #       means with the rank the state-flow figure draws by, the HMM-resolution sensitivity with its Wald interval) and the
 #       Stage 08 10-minute mean dwell times counted in doubling bins. Stage 14 is not re-run: every Stage 14 file must
@@ -261,7 +261,7 @@ PH_LABEL <- paste(FSB_POSTHOC$stage_dir, FSB_POSTHOC$run_name, sep = "/")
 PT <- lapply(FSB_POSTHOC_TABLES, function(rel) fsb_posthoc_copy(PH_DIR, rel, VPH$check[file == rel, observed_sha256], PH_LABEL))
 gate_rows(fsb_posthoc_gates(PT, PH_DIR))
 D1 <- fsb_posthoc_copy(S14_DIR, FSB_STAGE14$files[["domain_heatmap"]], FSB_STAGE14$sha256[["domain_heatmap"]],
-                       paste0(FSB_STAGE14$root_rel, " (Stage 14 run promoted 2026-10-06c)"))
+                       paste0(FSB_STAGE14$root_rel, " (Stage 14 corrected-outcome run promoted 2026-10-19)"))
 d1n <- D1[, .N, by = .(heatmap_id, variant)]
 gate("6-D1", "D1: 504 rows = 3 heatmaps x 3 variants (all_blocks 84, cc1_a1 42, cc1_l1 42 rows per variant); 468 estimated, 36 not_shown",
      nrow(D1) == 504L && nrow(d1n) == 9L && setequal(d1n$variant, FSB_D1_VARIANTS) && all(d1n$N == FSB_D1_ROWS[d1n$heatmap_id]) &&
