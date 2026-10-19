@@ -153,7 +153,7 @@ FSB_SEX_BATCHES <- list(Female = c("B3", "B4", "B6"), Male = c("B1", "B2", "B5")
 FSB_N <- list(con_cages = 3L, con_per_cage = 4L, con_per_sex = 12L, combz_animals = 117L, components = 6L,
               rfid_animals = 111L, con_rfid_animals = 24L,
               sus_list = 39L, con_list = 24L,  # RETRACK-PIN (v4: 35 / 24)
-              n_components_present = c(`4` = 2L, `5` = 11L, `6` = 104L))  # RETRACK-PIN (v4: 2 animals with 5 of 6, the rest 6)
+              n_components_present = c(`4` = 2L, `5` = 10L, `6` = 105L))  # RETRACK-PIN (v4: 2 animals with 5 of 6, the rest 6)
 FSB_TABLES <- c("F1_con_cage_means", "F1b_con_reference_means", "F2_combz_components", "F2b_combz_definition",
                 "P1_posthoc_con_contrasts", "P1b_posthoc_sensitivity", "P1c_posthoc_diagnostics",
                 "D1_domain_heatmap_cells", "M1_hmm_transition_difference", "M2_hmm_transition_flows",
@@ -415,7 +415,7 @@ fsb_combz_definition_table <- function(defn, compdef, f2, combz_table_path, comb
   # the corrections are applied in the corrected workbook, not by the producer (version 2)
   src <- paste0(" (in the corrected workbook; upstream correction ", cst$COMBZ_CORRECTION_ID, "; ", FSB_COMBZ_CODE$doc, " sections 4b-4c)")
   organ <- "damaged, missing or blank organ weights carry no score and leave the CON reference (2026-10-16)"
-  corr <- c(NOR = paste0("batch 1 values are the analysed SLEAP D2 (2026-10-16); 00317's value is missing until its novel-object video is re-tracked", src),  # RETRACK-PIN
+  corr <- c(NOR = paste0("batch 1 values are the analysed SLEAP D2 (2026-10-16); 00317's novel-object value was restored from the re-tracked video on 2026-10-19", src),  # RETRACK-PIN
             sucrose_pref = paste0("rebuilt keyed by animal, not by row position, with negative bottle readings counted as zero (2026-09-20)", src),
             delta_cort = paste0("OR620's value from the linear map every other batch-5 male follows (2026-09-20); the female sex-pooled reference rebuilt (2026-10-16)", src),
             adrenal_weight = paste0(organ, src), spleen_weight = paste0(organ, src))

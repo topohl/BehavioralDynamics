@@ -1228,7 +1228,7 @@ mmm_combz_source_workbook <- function(root = mmm_project_root()) {
 # The corrected endpoint workbook (sheet 'combz_canonical') that the canonical
 # CombZ producer reads since version 2. Its hash is pinned: a later workbook
 # correction stops the producer until this pin is moved on purpose.
-MMM_COMBZ_WORKBOOK_SHA256 <- "e6b7bf1d437e093be81842768385a8e81e231d85963a5f60f37f97b6d2455d8d"  # RETRACK-PIN
+MMM_COMBZ_WORKBOOK_SHA256 <- "30ab408cb0539b6c85ab7242d9bf5d09312210ccb149d58c3e9775c252c12efa"  # RETRACK-PIN
 mmm_combz_workbook <- function(root = mmm_project_root()) {
   wb <- mmm_path_get("behavior.combz_upstream_workbook", "workbook", root = root)
   sha <- mmm_file_sha256(wb)
