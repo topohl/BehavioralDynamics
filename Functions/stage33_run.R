@@ -19,7 +19,8 @@ S33_PLAN <- list(
 # Addendum 1: the rerun on the corrected outcome (S33_OUTCOME_VERSION ov2_corrected_workbook, erratum E13).
 S33_ADDENDA <- list(
   list(id = "1", path = "docs/STAGE33_POSTHOC_COHORT_FOLLOWUPS_ADDENDUM_1.md", outcome_version = "ov2_corrected_workbook",
-       freeze_commit = "PHASE-B", sha256_lf = "PHASE-B", blob = "PHASE-B"))  # RETRACK-PIN
+       freeze_commit = "548097b790938bbbd08eb6d0cb1a65aabd8e78aa", sha256_lf = "cbfc42a23cb01e5efe1b494599637620057e33163aa8ea063ef231c6a35068c2",
+       blob = "6c0a8a08ea9c660ea19230a3498ce91a488c9052"))
 S33_RERUN_REASON_ADDENDUM1 <- "addendum 1: corrected outcome (erratum E13)"
 
 S33_STAGE_FOLDER <- "posthoc_cohort_followups"
