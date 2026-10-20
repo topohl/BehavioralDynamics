@@ -1,7 +1,7 @@
 # Manuscript figure tiers — main, Extended Data, diagnostic
 
 Scope (2026-10-05): the behavior manuscript is assembled in Exp9_manuscript from the frozen bundles
-(`ebb_v101` from Stage 16b, the figure-support bundles from 16c, the Stage 30 bundle from 30b). This file assigns a
+(the Stage 29 bundle from Stage 16b, now `ebb_v102`; the figure-support bundles from 16c; the Stage 30 bundle from 30b). This file assigns a
 **tier** to the display material this repository still produces outside those bundles. It assigns no figure number;
 Extended Data numbering belongs to whole-manuscript assembly.
 
@@ -23,7 +23,7 @@ artifacts are the evidence that a candidate is admissible at all.
 
 ## MAIN
 
-None from this repository. Figure 1 is rendered in Exp9_manuscript from `ebb_v101`.
+None from this repository. Figure 1 is rendered in Exp9_manuscript from the frozen bundles (now `ebb_v102` and `fsb_v5`).
 
 ---
 

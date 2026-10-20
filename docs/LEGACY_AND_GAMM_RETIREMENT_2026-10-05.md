@@ -29,7 +29,8 @@ no frozen code.
 - **The Stage 14 first-night five-domain section** (`Functions/first_night_domain_driver.R`), the conservative
   flat-family sensitivity beside Stage 28. Removing it would also make the Stage 14 promotion refuse.
 - **The tracked `results/manuscript_bridge/` files**, unchanged, until Extended Data 5 and 9 in Exp9_manuscript move to
-  `ebb_v101`; then archive them. They predate the 2026-09-20 CombZ correction, so nothing new may import them.
+  the behaviour bundles (done 2026-10-19); then archive them. They predate the 2026-09-20 CombZ correction, so nothing
+  new may import them.
 
 ## Retired
 

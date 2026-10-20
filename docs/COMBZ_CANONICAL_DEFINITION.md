@@ -212,16 +212,19 @@ adrenal weights (00314; OR126 in the male reference) are no longer scored as 0;
 damaged or missing organs carry no organ z-score and leave the CON reference
 (OQ765, a larger adrenal with no recorded defect, stays); the female
 corticosterone z-scores are rebuilt (the sex-pooled SD range had included four
-batch 1 male CON animals and missed the batch 4 female CON); 00317's
-novel-object component is dropped until its video is re-tracked.
+batch 1 male CON animals and missed the batch 4 female CON). 00317's
+novel-object video was re-tracked (SISanalyzer `workbook_corrections` 15-17;
+workbook SHA-256 `30ab408c…`), so its component is scored; 00317 stays SUS.
 
 The workbook carries every correction, including those of §4b, in sheet
 `combz_canonical`. Producer version 2 (2026-10-17) reads that sheet through
 `mmm_combz_workbook()` (SHA-256 pinned in `MMM_COMBZ_WORKBOOK_SHA256`) and
 corrects nothing. CombZ changes for all 117 animals; OQ750, OQ752, OR419 and
 OR434 move from RES to SUS (39 SUS). Up to two of six components can be
-missing (2 animals with four, 11 with five). The version 1 tables (SHA-256
-`1f6a2a69…`) are archived with a receipt before version 2 replaces them;
+missing (2 animals with four, 10 with five, 105 with six). The version 2
+animal-level table is SHA-256 `5acb9a25…` (2026-10-19); the version 1 tables
+(`1f6a2a69…`) are archived with a receipt under
+`analysis_ready/history/retired/later_outcome_combz_v1_1f6a2a69/`;
 `combz_as_recorded` keeps the former `zScore` CombZ in both versions. §4a still
 holds: the components are computed in the workbook, not here.
 

@@ -107,7 +107,8 @@ sandbox, never on the live root:
 1. set `MMM_BEHAVIOR_PROJECT_ROOT` (or `options(mmm.project_root = ...)`) to a C:
    root and `options(mmm.derived_metrics_dir = ...)` to a copy of
    `analysis_ready/foundations/behavior_metrics/` whose 10-min table matches the
-   sha256 the Stage 29 v1.0.1 release pins;
+   sha256 the Stage 29 v1.0.1 release pins (the current Stage 20 and 22 tables, of
+   2026-09-22, predate the corrected outcome of 2026-10-19 and were not rerun);
 2. run Stage 20, then Stage 22 under the same root (Stage 22's CC1 cross-model
    audit reads Stage 20's trajectory table and skips silently without it);
 3. compare against the live tables: estimates, SE, CI, p, q and n_obs must be

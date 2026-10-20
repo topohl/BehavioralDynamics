@@ -1,9 +1,9 @@
 # Behavioral analysis outputs
 
 **Start here.** The manuscript-facing behavioural results are frozen, hash-gated exports under `canonical/`:
-- `canonical/behavior_bundle/ebb_v101_20260929_b2ce507/` is the Stage 29 v1.0.1 release bundle that Exp9_manuscript imports and renders Figure 1 from. `canonical/figure_support_bundle/` and `canonical/stage30_figure_bundle/` hold the other imported bundles; each folder's `BUNDLE_REGISTRY.csv` lists its bundles.
+- `canonical/behavior_bundle/ebb_v102_20261019_677ed97/` is the Stage 29 release bundle of the corrected outcome (configuration v1.0.2) that Exp9_manuscript imports and renders Figure 1, ED5 and ED9 from. `canonical/figure_support_bundle/` and `canonical/stage30_figure_bundle/` hold the other imported bundles; each folder's `BUNDLE_REGISTRY.csv` lists its bundles.
 - `canonical/later_outcome_combz/tables/` holds the later outcome CombZ and the RES/SUS classification.
-- The registered runs are each written once behind identity gates: `pipeline/29_canonical_behavior_releases/`, `pipeline/29b_posthoc_con_contrasts/`, `pipeline/30_exploratory_screen/` and `pipeline/32_behavior_exposure_adaptation/`. Their registries are under `canonical/*_registry/`, the frozen configuration under `canonical/behavior_config/`.
+- The registered runs are each written once behind identity gates: `pipeline/29_canonical_behavior_releases/`, `pipeline/29b_posthoc_con_contrasts/`, `pipeline/29c_posthoc_movement_combz_fit/`, `pipeline/30_exploratory_screen/` and `pipeline/32_behavior_exposure_adaptation/`. Their registries are under `canonical/*_registry/`, the frozen configuration under `canonical/behavior_config/`.
 
 `output_index.csv` maps every output group to its producer, role, status and runner; the repository's `Analysis/STAGE_INVENTORY.csv` lists every script. Both this README and the index are written by `Maintenance/Refresh-BehaviorOutputIndex.R` (backup first), never by hand.
 

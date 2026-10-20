@@ -1495,3 +1495,13 @@ targets, as the addendum states); GB-14b is recorded FALSE because the workbook 
 on 2026-10-15. A first Stage 33 attempt at e550497 stopped at GC-5 before computing or writing anything: the SLEAP v3
 release had been archived on 2026-10-15 (same bytes); 3f99d4b reads it there. The earlier runs (Stage 32 v1.1_f4c7a31 and
 .tmp_v1.0_4f9c016, Stage 33 v1.0_ABCDE_6b50c1f and v1.0_D_fb52ad9) stay. Protection: see `docs/PROTECTED_OUTPUTS.md`.
+
+## 2026-10-19 CombZ producer version 2 (recorded 2026-10-20)
+
+Before the Stage 01 rerun of the corrected-outcome chain, the version 1 CombZ tables (animal-level `1f6a2a69...`) were
+copied to `analysis_ready/history/retired/later_outcome_combz_v1_1f6a2a69/` with `ARCHIVE_RECEIPT.csv` (7 files, receipt
+sha256 `a5936ce2...`). Producer version 2 (`Analysis/build_later_outcome_combz.R`, blob `3303304e`) then ran live at
+16:28 on the corrected workbook (`30ab408c...`, sheet `combz_canonical`, 00317 re-tracked). Parity with the workbook
+passed for all 117 animals (CombZ max difference 7e-15; every component and outcome label exact). New animal-level table
+`5acb9a25...`: CON 24 / RES 54 / SUS 39; 2, 10 and 105 animals with four, five and six components. Definition:
+`docs/COMBZ_CANONICAL_DEFINITION.md` section 4c.

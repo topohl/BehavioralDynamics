@@ -113,11 +113,11 @@ Migrated trees use `tables/`, `figures/` and `audit/` rather than the older
 ### Manuscript bundles
 
 ```text
-analysis_ready/canonical/behavior_bundle/ebb_v101_20260929_b2ce507/
+analysis_ready/canonical/behavior_bundle/ebb_v102_20261019_677ed97/
 ```
 
 The recommended entry point for anyone reading the results is the frozen Stage 29
-v1.0.1 bundle, which Exp9_manuscript imports; `canonical/figure_support_bundle/`
+bundle of the corrected outcome (`docs/STAGE29_RELEASE_v1.0.2_ov2.md`), which Exp9_manuscript imports; `canonical/figure_support_bundle/`
 and `canonical/stage30_figure_bundle/` hold the other imported bundles. The
 2026-09-22 Stage 16 package (`Behavioral_Source_Data.xlsx` and its CSV
 companions) was retired on 2026-10-05 and is under

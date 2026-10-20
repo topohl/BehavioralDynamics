@@ -39,3 +39,22 @@ The frozen configuration JSON SHA-256 is `90018f9ca242685e9e59a7bb95a91ae643b548
 Stage 16b passed release, code-currency, two-resolution outcome and canonical-group gates. The bundle manifest SHA-256 is `41b8ce8170de64b739b4c3517e7280d4c1282332d873b75794e674220c6b7ff9`. The primary uncentred LOAO R² is 0.21775876111961623, independently verified by PRESS and 111 explicit held-out OLS refits. The raw full-refit permutation P is 1/1001 and Holm P is 2/1001 across the two behaviour-only models.
 
 The corrected full cohort is CON 24 / RES 54 / SUS 39. The RFID cohort is CON 24 / RES 51 / SUS 36. Animals with four, five and six valid components number 2, 10 and 105, respectively. Archival and producer replacement records are in `BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md`.
+
+## Provenance notes (added 2026-10-20)
+
+- **Integration.** `638c57d` copies the prepared branch `corrected-labels-v102` (`708e615`..`1bbb804`) instead of merging
+  it, because an uncommitted peer edit blocked the merge; its Stage 32/33 files came later as cherry-picks
+  (`7622260`..`013e934`). The frozen configuration and `Functions/figure_support_bundle.R` cite `708e615` for CombZ
+  producer version 2. That commit and the rest of the prepared branch are kept by the annotated tag
+  `archive/corrected-labels-v102`; the producer bytes are also blob `3303304e` at `638c57d`. The copied paths are listed
+  in `docs/behavior_output_producer_reruns/corrected_outcome_20261019_integrated_paths.json`.
+- **CONTROL evidence** (Order, step 2): `docs/behavior_output_producer_reruns/corrected_outcome_20261019_stage29_control_comparison.csv`
+  (23 of 23 tables byte-identical to `v101_dv2_b2ce507`).
+- **Run commit `a46be6a`** also carries a broken glyph in `Functions/hmm_stage14_helpers.R` (`dhm_minus`: U+2212 written
+  as CP1252 mojibake). `677ed97` repaired it before Stage 14 ran at `5473f94`. The file is not in the Stage 29 code set.
+- **Protection snapshot.** The "before" check `vpo_t1_20261019_1624_b494bbe` was taken after `b494bbe` had moved the
+  configuration byte pin to the unfrozen draft (`2d46ed44`); `a46be6a` set the frozen `491d4146` four minutes later.
+- **29b/29c registries v1.1** kept placeholder wording for the bundle ("filled in at the freeze"). Both ran on
+  `ebb_v102_20261019_677ed97` (`PHC_STAGE29`, `PMF_STAGE29` and the run manifests). The frozen texts stay as they are.
+- **`RETRACK-PIN` tags** left in frozen files (`Functions/behavior_analysis_config.R`, `stage30_*.R`, `stage32_run.R`,
+  `posthoc_*.R`) are inert comments; removing them would change pinned bytes or blobs.

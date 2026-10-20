@@ -162,7 +162,7 @@ The authoritative statement is [`manuscript/README.md`](manuscript/README.md). I
 | **Secondary** | Stage 03 raw longitudinal movement; the first-night five-domain panel. |
 | **Supplementary / conditional** | Active longitudinal HMM persistence, conditional on stating the identifiability caveats. |
 | **Not promoted** | Inactive HMM / rest interpretation (measurement validity); occupancy entropy (sign-unstable); first-night HMM persistence (unstable across refits); Stage 10/14 systems, nonlinear and behavior-proteomics layers. |
-| **Frozen layer** | The manuscript renders from the frozen Stage 29 v1.0.1 bundle (`ebb_v101`) and the other imported bundles, with the post hoc Stage 29b, the exploratory screen (Stage 30) and Stage 32. The Stage 16 export package was retired on 2026-10-05. |
+| **Frozen layer** | The manuscript renders from the frozen Stage 29 bundle of the corrected outcome (`ebb_v102`, configuration v1.0.2; `docs/STAGE29_RELEASE_v1.0.2_ov2.md`) and the other imported bundles, with the post hoc Stage 29b, the exploratory screen (Stage 30) and Stage 32. The Stage 16 export package was retired on 2026-10-05. |
 
 ---
 
@@ -195,7 +195,7 @@ analysis_ready/pipeline/<stage_id>_<stage_name>/<resolution>/{tables,figures,aud
 The manuscript-facing entry point is the frozen bundle:
 
 ```text
-analysis_ready/canonical/behavior_bundle/ebb_v101_20260929_b2ce507/
+analysis_ready/canonical/behavior_bundle/ebb_v102_20261019_677ed97/
 ```
 
 `analysis_ready/README.md` and `analysis_ready/output_index.csv` map everything else; `Maintenance/Refresh-BehaviorOutputIndex.R` writes both.

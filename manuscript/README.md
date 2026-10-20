@@ -21,10 +21,10 @@ because the frozen configurations cite it; read it with `docs/MANUSCRIPT_ANALYSI
 
 Under `analysis_ready/canonical/` on the project root:
 
-- `behavior_bundle/ebb_v101_20260929_b2ce507/`: the Stage 29 v1.0.1 release bundle (writer: Stage 16b). Figure 1 is
-  rendered from it.
-- `figure_support_bundle/` (writer: Stage 16c) and `stage30_figure_bundle/` (writer: Stage 30b). Since v3
-  (`fsb_v3_20261007_a2acd57`, `docs/FIGURE_SUPPORT_BUNDLE_v3.md`) the figure-support bundle also carries the Stage 14
+- `behavior_bundle/ebb_v102_20261019_677ed97/`: the Stage 29 release bundle of the corrected outcome (writer: Stage 16b).
+  Figure 1, ED5 and ED9 are rendered from it.
+- `figure_support_bundle/` (writer: Stage 16c) and `stage30_figure_bundle/` (writer: Stage 30b); current `fsb_v5_20261019_8212df4` and
+  `s30b_v11_20261019_5482c43`. Since v3 (`docs/FIGURE_SUPPORT_BUNDLE_v3.md`) the figure-support bundle also carries the Stage 14
   domain-heatmap source table and the HMM figure tables, for manuscript candidates.
 - `later_outcome_combz/tables/`: the later outcome CombZ and the CON/RES/SUS classification
   (`Analysis/build_later_outcome_combz.R`, `docs/COMBZ_CANONICAL_DEFINITION.md`).
@@ -33,12 +33,15 @@ Under `analysis_ready/canonical/` on the project root:
 
 Each ran once, behind identity gates, into its own run folder:
 
-- Stage 29 v1.0.1 (`docs/STAGE29_RELEASE_v1.0.1_dv2.md`), with Stage 09 as its prospective prediction input: the
+- Stage 29 v102 (`docs/STAGE29_RELEASE_v1.0.2_ov2.md`; corrected outcome of 2026-10-19), with Stage 09 as its prospective prediction input: the
   fixed a priori features `Movement_mean`, `Movement_rmssd` and `Entropy_acf1` in the first active 12 h after the first
   cage change; `Group` is endpoint-derived and excluded from every prediction model.
-- Stage 29b, post hoc CON contrasts (`docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.0.md`).
-- Stage 30, the exploratory screen (`docs/stage30/STAGE30_REGISTRY_v1.0.md`).
-- Stage 32, exposure and adaptation (`docs/STAGE32_REGISTRY_v1.0.md` and addendum A1).
+- Stage 29b, post hoc CON contrasts, and 29c, the Figure 1d display line (registries v1.1:
+  `docs/POSTHOC_CON_CONTRASTS_REGISTRY_v1.1.md`, `docs/POSTHOC_MOVEMENT_COMBZ_FIT_REGISTRY_v1.1.md`).
+- Stage 30, the exploratory screen (`docs/stage30/STAGE30_REGISTRY_v1.1.md`).
+- Stage 32, exposure and adaptation (`docs/STAGE32_REGISTRY_v1.0.md` and addenda A1 and A2).
+
+Each earlier version (v1.0.1 release, registries v1.0, Stage 32 v1.1) stays as provenance.
 
 Descriptive layers that are not in a bundle: Stage 28 (four core domains; `docs/RFID_FOUR_DOMAIN_RECONCILIATION.md`),
 the Stage 14 first-night five-domain panel as its conservative sensitivity (the Stage 14 domain heatmaps are in fsb_v3

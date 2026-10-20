@@ -169,7 +169,7 @@ Cross-validation results should be emphasized more strongly than single-fit in-s
 
 # Manuscript Report Export Layer
 
-The manuscript renders from the frozen bundles: `ebb_v101` (Stage 16b, from the Stage 29 v1.0.1 release), the figure-support bundles (16c) and the Stage 30 bundle (30b). Each is written once into a new folder and copies already-validated outputs without refitting anything. The former export layer, `Analysis/16_manuscript_behavior_report.R` with its `Behavioral_Source_Data.xlsx` package, was retired on 2026-10-05 (`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`). Stage 10/14 predictive claims, HMM/state models, manifold and nonlinear analyses, high-dimensional systems prediction, systems composites, and behavior-proteomics integration remain exploratory unless explicitly enabled in a later reporting decision.
+The manuscript renders from the frozen bundles: `ebb_v102` (Stage 16b, from the Stage 29 release of the corrected outcome, `docs/STAGE29_RELEASE_v1.0.2_ov2.md`), the figure-support bundles (16c) and the Stage 30 bundle (30b). Each is written once into a new folder and copies already-validated outputs without refitting anything. The former export layer, `Analysis/16_manuscript_behavior_report.R` with its `Behavioral_Source_Data.xlsx` package, was retired on 2026-10-05 (`docs/LEGACY_AND_GAMM_RETIREMENT_2026-10-05.md`). Stage 10/14 predictive claims, HMM/state models, manifold and nonlinear analyses, high-dimensional systems prediction, systems composites, and behavior-proteomics integration remain exploratory unless explicitly enabled in a later reporting decision.
 
 Group is used only as descriptive animal metadata and for descriptive plotting. Group remains excluded from primary prospective prediction.
 
@@ -362,7 +362,7 @@ The picked set is a post hoc judgement, recorded in `MMM_DHM_RESOLUTION_MANIFEST
   - Stage 32's block windows and coverage rule;
   - the canonical window metrics;
   - Stage 30's `s30sc_inactivity`.
-- **Gates.** These values are recomputed in Stage 14 and gated at 1e-9 against ebb_v101, the Stage 29 release table, s30b S2 and the Stage 30 run features.
+- **Gates.** These values are recomputed in Stage 14 and gated at 1e-9 against the pinned ebb bundle, the Stage 29 release table, s30b S2 and the Stage 30 run features.
 - **Bin-based rows** use Stage 01 bins (data version 1 cage labels).
 - **HMM row.** Not shown for a single 12-h window (KNOWN_LIMITATIONS 2). In H3 it is one pooled exploratory fit with several optima; KNOWN_LIMITATIONS 1 allows reporting a latent-state contrast only with reviewed cross-optimum evidence, and the 2026-09-24 cross-optimum audit covers the HMM component metrics (sexes pooled), not this composite by sex. The row therefore keeps its colour and its test but never carries a marker (`reportable = FALSE`).
 - **H3 rest-like row.** Stage 30 defines the measure for the first dark and first light window of each cage change (SLEEP-CAT: RES-SUS at CC1; SLEEP-L: CombZ trajectory over CC1-CC4). The H3 group contrasts over all clean blocks, including A2-A4 and L2-L3, are a post hoc extension.
