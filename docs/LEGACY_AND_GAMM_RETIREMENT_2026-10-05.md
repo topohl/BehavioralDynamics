@@ -28,9 +28,8 @@ no frozen code.
   are flagged in `docs/MANUSCRIPT_ANALYSIS_REGISTRY_ADDENDUM.md`.
 - **The Stage 14 first-night five-domain section** (`Functions/first_night_domain_driver.R`), the conservative
   flat-family sensitivity beside Stage 28. Removing it would also make the Stage 14 promotion refuse.
-- **The tracked `results/manuscript_bridge/` files**, unchanged, until Extended Data 5 and 9 in Exp9_manuscript move to
-  the behaviour bundles (done 2026-10-19); then archive them. They predate the 2026-09-20 CombZ correction, so nothing
-  new may import them.
+- **The tracked `results/manuscript_bridge/` files**, until Extended Data 5 and 9 in Exp9_manuscript moved to the
+  behaviour bundles (2026-10-19). Retired on 2026-10-20 (below).
 
 ## Retired
 
@@ -106,3 +105,12 @@ each after a backup.
 - Extended Data 5 and 9 and the draft text in Exp9_manuscript still quote bridge-era values; that is a manuscript-side
   change.
 - `releases/E9_behavior_manuscript_rc1` on S: stays in place as a dated, pre-correction snapshot.
+
+## 2026-10-20: the Figure 1 bridge tables
+
+Extended Data 5 and 9 render from the behaviour bundles since 2026-10-19 (Exp9_manuscript 7c1016a, `ebb_v102` and
+`fsb_v5`), so nothing reads the tracked `results/manuscript_bridge/` tree any more: the 2026-09 export (29 files)
+Exp9_manuscript imported at 5460cd4 and 30a2666, which predates the 2026-09-20 CombZ correction. Tobias agreed on
+2026-10-20; the tree, its contract test `Testing/tests/test_figure1_panel_source_data.R` and its `.gitattributes` line
+were removed. Every file is recoverable with `git show beef000:<path>`. Exp9_manuscript keeps its own hash-checked
+import under `source_data/MMMSociability/` and `provenance/claims/figure1_bridge_provenance.csv`.

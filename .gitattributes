@@ -18,9 +18,6 @@ docs/stage30/stage30_registry_v1.1.json eol=crlf
 docs/stage30/STAGE30_REGISTRY_v1.1.md eol=crlf
 # Frozen configuration (v1.0.2 since 2026-10-19): the R file sha256 491d4146... recorded in docs/STAGE29_RELEASE_v1.0.2_ov2.md.
 Functions/behavior_analysis_config.R eol=lf
-# The frozen 2026-09 Figure 1 bridge export: figure1_panel_source_manifest.csv records the SHA-256 and byte size of the
-# CRLF files, which Testing/tests/test_figure1_panel_source_data.R checks.
-results/manuscript_bridge/figure1/figure_source_data/*.csv eol=crlf
 # Stage 33 estimation plan v1.0, frozen: S33_PLAN (Functions/stage33_run.R) pins its LF sha256; the module C expected
 # values keep the CRLF bytes their pins were computed on.
 docs/STAGE33_POSTHOC_COHORT_FOLLOWUPS_PLAN_v1.0.md eol=lf
