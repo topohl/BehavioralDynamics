@@ -5,8 +5,8 @@
 #   options(mmm.pipeline_profile = "heatmap_inputs")    # 01, 08, 12, 14: the inputs of the Stage 14 heatmaps, then 14
 #   options(mmm.pipeline_profile = "early_prediction")  # 09
 #   options(mmm.pipeline_stages = c("04", "05"))        # explicit stages instead of a profile
-# Stages 01, 08 and 09 rewrite files that are pinned by sha256 (Stage 29 v1.0.1 release run_inputs.csv, Stage 32
-# input_hashes.csv; the Stage 08 HMM outputs by docs/frozen_output_pins/stage08_hmm_states_20260922.csv).
+# Stages 01, 08 and 09 rewrite files that are pinned by sha256 (the run input lists in MMM_FROZEN_PIN_LISTS; the Stage 08
+# HMM outputs by docs/frozen_output_pins/stage08_hmm_states_20261019.csv).
 # Functions/frozen_input_guard.R refuses to start them on the live project root unless options(mmm.allow_pinned_overwrite)
 # allows the stage (TRUE, or the stage id such as "08"), and after every stage it re-checks the pinned files.
 # Stage 14 is rebuilt in a guarded sandbox and promoted, not run on the live root (docs/BEHAVIOR_OUTPUT_ACTIVATION_RECORD.md).

@@ -54,7 +54,7 @@ if (setequal(hmm_run_bin_levels, c("10min_based", "5min_based"))) {
     c("hmm_states_10min", "hmm_states_5min"), project_root,
     "Stage 08 HMM")
 }
-# Frozen-output guard: on the live root every HMM output is pinned (docs/frozen_output_pins/stage08_hmm_states_20260922.csv);
+# Frozen-output guard: on the live root every HMM output is pinned (docs/frozen_output_pins/stage08_hmm_states_20261019.csv);
 # the stage stops here, before any write, unless options(mmm.allow_pinned_overwrite = "08") allows it. Other roots are not guarded.
 hmm_output_roots <- vapply(hmm_run_bin_levels, function(bin_level) mmm_behavior_guard_numbered_output_path(
   mmm_hmm_resolution_root(bin_level, project_root), project_root), character(1))

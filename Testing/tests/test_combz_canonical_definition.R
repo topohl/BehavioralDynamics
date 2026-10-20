@@ -66,7 +66,7 @@ check(identical(MMM_COMBZ_SOURCE_WORKBOOK_SHA256,
                 "bf257c2c8b77fa35e2a8068ff19e3053b4fe83c61f7c20d5a9434a20f829e33d"),
       "the pinned source-workbook hash changed")
 check(identical(MMM_COMBZ_WORKBOOK_SHA256,
-                "30ab408cb0539b6c85ab7242d9bf5d09312210ccb149d58c3e9775c252c12efa"),  # RETRACK-PIN
+                "30ab408cb0539b6c85ab7242d9bf5d09312210ccb149d58c3e9775c252c12efa"),
       "the pinned corrected-workbook hash changed")
 check(any(grepl("wb\\s*<-\\s*mmm_combz_workbook\\(", prod)),
       "the producer must read the corrected workbook through mmm_combz_workbook()")
@@ -221,7 +221,7 @@ if (!have_out) {
   check(all(a$n_components_present %in% 4:6),
         "every animal must have four to six components present")
   n_by <- table(factor(a$n_components_present, levels = 4:6))
-  check(identical(as.integer(n_by), c(2L, 10L, 105L)),  # RETRACK-PIN
+  check(identical(as.integer(n_by), c(2L, 10L, 105L)),
         paste0("expected 2 / 10 / 105 animals with 4 / 5 / 6 components, got ",
                paste(as.integer(n_by), collapse = " / ")))
   ok(paste0("CombZ = unweighted mean of six components (max diff ", format(d), ")"))

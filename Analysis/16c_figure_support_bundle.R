@@ -5,11 +5,11 @@
 # ================================================================
 # The ONLY writer of the figure-support bundle that Exp9_manuscript imports (records: docs/FIGURE_SUPPORT_BUNDLE_v1.md to _v5.md).
 # It fits, tests and refits nothing and computes no p or q value. It exports:
-#   F1  descriptive CON cage means (ebb_v101 B1; 3 CON cages per sex per CC, 4 animals each),
-#   F1b the CON descriptive mean copied from ebb_v101 B2,
+#   F1  descriptive CON cage means (pinned ebb B1; 3 CON cages per sex per CC, 4 animals each),
+#   F1b the CON descriptive mean copied from the pinned ebb B2,
 #   F2  the six stored CombZ component z-scores exactly as they enter CombZ, with the frozen direction,
 #   F2b the component definition (sources, standardisation as implemented, direction, relationship to CombZ).
-#   P1  / P1b / P1c (v2) verbatim copies of the post hoc run 29b (registry POSTHOC_CON_CONTRASTS v1.0, fitted there once):
+#   P1  / P1b / P1c (v2) verbatim copies of the post hoc run 29b (registry POSTHOC_CON_CONTRASTS, fitted there once):
 #       estimates (batch-balanced means, contrasts, Holm, labels), the common-cage-variance sensitivity, the diagnostics;
 #       hash-gated on the run's audit/output_manifest.csv (4c079ecf...), every file, README and run_manifest.
 #   D1  (v3) a verbatim copy of the Stage 14 domain-heatmap source table of the corrected-outcome run promoted 2026-10-19;
@@ -19,12 +19,12 @@
 #       match its pinned SHA-256 and the promotion record docs/behavior_output_producer_reruns/stage14_20261006c.csv.
 #   E1  (v4) a verbatim copy of Stage 09's sex-stratified correlations (pipeline/09_early_prediction/10min; pinned SHA-256),
 #   E3  (v5) a verbatim copy of Stage 09's early-window coverage summary (same folder; pinned SHA-256; group-blind),
-#   E2-E2c (v4) verbatim copies of the post hoc run 29c (registry POSTHOC_MOVEMENT_COMBZ_FIT v1.0, fitted there once): the
+#   E2-E2c (v4) verbatim copies of the post hoc run 29c (registry POSTHOC_MOVEMENT_COMBZ_FIT, fitted there once): the
 #       Figure 1d least-squares display line with its 95% band, its coefficients (no t, no P) and diagnostics;
 #   T1 / T1b (v4) the postnatal age at each design step (shuffle start and stop, the five tests, sampling) by date
 #       arithmetic from the planning workbook E9_Experimental Timeline.xlsx (pinned SHA-256 = the Stage 33 pin) and the
-#       ebb_v101 cage-change times, checked against every age the workbook records itself.
-# Every input is hash-gated first: ebb_v101 (00_manifest ec59aa33..., every file, FROZEN registry row), the canonical
+#       pinned ebb cage-change times, checked against every age the workbook records itself.
+# Every input is hash-gated first: the pinned ebb (FSB_STAGE29: 00_manifest sha256, every file, FROZEN registry row), the canonical
 # CombZ table (1f6a2a69...), its component definition and thresholds, the sus / con lists, and the frozen CombZ
 # definition code Analysis/build_later_outcome_combz.R (git blob pinned). That producer is PARSED, never run: its
 # definition constants and composite-rule lines are evaluated in an empty environment (Functions/figure_support_bundle.R).
@@ -108,11 +108,11 @@ OUT_PATHS <- c(file.path(OUT_ROOT, paste0(".tmp_", bundle_id), c(fsb_bundle_file
 longest <- max(nchar(OUT_PATHS))
 gate("0-output", "every output path shorter than 250 characters (Windows R path limit)", longest < 250, longest)
 
-# ---------------------------------------------------------------- 1. Stage 29 bundle ebb_v101
+# ---------------------------------------------------------------- 1. Stage 29 bundle (FSB_STAGE29)
 V29 <- s30fb_verify_stage29_bundle(B29, file.path(B29_ROOT, "BUNDLE_REGISTRY.csv"), FSB_STAGE29); gate_rows(V29$gates)
 USED29 <- c("B1_animal_longitudinal.csv", "B2_descriptive_summaries.csv", "A4_combz_animals.csv", "A2b_combz_thresholds.csv", "I_analysis_config.json",
             "A2_prediction_animals.csv", "V_runtime_gates.csv")
-for (f in USED29) { r <- V29$check[file == f]; gate("1-stage29", paste0("ebb_v101 ", f, " listed in 00_manifest and verified"), nrow(r) == 1L && isTRUE(r$ok), f)
+for (f in USED29) { r <- V29$check[file == f]; gate("1-stage29", paste0(FSB_STAGE29$bundle_id, " ", f, " listed in 00_manifest and verified"), nrow(r) == 1L && isTRUE(r$ok), f)
   inp(file.path(B29, f), "stage29_bundle_file", r$observed_sha256, r$observed_bytes) }
 inp(file.path(B29, "00_manifest.csv"), "stage29_bundle_manifest", V29$manifest_sha256)
 inp(file.path(B29_ROOT, "BUNDLE_REGISTRY.csv"), "stage29_bundle_registry (read for the FROZEN row; appended by later bundles)")
@@ -141,7 +141,7 @@ gate("1d-stage09", "Stage 09 sex-stratified correlation table: on-disk SHA-256 =
 inp(S09, "stage09_correlations_by_sex (copied verbatim as E1)", s09_sha)
 S09_IN <- file.path(S09_DIR, FSB_STAGE09$input_file)
 s09_in_sha <- if (file.exists(S09_IN)) s30fb_sha(S09_IN) else NA_character_
-gate("1d-stage09", "Stage 09 model_ladder_input.csv: on-disk SHA-256 = pinned (= the Stage 29 v1.0.1 release input pin)",
+gate("1d-stage09", "Stage 09 model_ladder_input.csv: on-disk SHA-256 = pinned (= the Stage 29 release input pin)",
      identical(s09_in_sha, FSB_STAGE09$input_sha256), paste(S09_IN, s09_in_sha))
 inp(S09_IN, "stage09_model_ladder_input (identity gate for E1 only)", s09_in_sha)
 S09_COV <- file.path(S09_DIR, FSB_STAGE09_COVERAGE$file)
@@ -216,7 +216,7 @@ gate("5-labels", "CombZ-table outcome_group = list rule (CON if con list, else S
      all(CZ$outcome_group == CZ$Group_lists), paste(CZ[, .N, by = outcome_group][, paste(outcome_group, N)], collapse = ", "))
 gate("5-labels", "CON on the con list <=> experimental_condition CON", all((CZ$experimental_condition == "CON") == (CZ$AnimalNum %in% CON)))
 m4 <- merge(CZ[, .(AnimalNum, Sex, Batch, outcome_group, CombZ)], A4[, .(AnimalNum, Sex4 = Sex, Batch4 = Batch, G4 = Group, C4 = CombZ)], by = "AnimalNum")
-gate("5-labels", "CombZ table = ebb_v101 A4 for all 117 (Sex, Batch, Group identical; CombZ within 1e-12)",
+gate("5-labels", "CombZ table = the pinned ebb A4 for all 117 (Sex, Batch, Group identical; CombZ within 1e-12)",
      nrow(m4) == FSB_N$combz_animals && all(m4$Sex == m4$Sex4) && all(m4$Batch == m4$Batch4) && all(m4$outcome_group == m4$G4) && max(abs(m4$CombZ - m4$C4)) <= FSB_TOL,
      max(abs(m4$CombZ - m4$C4)))
 m1 <- merge(unique(B1[, .(AnimalNum, Sex, Batch, Group, CombZ)]), CZ[, .(AnimalNum, SexZ = Sex, BatchZ = Batch, GZ = outcome_group, CZ = CombZ)], by = "AnimalNum")
@@ -224,7 +224,7 @@ gate("5-labels", "B1 animals: one Sex / Batch / Group / CombZ each, = CombZ tabl
      nrow(m1) == FSB_N$rfid_animals && all(m1$Sex == m1$SexZ) && all(m1$Batch == m1$BatchZ) && all(m1$Group == m1$GZ) && max(abs(m1$CombZ - m1$CZ)) <= FSB_TOL,
      paste(nrow(m1), max(abs(m1$CombZ - m1$CZ))))
 mt <- merge(THR[, .(Sex, t = susceptibility_threshold)], A2B[, .(Sex, t2 = susceptibility_threshold)], by = "Sex")
-gate("5-labels", "canonical thresholds = ebb_v101 A2b within 1e-12 (Female, Male)", nrow(mt) == 2L && max(abs(mt$t - mt$t2)) <= FSB_TOL, paste(mt$Sex, mt$t))
+gate("5-labels", "canonical thresholds = the pinned ebb A2b within 1e-12 (Female, Male)", nrow(mt) == 2L && max(abs(mt$t - mt$t2)) <= FSB_TOL, paste(mt$Sex, mt$t))
 
 # ---------------------------------------------------------------- 6. tables
 LAB <- fsb_metric_labels(CFG29$metrics)
@@ -337,7 +337,7 @@ H <- fsb_provenance(list(
   design_steps = paste(sprintf("%s: %s", FSB_DESIGN_EVENTS$event_id, FSB_DESIGN_EVENTS$definition), collapse = "; "),
   combz_recompose_max_abs_diff = s30fb_num_chr(attr(F2, "recompose_max_abs_diff")),
   con_mean_of_cage_means_max_abs_diff = s30fb_num_chr(max(CK$abs_diff)),
-  group_rule = "Group = canonical CombZ-table outcome_group, gated = list rule (CON if con list, else SUS if sus list, else RES) and = ebb_v101 A4 / B1 Group",
+  group_rule = "Group = canonical CombZ-table outcome_group, gated = list rule (CON if con list, else SUS if sus list, else RES) and = the pinned ebb A4 / B1 Group",
   scientific_recomputation = FSB_SCIENTIFIC_RECOMPUTATION, descriptive_computations = FSB_DESCRIPTIVE_COMPUTATIONS,
   raw_standardisation_columns = "F2 raw_value, reference_mean, reference_sd are NA: the canonical producer carries the upstream component z-scores verbatim (docs/COMBZ_CANONICAL_DEFINITION.md section 4a)",
   value_precision = "doubles written as the shortest decimal (15-17 significant digits) that reads back to the identical double; every CSV re-read and compared",

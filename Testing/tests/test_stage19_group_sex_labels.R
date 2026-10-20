@@ -177,8 +177,9 @@ if (dir.exists(D) && file.exists(file.path(D, "animal_level_reader_occupancy_sum
   check(n_distinct(r$AnimalNum) == 111,
         paste0("6: canonical roster must be 111 animals; found ", n_distinct(r$AnimalNum)))
   g <- r %>% count(Group)
-  # The corrected canonical Stage 01 roster is 24/53/34. Four female animals
-  # (OR424, OR430, OR434, OR554) moved from SUS to RES in the endpoint repair.
+  # The Stage 19 tables predate the corrected outcome of 2026-10-19 and were not
+  # rerun: they carry the ov1 roster 24/53/34 (after the 2026-09-20 endpoint repair,
+  # which moved OR424, OR430, OR434, OR554 from SUS to RES). Stage 01 is now 24/51/36.
   check(g$n[g$Group == "CON"] == 24 && g$n[g$Group == "RES"] == 53 && g$n[g$Group == "SUS"] == 34,
         "6: roster must be 24 CON / 53 RES / 34 SUS")
   s <- r %>% count(Sex)

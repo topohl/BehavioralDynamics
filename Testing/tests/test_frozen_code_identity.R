@@ -9,9 +9,9 @@
 #   4. the registry copies are unchanged since their freeze commits and match their registered LF-form sha256;
 #   5. the CombZ producer still has the git blob that the figure support bundle pins.
 #
-# Corrected-outcome rerun (2026-10-17): the successors (config v1.0.2, Stage 29 v102, 29b/29c v1.1, Stage 30 v1.1 and
-# s30b_v11, Stage 32 v1.2) are prepared before they run. Their pins read "PHASE-B" until then; such a pin is listed as
-# pending, not failed, and becomes a check as soon as its value is filled in. After Phase B nothing may be pending.
+# A successor prepared before it runs may carry the pin "PHASE-B" until its run exists; such a pin is listed as pending,
+# not failed (the test then reports what is still to run), and becomes a check as soon as its value is filled in.
+# Change a pin together with the run that needs it, in the constant that holds it, never only here.
 #
 # Portable: repository files and git only, plus the digest package. No S: access. Nothing is sourced: the pinned
 # constants are read from the Functions/ files by evaluating only their assignments. Sections 3-5 need the full git
@@ -47,10 +47,10 @@ fsb <- pinned_constants("Functions/figure_support_bundle.R", "FSB_COMBZ_CODE")$F
 
 PENDING <- "PHASE-B"
 pending <- character()
-note_pending <- function(what) { pending <<- c(pending, what); cat("  pending (Phase B):", what, "\n") }
+note_pending <- function(what) { pending <<- c(pending, what); cat("  pending:", what, "\n") }
 # The frozen configuration R file (LF bytes; .gitattributes eol=lf). v1.0.1: f34c7624... (docs/STAGE29_RELEASE_v1.0.1_dv2.md),
 # checked at its release commit in section 3. v1.0.2: written by the freeze (docs/STAGE29_RELEASE_v1.0.2_ov2.md).
-CONFIG_R <- list(version = "1.0.2", sha256 = "491d41464a0098538a3ebb68899ec869e0b4c345e54473de90de29e250686bb7")  # RETRACK-PIN
+CONFIG_R <- list(version = "1.0.2", sha256 = "491d41464a0098538a3ebb68899ec869e0b4c345e54473de90de29e250686bb7")
 CONFIG_R_V101 <- list(commit = "b2ce5072ccbfd94e203fa7efa614dcc11e623337", sha256 = "f34c762488279f38322f649d2ac6398ebb1f820675436b610cd48417f98fcb2d")
 
 # ------------------------------------------------------------------ 1. byte pins
@@ -68,7 +68,9 @@ byte_pins <- c(s32$S32_FROZEN_CODE_SHA256,
                "docs/stage30/STAGE30_REGISTRY_v1.0.md" = "e12b390b3c8bfadd32e5d2aae319f6053c0875893a41b3cf3bd60553d5bdf531",
                "docs/stage30/stage30_registry_v1.1.json" = s30$S30SC_REGISTRY_SHA256,
                "docs/stage30/STAGE30_REGISTRY_v1.1.md" = s30$S30SC_REGISTRY_MD_SHA256,
+               # a literal: Testing/audits/verify_protected_outputs.R reads this pin by regular expression
                "Functions/behavior_analysis_config.R" = "491d41464a0098538a3ebb68899ec869e0b4c345e54473de90de29e250686bb7")
+check(identical(unname(byte_pins[["Functions/behavior_analysis_config.R"]]), CONFIG_R$sha256), "the configuration byte pin must equal CONFIG_R")
 for (f in names(byte_pins)[byte_pins == PENDING]) note_pending(paste("byte pin of", f))
 byte_pins <- byte_pins[byte_pins != PENDING]
 for (f in names(byte_pins)) {
@@ -128,7 +130,7 @@ if (!in_work_tree || shallow) {
   set29c <- c("Analysis/29c_posthoc_movement_combz_fit.R", "Functions/posthoc_movement_combz_fit.R", "Functions/posthoc_con_contrasts.R", "Functions/stage30_figure_bundle.R")
   set32 <- c("Analysis/32_behavior_exposure_adaptation.R", sprintf("Functions/stage32_%s.R", c("windows", "inference", "prediction", "reporting", "run")),
              "Functions/stage30_movement.R", "Functions/stage30_figure_bundle.R", "Functions/behavior_analysis_config.R", rfid3)
-  # Historical run source remains recoverable; Stage32 is retained outside this figure rerun.
+  # superseded runs: their code must stay recoverable at their run commits
   superseded <- list(
     list(what = "Stage 29 v1.0.1 release (run v101_dv2_b2ce507)", by = "config v1.0.2 release v102", commit = "b2ce5072ccbfd94e203fa7efa614dcc11e623337", files = set29),
     list(what = "Stage 30 (run v1.0_be71e2f)", by = "registry v1.1", commit = "be71e2f07bfefeeb13c1e1f82cbc62cff2e052dc", files = c(set30, "docs/stage30/stage30_registry_v1.0.json")),
@@ -153,11 +155,11 @@ if (!in_work_tree || shallow) {
   # registered and current: unchanged since the run commit (pending until the run exists)
   current <- list(
     list(what = "Stage 32 numeric code since the aborted execution", commit = s32$S32_ABORTED$commit, files = s32$S32_NUMERIC_CODE),
-    list(what = "Stage 29 config v1.0.2 release (run v102_dv2_<commit7>)", commit = "a46be6a288032d97392a5f16f8eb81d7d1bd2890", files = set29),  # RETRACK-PIN
-    list(what = "Stage 30 (run v1.1_<commit7>)", commit = "8f47527d3815d1305ff049a2f8189f8c4aaccd3c", files = c(set30, "docs/stage30/stage30_registry_v1.1.json")),  # RETRACK-PIN
-    list(what = "Stage 30 figure bundle (s30b_v11)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set30b),  # RETRACK-PIN
-    list(what = "Stage 29b (run v1.1_<commit7>)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set29b),  # RETRACK-PIN
-    list(what = "Stage 29c (run v1.1_<commit7>)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set29c),  # RETRACK-PIN
+    list(what = "Stage 29 config v1.0.2 release (run v102_dv2_a46be6a)", commit = "a46be6a288032d97392a5f16f8eb81d7d1bd2890", files = set29),
+    list(what = "Stage 30 (run v1.1_8f47527)", commit = "8f47527d3815d1305ff049a2f8189f8c4aaccd3c", files = c(set30, "docs/stage30/stage30_registry_v1.1.json")),
+    list(what = "Stage 30 figure bundle (s30b_v11)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set30b),
+    list(what = "Stage 29b (run v1.1_5482c43)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set29b),
+    list(what = "Stage 29c (run v1.1_5482c43)", commit = "5482c439f6408ac415276d16f1ac1d1b59e8fd0e", files = set29c),
     list(what = "Stage 32 (run v1.2_7737eaa)", commit = "7737eaa91d352e12353bea703fbe5d9135eea053", files = set32))
   for (cs in current) if (identical(cs$commit, PENDING)) note_pending(cs$what) else unchanged_since(cs$commit, cs$files, cs$what)
 
@@ -208,4 +210,4 @@ for (f in names(exp_pins)) check(identical(digest::digest(file = file.path(exp_d
                                  paste0(exp_dir, "/", f, ": sha256 differs from its pin (CRLF bytes)"))
 ok(sprintf("plan LF sha256 %s and %d expected-value files match their pins", substr(plan$sha256_lf, 1, 8), length(exp_pins)))
 
-cat(if (length(pending)) sprintf("\nPASS: frozen code identity (%d pins pending until Phase B)\n", length(pending)) else "\nPASS: frozen code identity\n")
+cat(if (length(pending)) sprintf("\nPASS: frozen code identity (%d pins pending)\n", length(pending)) else "\nPASS: frozen code identity\n")

@@ -2,8 +2,8 @@
 #
 # These tracked tables are the frozen 2026-09 Figure 1 bridge export. Their exporter
 # (Analysis/_supporting/build_figure1_panel_source_data.R) was retired on 2026-10-05
-# and the files stay unchanged until Extended Data 5 and 9 move to the ebb_v101
-# bundle; they predate the 2026-09-20 CombZ correction, so nothing new may import
+# and the files stay unchanged as a record (Extended Data 5 and 9 render from the
+# frozen behaviour bundles since 2026-10-19); they predate the 2026-09-20 CombZ correction, so nothing new may import
 # them. A renderer fits nothing, so every number such a figure showed has to be
 # recoverable from these seven tables - and has to still equal the value the
 # canonical analysis produced at the time. These tests check both directions: that the export

@@ -160,12 +160,11 @@ if (file.exists(s01)) {
                                       Sex = col_character())) %>% distinct()
   check(n_distinct(r$AnimalNum) == 111, "3: canonical roster must be 111 animals")
   g <- r %>% distinct(AnimalNum, Group) %>% count(Group)
-  # RFID subset of the corrected CombZ cohort. The full cohort is 24/58/35; the
-  # six animals without RFID data account for the difference. Re-frozen
-  # 2026-09-21 from 24/49/38, when four females moved SUS -> RES after three
-  # errors in the upstream endpoint were corrected: OR424, OR430, OR434, OR554.
-  # The +4/-4 shift is exactly those four animals, verified individually rather
-  # than inferred from the totals matching.
+  # RFID subset of the corrected CombZ cohort (outcome version ov2, 2026-10-19).
+  # The full cohort is 24/54/39; the six animals without RFID data account for
+  # the difference. Earlier rosters: 24/49/38, then 24/53/34 from 2026-09-21
+  # (OR424, OR430, OR434, OR554 SUS -> RES), then 24/51/36 on 2026-10-19 (OR419
+  # and OR434 RES -> SUS), each shift verified animal by animal.
   check(g$n[g$Group == "CON"] == 24 && g$n[g$Group == "RES"] == 51 && g$n[g$Group == "SUS"] == 36,
         "3: roster must be 24 CON / 51 RES / 36 SUS")
   s <- r %>% distinct(AnimalNum, Sex) %>% count(Sex)

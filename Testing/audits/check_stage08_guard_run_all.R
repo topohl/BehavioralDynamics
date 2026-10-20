@@ -14,7 +14,7 @@
 
 check_root <- function(name, live_alias) {
   source("Functions/project_paths.R", local = TRUE)
-  pins <- utils::read.csv("docs/frozen_output_pins/stage08_hmm_states_20260922.csv", stringsAsFactors = FALSE)
+  pins <- utils::read.csv("docs/frozen_output_pins/stage08_hmm_states_20261019.csv", stringsAsFactors = FALSE)
   rel <- sub(paste0("^", MMM_PROJECT_ROOT_DEFAULT, "/"), "", pins$input)
   root <- normalizePath(file.path(tempdir(), name), winslash = "/", mustWork = FALSE)
   for (g in c("hmm_states_10min", "hmm_states_5min")) {

@@ -796,9 +796,9 @@ paths <- tibble(
 # Stage 29 release table, the Stage 30 run features, the Stage 30 figure
 # bundle s30b). Every frozen input is hash-pinned where it is read.
 # s30b_v11 = the Stage 30 v1.1 screen on the corrected outcome (the 2026-10-06c promotion used s30b_v10_20260929_5394f2f, 8930d8bf...)
-dhm_s30b_bundle_id <- "s30b_v11_20261019_5482c43"  # RETRACK-PIN
-dhm_s30b_manifest_sha256 <- "905e4c38d13f0bb258abd662c1dfa8b2001dbc7bfc362c949802505651d09d42"  # RETRACK-PIN
-dhm_s30_run <- "v1.1_8f47527"  # RETRACK-PIN (the Stage 30 v1.1 run, v1.1_<commit7>)
+dhm_s30b_bundle_id <- "s30b_v11_20261019_5482c43"
+dhm_s30b_manifest_sha256 <- "905e4c38d13f0bb258abd662c1dfa8b2001dbc7bfc362c949802505651d09d42"
+dhm_s30_run <- "v1.1_8f47527"  # the Stage 30 v1.1 run
 dhm_s30b_dir <- file.path(project_root, "analysis_ready", "canonical", "stage30_figure_bundle", dhm_s30b_bundle_id)
 dhm_input_paths <- dhm_canonical_paths(project_root)
 paths <- bind_rows(paths, tibble(

@@ -231,7 +231,7 @@ if (is.null(T10)) {
   #
   # NOTE: Entropy_acf1 crossed the significance threshold in this rebuild
   # (BH p 0.04776, bootstrap CI now excluding zero). How it is reported follows
-  # the frozen Stage 29 release (ebb_v101), not this file.
+  # the frozen Stage 29 release bundle (now ebb_v102), not this file.
   #
   # The constants in block [F] were previously re-frozen on 2026-09-21 against the
   # CORRECTED CombZ (producer commit 497deb7), which changed the endpoint for 19

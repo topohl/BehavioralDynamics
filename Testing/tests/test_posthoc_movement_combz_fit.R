@@ -65,8 +65,8 @@ check(nrow(rg) == 5L && all(rg$passed), "registry gates pass on a frozen read-on
 rg2 <- phc_registry_gates(rdir, repo_copy, expect = modifyList(exp, list(sha256 = strrep("0", 64))))
 check(!any(rg2$passed[1:3]), "registry gates fail on a different frozen sha256")
 # v1.0: sha256 a617bb5be709b558ed628a61fab0095b598345912c86e9c25070d07b02cb8098, freeze commit 2be501d8b849346bdde47e246fb738a9df05ad98
-check(identical(PMF_REGISTRY$version, "1.1") && (identical(PMF_REGISTRY$sha256, "PHASE-B") || grepl("^[0-9a-f]{64}$", PMF_REGISTRY$sha256)),  # RETRACK-PIN
-      "registry v1.1 identity: PHASE-B until frozen, then the frozen sha256")
+check(identical(PMF_REGISTRY$version, "1.1") && grepl("^[0-9a-f]{64}$", PMF_REGISTRY$sha256),
+      "registry v1.1 identity: the frozen sha256")
 ok("mode, run name, registry gates")
 
 # ---------------------------------------------------------------- 3. population gates
